@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <None Update="sample.data" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="PerfectWorld\cfg\*.cfg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

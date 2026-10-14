@@ -102,23 +102,44 @@ public sealed class EditorForm : Form
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         try
         {
-            using var reader = new ElementsReader(dlg.FileName);
+            UseWaitCursor = true;
+            var reader = new CfgElementsReader(dlg.FileName);
             if (!reader.SignatureValid)
             {
                 MessageBox.Show($"Assinatura inválida (0x{reader.Signature:X8}). Não parece um elements.data suportado.",
                     "elements.data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            UseWaitCursor = true;
-            var module = reader.ReadModule(ElementsProgram.Steps);
+            var cfgPath = FindCfg(reader.Version);
+            if (cfgPath is null)
+            {
+                MessageBox.Show($"Não achei um .cfg para a versão 0x{reader.Version:X8} (v{reader.Version & 0xFF}).\n" +
+                    "Coloque o .cfg correspondente em PerfectWorld/cfg.", "Definição não encontrada",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            var cfg = ElementsCfg.Load(cfgPath);
+            var module = reader.Parse(cfg);
             module.Name = Path.GetFileName(dlg.FileName);
             _store.Adopt(module);
             PopulateTree();
             int items = module.Lists.Sum(l => l.Items.Count);
-            Status($"elements.data: {module.Lists.Count} listas · {items:N0} itens (1ª metade mapeada)");
+            double pct = 100.0 * reader.Position / reader.Length;
+            var stop = reader.StoppedAt is null ? "arquivo inteiro" : $"parou em {reader.StoppedAt}";
+            Status($"{Path.GetFileName(cfgPath)} · {module.Lists.Count} blocos · {items:N0} itens · {pct:0.0}% ({stop})");
         }
         catch (Exception ex) { Error("Falha ao ler elements.data", ex); }
         finally { UseWaitCursor = false; }
+    }
+
+    // Acha o .cfg da versão do arquivo (0x3000003C -> v60 -> PW_1.4.4_v60.cfg).
+    private static string? FindCfg(uint version)
+    {
+        int v = (int)(version & 0xFF);
+        var dir = Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg");
+        if (!Directory.Exists(dir)) return null;
+        return Directory.GetFiles(dir, $"*_v{v}.cfg").FirstOrDefault()
+            ?? Directory.GetFiles(dir, $"*v{v}.cfg").FirstOrDefault();
     }
 
     private void Save(bool saveAs)
