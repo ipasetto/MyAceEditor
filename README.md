@@ -1,69 +1,46 @@
-# MyAceEditor — editor de dados de jogo com IA
+# MyAceEditor — editor de dados de jogo (WinForms nativo)
 
-Versão própria, original, inspirada na arquitetura do **Angelica Core Editor**.
-Um único executável **.NET 10** que roda em dois modos:
+Editor desktop **nativo em C# / WinForms** (.NET 10), inspirado no Angelica Core Editor /
+sEledit. Sem servidor web, sem navegador — uma janela nativa com árvore + grade.
 
-- **App local (padrão)** — serve a interface web (`wwwroot/`) + uma **API REST** em `http://localhost:5174`.
-  A UI carrega o arquivo `.data` real do disco e grava as mudanças de verdade.
-- **Servidor MCP** (`--mcp`) — expõe as ferramentas para um agente de IA (Claude, etc.), igual ao Angelica Core.
+## Modos
+
+- **(padrão)** editor desktop: `MyAceEditor.exe`
+- **`--mcp`** servidor MCP por stdio, para um agente de IA
+- **`--inspect <elements.data>`** diagnóstico do parser do Perfect World (gera inspect-report.txt)
 
 ## Arquitetura
 
 ```
-┌─────────────────────────┐   HTTP/REST   ┌───────────────────────┐
-│  UI (wwwroot/index.html)│ ◄───────────► │  ASP.NET + ModuleStore │ ──► arquivo .data
-└─────────────────────────┘               └───────────┬───────────┘
-                                                       │  (mesmo ModuleStore)
-                                              modo --mcp │
-                                                       ▼
-                                                  IA via MCP
+EditorForm (WinForms)  ──►  ModuleStore / ElementsReader  ──►  .data / elements.data
 ```
 
-- **Modelo de dados** (`Model/DataModel.cs`): `Módulo → Lista → Item → Campo` (tipado). Genérico — um `Item`
-  é um saco de campos, então as mesmas ferramentas editam NPCs, Tasks, Triggers, etc.
-- **Change set** (`Changes/ChangeSet.cs`): toda escrita é proposta (preview) e só é aplicada em lote.
-- **Store** (`Store/ModuleStore.cs`): módulo carregado + change set; lê/grava `.data` (JSON).
-- **API** (`Web/EditorApi.cs`): `GET /api/module`, `POST /api/load`, `POST /api/apply`, `POST /api/save`.
-- **Tools MCP** (`Tools/*.cs`): as mesmas operações expostas ao agente de IA.
+- **UI** (`UI/EditorForm.cs`): MenuStrip + TreeView (listas→itens) + DataGridView (campos).
+- **Modelo** (`Model/DataModel.cs`): Módulo→Lista→Item→Campo (tipado).
+- **Store** (`Store/ModuleStore.cs`): módulo carregado, load/save JSON, change set.
+- **Perfect World** (`PerfectWorld/`): parser binário do `elements.data` recuperado por
+  engenharia reversa do cliente (ver `FORMAT.md`). 1ª metade (itens/equip/NPCs) já mapeada.
+- **Tools MCP** (`Tools/*.cs`): as mesmas operações expostas a um agente de IA (modo `--mcp`).
 
-## Rodar como app local
+## Rodar
 
 ```bash
 dotnet run
 ```
 
-Abre em **http://localhost:5174** (carrega `sample.data` automaticamente). A barra de conexão no topo mostra
-**"servidor"** quando a UI está falando com o backend, e **"demo"** quando aberta sem servidor.
+Abre o editor. Use **Arquivo → Abrir elements.data (Perfect World)…** para carregar um
+`elements.data` real (seleção por diálogo nativo).
 
-## Rodar como servidor MCP (para a IA)
-
-```bash
-dotnet run -- --mcp
-```
-
-Registrar no Claude Code:
-
-```bash
-claude mcp add myaceeditor -- dotnet "C:\Godot\MyAceEditor\bin\Debug\net10.0\MyAceEditor.dll" --mcp
-```
-
-## Gerar um executável local (.exe único)
+## Executável único
 
 ```bash
 dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist
 ```
 
-Gera `dist\MyAceEditor.exe` — roda sem precisar do .NET instalado. Abre o editor no navegador em
-localhost:5174. (Depois dá para empacotar numa janela desktop com WebView2, virando um app nativo.)
-
-## Formato de arquivo
-
-O módulo é salvo como **`.data`** (JSON por dentro). A extensão é só convenção — dá para trocar à vontade.
-`sample.data` é o exemplo que abre por padrão.
+Gera `dist\MyAceEditor.exe`.
 
 ## Próximos passos
 
-1. **Abrir/Salvar com diálogo** de arquivo no app local (escolher qualquer `.data`).
-2. **Mais sistemas** (AI policy, NpcGen, Scripts) como novas listas + tools.
-3. **Integridade de referências** ao renomear/remover ids.
-4. **Janela desktop** (WebView2) e **export para Godot** (`.tres`/`.gd`).
+1. Mapear os CAMPOS dos registros grandes (nome/stats/ícone dos itens e equipamentos).
+2. Fechar o parse da 2ª metade do elements.data (região de tasks) até o EOF.
+3. Implementar a ESCRITA binária (gravar o elements.data de volta).
