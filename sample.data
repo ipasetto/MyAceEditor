@@ -1,0 +1,61 @@
+{
+  "Name": "DemoWorld",
+  "Version": 1,
+  "Lists": [
+    {
+      "Name": "NPCs",
+      "Group": "Mundo",
+      "Kind": "npc",
+      "Items": [
+        {
+          "Id": "npc00001",
+          "Name": "Sapo Ancião",
+          "Fields": {
+            "hp": { "Type": "Int", "Value": "40" },
+            "friendly": { "Type": "Bool", "Value": "true" },
+            "dialogue": { "Type": "String", "Value": "Croac... bem-vindo, viajante." }
+          }
+        },
+        {
+          "Id": "npc00002",
+          "Name": "Mercador Tico",
+          "Fields": {
+            "hp": { "Type": "Int", "Value": "25" },
+            "friendly": { "Type": "Bool", "Value": "true" },
+            "gold": { "Type": "Int", "Value": "300" }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Tasks",
+      "Group": "Quests",
+      "Kind": "task",
+      "Items": [
+        {
+          "Id": "task0001",
+          "Name": "Encontrar o Sapo Ancião",
+          "Fields": {
+            "target_npc": { "Type": "Reference", "Value": "npc00001" },
+            "reward_gold": { "Type": "Int", "Value": "100" }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Triggers",
+      "Group": "Lógica",
+      "Kind": "trigger",
+      "Items": [
+        {
+          "Id": "trg00001",
+          "Name": "AoEntrarNoPantano",
+          "Fields": {
+            "event": { "Type": "String", "Value": "on_area_enter" },
+            "area": { "Type": "String", "Value": "pantano" }
+          }
+        }
+      ]
+    }
+  ]
+}

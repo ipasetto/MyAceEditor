@@ -1,0 +1,9 @@
+# .NET build output
+bin/
+obj/
+dist/
+*.user
+
+# Logs
+*.log
+srv.log

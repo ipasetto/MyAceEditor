@@ -1,0 +1,54 @@
+using System.Text.Json;
+using MyAceEditor.Changes;
+using MyAceEditor.Model;
+
+namespace MyAceEditor.Store;
+
+/// <summary>
+/// Estado da sessão: o módulo carregado, de onde veio, e o change set atual.
+/// Um único serviço injetado nas tools (singleton). Persiste em JSON.
+/// </summary>
+public sealed class ModuleStore
+{
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        WriteIndented = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
+
+    public Module? Current { get; private set; }
+    public string? CurrentPath { get; private set; }
+    public ChangeSet Changes { get; } = new();
+
+    public Module Require() =>
+        Current ?? throw new InvalidOperationException("Nenhum módulo carregado. Use load_module primeiro.");
+
+    public Module Load(string path)
+    {
+        var json = File.ReadAllText(path);
+        Current = JsonSerializer.Deserialize<Module>(json, JsonOpts)
+                  ?? throw new InvalidOperationException("Falha ao desserializar o módulo.");
+        CurrentPath = Path.GetFullPath(path);
+        Changes.Discard();
+        return Current;
+    }
+
+    public Module NewModule(string name)
+    {
+        Current = new Module { Name = name };
+        CurrentPath = null;
+        Changes.Discard();
+        return Current;
+    }
+
+    public string Save(string? path = null)
+    {
+        var module = Require();
+        var target = path ?? CurrentPath
+            ?? throw new InvalidOperationException("Sem caminho de destino. Use save_module_as.");
+        var json = JsonSerializer.Serialize(module, JsonOpts);
+        File.WriteAllText(target, json);
+        CurrentPath = Path.GetFullPath(target);
+        return CurrentPath;
+    }
+}
