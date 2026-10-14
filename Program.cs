@@ -1,6 +1,8 @@
+using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using MyAceEditor.Desktop;
+using MyAceEditor.PerfectWorld;
 using MyAceEditor.Store;
 using MyAceEditor.Web;
 
@@ -18,6 +20,8 @@ internal static class Program
     private static void Main(string[] args)
     {
         if (args.Contains("--mcp")) { RunMcpMode(args).GetAwaiter().GetResult(); return; }
+
+        if (args.Length >= 2 && args[0] == "--inspect") { InspectElements(args[1]); return; }
 
         var app = BuildWebApp(args);
         app.StartAsync().GetAwaiter().GetResult();   // garante o Kestrel ouvindo antes de abrir a janela
@@ -60,6 +64,35 @@ internal static class Program
         app.UseStaticFiles();
         app.MapEditorApi();
         return app;
+    }
+
+    // Diagnóstico: valida o parser do elements.data contra um arquivo real.
+    // Uso: MyAceEditor.exe --inspect "D:\...\elements.data"  (gera inspect-report.txt)
+    private static void InspectElements(string path)
+    {
+        var sb = new StringBuilder();
+        void Log(string s) { sb.AppendLine(s); Console.WriteLine(s); }
+
+        using var r = new ElementsReader(path);
+        Log($"arquivo      : {path}");
+        Log($"tamanho      : {r.Length:N0} bytes");
+        Log($"version      : 0x{r.Version:X8}");
+        Log($"signature    : 0x{r.Signature:X8}  valida={r.SignatureValid}");
+
+        var b0 = r.ReadBlock(ElementsSchema.PropertyList);
+        Log($"\nbloco 0 '{b0.Name}': {b0.Count} registros de {ElementsSchema.PropertyList.RecordSize} bytes");
+        foreach (var rec in b0.Records.Take(3))
+            Log($"  id={rec["id"]} name=\"{rec["name"]}\" ({rec["f1"]},{rec["f2"]},{rec["f3"]},{rec["f4"]})");
+        var last = b0.Records[^1];
+        Log($"  … último: id={last["id"]} name=\"{last["name"]}\"");
+
+        var (c1, _) = r.SkipBlock(ElementsSchema.EquipCategory); // só conta por enquanto
+        Log($"\nbloco 1 '{ElementsSchema.EquipCategory.Name}': {c1} registros (layout parcial)");
+        Log($"posição após 2 blocos: {r.Position:N0} / {r.Length:N0}");
+
+        var outPath = Path.Combine(Directory.GetCurrentDirectory(), "inspect-report.txt");
+        File.WriteAllText(outPath, sb.ToString());
+        Console.WriteLine($"\nrelatório salvo em {outPath}");
     }
 
     private static async Task RunMcpMode(string[] args)
