@@ -15,6 +15,13 @@ public sealed class MainForm : Form
 
         var web = new WebView2 { Dock = DockStyle.Fill };
         Controls.Add(web);
-        web.Source = new Uri(url);   // inicializa o CoreWebView2 e navega
+        // Inicializa, limpa o cache e navega com parâmetro anti-cache (evita UI antiga).
+        web.CoreWebView2InitializationCompleted += async (_, e) =>
+        {
+            if (!e.IsSuccess) return;
+            try { await web.CoreWebView2.Profile.ClearBrowsingDataAsync(); } catch { }
+            web.CoreWebView2.Navigate($"{url}/?v={DateTime.UtcNow.Ticks}");
+        };
+        _ = web.EnsureCoreWebView2Async();
     }
 }

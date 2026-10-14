@@ -60,6 +60,14 @@ internal static class Program
         var sample = Path.Combine(AppContext.BaseDirectory, "sample.data");
         if (File.Exists(sample)) store.Load(sample);
 
+        // Nunca cachear (evita o WebView2 mostrar uma versão antiga da UI).
+        app.Use(async (ctx, next) =>
+        {
+            ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            ctx.Response.Headers["Pragma"] = "no-cache";
+            await next();
+        });
+
         app.UseDefaultFiles();
         app.UseStaticFiles();
         app.MapEditorApi();
