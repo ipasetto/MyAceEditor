@@ -1,0 +1,2732 @@
+
+=== struct _IO_FILE  (size 148 / 0x94)  26 campos ===
+  +[35, 0]: int _flags
+  +[35, 4]: char* _IO_read_ptr
+  +[35, 8]: char* _IO_read_end
+  +[35, 12]: char* _IO_read_base
+  +[35, 16]: char* _IO_write_base
+  +[35, 20]: char* _IO_write_ptr
+  +[35, 24]: char* _IO_write_end
+  +[35, 28]: char* _IO_buf_base
+  +[35, 32]: char* _IO_buf_end
+  +[35, 36]: char* _IO_save_base
+  +[35, 40]: char* _IO_backup_base
+  +[35, 44]: char* _IO_save_end
+  +[35, 48]: _IO_marker* _markers
+  +[35, 52]: _IO_FILE* _chain
+  +[35, 56]: int _fileno
+  +[35, 60]: int _flags2
+  +[35, 64]: __off_t _old_offset
+  +[35, 68]: short unsigned int _cur_column
+  +[35, 70]: signed char _vtable_offset
+  +[35, 71]: char[1] _shortbuf
+  +[35, 72]: _IO_lock_t* _lock
+  +[35, 76]: __off64_t _offset
+  +[35, 84]: ?* __pad1
+  +[35, 88]: ?* __pad2
+  +[35, 92]: int _mode
+  +[35, 96]: char[52] _unused2
+
+=== struct rusage  (size 72 / 0x48)  16 campos ===
+  +[35, 0]: timeval ru_utime
+  +[35, 8]: timeval ru_stime
+  +[35, 16]: long int ru_maxrss
+  +[35, 20]: long int ru_ixrss
+  +[35, 24]: long int ru_idrss
+  +[35, 28]: long int ru_isrss
+  +[35, 32]: long int ru_minflt
+  +[35, 36]: long int ru_majflt
+  +[35, 40]: long int ru_nswap
+  +[35, 44]: long int ru_inblock
+  +[35, 48]: long int ru_oublock
+  +[35, 52]: long int ru_msgsnd
+  +[35, 56]: long int ru_msgrcv
+  +[35, 60]: long int ru_nsignals
+  +[35, 64]: long int ru_nvcsw
+  +[35, 68]: long int ru_nivcsw
+
+=== struct _fpstate  (size 624 / 0x270)  16 campos ===
+  +[35, 0]: long unsigned int cw
+  +[35, 4]: long unsigned int sw
+  +[35, 8]: long unsigned int tag
+  +[35, 12]: long unsigned int ipoff
+  +[35, 16]: long unsigned int cssel
+  +[35, 20]: long unsigned int dataoff
+  +[35, 24]: long unsigned int datasel
+  +[35, 28]: _fpreg[8] _st
+  +[35, 108]: short unsigned int status
+  +[35, 110]: short unsigned int magic
+  +[35, 112]: long unsigned int[6] _fxsr_env
+  +[35, 136, 1]: long unsigned int mxcsr
+  +[35, 140, 1]: long unsigned int reserved
+  +[35, 144, 1]: _fpxreg[8] _fxsr_st
+  +[35, 144, 2]: _xmmreg[8] _xmm
+  +[35, 144, 3]: long unsigned int[56] padding
+
+=== struct ucontext  (size 348 / 0x15c)  6 campos ===
+  +[35, 0]: long unsigned int uc_flags
+  +[35, 4]: ucontext* uc_link
+  +[35, 8]: stack_t uc_stack
+  +[35, 20]: mcontext_t uc_mcontext
+  +[35, 108]: __sigset_t uc_sigmask
+  +[35, 236, 1]: _libc_fpstate __fpregs_mem
+
+=== struct EQUIPMENT_ADDON  (size 84 / 0x54)  6 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int num_params
+  +[35, 72]: int param1
+  +[35, 76]: int param2
+  +[35, 80]: int param3
+
+=== struct WEAPON_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct WEAPON_SUB_TYPE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_hitgfx
+  +[35, 196, 1]: char[128] file_hitsfx
+  +[35, 196, 2]: float probability_fastest
+  +[35, 200, 2]: float probability_fast
+  +[35, 204, 2]: float probability_normal
+  +[35, 208, 2]: float probability_slow
+  +[35, 212, 2]: float probability_slowest
+  +[35, 216, 2]: float attack_speed
+  +[35, 220, 2]: float attack_short_range
+  +[35, 224, 2]: unsigned int action_type
+
+=== struct ARMOR_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct ARMOR_SUB_TYPE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int equip_mask
+
+=== struct DECORATION_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct DECORATION_SUB_TYPE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int equip_mask
+
+=== struct SUITE_ESSENCE  (size 292 / 0x124)  6 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int max_equips
+  +[35, 72]: structure_type[12] equipments
+  +[35, 120]: structure_type[11] addons
+  +[35, 164, 1]: char[128] file_gfx
+
+=== struct POKER_SUB_TYPE  (size 80 / 0x50)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int type
+  +[35, 72]: union_type ?
+
+=== struct FASHION_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct FASHION_SUB_TYPE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int equip_fashion_mask
+
+=== struct MEDICINE_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct MEDICINE_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct MEDICINE_ESSENCE  (size 376 / 0x178)  17 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_major_type
+  +[35, 8]: unsigned int id_sub_type
+  +[35, 12]: namechar[32] name
+  +[35, 76]: char[128] file_matter
+  +[35, 204, 1]: char[128] file_icon
+  +[35, 204, 2]: int require_level
+  +[35, 208, 2]: int cool_time
+  +[35, 212, 2]: int hp_add_total
+  +[35, 216, 2]: int hp_add_time
+  +[35, 220, 2]: int mp_add_total
+  +[35, 224, 2]: int mp_add_time
+  +[35, 228, 2]: int price
+  +[35, 232, 2]: int shop_price
+  +[35, 236, 2]: int pile_num_max
+  +[35, 240, 2]: unsigned int has_guid
+  +[35, 244, 2]: unsigned int proc_type
+
+=== struct BIBLE_ESSENCE  (size 392 / 0x188)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int[10] id_addons
+  +[35, 236, 2]: int price
+  +[35, 240, 2]: int shop_price
+  +[35, 244, 2]: unsigned int id_drop_after_damaged
+  +[35, 248, 2]: int num_drop_after_damaged
+  +[35, 252, 2]: int pile_num_max
+  +[35, 128, 3]: unsigned int has_guid
+  +[35, 132, 3]: unsigned int proc_type
+
+=== struct SPEAKER_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int id_icon_set
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct AUTOHP_ESSENCE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int total_hp
+  +[35, 200, 2]: float trigger_amount
+  +[35, 204, 2]: int cool_time
+  +[35, 208, 2]: int price
+  +[35, 212, 2]: int shop_price
+  +[35, 216, 2]: int pile_num_max
+  +[35, 220, 2]: unsigned int has_guid
+  +[35, 224, 2]: unsigned int proc_type
+
+=== struct AUTOMP_ESSENCE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int total_mp
+  +[35, 200, 2]: float trigger_amount
+  +[35, 204, 2]: int cool_time
+  +[35, 208, 2]: int price
+  +[35, 212, 2]: int shop_price
+  +[35, 216, 2]: int pile_num_max
+  +[35, 220, 2]: unsigned int has_guid
+  +[35, 224, 2]: unsigned int proc_type
+
+=== struct FORCE_TOKEN_ESSENCE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int require_force
+  +[35, 200, 2]: int reputation_add
+  +[35, 204, 2]: int reputation_increase_ratio
+  +[35, 208, 2]: int price
+  +[35, 212, 2]: int shop_price
+  +[35, 216, 2]: int pile_num_max
+  +[35, 220, 2]: unsigned int has_guid
+  +[35, 224, 2]: unsigned int proc_type
+
+=== struct DYNSKILLEQUIP_ESSENCE  (size 360 / 0x168)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int[4] id_skill
+  +[35, 212, 2]: int price
+  +[35, 216, 2]: int shop_price
+  +[35, 220, 2]: int pile_num_max
+  +[35, 224, 2]: unsigned int has_guid
+  +[35, 228, 2]: unsigned int proc_type
+
+=== struct MATERIAL_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct MATERIAL_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct MATERIAL_ESSENCE  (size 368 / 0x170)  15 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_major_type
+  +[35, 8]: unsigned int id_sub_type
+  +[35, 12]: namechar[32] name
+  +[35, 76]: char[128] file_matter
+  +[35, 204, 1]: char[128] file_icon
+  +[35, 204, 2]: int price
+  +[35, 208, 2]: int shop_price
+  +[35, 212, 2]: int decompose_price
+  +[35, 216, 2]: int decompose_time
+  +[35, 220, 2]: unsigned int element_id
+  +[35, 224, 2]: int element_num
+  +[35, 228, 2]: int pile_num_max
+  +[35, 232, 2]: unsigned int has_guid
+  +[35, 236, 2]: unsigned int proc_type
+
+=== struct REFINE_TICKET_ESSENCE  (size 444 / 0x1bc)  16 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: namechar[16] desc
+  +[35, 228, 2]: float ext_reserved_prob
+  +[35, 232, 2]: float ext_succeed_prob
+  +[35, 236, 2]: unsigned int fail_reserve_level
+  +[35, 240, 2]: float[12] fail_ext_succeed_prob
+  +[35, 160, 3]: unsigned int binding_only
+  +[35, 164, 3]: int require_level_max
+  +[35, 168, 3]: int price
+  +[35, 172, 3]: int shop_price
+  +[35, 176, 3]: int pile_num_max
+  +[35, 180, 3]: unsigned int has_guid
+  +[35, 184, 3]: unsigned int proc_type
+
+=== struct DOUBLE_EXP_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int double_exp_time
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct DYE_TICKET_ESSENCE  (size 372 / 0x174)  16 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: float h_min
+  +[35, 200, 2]: float h_max
+  +[35, 204, 2]: float s_min
+  +[35, 208, 2]: float s_max
+  +[35, 212, 2]: float v_min
+  +[35, 216, 2]: float v_max
+  +[35, 220, 2]: int price
+  +[35, 224, 2]: int shop_price
+  +[35, 228, 2]: int pile_num_max
+  +[35, 232, 2]: unsigned int has_guid
+  +[35, 236, 2]: unsigned int proc_type
+  +[35, 240, 2]: unsigned int usage
+
+=== struct DESTROYING_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct DAMAGERUNE_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct DAMAGERUNE_ESSENCE  (size 364 / 0x16c)  14 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_sub_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_matter
+  +[35, 200, 1]: char[128] file_icon
+  +[35, 200, 2]: unsigned int damage_type
+  +[35, 204, 2]: int price
+  +[35, 208, 2]: int shop_price
+  +[35, 212, 2]: int require_weapon_level_min
+  +[35, 216, 2]: int require_weapon_level_max
+  +[35, 220, 2]: int damage_increased
+  +[35, 224, 2]: int pile_num_max
+  +[35, 228, 2]: unsigned int has_guid
+  +[35, 232, 2]: unsigned int proc_type
+
+=== struct ARMORRUNE_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct ARMORRUNE_ESSENCE  (size 624 / 0x270)  17 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_sub_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_matter
+  +[35, 200, 1]: char[128] file_icon
+  +[35, 200, 2]: char[128] file_gfx
+  +[35, 200, 3]: char[128] file_sfx
+  +[35, 200, 4]: unsigned int damage_type
+  +[35, 204, 4]: int price
+  +[35, 208, 4]: int shop_price
+  +[35, 212, 4]: int require_player_level_min
+  +[35, 216, 4]: int require_player_level_max
+  +[35, 220, 4]: float damage_reduce_percent
+  +[35, 224, 4]: int damage_reduce_time
+  +[35, 228, 4]: int pile_num_max
+  +[35, 232, 4]: unsigned int has_guid
+  +[35, 236, 4]: unsigned int proc_type
+
+=== struct SKILLTOME_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct SKILLTOME_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_sub_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_matter
+  +[35, 200, 1]: char[128] file_icon
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct SHOP_TOKEN_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int id_token_shop
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct ASTROLABE_RANDOM_ADDON_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int addon_random_exp_gained
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct ASTROLABE_INC_EXP_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int swallow_exp
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct ITEM_PACKAGE_BY_PROFESSION_ESSENCE  (size 444 / 0x1bc)  11 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: structure_type[12] prof_list
+  +[35, 164, 3]: int item_expire_timelength
+  +[35, 168, 3]: int price
+  +[35, 172, 3]: int shop_price
+  +[35, 176, 3]: int pile_num_max
+  +[35, 180, 3]: unsigned int has_guid
+  +[35, 184, 3]: unsigned int proc_type
+
+=== struct FACTION_BUILDING_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct FACTION_BUILDING_ESSENCE  (size 280 / 0x118)  13 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_sub_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_icon
+  +[35, 200, 1]: int level
+  +[35, 204, 1]: int require_level
+  +[35, 208, 1]: int[5] technology
+  +[35, 228, 1]: int money
+  +[35, 232, 1]: int[8] material
+  +[35, 136, 2]: int base_time
+  +[35, 140, 2]: int delta_time
+  +[35, 144, 2]: int controller_id0
+  +[35, 148, 2]: int controller_id1
+
+=== struct FACTION_MATERIAL_ESSENCE  (size 376 / 0x178)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int[8] material_count
+  +[35, 228, 2]: int price
+  +[35, 232, 2]: int shop_price
+  +[35, 236, 2]: int pile_num_max
+  +[35, 240, 2]: unsigned int has_guid
+  +[35, 244, 2]: unsigned int proc_type
+
+=== struct WINGMANWING_ESSENCE  (size 488 / 0x1e8)  14 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_model
+  +[35, 196, 1]: char[128] file_matter
+  +[35, 196, 2]: char[128] file_icon
+  +[35, 196, 3]: int price
+  +[35, 200, 3]: int shop_price
+  +[35, 204, 3]: int require_player_level_min
+  +[35, 208, 3]: float speed_increase
+  +[35, 212, 3]: int mp_launch
+  +[35, 216, 3]: int mp_per_second
+  +[35, 220, 3]: int pile_num_max
+  +[35, 224, 3]: unsigned int has_guid
+  +[35, 228, 3]: unsigned int proc_type
+
+=== struct TOWNSCROLL_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: float use_time
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct TRANSMITSCROLL_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct UNIONSCROLL_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: float use_time
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct REVIVESCROLL_ESSENCE  (size 352 / 0x160)  11 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: float use_time
+  +[35, 200, 2]: int cool_time
+  +[35, 204, 2]: int price
+  +[35, 208, 2]: int shop_price
+  +[35, 212, 2]: int pile_num_max
+  +[35, 216, 2]: unsigned int has_guid
+  +[35, 220, 2]: unsigned int proc_type
+
+=== struct ELEMENT_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int level
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct MONEY_CONVERTIBLE_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct TASKMATTER_ESSENCE  (size 208 / 0xd0)  6 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_icon
+  +[35, 196, 1]: int pile_num_max
+  +[35, 200, 1]: unsigned int has_guid
+  +[35, 204, 1]: unsigned int proc_type
+
+=== struct TASKNORMALMATTER_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct TOSSMATTER_ESSENCE  (size 888 / 0x378)  21 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_model
+  +[35, 196, 1]: char[128] file_matter
+  +[35, 196, 2]: char[128] file_icon
+  +[35, 196, 3]: char[128] file_firegfx
+  +[35, 196, 4]: char[128] file_hitgfx
+  +[35, 196, 5]: char[128] file_hitsfx
+  +[35, 196, 6]: int require_strength
+  +[35, 200, 6]: int require_agility
+  +[35, 204, 6]: int require_level
+  +[35, 208, 6]: int damage_low
+  +[35, 212, 6]: int damage_high_min
+  +[35, 216, 6]: int damage_high_max
+  +[35, 220, 6]: float use_time
+  +[35, 224, 6]: float attack_range
+  +[35, 228, 6]: int price
+  +[35, 232, 6]: int shop_price
+  +[35, 236, 6]: int pile_num_max
+  +[35, 240, 6]: unsigned int has_guid
+  +[35, 244, 6]: unsigned int proc_type
+
+=== struct PROJECTILE_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct PROJECTILE_ESSENCE  (size 892 / 0x37c)  22 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_model
+  +[35, 200, 1]: char[128] file_matter
+  +[35, 200, 2]: char[128] file_icon
+  +[35, 200, 3]: char[128] file_firegfx
+  +[35, 200, 4]: char[128] file_hitgfx
+  +[35, 200, 5]: char[128] file_hitsfx
+  +[35, 200, 6]: int require_weapon_level_min
+  +[35, 204, 6]: int require_weapon_level_max
+  +[35, 208, 6]: int damage_enhance
+  +[35, 212, 6]: int damage_scale_enhance
+  +[35, 216, 6]: int price
+  +[35, 220, 6]: int shop_price
+  +[35, 224, 6]: unsigned int id_addon0
+  +[35, 228, 6]: unsigned int id_addon1
+  +[35, 232, 6]: unsigned int id_addon2
+  +[35, 236, 6]: unsigned int id_addon3
+  +[35, 240, 6]: int pile_num_max
+  +[35, 244, 6]: unsigned int has_guid
+  +[35, 248, 6]: unsigned int proc_type
+
+=== struct QUIVER_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct QUIVER_ESSENCE  (size 340 / 0x154)  8 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_sub_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_matter
+  +[35, 200, 1]: char[128] file_icon
+  +[35, 200, 2]: unsigned int id_projectile
+  +[35, 204, 2]: int num_min
+  +[35, 208, 2]: int num_max
+
+=== struct STONE_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct FACETICKET_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct FACETICKET_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct FACETICKET_ESSENCE  (size 488 / 0x1e8)  14 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_major_type
+  +[35, 8]: unsigned int id_sub_type
+  +[35, 12]: namechar[32] name
+  +[35, 76]: char[128] file_matter
+  +[35, 204, 1]: char[128] file_icon
+  +[35, 204, 2]: int require_level
+  +[35, 208, 2]: char[128] bound_file
+  +[35, 208, 3]: unsigned int unsymmetrical
+  +[35, 212, 3]: int price
+  +[35, 216, 3]: int shop_price
+  +[35, 220, 3]: int pile_num_max
+  +[35, 224, 3]: unsigned int has_guid
+  +[35, 228, 3]: unsigned int proc_type
+
+=== struct FACEPILL_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct FACEPILL_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct GM_GENERATOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct GM_GENERATOR_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_matter
+  +[35, 200, 1]: char[128] file_icon
+  +[35, 200, 2]: unsigned int id_object
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct PET_EGG_ESSENCE  (size 628 / 0x274)  17 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int id_pet
+  +[35, 200, 2]: int money_hatched
+  +[35, 204, 2]: int money_restored
+  +[35, 208, 2]: int honor_point
+  +[35, 212, 2]: int level
+  +[35, 216, 2]: int exp
+  +[35, 220, 2]: int skill_point
+  +[35, 224, 2]: structure_type[32] skills
+  +[35, 224, 4]: int price
+  +[35, 228, 4]: int shop_price
+  +[35, 232, 4]: int pile_num_max
+  +[35, 236, 4]: unsigned int has_guid
+  +[35, 240, 4]: unsigned int proc_type
+
+=== struct PET_FOOD_ESSENCE  (size 360 / 0x168)  13 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int level
+  +[35, 200, 2]: int hornor
+  +[35, 204, 2]: int exp
+  +[35, 208, 2]: int food_type
+  +[35, 212, 2]: int price
+  +[35, 216, 2]: int shop_price
+  +[35, 220, 2]: int pile_num_max
+  +[35, 224, 2]: unsigned int has_guid
+  +[35, 228, 2]: unsigned int proc_type
+
+=== struct PET_FACETICKET_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct FIREWORKS_ESSENCE  (size 480 / 0x1e0)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: char[128] file_fw
+  +[35, 196, 3]: int level
+  +[35, 200, 3]: int time_to_fire
+  +[35, 204, 3]: int price
+  +[35, 208, 3]: int shop_price
+  +[35, 212, 3]: int pile_num_max
+  +[35, 216, 3]: unsigned int has_guid
+  +[35, 220, 3]: unsigned int proc_type
+
+=== struct WAR_TANKCALLIN_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct SKILLMATTER_ESSENCE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int level_required
+  +[35, 200, 2]: int id_skill
+  +[35, 204, 2]: int level_skill
+  +[35, 208, 2]: int price
+  +[35, 212, 2]: int shop_price
+  +[35, 216, 2]: int pile_num_max
+  +[35, 220, 2]: unsigned int has_guid
+  +[35, 224, 2]: unsigned int proc_type
+
+=== struct INC_SKILL_ABILITY_ESSENCE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int id_skill
+  +[35, 200, 2]: int level_required
+  +[35, 204, 2]: float inc_ratio
+  +[35, 208, 2]: int price
+  +[35, 212, 2]: int shop_price
+  +[35, 216, 2]: int pile_num_max
+  +[35, 220, 2]: unsigned int has_guid
+  +[35, 224, 2]: unsigned int proc_type
+
+=== struct WEDDING_BOOKCARD_ESSENCE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int year
+  +[35, 200, 2]: int month
+  +[35, 204, 2]: int day
+  +[35, 208, 2]: int price
+  +[35, 212, 2]: int shop_price
+  +[35, 216, 2]: int pile_num_max
+  +[35, 220, 2]: unsigned int has_guid
+  +[35, 224, 2]: unsigned int proc_type
+
+=== struct WEDDING_INVITECARD_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct SHARPENER_ESSENCE  (size 372 / 0x174)  14 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int level
+  +[35, 200, 2]: unsigned int equip_mask
+  +[35, 204, 2]: int[3] addon
+  +[35, 216, 2]: int addon_time
+  +[35, 220, 2]: int gfx_index
+  +[35, 224, 2]: int price
+  +[35, 228, 2]: int shop_price
+  +[35, 232, 2]: int pile_num_max
+  +[35, 236, 2]: unsigned int has_guid
+  +[35, 240, 2]: unsigned int proc_type
+
+=== struct MONSTER_SPIRIT_ESSENCE  (size 356 / 0x164)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int type
+  +[35, 200, 2]: int level
+  +[35, 204, 2]: int power
+  +[35, 208, 2]: int price
+  +[35, 212, 2]: int shop_price
+  +[35, 216, 2]: int pile_num_max
+  +[35, 220, 2]: unsigned int has_guid
+  +[35, 224, 2]: unsigned int proc_type
+
+=== struct RECIPE_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct RECIPE_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct ENGRAVE_MAJOR_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct ENGRAVE_SUB_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct ENGRAVE_ESSENCE  (size 560 / 0x230)  13 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_major_type
+  +[35, 8]: unsigned int id_sub_type
+  +[35, 12]: namechar[32] name
+  +[35, 76]: char[128] file_icon
+  +[35, 204, 1]: int level
+  +[35, 208, 1]: unsigned int equip_mask
+  +[35, 212, 1]: int require_level_min
+  +[35, 216, 1]: int require_level_max
+  +[35, 220, 1]: int duration
+  +[35, 224, 1]: structure_type[8] materials
+  +[35, 160, 2]: float[4] probability_addon_num
+  +[35, 176, 2]: structure_type[32] addons
+
+=== struct RANDPROP_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct RANDPROP_ESSENCE  (size 280 / 0x118)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: unsigned int id_skill
+  +[35, 76]: int skill_level
+  +[35, 80]: int money
+  +[35, 84]: int duration
+  +[35, 88]: unsigned int[32] equip_id
+  +[35, 216, 1]: structure_type[8] materials
+
+=== struct STONE_CHANGE_RECIPE_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct STONE_CHANGE_RECIPE  (size 148 / 0x94)  7 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: unsigned int id_old_stone
+  +[35, 76]: unsigned int id_new_stone
+  +[35, 80]: int money
+  +[35, 84]: structure_type[8] materials
+
+=== struct MONSTER_ADDON  (size 84 / 0x54)  6 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int num_params
+  +[35, 72]: int param1
+  +[35, 76]: int param2
+  +[35, 80]: int param3
+
+=== struct MONSTER_TYPE  (size 196 / 0xc4)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[16] addons
+
+=== struct PET_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct GOBLIN_ESSENCE  (size 1356 / 0x54c)  26 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_model1
+  +[35, 196, 1]: char[128] file_model2
+  +[35, 196, 2]: char[128] file_model3
+  +[35, 196, 3]: char[128] file_model4
+  +[35, 196, 4]: char[128] file_matter
+  +[35, 196, 5]: char[128] file_icon1
+  +[35, 196, 6]: char[128] file_icon2
+  +[35, 196, 7]: char[128] file_icon3
+  +[35, 196, 8]: char[128] file_icon4
+  +[35, 196, 9]: float exp_factor
+  +[35, 200, 9]: int init_strength
+  +[35, 204, 9]: int init_agility
+  +[35, 208, 9]: int init_energy
+  +[35, 212, 9]: int init_tili
+  +[35, 216, 9]: int max_refine_lvl
+  +[35, 220, 9]: int price
+  +[35, 224, 9]: int shop_price
+  +[35, 228, 9]: int default_skill1
+  +[35, 232, 9]: int default_skill2
+  +[35, 236, 9]: int default_skill3
+  +[35, 240, 9]: structure_type[10] rand_prop
+  +[35, 192, 10]: int pile_num_max
+  +[35, 196, 10]: unsigned int has_guid
+  +[35, 200, 10]: unsigned int proc_type
+
+=== struct GOBLIN_EQUIP_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct GOBLIN_EQUIP_ESSENCE  (size 392 / 0x188)  17 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: char[128] file_model
+  +[35, 200, 1]: char[128] file_icon
+  +[35, 200, 2]: int equip_type
+  +[35, 204, 2]: int req_goblin_level
+  +[35, 208, 2]: int strength
+  +[35, 212, 2]: int agility
+  +[35, 216, 2]: int energy
+  +[35, 220, 2]: int tili
+  +[35, 224, 2]: int[5] magic
+  +[35, 244, 2]: int price
+  +[35, 248, 2]: int shop_price
+  +[35, 252, 2]: int pile_num_max
+  +[35, 128, 3]: unsigned int has_guid
+  +[35, 132, 3]: unsigned int proc_type
+
+=== struct GOBLIN_EXPPILL_ESSENCE  (size 352 / 0x160)  11 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int exp
+  +[35, 200, 2]: int level
+  +[35, 204, 2]: int price
+  +[35, 208, 2]: int shop_price
+  +[35, 212, 2]: int pile_num_max
+  +[35, 216, 2]: unsigned int has_guid
+  +[35, 220, 2]: unsigned int proc_type
+
+=== struct LOOK_INFO_ESSENCE  (size 344 / 0x158)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int price
+  +[35, 200, 2]: int shop_price
+  +[35, 204, 2]: int pile_num_max
+  +[35, 208, 2]: unsigned int has_guid
+  +[35, 212, 2]: unsigned int proc_type
+
+=== struct NPC_TALK_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int id_dialog
+
+=== struct NPC_BUY_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int id_dialog
+
+=== struct NPC_REPAIR_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int id_dialog
+
+=== struct NPC_TASK_IN_SERVICE  (size 1092 / 0x444)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[256] id_tasks
+
+=== struct NPC_TASK_MATTER_SERVICE  (size 644 / 0x284)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[16] tasks
+
+=== struct NPC_HEAL_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int id_dialog
+
+=== struct NPC_TRANSMIT_SERVICE  (size 460 / 0x1cc)  5 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int num_targets
+  +[35, 72]: structure_type[32] targets
+  +[35, 200, 3]: unsigned int id_dialog
+
+=== struct NPC_TRANSPORT_SERVICE  (size 328 / 0x148)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[32] routes
+  +[35, 196, 2]: unsigned int id_dialog
+
+=== struct NPC_PROXY_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int id_dialog
+
+=== struct NPC_STORAGE_SERVICE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct NPC_MAKE_SERVICE  (size 1228 / 0x4cc)  5 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int id_make_skill
+  +[35, 72]: int produce_type
+  +[35, 76]: structure_type[8] pages
+
+=== struct NPC_DECOMPOSE_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int id_decompose_skill
+
+=== struct NPC_IDENTIFY_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int fee
+
+=== struct NPC_WAR_TOWERBUILD_SERVICE  (size 148 / 0x94)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[4] build_info
+
+=== struct NPC_RESETPROP_SERVICE  (size 368 / 0x170)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[15] prop_entry
+
+=== struct NPC_PETNAME_SERVICE  (size 76 / 0x4c)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int id_object_need
+  +[35, 72]: int price
+
+=== struct NPC_PETLEARNSKILL_SERVICE  (size 584 / 0x248)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[128] id_skills
+  +[35, 196, 4]: unsigned int id_dialog
+
+=== struct NPC_PETFORGETSKILL_SERVICE  (size 76 / 0x4c)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int id_object_need
+  +[35, 72]: int price
+
+=== struct NPC_EQUIPDESTROY_SERVICE  (size 76 / 0x4c)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int id_object_need
+  +[35, 72]: int price
+
+=== struct NPC_EQUIPUNDESTROY_SERVICE  (size 76 / 0x4c)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int id_object_need
+  +[35, 72]: int price
+
+=== struct NPC_ENGRAVE_SERVICE  (size 132 / 0x84)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[16] id_engrave
+
+=== struct NPC_RANDPROP_SERVICE  (size 228 / 0xe4)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[8] pages
+
+=== struct NPC_FORCE_SERVICE  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int force_id
+
+=== struct NPC_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct MINE_TYPE  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+
+=== struct MINE_ESSENCE  (size 560 / 0x230)  30 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: unsigned int id_type
+  +[35, 8]: namechar[32] name
+  +[35, 72]: unsigned int level
+  +[35, 76]: unsigned int level_required
+  +[35, 80]: unsigned int id_equipment_required
+  +[35, 84]: unsigned int eliminate_tool
+  +[35, 88]: unsigned int time_min
+  +[35, 92]: unsigned int time_max
+  +[35, 96]: int exp
+  +[35, 100]: int skillpoint
+  +[35, 104]: char[128] file_model
+  +[35, 232, 1]: structure_type[16] materials
+  +[35, 168, 3]: int num1
+  +[35, 172, 3]: float probability1
+  +[35, 176, 3]: int num2
+  +[35, 180, 3]: float probability2
+  +[35, 184, 3]: unsigned int task_in
+  +[35, 188, 3]: unsigned int task_out
+  +[35, 192, 3]: unsigned int uninterruptable
+  +[35, 196, 3]: structure_type[4] npcgen
+  +[35, 132, 4]: structure_type[1] aggros
+  +[35, 144, 4]: unsigned int permenent
+  +[35, 148, 4]: unsigned int combined_switch
+  +[35, 152, 4]: int max_gatherer
+  +[35, 156, 4]: int mine_type
+  +[35, 160, 4]: float gather_dist
+  +[35, 164, 4]: float material_gain_ratio
+  +[35, 168, 4]: unsigned int gather_start_action_config
+  +[35, 172, 4]: unsigned int gather_loop_action_config
+
+=== struct FACE_TEXTURE_ESSENCE  (size 480 / 0x1e0)  12 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_base_tex
+  +[35, 196, 1]: char[128] file_high_tex
+  +[35, 196, 2]: char[128] file_icon
+  +[35, 196, 3]: unsigned int tex_part_id
+  +[35, 200, 3]: unsigned int character_combo_id
+  +[35, 204, 3]: unsigned int gender_id
+  +[35, 208, 3]: unsigned int visualize_id
+  +[35, 212, 3]: unsigned int user_data
+  +[35, 216, 3]: unsigned int facepill_only
+  +[35, 220, 3]: unsigned int fashion_head_only
+
+=== struct FACE_SHAPE_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_shape
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int shape_part_id
+  +[35, 200, 2]: unsigned int character_combo_id
+  +[35, 204, 2]: unsigned int gender_id
+  +[35, 208, 2]: unsigned int visualize_id
+  +[35, 212, 2]: unsigned int user_data
+  +[35, 216, 2]: unsigned int facepill_only
+
+=== struct FACE_EMOTION_TYPE  (size 196 / 0xc4)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_icon
+
+=== struct FACE_EXPRESSION_ESSENCE  (size 336 / 0x150)  7 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_expression
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int character_combo_id
+  +[35, 200, 2]: unsigned int gender_id
+  +[35, 204, 2]: unsigned int emotion_id
+
+=== struct FACE_HAIR_ESSENCE  (size 472 / 0x1d8)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_hair_skin
+  +[35, 196, 1]: char[128] file_hair_model
+  +[35, 196, 2]: char[128] file_icon
+  +[35, 196, 3]: unsigned int character_combo_id
+  +[35, 200, 3]: unsigned int gender_id
+  +[35, 204, 3]: unsigned int visualize_id
+  +[35, 208, 3]: unsigned int facepill_only
+  +[35, 212, 3]: unsigned int fashion_head_only
+
+=== struct FACE_MOUSTACHE_ESSENCE  (size 340 / 0x154)  8 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_moustache_skin
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int character_combo_id
+  +[35, 200, 2]: unsigned int gender_id
+  +[35, 204, 2]: unsigned int visualize_id
+  +[35, 208, 2]: unsigned int facepill_only
+
+=== struct FACE_FALING_ESSENCE  (size 340 / 0x154)  8 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_faling_skin
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int character_combo_id
+  +[35, 200, 2]: unsigned int gender_id
+  +[35, 204, 2]: unsigned int visualize_id
+  +[35, 208, 2]: unsigned int facepill_only
+
+=== struct FACE_THIRDEYE_ESSENCE  (size 336 / 0x150)  7 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_gfx
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: unsigned int character_combo_id
+  +[35, 200, 2]: unsigned int gender_id
+  +[35, 204, 2]: unsigned int facepill_only
+
+=== struct COLORPICKER_ESSENCE  (size 208 / 0xd0)  6 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_colorpicker
+  +[35, 196, 1]: unsigned int color_part_id
+  +[35, 200, 1]: unsigned int character_combo_id
+  +[35, 204, 1]: unsigned int gender_id
+
+=== struct FIX_POSITION_TRANSMIT_ESSENCE  (size 348 / 0x15c)  10 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: char[128] file_matter
+  +[35, 196, 1]: char[128] file_icon
+  +[35, 196, 2]: int energy
+  +[35, 200, 2]: int price
+  +[35, 204, 2]: int shop_price
+  +[35, 208, 2]: int pile_num_max
+  +[35, 212, 2]: unsigned int has_guid
+  +[35, 216, 2]: unsigned int proc_type
+
+=== struct ENEMY_FACTION_CONFIG  (size 196 / 0xc4)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[32] enemy_factions
+
+=== struct CHARRACTER_CLASS_CONFIG  (size 208 / 0xd0)  27 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int character_class_id
+  +[35, 72]: unsigned int faction
+  +[35, 76]: unsigned int enemy_faction
+  +[35, 80]: float attack_speed
+  +[35, 84]: float attack_range
+  +[35, 88]: int hp_gen
+  +[35, 92]: int mp_gen
+  +[35, 96]: float walk_speed
+  +[35, 100]: float run_speed
+  +[35, 104]: float swim_speed
+  +[35, 108]: float fly_speed
+  +[35, 112]: int crit_rate
+  +[35, 116]: int vit_hp
+  +[35, 120]: int eng_mp
+  +[35, 124]: int agi_attack
+  +[35, 128, 1]: int agi_armor
+  +[35, 132, 1]: int lvlup_hp
+  +[35, 136, 1]: int lvlup_mp
+  +[35, 140, 1]: float lvlup_dmg
+  +[35, 144, 1]: float lvlup_magic
+  +[35, 148, 1]: float lvlup_defense
+  +[35, 152, 1]: float lvlup_magicdefence
+  +[35, 156, 1]: int angro_increase
+  +[35, 160, 1]: float[6] spirit_adjust
+  +[35, 184, 1]: float[6] poker_adjust
+
+=== struct PARAM_ADJUST_CONFIG  (size 676 / 0x2a4)  8 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[16] level_diff_adjust
+  +[35, 196, 3]: structure_type[11] team_adjust
+  +[35, 156, 4]: structure_type[11] team_profession_adjust
+  +[35, 244, 4]: float dmg_adj_to_spec_atk_speed
+  +[35, 248, 4]: float atk_rate_adj_to_spec_atk_speed
+  +[35, 252, 4]: float[10] use_monster_spirit_adjust
+
+=== struct PLAYER_LEVELEXP_CONFIG  (size 668 / 0x29c)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int[150] exp
+
+=== struct ASTROLABE_LEVELEXP_CONFIG  (size 468 / 0x1d4)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int[100] exp
+
+=== struct anon_132  (size 132 / 0x84)  2 campos ===
+  +[35, 0]: long unsigned int name_color
+  +[35, 4]: char[128] file_gfx
+
+=== struct PLAYER_SECONDLEVEL_CONFIG  (size 1092 / 0x444)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: float[256] exp_lost
+
+=== struct PLAYER_REINCARNATION_CONFIG  (size 148 / 0x94)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[10] level
+
+=== struct anon_80  (size 80 / 0x50)  1 campos ===
+  +[35, 0]: LEVEL[10] level
+
+=== struct FACTION_FORTRESS_CONFIG  (size 1956 / 0x7a4)  9 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int require_level
+  +[35, 72]: structure_type[8] require_item
+  +[35, 136, 1]: structure_type[50] level
+  +[35, 152, 4]: int[7] tech_point_cost
+  +[35, 164, 5]: int[20] init_building
+  +[35, 244, 5]: int[100] controller_id
+  +[35, 132, 9]: structure_type[100] common_value
+
+=== struct StrongHold  (size 68 / 0x44)  4 campos ===
+  +[35, 0]: State[5] state
+  +[35, 40]: float[3] pos
+  +[35, 52]: float radius
+  +[35, 56]: float[3] mine_pos
+
+=== struct anon_196  (size 196 / 0xc4)  3 campos ===
+  +[35, 0]: namechar[32] name
+  +[35, 64]: char[128] file_icon
+  +[35, 192, 1]: long unsigned int color
+
+=== struct PROFIT_TIME_CONFIG  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int upper_limit
+
+=== struct TITLE_CONFIG  (size 1128 / 0x468)  13 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: namechar[256] desc
+  +[35, 196, 4]: namechar[256] condition
+  +[35, 196, 8]: long unsigned int color
+  +[35, 200, 8]: unsigned int after_name
+  +[35, 204, 8]: int phy_damage
+  +[35, 208, 8]: int magic_damage
+  +[35, 212, 8]: int phy_defence
+  +[35, 216, 8]: int magic_defence
+  +[35, 220, 8]: int attack
+  +[35, 224, 8]: int armor
+  +[35, 228, 8]: unsigned int broadcast
+
+=== struct ACC_STORAGE_BLACKLIST_CONFIG  (size 2116 / 0x844)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[512] blacklist
+
+=== struct MULTI_EXP_CONFIG  (size 468 / 0x1d4)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[20] choice
+
+=== struct FACE_HAIR_TEXTURE_MAP  (size 1092 / 0x444)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[128] hair_texture_map
+
+=== struct WEDDING_CONFIG  (size 908 / 0x38c)  5 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[10] wedding_session
+  +[35, 228, 1]: structure_type[20] reserved_day
+  +[35, 212, 3]: structure_type[10] wedding_scene
+
+=== struct GOD_EVIL_CONVERT_CONFIG  (size 1092 / 0x444)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int[2] skill_map
+
+=== struct WIKI_TABOO_CONFIG  (size 5188 / 0x1444)  6 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[512] essence
+  +[35, 196, 16]: unsigned int[128] recipe
+  +[35, 196, 20]: unsigned int[512] task
+  +[35, 196, 36]: unsigned int[128] skill
+
+=== struct PLAYER_DEATH_DROP_CONFIG  (size 1092 / 0x444)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[256] itemlist
+
+=== struct anon_72  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: int[2] num_evolve
+  +[35, 24]: int[2] num_inherit
+  +[35, 48]: int[2] num_rand_skill
+
+=== struct PET_EVOLVED_SKILL_CONFIG  (size 84 / 0x54)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[2] skills
+
+=== struct HISTORY_ADVANCE_CONFIG  (size 196 / 0xc4)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int[32] history_stage_id
+
+=== struct POKER_LEVELEXP_CONFIG  (size 488 / 0x1e8)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int[100] exp
+  +[35, 212, 3]: float[5] exp_adjust
+
+=== struct GT_CONFIG  (size 76 / 0x4c)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: int inc_attack_degree
+  +[35, 72]: int inc_defend_degree
+
+=== struct FACTION_PVP_CONFIG  (size 468 / 0x1d4)  4 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: structure_type[8] list
+  +[35, 132, 2]: int[52] controller_id
+
+=== struct TASK_LIST_CONFIG  (size 1092 / 0x444)  3 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int[256] id_tasks
+
+=== struct TASK_DICE_BY_WEIGHT_CONFIG  (size 204 / 0xcc)  7 campos ===
+  +[35, 0]: unsigned int id
+  +[35, 4]: namechar[32] name
+  +[35, 68]: unsigned int storage_id
+  +[35, 72]: int max_weight
+  +[35, 76]: structure_type[10] uniform_weight_list
+  +[35, 196, 1]: unsigned int other_task_list_config_id
+  +[35, 200, 1]: unsigned int storage_refresh_on_crossserver
+
+=== struct __enc_traits  (size 80 / 0x50)  6 campos ===
+  +[35, 0]: char[32] _M_int_enc
+  +[35, 32]: char[32] _M_ext_enc
+  +[35, 64]: iconv_t _M_in_desc
+  +[35, 68]: iconv_t _M_out_desc
+  +[35, 72]: int _M_ext_bom
+  +[35, 76]: int _M_int_bom
+
+=== struct gobject  (size 68 / 0x44)  17 campos ===
+  +[35, 0]: int spinlock
+  +[35, 4]: int cur_msg
+  +[35, 8]: unsigned int crc
+  +[35, 12]: bool b_chk_state
+  +[35, 13]: bool b_zombie
+  +[35, 14]: bool b_disconnect
+  +[35, 15]: unsigned char dir
+  +[35, 16]: int msg_mask
+  +[35, 20]: gobject* pPrev
+  +[35, 24]: gobject* pNext
+  +[35, 28]: slice* pPiece
+  +[35, 32]: A3DVECTOR pos
+  +[35, 44]: XID ID
+  +[35, 52]: gobject_imp* imp
+  +[35, 56]: world* plane
+  +[35, 60]: float body_size
+  +[35, 64]: int collision_id
+
+=== struct object_info  (size 68 / 0x44)  15 campos ===
+  +[35, 0]: int state
+  +[35, 4]: A3DVECTOR pos
+  +[35, 16]: float body_size
+  +[35, 20]: int race
+  +[35, 24]: int faction
+  +[35, 28]: int level
+  +[35, 32]: int hp
+  +[35, 36]: int mp
+  +[35, 40]: int max_hp
+  +[35, 44]: int invisible_degree
+  +[35, 48]: int anti_invisible_degree
+  +[35, 52]: unsigned int object_state
+  +[35, 56]: unsigned int object_state2
+  +[35, 60]: int mafia_id
+  +[35, 64]: int master_id
+
+=== struct gnpc  (size 228 / 0xe4)  13 campos ===
+  +[35, 164, 1]: size_t spawn_index
+  +[35, 168, 1]: int native_state
+  +[35, 172, 1]: int tid
+  +[35, 176, 1]: int vis_tid
+  +[35, 180, 1]: int monster_faction
+  +[35, 184, 1]: int cruise_timer
+  +[35, 188, 1]: int idle_timer
+  +[35, 192, 1]: int idle_timer_count
+  +[35, 196, 1]: int npc_idle_heartbeat
+  +[35, 200, 1]: int master_id
+  +[35, 204, 1]: int mafia_id
+  +[35, 208, 1]: short int name_size
+  +[35, 210, 1]: char[18] npc_name
+
+=== struct gmatter  (size 80 / 0x50)  6 campos ===
+  +[35, 68]: unsigned char dir1
+  +[35, 69]: unsigned char rad
+  +[35, 70]: unsigned char matter_state
+  +[35, 71]: unsigned char matter_value
+  +[35, 72]: int matter_type
+  +[35, 76]: int spawn_index
+
+=== struct player_var_data  (size 84 / 0x54)  19 campos ===
+  +[35, 0]: int version
+  +[35, 4]: int pk_count
+  +[35, 8]: int pvp_cooldown
+  +[35, 12]: bool pvp_flag
+  +[35, 13]: char dead_flag
+  +[35, 14]: bool is_drop
+  +[35, 15]: bool resurrect_state
+  +[35, 16]: float resurrect_exp_reduce
+  +[35, 20]: instance_hash_key ins_key
+  +[35, 28]: int trashbox_size
+  +[35, 32]: int last_instance_timestamp
+  +[35, 36]: int last_instance_tag
+  +[35, 40]: A3DVECTOR last_instance_pos
+  +[35, 52]: int dir
+  +[35, 56]: float resurrect_hp_factor
+  +[35, 60]: float resurrect_mp_factor
+  +[35, 64]: int instance_reenter_timeout
+  +[35, 68]: int last_world_type
+  +[35, 72]: A3DVECTOR last_logout_pos
+
+=== struct extend_prop  (size 148 / 0x94)  24 campos ===
+  +[35, 0]: int vitality
+  +[35, 4]: int energy
+  +[35, 8]: int strength
+  +[35, 12]: int agility
+  +[35, 16]: int max_hp
+  +[35, 20]: int max_mp
+  +[35, 24]: int hp_gen
+  +[35, 28]: int mp_gen
+  +[35, 32]: float walk_speed
+  +[35, 36]: float run_speed
+  +[35, 40]: float swim_speed
+  +[35, 44]: float flight_speed
+  +[35, 48]: int attack
+  +[35, 52]: int damage_low
+  +[35, 56]: int damage_high
+  +[35, 60]: int attack_speed
+  +[35, 64]: float attack_range
+  +[35, 68]: structure_type[5] addon_damage
+  +[35, 108]: int damage_magic_low
+  +[35, 112]: int damage_magic_high
+  +[35, 116]: int[5] resistance
+  +[35, 136, 1]: int defense
+  +[35, 140, 1]: int armor
+  +[35, 144, 1]: int max_ap
+
+=== struct __mine_info  (size 352 / 0x160)  30 campos ===
+  +[35, 0]: int is_mine
+  +[35, 4]: int std_amount
+  +[35, 8]: int bonus_amount
+  +[35, 12]: float bonus_prop
+  +[35, 16]: int time_min
+  +[35, 20]: int time_max
+  +[35, 24]: unsigned int produce_kinds
+  +[35, 28]: unsigned int[16] id_produce
+  +[35, 92]: float[16] id_produce_prop
+  +[35, 156, 1]: int[16] id_produce_life
+  +[35, 220, 1]: int need_equipment
+  +[35, 224, 1]: int level
+  +[35, 228, 1]: int exp
+  +[35, 232, 1]: int sp
+  +[35, 236, 1]: int task_in
+  +[35, 240, 1]: int task_out
+  +[35, 244, 1]: bool no_interrupted
+  +[35, 245, 1]: bool gather_no_disappear
+  +[35, 246, 1]: bool eliminate_tool
+  +[35, 248, 1]: int ask_help_faction
+  +[35, 252, 1]: float ask_help_range
+  +[35, 128, 2]: int ask_help_aggro
+  +[35, 132, 2]: int set_owner
+  +[35, 136, 2]: float gather_dist
+  +[35, 140, 2]: int life
+  +[35, 144, 2]: int gather_player_max
+  +[35, 148, 2]: int mine_type
+  +[35, 152, 2]: float success_prob
+  +[35, 156, 2]: int broadcast_on_gain
+  +[35, 160, 2]: structure_type[4] monster_list
+
+=== struct __service_engrave  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: int engrave_num
+  +[35, 4]: int[16] engrave_entrys
+
+=== struct __service_addonregen  (size 68 / 0x44)  2 campos ===
+  +[35, 0]: int addonregen_num
+  +[35, 4]: int[16] addonregen_entrys
+
+=== struct anon_204  (size 204 / 0xcc)  6 campos ===
+  +[35, 0]: int as_count
+  +[35, 4]: int bs_count
+  +[35, 8]: int cs_count
+  +[35, 12]: structure_type[8] attack_skills
+  +[35, 76]: structure_type[8] bless_skills
+  +[35, 140, 1]: structure_type[8] curse_skills
+
+=== struct recipe_template  (size 364 / 0x16c)  21 campos ===
+  +[35, 0]: int recipe_id
+  +[35, 4]: int produce_skill
+  +[35, 8]: int require_level
+  +[35, 12]: int recipe_level
+  +[35, 16]: int level
+  +[35, 20]: int exp
+  +[35, 24]: int sp
+  +[35, 28]: float null_prob
+  +[35, 32]: size_t use_time
+  +[35, 36]: size_t count
+  +[35, 40]: size_t fee
+  +[35, 44]: int material_num
+  +[35, 48]: int material_total_count
+  +[35, 52]: int bind_type
+  +[35, 56]: int proc_type
+  +[35, 60]: int equipment_need_upgrade
+  +[35, 64]: float inherit_fee_factor
+  +[35, 68]: float inherit_engrave_fee_factor
+  +[35, 72]: float inherit_addon_fee_factor
+  +[35, 76]: __material[32] material_list
+  +[35, 204, 2]: __target[4] targets
+
+=== struct engrave_recipe_template  (size 368 / 0x170)  11 campos ===
+  +[35, 0]: int recipe_id
+  +[35, 4]: int engrave_level
+  +[35, 8]: int equip_mask
+  +[35, 12]: int equip_level_min
+  +[35, 16]: int equip_level_max
+  +[35, 20]: size_t use_time
+  +[35, 24]: float[4] prob_addon_num
+  +[35, 40]: int material_total_count
+  +[35, 44]: int material_num
+  +[35, 48]: __material[8] material_list
+  +[35, 112]: __target_addon[32] target_addons
+
+=== struct addonchange_recipe_template  (size 84 / 0x54)  6 campos ===
+  +[35, 0]: int recipe_id
+  +[35, 4]: int id_old_stone
+  +[35, 8]: int id_new_stone
+  +[35, 12]: unsigned int fee
+  +[35, 16]: int material_num
+  +[35, 20]: structure_type[8] material_list
+
+=== struct Hashtable_node<recipe_template,int>  (size 372 / 0x174)  3 campos ===
+  +[35, 0]: Hashtable_node<recipe_template,int>* _next
+  +[35, 4]: recipe_template _val
+  +[35, 240, 2]: int _key
+
+=== struct Hashtable_node<engrave_recipe_template,int>  (size 376 / 0x178)  3 campos ===
+  +[35, 0]: Hashtable_node<engrave_recipe_template,int>* _next
+  +[35, 4]: engrave_recipe_template _val
+  +[35, 244, 2]: int _key
+
+=== struct Hashtable_node<addonregen_recipe_template,int>  (size 228 / 0xe4)  3 campos ===
+  +[35, 0]: Hashtable_node<addonregen_recipe_template,int>* _next
+  +[35, 4]: addonregen_recipe_template _val
+  +[35, 224, 1]: int _key
+
+=== struct entry_t  (size 76 / 0x4c)  19 campos ===
+  +[35, 0]: int npc_tid
+  +[35, 4]: int msg_mask_or
+  +[35, 8]: int msg_mask_and
+  +[35, 12]: int alarm_mask
+  +[35, 16]: int enemy_faction
+  +[35, 20]: bool has_faction
+  +[35, 24]: int faction
+  +[35, 28]: bool ask_for_help
+  +[35, 32]: int monster_faction_ask_help
+  +[35, 36]: bool accept_ask_for_help
+  +[35, 40]: int monster_faction_accept_for_help
+  +[35, 44]: int reborn_time_upper
+  +[35, 48]: int reborn_time_lower
+  +[35, 52]: int path_id
+  +[35, 56]: int path_type
+  +[35, 60]: int corpse_delay
+  +[35, 64]: bool speed_flag
+  +[35, 68]: size_t mobs_count
+  +[35, 72]: float offset_terrain
+
+=== struct title_manager  (size 72 / 0x48)  3 campos ===
+  +[35, 0]: hash_map<short unsigned int,title_essence*,abase::_hash_function,abase::fast_alloc<4, 128> > _title_map
+  +[35, 24]: hash_map<short unsigned int,abase::vector<short unsigned int, abase::fast_alloc<4, 128> >,abase::_hash_function,abase::fast_alloc<4, 128> > _sub_title_map
+  +[35, 48]: hash_map<short unsigned int,title_manager::super_title_cond,abase::_hash_function,abase::fast_alloc<4, 128> > _super_title_cond_map
+
+=== struct SUniqueDataElem  (size 84 / 0x54)  14 campos ===
+  +[35, 0]: bool wlock
+  +[35, 1]: bool wsync
+  +[35, 2]: bool freeze
+  +[35, 4]: int vtype
+  +[35, 8]: int inittype
+  +[35, 12]: UDOctets syncval
+  +[35, 28]: UDOctets stubval
+  +[35, 44]: UDOctets localval
+  +[35, 60]: ModifyOperater* operater
+  +[35, 64]: int timeout
+  +[35, 68]: bool notifyrole
+  +[35, 72]: int timever
+  +[35, 76]: int clientver
+  +[35, 80]: int serverver
+
+=== struct autoteam_goal  (size 72 / 0x48)  13 campos ===
+  +[35, 0]: int _id
+  +[35, 4]: short int[2] _require_lvl
+  +[35, 8]: short int[2] _require_maxlvl
+  +[35, 12]: char _require_gender
+  +[35, 13]: char _need_player_cnt
+  +[35, 14]: char _sec_lvl
+  +[35, 15]: char[2] _require_reincarnation_times
+  +[35, 17]: char[2] _require_realm_lvl
+  +[35, 20]: int _soul_floor
+  +[35, 24]: int _worldtag
+  +[35, 28]: A3DVECTOR _entrance_pos
+  +[35, 40]: WORLDTAG_FROM_LIST _worldtag_from_list
+  +[35, 56]: OCCUPATION_CONFIG_LIST _occupation_config_list
+
+=== struct Hashtable_node<abase::pair<const int, autoteam_goal>,int>  (size 84 / 0x54)  3 campos ===
+  +[35, 0]: Hashtable_node<abase::pair<const int, autoteam_goal>,int>* _next
+  +[35, 4]: pair<const int,autoteam_goal> _val
+  +[35, 80]: int _key
+
+=== struct pair<const int,autoteam_goal>  (size 76 / 0x4c)  2 campos ===
+  +[35, 0]: int first
+  +[35, 4]: autoteam_goal second
+
+=== struct fatering_essence  (size 68 / 0x44)  3 campos ===
+  +[35, 0]: vector<fatering_property,abase::default_alloc> fatering_props
+  +[35, 16]: fatering_extend _extend
+  +[35, 64]: int type
+
+=== struct Hashtable_node<abase::pair<const int, fatering_essence>,int>  (size 80 / 0x50)  3 campos ===
+  +[35, 0]: Hashtable_node<abase::pair<const int, fatering_essence>,int>* _next
+  +[35, 4]: pair<const int,fatering_essence> _val
+  +[35, 76]: int _key
+
+=== struct pair<const int,fatering_essence>  (size 72 / 0x48)  2 campos ===
+  +[35, 0]: int first
+  +[35, 4]: fatering_essence second
+
+=== struct _Rb_tree_node<std::pair<const int, extern_object_manager::object_entry> >  (size 68 / 0x44)  1 campos ===
+  +[35, 16]: pair<const int,extern_object_manager::object_entry> _M_value_field
+
+=== struct attack_msg  (size 196 / 0xc4)  35 campos ===
+  +[35, 0]: attacker_info_t ainfo
+  +[35, 44]: float attack_range
+  +[35, 48]: float short_range
+  +[35, 52]: float short_range_adjust_factor
+  +[35, 56]: int target_layer_adjust_mask
+  +[35, 60]: float target_layer_adjust_factor
+  +[35, 64]: int physic_damage
+  +[35, 68]: int attack_rate
+  +[35, 72]: int[5] magic_damage
+  +[35, 92]: int attacker_faction
+  +[35, 96]: int target_faction
+  +[35, 100]: int crit_rate
+  +[35, 104]: int crit_damage_bonus
+  +[35, 108]: int attack_degree
+  +[35, 112]: int penetration
+  +[35, 116]: char attack_attr
+  +[35, 117]: char force_attack
+  +[35, 118]: char attacker_layer
+  +[35, 120]: int _attack_state
+  +[35, 124]: short int speed
+  +[35, 126]: char attacker_mode
+  +[35, 127]: char is_invader
+  +[35, 128, 1]: int hp_steal_rate
+  +[35, 132, 1]: int skill_id
+  +[35, 136, 1]: int[3] skill_modify
+  +[35, 148, 1]: structure_type attached_skill
+  +[35, 156, 1]: int skill_enhance
+  +[35, 160, 1]: int skill_enhance2
+  +[35, 164, 1]: int vigour
+  +[35, 168, 1]: unsigned char section
+  +[35, 172, 1]: int weapon_class
+  +[35, 176, 1]: int feedback_filter
+  +[35, 180, 1]: int anti_defense_degree
+  +[35, 184, 1]: int anti_resistance_degree
+  +[35, 188, 1]: structure_type infected_skill
+
+=== struct __SKILLS_T  (size 68 / 0x44)  3 campos ===
+  +[35, 0]: int count
+  +[35, 4]: int[8] skill
+  +[35, 36]: int[8] level
+
+=== struct class_data  (size 80 / 0x50)  15 campos ===
+  +[35, 0]: int lvl_hp
+  +[35, 4]: int lvl_mp
+  +[35, 8]: int vit_hp
+  +[35, 12]: int eng_mp
+  +[35, 16]: int agi_attack
+  +[35, 20]: int agi_armor
+  +[35, 24]: float lvl_magic
+  +[35, 28]: float lvl_dmg
+  +[35, 32]: float lvl_defense
+  +[35, 36]: float lvl_resistance
+  +[35, 40]: int crit_rate
+  +[35, 44]: int faction
+  +[35, 48]: int enemy_faction
+  +[35, 52]: int ap_per_hit
+  +[35, 56]: float[6] fatering_adjust
+
+=== struct team_entry  (size 336 / 0x150)  12 campos ===
+  +[35, 0]: int time_out
+  +[35, 4]: int self_seq
+  +[35, 8]: int pickup_flag
+  +[35, 12]: long int last_invite_time
+  +[35, 16]: int race_count
+  +[35, 20]: int change_leader_timeout
+  +[35, 24]: int cur_max_level
+  +[35, 28]: int cur_wallow_level
+  +[35, 32]: int min_timer_counter
+  +[35, 36]: static_map<int,player_team::invite_t,9> invite_map
+  +[35, 184, 1]: static_map<int,player_team::invite_t,9> apply_map
+  +[35, 204, 2]: gplayer_imp* imp
+
+=== struct member_entry  (size 84 / 0x54)  8 campos ===
+  +[35, 0]: XID id
+  +[35, 8]: team_mutable_prop data
+  +[35, 52]: int race
+  +[35, 56]: int cs_index
+  +[35, 60]: int cs_sid
+  +[35, 64]: A3DVECTOR pos
+  +[35, 76]: int timeout
+  +[35, 80]: bool is_changed
+
+=== struct static_map<int,player_team::invite_t,9>  (size 148 / 0x94)  2 campos ===
+  +[35, 0]: pair<int,player_team::invite_t>[9] _data
+  +[35, 144, 1]: size_t _count
+
+=== struct wait_node  (size 76 / 0x4c)  3 campos ===
+  +[35, 0]: XID first
+  +[35, 8]: instance_key second
+  +[35, 64]: A3DVECTOR pos
+
+=== struct static_map<int,<unnamed>::cardset_counter,6>  (size 76 / 0x4c)  2 campos ===
+  +[35, 0]: pair<int,<unnamed>::cardset_counter>[6] _data
+  +[35, 72]: size_t _count
+
+=== struct MsgQueue  (size 72 / 0x48)  4 campos ===
+  +[35, 20]: vector<MSG*,abase::fast_alloc<4, 128> > _queue
+  +[35, 36]: vector<MsgQueue::MultiCast*,abase::fast_alloc<4, 128> > _multi_queue
+  +[35, 52]: vector<MsgQueue::IDMultiCast*,abase::fast_alloc<4, 128> > _id_multi_queue
+  +[35, 68]: world* _plane
+
+=== struct MsgQueue2  (size 68 / 0x44)  3 campos ===
+  +[35, 20]: vector<MsgQueue2::msg_t,abase::fast_alloc<4, 128> > _queue
+  +[35, 36]: vector<MsgQueue2::MultiCast*,abase::fast_alloc<4, 128> > _multi_queue
+  +[35, 52]: vector<MsgQueue2::IDMultiCast*,abase::fast_alloc<4, 128> > _id_multi_queue
+
+=== struct SkillWrapper  (size 132 / 0x84)  16 campos ===
+  +[35, 0]: subroutine_type** _vptr.SkillWrapper
+  +[35, 4]: map<unsigned int,GNET::SkillWrapper::PersistentData,std::less<unsigned int>,std::allocator<std::pair<const unsigned int, GNET::SkillWrapper::PersistentData> > > map
+  +[35, 16]: map<unsigned int,GNET::SkillWrapper::PersistentData,std::less<unsigned int>,std::allocator<std::pair<const unsigned int, GNET::SkillWrapper::PersistentData> > > dyn_map
+  +[35, 28]: map<unsigned int,GNET::SkillWrapper::DynamicPray,std::less<unsigned int>,std::allocator<std::pair<const unsigned int, GNET::SkillWrapper::DynamicPray> > > dynpray_map
+  +[35, 40]: int prayspeed
+  +[35, 44]: unsigned int asid
+  +[35, 48]: int aslevel
+  +[35, 52]: float[5] skillinc
+  +[35, 72]: int immune_buff_debuff
+  +[35, 76]: int interrupt_prob
+  +[35, 80]: int ignore_interrupt
+  +[35, 84]: int cd_adjust
+  +[35, 88]: int cd_adjust_count
+  +[35, 92]: float pray_distance_adjust
+  +[35, 96]: ComboSkill combo_state
+  +[35, 124]: BlackWhiteBall black_white_ball
+
+=== struct basic_stringbuf<char,std::char_traits<char>,std::allocator<char> >  (size 84 / 0x54)  1 campos ===
+  +[35, 80]: basic_string<char,std::char_traits<char>,std::allocator<char> > _M_string
+
+=== struct session_move  (size 72 / 0x48)  6 campos ===
+  +[35, 36]: A3DVECTOR _target
+  +[35, 48]: A3DVECTOR _predict
+  +[35, 60]: int _use_time
+  +[35, 64]: int _seq
+  +[35, 68]: short unsigned int _speed
+  +[35, 70]: unsigned char _move_mode
+
+=== struct session_stop_move  (size 76 / 0x4c)  1 campos ===
+  +[35, 72]: short unsigned int _dir
+
+=== struct session_use_item_with_target  (size 68 / 0x44)  2 campos ===
+  +[35, 56]: XID _target
+  +[35, 64]: char _force_attack
+
+=== struct session_rune_instant_skill  (size 68 / 0x44)  3 campos ===
+  +[35, 56]: unsigned int level
+  +[35, 60]: int inv_index
+  +[35, 64]: bool consume_if_use
+
+=== struct session_knockback  (size 68 / 0x44)  5 campos ===
+  +[35, 36]: XID _attacker
+  +[35, 44]: A3DVECTOR _attacker_pos
+  +[35, 56]: float _distance
+  +[35, 60]: int _time
+  +[35, 64]: int _stun_time
+
+=== struct session_rebuild_pet_inheritratio  (size 68 / 0x44)  8 campos ===
+  +[35, 36]: int _pet_id
+  +[35, 40]: int _index
+  +[35, 44]: int _formula_index
+  +[35, 48]: int _r_attack
+  +[35, 52]: int _r_defense
+  +[35, 56]: int _r_hp
+  +[35, 60]: int _r_atk_lvl
+  +[35, 64]: int _r_def_lvl
+
+=== struct session_npc_range_attack  (size 72 / 0x48)  3 campos ===
+  +[35, 60]: bool _auto_interrupt
+  +[35, 64]: float _short_range
+  +[35, 68]: float _attack_range
+
+=== struct session_npc_keep_out  (size 68 / 0x44)  6 campos ===
+  +[35, 40]: XID _target
+  +[35, 48]: float _range
+  +[35, 52]: int _timeout
+  +[35, 56]: int _retcode
+  +[35, 60]: char _stop_flag
+  +[35, 64]: keep_out* _agent
+
+=== struct session_npc_cruise  (size 68 / 0x44)  5 campos ===
+  +[35, 40]: A3DVECTOR _center
+  +[35, 52]: int _timeout
+  +[35, 56]: bool _stop_flag
+  +[35, 60]: float _range
+  +[35, 64]: cruise* _agent
+
+=== struct session_npc_patrol  (size 72 / 0x48)  8 campos ===
+  +[35, 40]: A3DVECTOR _target
+  +[35, 52]: int _retcode
+  +[35, 56]: bool _stop_flag
+  +[35, 57]: bool _is_run
+  +[35, 58]: char _reachable_count
+  +[35, 60]: int _timeout
+  +[35, 64]: follow_target* _agent
+  +[35, 68]: patrol_agent* _path_agent
+
+=== struct test_skill_timer  (size 80 / 0x50)  6 campos ===
+  +[35, 12]: link_sid _lid
+  +[35, 24]: int _target
+  +[35, 28]: char _force_attack
+  +[35, 32]: int[10] _skill
+  +[35, 72]: int _skill_count
+  +[35, 76]: int _cur_index
+
+=== struct AREA  (size 72 / 0x48)  12 campos ===
+  +[35, 0]: int iType
+  +[35, 4]: int iNumGen
+  +[35, 8]: float[3] vPos
+  +[35, 20]: float[3] vDir
+  +[35, 32]: float[3] vExts
+  +[35, 44]: int iFirstGen
+  +[35, 48]: int iNPCType
+  +[35, 52]: int iGroupType
+  +[35, 56]: bool bAutoRevive
+  +[35, 60]: int idCtrl
+  +[35, 64]: int iLifeTime
+  +[35, 68]: int iMaxNum
+
+=== struct NPCGEN  (size 68 / 0x44)  20 campos ===
+  +[35, 0]: int iArea
+  +[35, 4]: size_t dwID
+  +[35, 8]: size_t dwNum
+  +[35, 12]: int iRefresh
+  +[35, 16]: size_t dwDiedTimes
+  +[35, 20]: size_t dwAggressive
+  +[35, 24]: float fOffsetWater
+  +[35, 28]: float fOffsetTrn
+  +[35, 32]: size_t dwFaction
+  +[35, 36]: size_t dwFacHelper
+  +[35, 40]: size_t dwFacAccept
+  +[35, 44]: bool bNeedHelp
+  +[35, 45]: bool bDefFaction
+  +[35, 46]: bool bDefFacHelper
+  +[35, 47]: bool bDefFacAccept
+  +[35, 48]: int iPathID
+  +[35, 52]: int iLoopType
+  +[35, 56]: int iSpeedFlag
+  +[35, 60]: int iDeadTime
+  +[35, 64]: int iRefreshLower
+
+=== struct CONTROLLER  (size 204 / 0xcc)  11 campos ===
+  +[35, 0]: size_t id
+  +[35, 4]: int iControllerID
+  +[35, 8]: char[128] szName
+  +[35, 136, 1]: bool bActived
+  +[35, 140, 1]: int iWaitTime
+  +[35, 144, 1]: int iStopTime
+  +[35, 148, 1]: bool bActiveTimeInvalid
+  +[35, 149, 1]: bool bStopTimeInvalid
+  +[35, 152, 1]: int iActiveTimeRange
+  +[35, 156, 1]: NPCCTRLTIME ActiveTime
+  +[35, 180, 1]: NPCCTRLTIME StopTime
+
+=== struct base_spawner  (size 80 / 0x50)  13 campos ===
+  +[35, 0]: subroutine_type** _vptr.base_spawner
+  +[35, 4]: rect _region
+  +[35, 20]: A3DVECTOR _pos_min
+  +[35, 32]: A3DVECTOR _pos_max
+  +[35, 44]: generate_pos* _pos_generator
+  +[35, 48]: int _pool_lock
+  +[35, 52]: static_multimap<XID,int,abase::fast_alloc<4, 128> > _xid_list
+  +[35, 68]: bool _auto_respawn
+  +[35, 69]: bool _is_spawned
+  +[35, 70]: char _dir
+  +[35, 71]: char _dir1
+  +[35, 72]: char _rad
+  +[35, 76]: int _collision_id
+
+=== struct vendor_provider  (size 132 / 0x84)  8 campos ===
+  +[35, 16]: float _tax_rate
+  +[35, 20]: vector<const item_data*,abase::fast_alloc<4, 128> > _item_list
+  +[35, 36]: vector<int,abase::fast_alloc<4, 128> > _price_list
+  +[35, 52]: vector<int,abase::fast_alloc<4, 128> > _consume_contrib_cost_list
+  +[35, 68]: vector<int,abase::fast_alloc<4, 128> > _cumulate_contrib_limit_list
+  +[35, 84]: vector<int,abase::fast_alloc<4, 128> > _force_contrib_cost_list
+  +[35, 100]: vector<int,abase::fast_alloc<4, 128> > _force_limit_list
+  +[35, 116]: vector<int,abase::fast_alloc<4, 128> > _force_reputation_limit_list
+
+=== struct public_quest  (size 84 / 0x54)  12 campos ===
+  +[35, 0]: int _lock
+  +[35, 4]: int _pq_state
+  +[35, 8]: int _heartbeat_counter
+  +[35, 12]: int _task_id
+  +[35, 16]: int _first_child_task_id
+  +[35, 20]: int _cur_child_task_id
+  +[35, 24]: int _cur_task_stamp
+  +[35, 28]: map<int,int,std::less<int>,std::allocator<std::pair<const int, int> > > _common_value
+  +[35, 40]: bool _score_changed
+  +[35, 41]: bool _no_change_rank
+  +[35, 44]: hash_map<int,public_quest::player_pq_info*,abase::_hash_function,abase::fast_alloc<4, 128> > _score
+  +[35, 68]: vector<std::multimap<int, public_quest::player_pq_info*, std::less<int>, std::allocator<std::pair<const int, public_quest::player_pq_info*> > >,abase::fast_alloc<4, 128> > _ranks
+
+=== struct gpet_policy  (size 352 / 0x160)  8 campos ===
+  +[35, 172, 2]: CChaseInfo _chase_info
+  +[35, 188, 2]: int _pathfind_result
+  +[35, 192, 2]: int _aggro_state
+  +[35, 196, 2]: int _stay_mode
+  +[35, 200, 2]: int _auto_skill_id
+  +[35, 204, 2]: int _auto_skill_level
+  +[35, 208, 2]: int _auto_skill_type
+  +[35, 212, 2]: A3DVECTOR _stay_pos
+
+=== struct wedding_manager  (size 72 / 0x48)  8 campos ===
+  +[35, 0]: bool initialized
+  +[35, 4]: int lock
+  +[35, 8]: int tick_counter
+  +[35, 12]: int t_base
+  +[35, 16]: int[2] ongoing_index
+  +[35, 24]: vector<wedding_manager::wedding,abase::default_alloc> booking_list
+  +[35, 40]: vector<wedding_manager::DAY,abase::default_alloc> special_days
+  +[35, 56]: vector<wedding_manager::PERIOD,abase::default_alloc> schedule_periods
+
+=== struct thread_usage  (size 376 / 0x178)  6 campos ===
+  +[35, 0]: int lock
+  +[35, 4]: usage_stat sec
+  +[35, 96]: usage_stat sec5
+  +[35, 188, 1]: usage_stat min
+  +[35, 152, 2]: usage_stat min5
+  +[35, 244, 2]: string ident
+
+=== struct maze_map_generator  (size 72 / 0x48)  2 campos ===
+  +[35, 44]: A3DVECTOR _birth_pos
+  +[35, 56]: vector<int,abase::default_alloc> _room_indexes
+
+=== struct _Rb_tree_node<std::pair<const int, mnfaction_ctrl::_switch_tower> >  (size 68 / 0x44)  1 campos ===
+  +[35, 16]: pair<const int,mnfaction_ctrl::_switch_tower> _M_value_field
+
+=== struct _Rb_tree_node<std::pair<const int, mnfaction_ctrl::_transmit_point_pos> >  (size 80 / 0x50)  1 campos ===
+  +[35, 16]: pair<const int,mnfaction_ctrl::_transmit_point_pos> _M_value_field
+
+=== struct trickbattle_ctrl  (size 196 / 0xc4)  14 campos ===
+  +[35, 4]: structure_type _data
+  +[35, 24]: int _lock
+  +[35, 28]: int _tick_counter
+  +[35, 32]: int _battle_result
+  +[35, 36]: int _battle_end_timer
+  +[35, 40]: int _lock_pscore_map
+  +[35, 44]: hash_map<int,trickbattle_ctrl::personal_score,abase::_hash_function,abase::fast_alloc<4, 128> > _pscore_map
+  +[35, 68]: int _lock_chariot_map
+  +[35, 72]: hash_map<int,int,abase::_hash_function,abase::default_alloc> _attacker_chariot_map
+  +[35, 96]: hash_map<int,int,abase::_hash_function,abase::default_alloc> _defender_chariot_map
+  +[35, 120]: cs_user_map _attacker_list
+  +[35, 144, 1]: cs_user_map _defender_list
+  +[35, 168, 1]: cs_user_map _all_list
+  +[35, 192, 1]: int _user_list_lock
+
+=== struct projectile_equip_item  (size 228 / 0xe4)  1 campos ===
+  +[35, 208, 1]: projectile_essence _ess
+
+=== struct socket_item  (size 208 / 0xd0)  1 campos ===
+  +[35, 192, 1]: vector<int,abase::default_alloc> _socket_list
+
+=== struct addon_equip_item  (size 72 / 0x48)  5 campos ===
+  +[35, 16]: ADDON_LIST _active_addon
+  +[35, 32]: ADDON_LIST _total_addon
+  +[35, 48]: ADDON_LIST* _extra_addon
+  +[35, 52]: addon_data _use_addon
+  +[35, 68]: int _addon_expire_date
+
+=== struct fashion_item  (size 72 / 0x48)  2 campos ===
+  +[35, 16]: structure_type _ess
+  +[35, 68]: int _color_mask
+
+=== struct general_aerocraft_item<flysword_essence,4>  (size 84 / 0x54)  2 campos ===
+  +[35, 16]: ._271 _ess
+  +[35, 80]: short unsigned int _crc
+
+=== struct ._271  (size 72 / 0x48)  4 campos ===
+  +[35, 0]: cls_flysword_essence ess
+  +[35, 28]: char name_type
+  +[35, 29]: char name_size
+  +[35, 30]: char[40] name
+
+=== struct general_aerocraft_item<angel_wing_essence,0>  (size 80 / 0x50)  2 campos ===
+  +[35, 16]: ._271 _ess
+  +[35, 76]: short unsigned int _crc
+
+=== struct stone_item  (size 76 / 0x4c)  4 campos ===
+  +[35, 16]: octets _raw_data
+  +[35, 28]: vector<addon_data,abase::fast_alloc<4, 128> > _weapon_addon
+  +[35, 44]: vector<addon_data,abase::fast_alloc<4, 128> > _armor_addon
+  +[35, 60]: vector<addon_data,abase::fast_alloc<4, 128> > _decoration_addon
+
+=== struct CELPrecinct  (size 68 / 0x44)  12 campos ===
+  +[35, 0]: subroutine_type** _vptr.CELPrecinct
+  +[35, 4]: int m_idDstInst
+  +[35, 8]: int m_idSrcInst
+  +[35, 12]: int m_iPriority
+  +[35, 16]: VECTOR3 m_vCityPos
+  +[35, 28]: int m_idDomain
+  +[35, 32]: bool m_bPKProtect
+  +[35, 36]: float m_fLeft
+  +[35, 40]: float m_fTop
+  +[35, 44]: float m_fRight
+  +[35, 48]: float m_fBottom
+  +[35, 52]: vector<CELPrecinct::VECTOR3,abase::default_alloc> m_aPoints
+
+=== struct CELRegionSet  (size 76 / 0x4c)  7 campos ===
+  +[35, 0]: subroutine_type** _vptr.CELRegionSet
+  +[35, 4]: unsigned int m_dwTimeStamp
+  +[35, 8]: int m_dwRegionIndex
+  +[35, 12]: vector<CELRegion*,abase::default_alloc> m_aRegions
+  +[35, 28]: vector<CELRegion*,abase::default_alloc> m_aPKRegions
+  +[35, 44]: vector<CELRegion*,abase::default_alloc> m_aPeaceRegions
+  +[35, 60]: vector<CELTransportBox*,abase::default_alloc> m_aTransBoxes
+
+=== struct _GSHOP_ITEM  (size 196 / 0xc4)  11 campos ===
+  +[35, 0]: int local_id
+  +[35, 4]: int main_type
+  +[35, 8]: int sub_type
+  +[35, 12]: unsigned int id
+  +[35, 16]: unsigned int num
+  +[35, 20]: structure_type[4] buy
+  +[35, 148, 1]: unsigned int idGift
+  +[35, 152, 1]: unsigned int iGiftNum
+  +[35, 156, 1]: unsigned int iGiftTime
+  +[35, 160, 1]: unsigned int iLogPrice
+  +[35, 164, 1]: unsigned int[8] owner_npcs
+
+=== struct CNPCChaseAgent  (size 72 / 0x48)  11 campos ===
+  +[35, 24]: A3DVECTOR3 m_vGoal
+  +[35, 36]: float m_fMinDist2Goal
+  +[35, 40]: float m_fSqrMinDist2Goal
+  +[35, 44]: A3DVECTOR3 m_vMoveDir
+  +[35, 56]: bool m_bGetToGoal
+  +[35, 57]: bool m_bBlockedBeyondEnv
+  +[35, 58]: bool m_bFoundPath
+  +[35, 59]: bool m_bBlocked
+  +[35, 60]: bool m_bIsGoalReachable
+  +[35, 64]: int m_PFPixels
+  +[35, 68]: int m_iMaxBlockTimes
+
+=== struct enhanced_param  (size 132 / 0x84)  20 campos ===
+  +[35, 0]: int max_mp
+  +[35, 4]: int max_hp
+  +[35, 8]: int hp_gen
+  +[35, 12]: int mp_gen
+  +[35, 16]: int vit
+  +[35, 20]: int eng
+  +[35, 24]: int agi
+  +[35, 28]: int str
+  +[35, 32]: int damage_low
+  +[35, 36]: int damage_high
+  +[35, 40]: int attack
+  +[35, 44]: int attack_speed
+  +[35, 48]: float attack_range
+  +[35, 52]: float flight_speed
+  +[35, 56]: structure_type[5] addon_damage
+  +[35, 96]: int[5] resistance
+  +[35, 116]: int magic_dmg_low
+  +[35, 120]: int magic_dmg_high
+  +[35, 124]: int defense
+  +[35, 128, 1]: int armor
+
+=== struct attack_msg  (size 76 / 0x4c)  14 campos ===
+  +[35, 0]: attacker_info_t ainfo
+  +[35, 16]: float attack_range
+  +[35, 20]: float short_range
+  +[35, 24]: int physic_damage
+  +[35, 28]: int attack_rate
+  +[35, 32]: int[5] magic_damage
+  +[35, 52]: int attacker_faction
+  +[35, 56]: int target_faction
+  +[35, 60]: char physic_attack
+  +[35, 61]: char force_attack
+  +[35, 62]: char attacker_layer
+  +[35, 63]: char attack_state
+  +[35, 64]: int speed
+  +[35, 68]: structure_type attached_skill
+
+=== struct _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, GNET::Statistic> >  (size 68 / 0x44)  1 campos ===
+  +[35, 16]: pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >,GNET::Statistic> _M_value_field
+
+=== struct SendAuctionBid  (size 208 / 0xd0)  6 campos ===
+  +[35, 12]: int roleid
+  +[35, 16]: unsigned int auctionid
+  +[35, 20]: unsigned int bidprice
+  +[35, 24]: char bin
+  +[35, 28]: unsigned int localsid
+  +[35, 32]: GMailSyncData syncdata
+
+=== struct GFactionFortressInfo  (size 76 / 0x4c)  14 campos ===
+  +[35, 4]: int level
+  +[35, 8]: int exp
+  +[35, 12]: int exp_today
+  +[35, 16]: int exp_today_time
+  +[35, 20]: int tech_point
+  +[35, 24]: Octets technology
+  +[35, 32]: Octets material
+  +[35, 40]: Octets building
+  +[35, 48]: Octets common_value
+  +[35, 56]: Octets actived_spawner
+  +[35, 64]: char reserved11
+  +[35, 66]: short int reserved12
+  +[35, 68]: int reserved2
+  +[35, 72]: int reserved3
+
+=== struct PutFactionFortressArg  (size 84 / 0x54)  2 campos ===
+  +[35, 4]: int factionid
+  +[35, 8]: GFactionFortressInfo info
+
+=== struct NetSession  (size 84 / 0x54)  14 campos ===
+  +[35, 0]: subroutine_type** _vptr.NetSession
+  +[35, 4]: PollIO* assoc_io
+  +[35, 8]: bool sending
+  +[35, 9]: bool closing
+  +[35, 10]: bool close_discard
+  +[35, 12]: int status
+  +[35, 16]: Octets ibuffer
+  +[35, 24]: Octets obuffer
+  +[35, 32]: Octets isecbuf
+  +[35, 40]: Octets osecbuf
+  +[35, 48]: Security* isec
+  +[35, 52]: Security* osec
+  +[35, 56]: Mutex locker
+  +[35, 80]: bool urgency_support
+
+=== struct basic_istringstream<char,std::char_traits<char>,std::allocator<char> >  (size 228 / 0xe4)  1 campos ===
+  +[35, 8]: basic_stringbuf<char,std::char_traits<char>,std::allocator<char> > _M_stringbuf
+
+=== struct DBPlayerChangeGenderArg  (size 208 / 0xd0)  7 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int item_id
+  +[35, 12]: int item_num
+  +[35, 16]: int item_pos
+  +[35, 20]: unsigned char newgender
+  +[35, 24]: Octets custom_data
+  +[35, 32]: GMailSyncData syncdata
+
+=== struct SNSRoleBrief  (size 160 / 0xa0)  39 campos ===
+  +[35, 4]: int level
+  +[35, 8]: int exp
+  +[35, 12]: int sp
+  +[35, 16]: int level2
+  +[35, 20]: int reputation
+  +[35, 24]: int pp
+  +[35, 28]: int vitality
+  +[35, 32]: int energy
+  +[35, 36]: int strength
+  +[35, 40]: int agility
+  +[35, 44]: int max_hp
+  +[35, 48]: int max_mp
+  +[35, 52]: float run_speed
+  +[35, 56]: int attack
+  +[35, 60]: int damage_low
+  +[35, 64]: int damage_high
+  +[35, 68]: int attack_speed
+  +[35, 72]: float attack_range
+  +[35, 76]: int damage_magic_low
+  +[35, 80]: int damage_magic_high
+  +[35, 84]: int resistance0
+  +[35, 88]: int resistance1
+  +[35, 92]: int resistance2
+  +[35, 96]: int resistance3
+  +[35, 100]: int resistance4
+  +[35, 104]: int defense
+  +[35, 108]: int armor
+  +[35, 112]: int crit_rate
+  +[35, 116]: int crit_damage
+  +[35, 120]: int attack_degree
+  +[35, 124]: int defend_degree
+  +[35, 128, 1]: int invisible_degree
+  +[35, 132, 1]: int anti_invisible_degree
+  +[35, 136, 1]: int soul_power
+  +[35, 140, 1]: unsigned int skills_crc
+  +[35, 144, 1]: unsigned int equipment_crc
+  +[35, 148, 1]: unsigned int petcorral_crc
+  +[35, 152, 1]: int spouse
+  +[35, 156, 1]: int factionid
+
+=== struct PlayerSendMail  (size 72 / 0x48)  11 campos ===
+  +[35, 12]: int roleid
+  +[35, 16]: unsigned int localsid
+  +[35, 20]: int receiver
+  +[35, 24]: Octets title
+  +[35, 32]: Octets context
+  +[35, 40]: int attach_obj_id
+  +[35, 44]: int attach_obj_num
+  +[35, 48]: int attach_obj_pos
+  +[35, 52]: unsigned int attach_money
+  +[35, 56]: Octets sender_name
+  +[35, 64]: Octets syncdata
+
+=== struct PlayerSendMassMail  (size 84 / 0x54)  12 campos ===
+  +[35, 12]: char mass_type
+  +[35, 16]: int roleid
+  +[35, 20]: unsigned int localsid
+  +[35, 24]: Octets title
+  +[35, 32]: Octets context
+  +[35, 40]: Octets sender_name
+  +[35, 48]: vector<int,std::allocator<int> > receiver_list
+  +[35, 60]: int cost_obj_id
+  +[35, 64]: int cost_obj_num
+  +[35, 68]: int cost_obj_pos
+  +[35, 72]: unsigned int cost_money
+  +[35, 76]: Octets syncdata
+
+=== struct StockTransaction  (size 208 / 0xd0)  6 campos ===
+  +[35, 12]: int roleid
+  +[35, 16]: char withdraw
+  +[35, 20]: int cash
+  +[35, 24]: int money
+  +[35, 28]: unsigned int localsid
+  +[35, 32]: GMailSyncData syncdata
+
+=== struct DBPlayerChangeGenderRes  (size 196 / 0xc4)  4 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: unsigned char oldgender
+  +[35, 12]: Octets custom_data
+  +[35, 20]: GMailSyncData syncdata
+
+=== struct GFactionFortressDetail  (size 148 / 0x94)  8 campos ===
+  +[35, 4]: int factionid
+  +[35, 8]: GFactionFortressInfo info
+  +[35, 84]: GFactionFortressInfo2 info2
+  +[35, 128, 1]: int reserved1
+  +[35, 132, 1]: int reserved2
+  +[35, 136, 1]: int reserved3
+  +[35, 140, 1]: int reserved4
+  +[35, 144, 1]: int reserved5
+
+=== struct SSOGetTicket  (size 76 / 0x4c)  5 campos ===
+  +[35, 12]: SSOUser user
+  +[35, 52]: int toaid
+  +[35, 56]: int tozoneid
+  +[35, 60]: Octets info
+  +[35, 68]: Octets local_context
+
+=== struct GTerritoryDetail  (size 68 / 0x44)  18 campos ===
+  +[35, 4]: short int id
+  +[35, 6]: short int level
+  +[35, 8]: unsigned int owner
+  +[35, 12]: int occupy_time
+  +[35, 16]: unsigned int challenger
+  +[35, 20]: unsigned int deposit
+  +[35, 24]: int cutoff_time
+  +[35, 28]: int battle_time
+  +[35, 32]: int bonus_time
+  +[35, 36]: int color
+  +[35, 40]: int status
+  +[35, 44]: int timeout
+  +[35, 48]: int maxbonus
+  +[35, 52]: int challenge_time
+  +[35, 56]: Octets challengerdetails
+  +[35, 64]: char reserved1
+  +[35, 65]: char reserved2
+  +[35, 66]: char reserved3
+
+=== struct DBRoleDetail  (size 72 / 0x48)  2 campos ===
+  +[35, 4]: RoleInfoBean info
+  +[35, 48]: RoleForbidBean forbid
+
+=== struct MNFactionInfo  (size 76 / 0x4c)  13 campos ===
+  +[35, 4]: int64_t unifid
+  +[35, 12]: unsigned int fid
+  +[35, 16]: Octets faction_name
+  +[35, 24]: Octets master_name
+  +[35, 32]: int zoneid
+  +[35, 36]: vector<char,std::allocator<char> > domain_num
+  +[35, 48]: int credit
+  +[35, 52]: int credit_this_week
+  +[35, 56]: int credit_get_time
+  +[35, 60]: unsigned int invite_count
+  +[35, 64]: unsigned int accept_sn
+  +[35, 68]: unsigned int bonus_sn
+  +[35, 72]: unsigned int version
+
+=== struct DBCreateRoleArg  (size 148 / 0x94)  6 campos ===
+  +[35, 4]: int userid
+  +[35, 8]: unsigned int logicuid
+  +[35, 12]: int roleid
+  +[35, 16]: RoleInfo roleinfo
+  +[35, 140, 1]: int au_suggest_referrer
+  +[35, 144, 1]: int player_suggest_referrer
+
+=== struct DBCreateRoleRes  (size 148 / 0x94)  6 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: int roleid
+  +[35, 12]: unsigned int rolelist
+  +[35, 16]: RoleInfo roleinfo
+  +[35, 140, 1]: int real_referrer
+  +[35, 144, 1]: int refretcode
+
+=== struct RoleDataRes  (size 624 / 0x270)  2 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: GRoleData value
+
+=== struct FriendListRes  (size 76 / 0x4c)  4 campos ===
+  +[35, 4]: char retcode
+  +[35, 8]: GFriendList value
+  +[35, 44]: GFriendExtInfoVector extra_info
+  +[35, 60]: GSendAUMailRecordVector sendmail_info
+
+=== struct FriendListPair  (size 80 / 0x50)  4 campos ===
+  +[35, 4]: RoleId key
+  +[35, 12]: GFriendList value
+  +[35, 48]: GFriendExtInfoVector extra_info
+  +[35, 64]: GSendAUMailRecordVector sendmail_info
+
+=== struct DBGetMailAttachArg  (size 196 / 0xc4)  3 campos ===
+  +[35, 4]: GMailID mail_id
+  +[35, 16]: unsigned char attach_type
+  +[35, 20]: GMailSyncData syncdata
+
+=== struct DBAuctionBidArg  (size 196 / 0xc4)  5 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: unsigned int auctionid
+  +[35, 12]: unsigned int bidprice
+  +[35, 16]: char bin
+  +[35, 20]: GMailSyncData syncdata
+
+=== struct DBBattleChallengeArg  (size 204 / 0xcc)  7 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: short int cityid
+  +[35, 12]: int factionid
+  +[35, 16]: unsigned int deposit
+  +[35, 20]: unsigned int maxbonus
+  +[35, 24]: int challenge_time
+  +[35, 28]: GMailSyncData syncdata
+
+=== struct DBBattleBonusArg  (size 68 / 0x44)  5 campos ===
+  +[35, 4]: unsigned int factionid
+  +[35, 8]: short int cityid
+  +[35, 12]: unsigned int money
+  +[35, 16]: GRoleInventory item
+  +[35, 64]: short int isspecialbonus
+
+=== struct DBSysAuctionCashTransferArg  (size 196 / 0xc4)  5 campos ===
+  +[35, 4]: int userid
+  +[35, 8]: int roleid
+  +[35, 12]: char withdraw
+  +[35, 16]: unsigned int cash_transfer
+  +[35, 20]: GMailSyncData syncdata
+
+=== struct DBSysAuctionCashSpendArg  (size 68 / 0x44)  5 campos ===
+  +[35, 4]: int userid
+  +[35, 8]: int roleid
+  +[35, 12]: unsigned int cash_spend
+  +[35, 16]: unsigned int sa_id
+  +[35, 20]: GRoleInventory item
+
+=== struct DBCreateFactionFortressArg  (size 340 / 0x154)  4 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: Octets item_cost
+  +[35, 16]: GFactionFortressDetail detail
+  +[35, 164, 1]: GMailSyncData syncdata
+
+=== struct FetchPlayerDataRes  (size 624 / 0x270)  2 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: CrossPlayerData data
+
+=== struct SavePlayerDataArg  (size 644 / 0x284)  7 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int remote_roleid
+  +[35, 12]: int userid
+  +[35, 16]: int src_zoneid
+  +[35, 20]: CrossPlayerData data
+  +[35, 252, 4]: char flag
+  +[35, 128, 5]: int data_timestamp
+
+=== struct SavePlayerDataRes  (size 208 / 0xd0)  5 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: int new_roleid
+  +[35, 12]: GRoleInfo roleinfo
+  +[35, 196, 1]: short int cross_type
+  +[35, 200, 1]: int64_t unifid
+
+=== struct DBLoadGlobalControlRes  (size 148 / 0x94)  2 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: GGlobalControlData data
+
+=== struct DBPlayerRenameArg  (size 204 / 0xcc)  6 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int item_id
+  +[35, 12]: int item_num
+  +[35, 16]: int item_pos
+  +[35, 20]: Octets newname
+  +[35, 28]: GMailSyncData syncdata
+
+=== struct DBKELoadRes  (size 72 / 0x48)  2 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: KingElectionDetail detail
+
+=== struct DBKECandidateApplyArg  (size 196 / 0xc4)  5 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int serial_num
+  +[35, 12]: unsigned int item_id
+  +[35, 16]: int item_num
+  +[35, 20]: GMailSyncData syncdata
+
+=== struct DBPShopCreateArg  (size 204 / 0xcc)  7 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int shoptype
+  +[35, 12]: int item_id
+  +[35, 16]: int item_pos
+  +[35, 20]: int item_num
+  +[35, 24]: int createtime
+  +[35, 28]: GMailSyncData syncdata
+
+=== struct DBPShopCreateRes  (size 292 / 0x124)  3 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: PShopDetail shop
+  +[35, 116]: GMailSyncData syncdata
+
+=== struct DBPShopBuyRes  (size 72 / 0x48)  2 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: PShopItem itembuy
+
+=== struct DBPShopSellArg  (size 204 / 0xcc)  7 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int item_id
+  +[35, 12]: int item_pos
+  +[35, 16]: int item_count
+  +[35, 20]: unsigned int item_price
+  +[35, 24]: int inv_pos
+  +[35, 28]: GMailSyncData syncdata
+
+=== struct DBPShopPlayerSellArg  (size 204 / 0xcc)  7 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int master
+  +[35, 12]: int item_id
+  +[35, 16]: int item_pos
+  +[35, 20]: int item_count
+  +[35, 24]: int inv_pos
+  +[35, 28]: GMailSyncData syncdata
+
+=== struct DBPShopActiveRes  (size 292 / 0x124)  3 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: PShopDetail detail
+  +[35, 116]: GMailSyncData syncdata
+
+=== struct DBPShopManageFundArg  (size 196 / 0xc4)  5 campos ===
+  +[35, 4]: int roleid
+  +[35, 8]: int optype
+  +[35, 12]: unsigned int money
+  +[35, 16]: unsigned int yinpiao
+  +[35, 20]: GMailSyncData syncdata
+
+=== struct DBPShopManageFundRes  (size 204 / 0xcc)  4 campos ===
+  +[35, 4]: int retcode
+  +[35, 8]: unsigned int money
+  +[35, 12]: GRoleInventoryVector yinpiao
+  +[35, 28]: GMailSyncData syncdata
+
+=== struct DBFactionRenameArg  (size 208 / 0xd0)  7 campos ===
+  +[35, 4]: int rid
+  +[35, 8]: unsigned int fid
+  +[35, 12]: int item_id
+  +[35, 16]: int item_num
+  +[35, 20]: int item_pos
+  +[35, 24]: Octets newname
+  +[35, 32]: GMailSyncData syncdata
+
+=== struct DBMNFactionBattleApplyArg  (size 208 / 0xd0)  7 campos ===
+  +[35, 4]: unsigned int fid
+  +[35, 8]: int64_t unifid
+  +[35, 16]: int roleid
+  +[35, 20]: unsigned char target
+  +[35, 24]: unsigned int cost
+  +[35, 28]: int zoneid
+  +[35, 32]: GMailSyncData syncdata
+
+=== struct DBMNSendBattleBonusArg  (size 68 / 0x44)  1 campos ===
+  +[35, 4]: MNDomainBonus bonus
+
+=== struct GWebTradeItem  (size 84 / 0x54)  17 campos ===
+  +[35, 4]: int64_t sn
+  +[35, 12]: int seller_roleid
+  +[35, 16]: int seller_userid
+  +[35, 20]: Octets seller_name
+  +[35, 28]: int posttype
+  +[35, 32]: unsigned int money
+  +[35, 36]: unsigned int item_id
+  +[35, 40]: int item_count
+  +[35, 44]: int state
+  +[35, 48]: int post_endtime
+  +[35, 52]: int show_endtime
+  +[35, 56]: int price
+  +[35, 60]: int sell_endtime
+  +[35, 64]: int buyer_roleid
+  +[35, 68]: int buyer_userid
+  +[35, 72]: Octets buyer_name
+  +[35, 80]: int commodity_id
+
+=== struct scale_enhanced_param  (size 84 / 0x54)  17 campos ===
+  +[35, 0]: int max_mp
+  +[35, 4]: int max_hp
+  +[35, 8]: int hp_gen
+  +[35, 12]: int mp_gen
+  +[35, 16]: int walk_speed
+  +[35, 20]: int run_speed
+  +[35, 24]: int swim_speed
+  +[35, 28]: int flight_speed
+  +[35, 32]: int attack_speed
+  +[35, 36]: int damage
+  +[35, 40]: int attack
+  +[35, 44]: int base_damage
+  +[35, 48]: int base_magic
+  +[35, 52]: int magic_dmg
+  +[35, 56]: int[5] resistance
+  +[35, 76]: int defense
+  +[35, 80]: int armor
+
+=== struct filter_Wounded  (size 84 / 0x54)  6 campos ===
+  +[35, 24]: int _damage
+  +[35, 28]: XID _performer
+  +[35, 36]: attacker_info_t _pinfo
+  +[35, 80]: char _counter
+  +[35, 81]: bool _invader
+  +[35, 82]: char _mode
+
+=== struct filter_Delayhurt2  (size 84 / 0x54)  5 campos ===
+  +[35, 24]: int _damage
+  +[35, 28]: XID _performer
+  +[35, 36]: attacker_info_t _pinfo
+  +[35, 80]: bool _invader
+  +[35, 81]: char _mode
+
+=== struct filter_Fallen2  (size 84 / 0x54)  1 campos ===
+  +[35, 83]: bool _insertvstate
+
+=== struct filter_Delayhurt  (size 80 / 0x50)  5 campos ===
+  +[35, 20]: int _damage
+  +[35, 24]: XID _performer
+  +[35, 32]: attacker_info_t _pinfo
+  +[35, 76]: bool _invader
+  +[35, 77]: char _mode
+
+=== struct filter_Appendenchant  (size 68 / 0x44)  6 campos ===
+  +[35, 40]: int _skillid
+  +[35, 44]: int _skilllevel
+  +[35, 48]: int _count
+  +[35, 52]: bool _activeflag
+  +[35, 56]: XID _target
+  +[35, 64]: float _range
+
+=== struct Callup  (size 80 / 0x50)  20 campos ===
+  +[35, 0]: subroutine_type** _vptr.Callup
+  +[35, 4]: int id
+  +[35, 8]: int count
+  +[35, 12]: int livetime
+  +[35, 16]: int hp
+  +[35, 20]: int attack_mode
+  +[35, 24]: bool restrict_target
+  +[35, 28]: float rect_length
+  +[35, 32]: int attack
+  +[35, 36]: int poison
+  +[35, 40]: int attack_water
+  +[35, 44]: float wood_factor
+  +[35, 48]: float wood_prob
+  +[35, 52]: float fix_prob
+  +[35, 56]: int defence
+  +[35, 60]: float velocity
+  +[35, 64]: float interval
+  +[35, 68]: float view
+  +[35, 72]: float search_distance
+  +[35, 76]: float attack_distance
+
+=== struct BrushNode  (size 84 / 0x54)  4 campos ===
+  +[35, 0]: A3DAABB aabb
+  +[35, 48]: BrushNode*[4] children
+  +[35, 64]: vector<SvrCD::CCDBrush*,abase::default_alloc> brushes
+  +[35, 80]: bool RoI
+
+=== struct CFace  (size 68 / 0x44)  3 campos ===
+  +[35, 20]: vector<int,abase::default_alloc> m_arrVIDs
+  +[35, 36]: vector<SvrCD::CHalfSpace,abase::default_alloc> m_arrEdgeHSs
+  +[35, 52]: vector<SvrCD::CHalfSpace,abase::default_alloc> m_arrExtraHSs
