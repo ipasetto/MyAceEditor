@@ -22,6 +22,9 @@ internal static class Program
         if (args.Length >= 3 && args[0] == "--testcfg") { TestCfg(args[1], args[2]); return; }
 
         ApplicationConfiguration.Initialize();
+#pragma warning disable WFO5001
+        try { Application.SetColorMode(SystemColorMode.Dark); } catch { }
+#pragma warning restore WFO5001
         Application.Run(new EditorForm());
     }
 
