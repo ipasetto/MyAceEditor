@@ -117,9 +117,69 @@ public sealed class ElementsReader : IDisposable
         return Encoding.Unicode.GetString(buf, offset, end - offset);
     }
 
+    /// <summary>
+    /// Executa o PROGRAMA completo do parser (recuperado por RE do cliente):
+    /// blocos inline + sub-leitores fixos + seções especiais (blob variável e
+    /// object-list variável). Objetivo: percorrer o arquivo inteiro até o EOF.
+    /// </summary>
+    public IReadOnlyList<PwStepResult> ExecuteProgram(IReadOnlyList<Step> steps)
+    {
+        var results = new List<PwStepResult>(steps.Count);
+        foreach (var step in steps)
+        {
+            long start = Position;
+            uint count = 0;
+            int sid = 0; string sname = "";
+            switch (step.Kind)
+            {
+                case StepKind.InlineBlock:
+                case StepKind.SubBlock:
+                    count = ReadU32();
+                    if (count > 0 && step.Size >= 4)
+                    {
+                        var first = _r.ReadBytes(step.Size);   // 1º registro = amostra
+                        sid = BitConverter.ToInt32(first, 0);
+                        sname = NameFrom(first, 4, Math.Min(32, (step.Size - 4) / 2));
+                        Skip((long)(count - 1) * step.Size);
+                    }
+                    else Skip((long)count * step.Size);
+                    break;
+
+                case StepKind.SpecialBlob:
+                    ReadU32();                 // valor
+                    uint len = ReadU32();      // comprimento do blob
+                    Skip(len);
+                    if (step.HasTrailer) ReadU32();
+                    break;
+
+                case StepKind.ObjList:         // lista de objetos de tamanho variável (FUN_0071cb20)
+                    count = ReadU32();
+                    for (uint i = 0; i < count; i++)
+                    {
+                        ReadU32();             // A
+                        Skip(0x80);            // header
+                        uint m = ReadU32();    // nº de sub-itens
+                        for (uint j = 0; j < m; j++)
+                        {
+                            Skip(8);                       // 2 uint32
+                            uint l1 = ReadU32(); Skip((long)l1 * 2);   // string UTF-16
+                            uint l2 = ReadU32(); Skip((long)l2 * 0x88);// array de registros 0x88
+                        }
+                    }
+                    break;
+            }
+            results.Add(new PwStepResult(step.Tag, step.Kind, step.Size, count, sid, sname, start));
+        }
+        return results;
+    }
+
+    private uint ReadU32() => _r.ReadUInt32();
+    private void Skip(long n) => _r.BaseStream.Seek(n, SeekOrigin.Current);
+
     public void Dispose() => _r.Dispose();
 }
 
 public sealed record PwBlockData(string Name, uint Count, IReadOnlyList<Dictionary<string, object>> Records);
 public sealed record PwGenericRecord(int Id, string Name, byte[] Raw);
 public sealed record PwWalkedBlock(int RecordSize, uint Count, IReadOnlyList<PwGenericRecord> Records);
+public sealed record PwStepResult(string Tag, StepKind Kind, int RecordSize, uint Count, int SampleId, string SampleName, long Bytes);

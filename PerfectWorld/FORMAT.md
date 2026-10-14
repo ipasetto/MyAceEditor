@@ -79,3 +79,20 @@ no offset 4 — layout a mapear campo a campo)
 2. Mapear os campos (nomes/tipos) dos registros grandes (itens, equipamentos, NPCs).
 3. Implementar a ESCRITA (gravar de volta) preservando a ordem exata dos blocos.
 4. Ligar ao modelo Módulo→Lista→Item→Campo da UI.
+
+## Status da RE (atualizado)
+
+**Programa completo do parser recuperado** (`ElementsProgram.cs`, 150 passos):
+57 blocos inline + ~92 chamadas a sub-leitores + 2 seções blob variáveis + 1 object-list variável.
+Cada sub-leitor (ex.: `FUN_0071fad0`=0x1e0, `FUN_00723540`=0x1444) é `count + registros` de tamanho fixo;
+só `FUN_0071cb20` (item do object-list) é de tamanho variável (string UTF-16 + sub-array).
+
+**Validação contra o arquivo real:** o executor (`ElementsReader.ExecuteProgram`) faz um
+**parse byte-perfeito dos primeiros 44 blocos (~16 MB)** — toda a parte de itens, equipamentos,
+armas, armaduras, NPCs, monstros, lojas e receitas — lendo IDs e nomes corretos
+("Espada", "Poção de Cura", "Monstro Búfalo", "Produtos à Venda", "Fundir Pedras da Alma"…).
+
+**Pendente:** após o bloco 44 há um vão de ~103 KB de zeros e os dados voltam (~16,07 MB).
+O parser do cliente não usa `fseek`, então a 2ª metade (tasks/diálogos, ~17 MB) é consumida por um
+mecanismo ainda a destrinchar (provável object-list/sub com contagem fora do trecho zerado).
+Próximo passo: estudar o object-list e os sub-leitores contra os bytes reais dessa região.

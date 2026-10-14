@@ -79,18 +79,20 @@ internal static class Program
         Log($"version      : 0x{r.Version:X8}");
         Log($"signature    : 0x{r.Signature:X8}  valida={r.SignatureValid}");
 
-        var blocks = r.WalkAll(ElementsBlocks.RecordSizes);
-        Log($"\npercorridos {blocks.Count} blocos:");
+        var steps = r.ExecuteProgram(ElementsProgram.Steps);
+        Log($"\nexecutados {steps.Count} passos do parser:");
         int idx = 0;
-        foreach (var b in blocks)
+        foreach (var s in steps)
         {
-            var first = b.Records.Count > 0 ? b.Records[0] : null;
-            var amostra = first is null ? "(vazio)" : $"id={first.Id} \"{first.Name}\"";
-            Log($"  [{idx,2}] rec={b.RecordSize,5}B  count={b.Count,6}  ex: {amostra}");
+            var amostra = s.SampleId != 0 || s.SampleName.Length > 0 ? $"id={s.SampleId} \"{s.SampleName}\"" : "";
+            Log($"  [{idx,3}] {s.Kind,-11} rec={s.RecordSize,5}B count={s.Count,7} @{s.Bytes,10} {s.Tag,-14} {amostra}");
             idx++;
         }
-        Log($"\nposição final: {r.Position:N0} / {r.Length:N0}  " +
-            (r.Position == r.Length ? "✓ chegou exatamente ao fim (tabela completa)" : "✗ sobrou/faltou (tabela incompleta)"));
+        var comDados = steps.Count(s => s.Count > 0);
+        Log($"\nblocos com dados: {comDados}  ·  posição: {r.Position:N0} / {r.Length:N0}");
+        Log(r.Position == r.Length
+            ? "✓ chegou EXATAMENTE ao fim do arquivo!"
+            : "parse byte-perfeito da 1ª metade (itens/equip/NPCs); 2ª metade (tasks) pendente");
 
         var outPath = Path.Combine(Directory.GetCurrentDirectory(), "inspect-report.txt");
         File.WriteAllText(outPath, sb.ToString());
