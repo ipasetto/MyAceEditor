@@ -79,16 +79,18 @@ internal static class Program
         Log($"version      : 0x{r.Version:X8}");
         Log($"signature    : 0x{r.Signature:X8}  valida={r.SignatureValid}");
 
-        var b0 = r.ReadBlock(ElementsSchema.PropertyList);
-        Log($"\nbloco 0 '{b0.Name}': {b0.Count} registros de {ElementsSchema.PropertyList.RecordSize} bytes");
-        foreach (var rec in b0.Records.Take(3))
-            Log($"  id={rec["id"]} name=\"{rec["name"]}\" ({rec["f1"]},{rec["f2"]},{rec["f3"]},{rec["f4"]})");
-        var last = b0.Records[^1];
-        Log($"  … último: id={last["id"]} name=\"{last["name"]}\"");
-
-        var (c1, _) = r.SkipBlock(ElementsSchema.EquipCategory); // só conta por enquanto
-        Log($"\nbloco 1 '{ElementsSchema.EquipCategory.Name}': {c1} registros (layout parcial)");
-        Log($"posição após 2 blocos: {r.Position:N0} / {r.Length:N0}");
+        var blocks = r.WalkAll(ElementsBlocks.RecordSizes);
+        Log($"\npercorridos {blocks.Count} blocos:");
+        int idx = 0;
+        foreach (var b in blocks)
+        {
+            var first = b.Records.Count > 0 ? b.Records[0] : null;
+            var amostra = first is null ? "(vazio)" : $"id={first.Id} \"{first.Name}\"";
+            Log($"  [{idx,2}] rec={b.RecordSize,5}B  count={b.Count,6}  ex: {amostra}");
+            idx++;
+        }
+        Log($"\nposição final: {r.Position:N0} / {r.Length:N0}  " +
+            (r.Position == r.Length ? "✓ chegou exatamente ao fim (tabela completa)" : "✗ sobrou/faltou (tabela incompleta)"));
 
         var outPath = Path.Combine(Directory.GetCurrentDirectory(), "inspect-report.txt");
         File.WriteAllText(outPath, sb.ToString());

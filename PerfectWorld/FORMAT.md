@@ -1,7 +1,8 @@
 # Formato elements.data (engine Angelica / Perfect World)
 
-Notas de engenharia reversa do formato binário editado pelo Angelica Core Editor.
-Confirmado empiricamente contra `elements.data` v`0x3000003C` (Perfect World 1.4.4).
+Engenharia reversa do formato binário editado pelo Angelica Core Editor.
+Confirmado contra `elements.data` v`0x3000003C` (Perfect World 1.4.4), lendo o
+parser do próprio cliente (`elementclient.exe`, função `FUN_0071a310`) no Ghidra.
 
 ## Cabeçalho (8 bytes)
 
@@ -10,47 +11,71 @@ Confirmado empiricamente contra `elements.data` v`0x3000003C` (Perfect World 1.4
 | 0      | uint32 | version   | `0x3000003C`             |
 | 4      | uint32 | signature | `0x4F614E5B` ("[NaO")    |
 
-`signature` é constante e serve para validar o arquivo.
+## Estrutura geral
 
-## Corpo: sequência de blocos
-
-Depois do cabeçalho vem uma sequência fixa de **blocos**. Cada bloco é:
+O corpo é uma sequência de **blocos**. O caso comum é:
 
 ```
 uint32 count
-registro[count]      // layout fixo por tipo de bloco
+registro[count]      // registro de tamanho fixo por bloco
 ```
 
-Os blocos aparecem numa ordem fixa, definida pela versão. Cada tipo de registro tem
-um layout próprio (campos de tamanho fixo: int32, float, string UTF-16 de N chars…).
+O tamanho de cada registro é uma constante no código do cliente (o `fread(buf, SIZE, 1)`),
+então a ordem e os tamanhos são exatos. Cada registro começa, na maioria dos blocos, por
+`int id` seguido de `wchar name[...]` (UTF-16). Validado: o walk lê corretamente 20 blocos
+com nomes reais (Espada, Lâmina, Armadura Pesada, Poção de Cura, …).
+
+### Duas fases (descoberto por RE)
+
+O parser `FUN_0071a310` lê o arquivo em duas fases:
+
+1. **Fase inline** (~58 blocos): os blocos são lidos direto na função, um após o outro,
+   no padrão `count + registros`. Os tamanhos de registro recuperados vão de 0x44 (68) a
+   0x8e8 (2280) bytes. (Tabela completa gerada a partir do dump do Ghidra.)
+
+2. **Fase de sub-leitores** (~45 blocos): após a fase inline, o parser chama uma série de
+   funções `FUN_0071xxxx(_File)` (p.ex. `FUN_0071fad0`, `FUN_00720df0`, `FUN_0071d5b0`…),
+   cada uma lendo seu próprio bloco. Essas structs são mapeadas decompilando cada sub-leitor.
+
+### Seções de tamanho variável
+
+Há pelo menos duas seções que **não** são `count + registros` fixos, e sim um blob variável:
+
+```
+uint32 a
+uint32 len
+byte   data[len]     // tamanho dado pelo campo anterior
+uint32 b             // (presente na 1ª ocorrência)
+```
+
+Uma ocorre logo após o bloco de 0x270 (≈bloco 20); outra perto do fim do arquivo. O leitor
+precisa tratar esses pontos explicitamente (não dá para inferir só pelo tamanho).
 
 ### Primitivos
 
 - `int32` / `uint32` / `float` → 4 bytes
-- `wstr[N]` → string UTF-16 de N caracteres (N*2 bytes), cortada no primeiro NUL
+- `wchar name[N]` → string UTF-16 de N chars (N*2 bytes), cortada no NUL
 
-### Blocos mapeados até agora
+## Blocos confirmados (amostra da fase inline)
 
-**Bloco 0 — `property_list`** (2580 registros × 84 bytes) — propriedades/efeitos.
-Ex.: `A_A11`, `A_A12`, … até `"Aumenta o HP Máximo em 1%."`
+| idx | rec bytes | exemplo (id "nome") |
+|-----|-----------|---------------------|
+| 0   | 84 (0x54) | 216 "A_A11" (propriedades/efeitos) |
+| 1   | 68 (0x44) | 1 "Espada" (categorias de equipamento) |
+| 2   | 356 (0x164) | 2 "Lâmina" |
+| 4   | 68        | 125 "Corpo" |
+| 5   | 72 (0x48) | 127 "Armadura Pesada" |
+| 7   | 68        | 171 "Amuleto" |
+| 10  | 68        | 1794 "Recupera HP" |
+| 11  | 68        | 1795 "Poção de Cura" |
 
-| campo | tipo    | bytes |
-|-------|---------|-------|
-| id    | int32   | 4     |
-| name  | wstr[32]| 64    |
-| f1    | int32   | 4     |
-| f2    | int32   | 4     |
-| f3    | int32   | 4     |
-| f4    | int32   | 4     |
-
-**Bloco 1 — `equip_category`** (9 registros) — categorias de equipamento (ex.: "Espada").
-Layout **parcial**: id + nome confirmados; demais campos a mapear.
+(blocos maiores como 1420/1128/1168 bytes são itens/equipamentos completos; o nome não fica
+no offset 4 — layout a mapear campo a campo)
 
 ## Próximos passos
 
-1. Mapear o layout completo do bloco 1 e seguir pelos blocos seguintes
-   (equipamentos, armas, armaduras, itens, NPCs, monstros…). São ~60 blocos.
-2. Usar Ghidra/REA no binário do servidor (ou no editor) para extrair as structs
-   exatas de cada bloco, em vez de inferir byte a byte.
-3. Implementar a ESCRITA (gravar de volta no formato binário) mantendo a ordem dos blocos.
-4. Ligar os blocos ao modelo Módulo→Lista→Item→Campo da UI para edição visual.
+1. Gerar a tabela COMPLETA de tamanhos (fase inline + sub-leitores) a partir do dump do Ghidra
+   e tratar as 2 seções variáveis — objetivo: o walk chegar exatamente ao fim do arquivo.
+2. Mapear os campos (nomes/tipos) dos registros grandes (itens, equipamentos, NPCs).
+3. Implementar a ESCRITA (gravar de volta) preservando a ordem exata dos blocos.
+4. Ligar ao modelo Módulo→Lista→Item→Campo da UI.

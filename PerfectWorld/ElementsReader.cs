@@ -80,7 +80,46 @@ public sealed class ElementsReader : IDisposable
         return Encoding.Unicode.GetString(bytes, 0, end);
     }
 
+    /// <summary>
+    /// Percorre TODOS os blocos usando a tabela de tamanhos recuperada por RE.
+    /// Cada registro é lido como { int id; wchar name[32]; bytes resto } — suficiente
+    /// para listar/identificar tudo; os demais campos ficam em Raw para refinamento.
+    /// </summary>
+    public IReadOnlyList<PwWalkedBlock> WalkAll(IReadOnlyList<int> recordSizes)
+    {
+        var blocks = new List<PwWalkedBlock>(recordSizes.Count);
+        foreach (var size in recordSizes)
+        {
+            if (Position + 4 > Length) break;
+            uint count = _r.ReadUInt32();
+            bool truncated = false;
+            var recs = new List<PwGenericRecord>((int)Math.Min(count, 1_000_000));
+            for (uint i = 0; i < count; i++)
+            {
+                if (Position + size > Length) { truncated = true; break; }
+                var raw = _r.ReadBytes(size);
+                int id = BitConverter.ToInt32(raw, 0);
+                int nameChars = Math.Min(32, (size - 4) / 2);
+                string name = NameFrom(raw, 4, nameChars);
+                recs.Add(new PwGenericRecord(id, name, raw));
+            }
+            blocks.Add(new PwWalkedBlock(size, count, recs));
+            if (truncated) break;
+        }
+        return blocks;
+    }
+
+    private static string NameFrom(byte[] buf, int offset, int chars)
+    {
+        int end = offset;
+        int limit = offset + chars * 2;
+        while (end < limit && !(buf[end] == 0 && buf[end + 1] == 0)) end += 2;
+        return Encoding.Unicode.GetString(buf, offset, end - offset);
+    }
+
     public void Dispose() => _r.Dispose();
 }
 
 public sealed record PwBlockData(string Name, uint Count, IReadOnlyList<Dictionary<string, object>> Records);
+public sealed record PwGenericRecord(int Id, string Name, byte[] Raw);
+public sealed record PwWalkedBlock(int RecordSize, uint Count, IReadOnlyList<PwGenericRecord> Records);
