@@ -36,6 +36,21 @@ public static class EditorApi
         // Salvar sem mudanças pendentes (ex: menu Arquivo > Salvar).
         app.MapPost("/api/save", (ModuleStore store, SaveRequest? req) =>
             Results.Json(new { savedTo = store.Save(req?.Path) }));
+
+        // Abrir um elements.data do Perfect World (parse binário, 1ª metade já mapeada).
+        app.MapPost("/api/load-elements", (ModuleStore store, LoadRequest req) =>
+        {
+            if (!File.Exists(req.Path))
+                return Results.BadRequest(new { error = $"Arquivo não encontrado: {req.Path}" });
+            using var reader = new PerfectWorld.ElementsReader(req.Path);
+            if (!reader.SignatureValid)
+                return Results.BadRequest(new { error = $"Assinatura inválida (0x{reader.Signature:X8}) — não parece um elements.data suportado." });
+            var module = reader.ReadModule(PerfectWorld.ElementsProgram.Steps);
+            module.Name = Path.GetFileName(req.Path);
+            store.Adopt(module);
+            return Results.Json(new { module = ToDto(store), lists = module.Lists.Count,
+                items = module.Lists.Sum(l => l.Items.Count) });
+        });
     }
 
     // ---- construção de mudanças a partir do DTO vindo da UI ----

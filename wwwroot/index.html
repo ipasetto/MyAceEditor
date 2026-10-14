@@ -143,6 +143,7 @@
       <div class="dropdown" hidden>
         <button data-act="novo">Novo módulo <span class="sc">Ctrl+N</span></button>
         <button data-act="abrir">Abrir… <span class="sc">Ctrl+O</span></button>
+        <button data-act="abrir-pw">Abrir elements.data (Perfect World)…</button>
         <div class="sep"></div>
         <button data-act="salvar">Salvar <span class="sc">Ctrl+S</span></button>
         <button data-act="salvar-como">Salvar como…</button>
@@ -205,6 +206,19 @@
     <button class="btn" id="discardBtn">Descartar</button>
     <button class="btn apply" id="applyBtn" disabled>Aplicar mudanças</button>
   </footer>
+
+  <div id="pwModal" hidden style="position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:grid;place-items:center">
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;width:min(560px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.4)">
+      <h3 style="margin:0 0 4px;font-family:var(--disp)">Abrir elements.data</h3>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:12px">Caminho do arquivo <code>elements.data</code> do Perfect World (no servidor local).</p>
+      <input id="pwPath" style="width:100%;font:inherit;font-family:var(--mono);font-size:12px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel-2);color:var(--fg)"
+        value="D:/Perfect World/Perfect World 144/element/data/elements.data">
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn" id="pwCancel">Cancelar</button>
+        <button class="tbtn primary" id="pwOpen">Abrir</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -260,6 +274,26 @@ async function boot(){
 }
 function setConn(live){ const c=$("#conn"); c.textContent=live?"servidor":"demo"; c.className="conn "+(live?"live":"demo"); }
 
+// ---------- abrir elements.data (Perfect World) ----------
+function openPwModal(){
+  if(!API){ status("Disponível quando rodando pelo app local (servidor)"); return; }
+  $("#pwModal").hidden=false; $("#pwPath").focus(); $("#pwPath").select();
+}
+$("#pwCancel").onclick=()=>{ $("#pwModal").hidden=true; };
+$("#pwOpen").onclick=loadPw;
+$("#pwPath").onkeydown=e=>{ if(e.key==="Enter")loadPw(); if(e.key==="Escape")$("#pwModal").hidden=true; };
+async function loadPw(){
+  const path=$("#pwPath").value.trim(); if(!path)return;
+  $("#pwModal").hidden=true; status("Parseando elements.data…");
+  try{
+    const r=await fetch("/api/load-elements",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({path})});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); status("Erro: "+(e.error||r.status)); return; }
+    const res=await r.json(); mod=res.module; activeItem=null; activeList=null; collapsed.clear();
+    changeset.length=0; staged.added.clear(); staged.removed.clear(); syncPending(); renderAll();
+    status(`Aberto: ${res.lists} listas · ${res.items.toLocaleString("pt-BR")} itens (1ª metade do elements.data)`);
+  }catch(err){ status("Falha ao abrir: "+err.message); }
+}
+
 // ---------- MENU ----------
 document.querySelectorAll(".menu").forEach(m=>m.querySelector("button").onclick=e=>{e.stopPropagation();toggleMenu(m);});
 function closeMenus(){document.querySelectorAll(".menu.open").forEach(m=>{m.classList.remove("open");m.querySelector(".dropdown").hidden=true;});const ov=$("#ov");if(ov)ov.remove();}
@@ -269,6 +303,7 @@ document.querySelectorAll("[data-act]").forEach(b=>b.addEventListener("click",e=
 async function doAction(a){
   switch(a){
     case "abrir": if(API){ await boot(); status("Recarregado do servidor"); } else status("Abrir: disponível quando rodando pelo servidor local"); break;
+    case "abrir-pw": openPwModal(); break;
     case "salvar": await save(); break;
     case "salvar-como": status(API?"save_module_as: informe um caminho (próxima etapa)":"Disponível no servidor local"); break;
     case "novo": status("new_module: criaria um módulo vazio"); break;
@@ -299,14 +334,17 @@ function renderTree(){
       <div class="grp-h"><span class="caret">▾</span>
         <span class="ico" style="width:18px;height:18px;border-radius:5px;background:${ICOLOR[k]}">${ICON[k]}</span>
         ${esc(l.name)}<span class="gcount">${l.items.length}</span></div><div class="grp-items">`;
-    for(const it of items){
+    const CAP=400;
+    const shown=items.slice(0,CAP);
+    for(const it of shown){
       const isNew=staged.added.has(it.id), isDel=staged.removed.has(it.id);
-      const ds=DESCR[k]?DESCR[k](it):`${Object.keys(it.fields).length} campos`;
+      const ds=DESCR[k]?DESCR[k](it):(it.fields&&Object.keys(it.fields).length?`${Object.keys(it.fields).length} campos`:`id ${it.id}`);
       html+=`<div class="node ${it===activeItem?'active':''}" data-id="${esc(it.id)}" data-list="${esc(l.name)}">
         <span class="ico" style="background:${ICOLOR[k]}">${ICON[k]}</span>
-        <span class="txt"><div class="nm">${esc(it.name)}</div><div class="ds">${esc(ds)}</div></span>
+        <span class="txt"><div class="nm">${esc(it.name||'(sem nome)')}</div><div class="ds">${esc(ds)}</div></span>
         ${isNew?'<span class="badge new">novo</span>':''}${isDel?'<span class="badge del">rem</span>':''}</div>`;
     }
+    if(items.length>CAP) html+=`<div style="padding:6px 10px;color:var(--muted);font-size:11px">… e mais ${(items.length-CAP).toLocaleString("pt-BR")} itens (use o filtro)</div>`;
     html+=`</div></div>`;
   }
   $("#treePane").innerHTML=html||`<div style="padding:24px;color:var(--muted);text-align:center">Nada encontrado.</div>`;

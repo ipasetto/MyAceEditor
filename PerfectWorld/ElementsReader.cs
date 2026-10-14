@@ -176,6 +176,112 @@ public sealed class ElementsReader : IDisposable
     private uint ReadU32() => _r.ReadUInt32();
     private void Skip(long n) => _r.BaseStream.Seek(n, SeekOrigin.Current);
 
+    /// <summary>
+    /// Executa o programa e constrói um Módulo (Lista→Item) com os blocos que têm dados.
+    /// Só a parte já parseada byte-perfeito (itens/equip/NPCs); cada registro vira um
+    /// item com id + nome (demais campos ficam no raw, a mapear).
+    /// </summary>
+    public Model.Module ReadModule(IReadOnlyList<Step> steps, int maxPerList = 5000)
+    {
+        var mod = new Model.Module { Name = "elements.data", Version = (int)Version };
+        int blockIdx = 0;
+        foreach (var step in steps)
+        {
+            if (step.Kind == StepKind.InlineBlock || step.Kind == StepKind.SubBlock)
+            {
+                uint count = ReadU32();
+                if (count > 0 && step.Size >= 4)
+                {
+                    var list = new Model.ItemList
+                    {
+                        Name = BlockName(blockIdx, step),
+                        Group = step.Kind == StepKind.InlineBlock ? "Principais" : "Secundários",
+                        Kind = GuessKind(blockIdx, step.Size),
+                    };
+                    for (uint i = 0; i < count; i++)
+                    {
+                        var raw = _r.ReadBytes(step.Size);
+                        if (i < (uint)maxPerList)
+                        {
+                            int id = BitConverter.ToInt32(raw, 0);
+                            list.Items.Add(new Model.Item { Id = id.ToString(), Name = DisplayName(raw) });
+                        }
+                    }
+                    if (list.Items.Count > 0) mod.Lists.Add(list);
+                }
+                else Skip((long)count * step.Size);
+            }
+            else
+            {
+                // seções variáveis: apenas avança (via a mesma lógica do ExecuteProgram)
+                ExecuteSpecial(step);
+            }
+            blockIdx++;
+        }
+        return mod;
+    }
+
+    private void ExecuteSpecial(Step step)
+    {
+        switch (step.Kind)
+        {
+            case StepKind.SpecialBlob:
+                ReadU32(); uint len = ReadU32(); Skip(len); if (step.HasTrailer) ReadU32();
+                break;
+            case StepKind.ObjList:
+                uint count = ReadU32();
+                for (uint i = 0; i < count; i++)
+                {
+                    ReadU32(); Skip(0x80); uint m = ReadU32();
+                    for (uint j = 0; j < m; j++)
+                    {
+                        Skip(8);
+                        uint l1 = ReadU32(); Skip((long)l1 * 2);
+                        uint l2 = ReadU32(); Skip((long)l2 * 0x88);
+                    }
+                }
+                break;
+        }
+    }
+
+    // Nome de exibição: tenta o nome no offset 4 (id+nome), senão no offset 0.
+    private static string DisplayName(byte[] raw)
+    {
+        var n = NameFrom(raw, 4, Math.Min(32, (raw.Length - 4) / 2));
+        if (string.IsNullOrWhiteSpace(n) || !IsPrintable(n))
+        {
+            var n0 = NameFrom(raw, 0, Math.Min(32, raw.Length / 2));
+            if (IsPrintable(n0) && n0.Length > 0) return n0;
+        }
+        return IsPrintable(n) ? n : "(sem nome)";
+    }
+
+    private static bool IsPrintable(string s)
+    {
+        if (s.Length == 0) return false;
+        int ok = s.Count(c => !char.IsControl(c));
+        return ok >= s.Length - 1 && ok > 0;
+    }
+
+    private static readonly string[] KnownNames =
+    {
+        "Propriedades/Efeitos", "Categorias de Equipamento",
+    };
+
+    private static string BlockName(int idx, Step step)
+    {
+        if (idx < KnownNames.Length) return KnownNames[idx];
+        var tag = step.Tag.StartsWith("FUN_") ? step.Tag : "inline";
+        return $"Bloco {idx:00} ({step.Size}B · {tag})";
+    }
+
+    private static string GuessKind(int idx, int size) => size switch
+    {
+        68 or 72 => "res",          // categorias/listas pequenas
+        >= 1000 => "item",          // registros grandes = itens/equip
+        _ => idx <= 1 ? "res" : "npc",
+    };
+
     public void Dispose() => _r.Dispose();
 }
 

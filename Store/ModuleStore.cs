@@ -41,6 +41,16 @@ public sealed class ModuleStore
         return Current;
     }
 
+    /// <summary>Adota um módulo já construído (ex: parseado de um elements.data).
+    /// CurrentPath fica nulo de propósito, para não sobrescrever o arquivo original num Salvar.</summary>
+    public Module Adopt(Module module)
+    {
+        Current = module;
+        CurrentPath = null;
+        Changes.Discard();
+        return Current;
+    }
+
     public string Save(string? path = null)
     {
         var module = Require();
