@@ -21,7 +21,12 @@ public sealed class EditorForm : Form
     private readonly ToolStripStatusLabel _status = new("Abra a pasta do Perfect World para começar.");
     private readonly ToolTip _tip = new() { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 100 };
     private string[] _tipLines = Array.Empty<string>();
+    private readonly ComboBox _sort = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Height = 24 };
+    private readonly ContextMenuStrip _ctx = new();
+    private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
+    private enum SortMode { Codigo, Nome }
+    private SortMode _sortMode = SortMode.Codigo;
 
     // Paleta clara "branco aço"
     private static readonly Color CBg = Color.FromArgb(231, 236, 242), CSurface = Color.FromArgb(255, 255, 255),
@@ -129,15 +134,27 @@ public sealed class EditorForm : Form
         _search.TextChanged += (_, _) => OnSearch();
         _tree.BackColor = CTreeBg; _tree.ForeColor = CTreeFg; _tree.LineColor = Color.FromArgb(60, 64, 72);
         _tree.BeforeExpand += (_, e) => LazyLoad(e.Node);
-        _tree.AfterSelect += (_, e) => { if (e.Node?.Tag is Item it) { _current = it; _curBlock = FindBlockOf(e.Node); ShowItem(it); } };
+        _tree.AfterSelect += (_, e) => OnSelect(e.Node);
         _tree.ShowNodeToolTips = false;
         _tip.OwnerDraw = true; _tip.Draw += DrawTip; _tip.Popup += SizeTip;
         _tree.NodeMouseHover += OnNodeHover;
         _tree.MouseLeave += (_, _) => _tip.Hide(_tree);
+        _tree.MouseDown += (_, e) => { if (e.Button == MouseButtons.Right) { var n = _tree.GetNodeAt(e.X, e.Y); if (n is not null) _tree.SelectedNode = n; } };
+        BuildContextMenu();
+        _tree.ContextMenuStrip = _ctx;
+
+        _sort.FlatStyle = FlatStyle.Flat; _sort.BackColor = CTreeInput; _sort.ForeColor = CTreeFg;
+        _sort.Items.AddRange(new object[] { "Ordenar por: Código", "Ordenar por: Nome" });
+        _sort.SelectedIndex = 0;
+        _sort.SelectedIndexChanged += (_, _) => { _sortMode = (SortMode)_sort.SelectedIndex; RefreshView(); };
+
         var treeHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0), BackColor = CTreeBg };
         treeHost.Controls.Add(_tree);
         left.Controls.Add(treeHost);
         left.Controls.Add(_search);
+        left.Controls.Add(_sort);
+        _favorites.Clear();
+        foreach (var k in LoadFavorites()) _favorites.Add(k);
         _split.Panel1.Controls.Add(left);
 
         // DIREITA: cabeçalho + campos
@@ -237,7 +254,7 @@ public sealed class EditorForm : Form
     }
 
     // ---------- árvore (categoria → tipo → subtipo → itens) ----------
-    private sealed record Container(ItemList Block, List<Item> Items);
+    private sealed record ItemBag(ItemList Block, List<Item> Items);
 
     private static readonly (string cat, string[] groups)[] CatMap =
     {
@@ -255,6 +272,18 @@ public sealed class EditorForm : Form
         if (_store.Current is not null)
         {
             var lists = _store.Current.Lists;
+            // Favoritos no topo
+            if (_favorites.Count > 0)
+            {
+                var favItems = lists.SelectMany(l => l.Items.Select(it => (l, it)))
+                    .Where(x => _favorites.Contains(FavKey(x.l, x.it))).ToList();
+                if (favItems.Count > 0)
+                {
+                    var favNode = new TreeNode($"★ Favoritos  ({favItems.Count})") { ForeColor = GGold, NodeFont = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+                    foreach (var it in Sorted(favItems.Select(x => x.it))) favNode.Nodes.Add(ItemNode(it));
+                    _tree.Nodes.Add(favNode);
+                }
+            }
             foreach (var (cat, groups) in CatMap)
             {
                 var blocks = lists.Where(l => groups.Contains(l.Group)).ToList();
@@ -295,28 +324,55 @@ public sealed class EditorForm : Form
 
     private void AddContainer(TreeNode parent, string label, ItemList block, List<Item> items)
     {
-        var n = new TreeNode($"{label}  ({items.Count})") { Tag = new Container(block, items), ForeColor = CTreeFg };
+        var n = new TreeNode($"{label}  ({items.Count})") { Tag = new ItemBag(block, items), ForeColor = CTreeFg };
         if (items.Count > 0) n.Nodes.Add(new TreeNode()); // dummy p/ lazy load
         parent.Nodes.Add(n);
     }
 
     private void LazyLoad(TreeNode node)
     {
-        if (node.Tag is not Container c) return;
+        if (node.Tag is not ItemBag c) return;
         if (node.Nodes.Count == 1 && node.Nodes[0].Tag is null && node.Nodes[0].Text == "")
         {
             node.Nodes.Clear();
             _tree.BeginUpdate();
-            foreach (var it in c.Items)
-                node.Nodes.Add(new TreeNode(string.IsNullOrEmpty(it.Name) ? $"#{it.Id}" : it.Name) { Tag = it, ForeColor = GradeColor(it.Name) });
+            foreach (var it in Sorted(c.Items)) node.Nodes.Add(ItemNode(it));
             _tree.EndUpdate();
         }
     }
 
+    private TreeNode ItemNode(Item it) =>
+        new($"{it.Id}   {(string.IsNullOrEmpty(it.Name) ? "(sem nome)" : it.Name)}") { Tag = it, ForeColor = GradeColor(it.Name) };
+
+    private IEnumerable<Item> Sorted(IEnumerable<Item> items) =>
+        _sortMode == SortMode.Nome
+            ? items.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            : items.OrderBy(i => long.TryParse(i.Id, out var n) ? n : long.MaxValue);
+
+    // ItemBag atual (para novo/clonar) e bloco
+    private ItemBag? _curContainer;
+    private TreeNode? _curContainerNode;
+
+    private void OnSelect(TreeNode? node)
+    {
+        if (node?.Tag is Item it)
+        {
+            _current = it; _curBlock = FindBlockOf(node) ?? BlockContaining(it);
+            _curContainerNode = node.Parent; _curContainer = node.Parent?.Tag as ItemBag;
+            ShowItem(it);
+        }
+        else if (node?.Tag is ItemBag c)
+        {
+            _current = null; _curBlock = c.Block; _curContainer = c; _curContainerNode = node;
+        }
+    }
+
+    private ItemList? BlockContaining(Item it) => _store.Current?.Lists.FirstOrDefault(l => l.Items.Contains(it));
+
     private ItemList? FindBlockOf(TreeNode node)
     {
         var p = node.Parent;
-        while (p is not null) { if (p.Tag is Container c) return c.Block; p = p.Parent; }
+        while (p is not null) { if (p.Tag is ItemBag c) return c.Block; p = p.Parent; }
         return null;
     }
 
@@ -360,23 +416,24 @@ public sealed class EditorForm : Form
         string q = _search.Text.Trim();
         if (q.Length == 0) { BuildTree(); return; }
         if (_store.Current is null) return;
+        var hits = new List<Item>();
+        foreach (var b in _store.Current.Lists)
+            foreach (var it in b.Items)
+                if (it.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || it.Id.Contains(q))
+                { hits.Add(it); if (hits.Count >= MaxLeaves) break; }
+
         _tree.BeginUpdate();
         _tree.Nodes.Clear();
-        var root = new TreeNode("Resultados") { ForeColor = CTreeFg, NodeFont = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
-        int n = 0;
-        foreach (var b in _store.Current.Lists)
-        {
-            foreach (var it in b.Items)
-            {
-                if (!it.Name.Contains(q, StringComparison.OrdinalIgnoreCase) && !it.Id.Contains(q)) continue;
-                if (n++ >= MaxLeaves) break;
-                root.Nodes.Add(new TreeNode($"{it.Name}   [{it.Id}]  ·  {Pretty(b.Name)}") { Tag = it, ForeColor = GradeColor(it.Name) });
-            }
-            if (n >= MaxLeaves) break;
-        }
-        root.Text = $"Resultados ({n}{(n >= MaxLeaves ? "+" : "")})";
+        var root = new TreeNode($"Resultados ({hits.Count}{(hits.Count >= MaxLeaves ? "+" : "")})")
+        { ForeColor = CTreeFg, NodeFont = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+        foreach (var it in Sorted(hits)) root.Nodes.Add(ItemNode(it));
         _tree.Nodes.Add(root); root.Expand();
         _tree.EndUpdate();
+    }
+
+    private void RefreshView()
+    {
+        if (_search.Text.Trim().Length > 0) OnSearch(); else BuildTree();
     }
 
     // ---------- detalhes ----------
@@ -419,21 +476,114 @@ public sealed class EditorForm : Form
         Status($"'{FieldLabels.Label(key)}' atualizado");
     }
 
-    private void AddItem()
+    // ---------- menu de contexto (clicar direito) ----------
+    private ToolStripMenuItem _miFav = null!;
+    private void BuildContextMenu()
     {
-        if (_curBlock is null) { Status("Selecione um item/bloco primeiro"); return; }
-        _curBlock.Items.Add(new Item { Name = "Novo item", Id = "0" });
-        Status($"Item adicionado em {Pretty(_curBlock.Name)} (reabra o nó para ver)");
+        _ctx.Items.Add("Novo item", null, (_, _) => NewItem());
+        _ctx.Items.Add("Clonar item", null, (_, _) => CloneItem());
+        _ctx.Items.Add("Excluir item", null, (_, _) => RemoveItem());
+        _ctx.Items.Add(new ToolStripSeparator());
+        _miFav = new ToolStripMenuItem("Favoritar", null, (_, _) => ToggleFavorite());
+        _ctx.Items.Add(_miFav);
+        _ctx.Opening += (_, e) =>
+        {
+            bool isItem = _tree.SelectedNode?.Tag is Item;
+            foreach (ToolStripItem i in _ctx.Items) i.Enabled = isItem || i.Text == "Novo item";
+            if (isItem && _current is not null && _curBlock is not null)
+                _miFav.Text = _favorites.Contains(FavKey(_curBlock, _current)) ? "Desfavoritar" : "Favoritar";
+        };
     }
+
+    private static long NextCode(ItemList block)
+    {
+        long max = 0;
+        foreach (var it in block.Items) if (long.TryParse(it.Id, out var n) && n > max) max = n;
+        return max + 1;
+    }
+
+    private static void SetIdName(Item it)
+    {
+        if (it.Fields.ContainsKey("ID")) it.Fields["ID"] = Field.Of(FieldType.Int, it.Id);
+        if (it.Fields.ContainsKey("Name")) it.Fields["Name"] = Field.Of(FieldType.String, it.Name);
+    }
+
+    private void InsertNewItem(Item ni)
+    {
+        _curBlock!.Items.Add(ni);
+        _curContainer?.Items.Add(ni);
+        if (_curContainerNode is not null)
+        {
+            LazyLoad(_curContainerNode);
+            var node = ItemNode(ni);
+            _curContainerNode.Nodes.Add(node);
+            _curContainerNode.Expand();
+            _tree.SelectedNode = node; node.EnsureVisible();
+        }
+        else RefreshView();
+        _current = ni; ShowItem(ni);
+    }
+
+    private void NewItem()
+    {
+        if (_curBlock is null) { Status("Selecione uma categoria/item primeiro"); return; }
+        long code = NextCode(_curBlock);
+        var ni = new Item { Id = code.ToString(), Name = "Novo item" };
+        var template = _curBlock.Items.FirstOrDefault();
+        if (template is not null)
+            foreach (var (k, f) in template.Fields)
+                ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
+        SetIdName(ni);
+        InsertNewItem(ni);
+        Status($"Novo item {code} criado em {Pretty(_curBlock.Name)} — preencha os campos à direita.");
+    }
+
+    private void CloneItem()
+    {
+        if (_current is null || _curBlock is null) { Status("Selecione um item para clonar"); return; }
+        long code = NextCode(_curBlock);
+        var ni = new Item
+        {
+            Id = code.ToString(),
+            Name = _current.Name + " (cópia)",
+            Fields = _current.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value))
+        };
+        SetIdName(ni);
+        InsertNewItem(ni);
+        Status($"Item clonado como código {code}.");
+    }
+
+    private void AddItem() => NewItem();
 
     private void RemoveItem()
     {
         if (_current is null || _curBlock is null) { Status("Selecione um item"); return; }
-        _curBlock.Items.Remove(_current);
+        if (MessageBox.Show($"Excluir \"{_current.Name}\" (ID {_current.Id})?", "Excluir item",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        _favorites.Remove(FavKey(_curBlock, _current)); SaveFavorites();
+        _curBlock.Items.Remove(_current); _curContainer?.Items.Remove(_current);
         _tree.SelectedNode?.Remove();
         _current = null;
         Status("Item removido");
     }
+
+    // ---------- favoritos ----------
+    private static string FavKey(ItemList b, Item it) => $"{b.Name}|{it.Id}";
+    private void ToggleFavorite()
+    {
+        if (_current is null || _curBlock is null) return;
+        var key = FavKey(_curBlock, _current);
+        if (!_favorites.Remove(key)) _favorites.Add(key);
+        SaveFavorites();
+        var cur = _current; // preservar seleção
+        RefreshView();
+        Status(_favorites.Contains(key) ? "Adicionado aos favoritos" : "Removido dos favoritos");
+    }
+    private static string FavFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "favorites.txt");
+    private void SaveFavorites()
+    { try { Directory.CreateDirectory(Path.GetDirectoryName(FavFile)!); File.WriteAllLines(FavFile, _favorites); } catch { } }
+    private static IEnumerable<string> LoadFavorites()
+    { try { return File.Exists(FavFile) ? File.ReadAllLines(FavFile) : Array.Empty<string>(); } catch { return Array.Empty<string>(); } }
 
     // ---------- tooltip estilo jogo ----------
     private Color _tipColor = Color.White;
