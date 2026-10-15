@@ -49,7 +49,7 @@ public sealed class CfgElementsReader
 
             if (count > 0)
             {
-                var list = new ItemList { Name = $"{block.Number:000} {block.Name}", Group = GroupOf(block.Name), Kind = KindOf(block.Name) };
+                var list = new ItemList { Name = block.Name, Group = GroupOf(block.Name), Kind = KindOf(block.Name) };
                 for (uint r = 0; r < count; r++)
                 {
                     int recStart = _pos;
