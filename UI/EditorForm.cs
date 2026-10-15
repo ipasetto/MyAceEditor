@@ -5,89 +5,68 @@ using MyAceEditor.Store;
 namespace MyAceEditor.UI;
 
 /// <summary>
-/// Suíte de editores de Perfect World. Topo: abas de editores (Elements, GShop, Tasks, Extrator PCK).
-/// Elements: categorias+ícones à esquerda, lista de itens, e todos os campos editáveis à direita.
+/// Suíte de editores do Perfect World. Tema claro profissional.
+/// Elements: busca global + árvore Categoria → Tipo → Subtipo → itens (coloridos por grade),
+/// e à direita todos os campos do item em seções, com rótulos amigáveis e editáveis.
 /// </summary>
 public sealed class EditorForm : Form
 {
-    private const int MaxRows = 8000;
+    private const int MaxLeaves = 4000;
 
     private readonly ModuleStore _store = new();
-    private readonly TreeView _cats = new() { Dock = DockStyle.Fill, HideSelection = false, ShowLines = false, FullRowSelect = true, ItemHeight = 24 };
-    private readonly TextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Buscar ID ou Nome…" };
-    private readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false };
-    private readonly Label _header = new() { Dock = DockStyle.Top, Height = 42, Font = new Font("Segoe UI", 12, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0) };
-    private readonly DataGridView _grid = new() { Dock = DockStyle.Fill, AllowUserToAddRows = false, AllowUserToResizeRows = false, RowHeadersVisible = false, BorderStyle = BorderStyle.None };
-    private readonly ToolStripStatusLabel _status = new("Selecione a pasta do Perfect World para começar.");
-    private ImageList _icons = new() { ImageSize = new Size(18, 18), ColorDepth = ColorDepth.Depth32Bit };
+    private readonly TextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "  Pesquisar item por nome ou ID…", BorderStyle = BorderStyle.FixedSingle };
+    private readonly TreeView _tree = new() { Dock = DockStyle.Fill, HideSelection = false, FullRowSelect = true, ItemHeight = 22, ShowLines = true, ShowPlusMinus = true, BorderStyle = BorderStyle.None };
+    private readonly Label _header = new() { Dock = DockStyle.Top, Height = 46, Font = new Font("Segoe UI Semibold", 13), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0) };
+    private readonly DataGridView _grid = new() { Dock = DockStyle.Fill, AllowUserToAddRows = false, AllowUserToResizeRows = false, RowHeadersVisible = false, BorderStyle = BorderStyle.None, ColumnHeadersVisible = false };
+    private readonly ToolStripStatusLabel _status = new("Abra a pasta do Perfect World para começar.");
+    private SplitContainer _split = null!;
 
-    private static readonly Color CBg = Color.FromArgb(24, 27, 33), CPanel = Color.FromArgb(32, 36, 44),
-        CPanel2 = Color.FromArgb(40, 45, 55), CLine = Color.FromArgb(55, 61, 73), CFg = Color.FromArgb(232, 235, 240),
-        CMuted = Color.FromArgb(150, 158, 172), CAccent = Color.FromArgb(79, 143, 247);
+    // Paleta clara "branco aço"
+    private static readonly Color CBg = Color.FromArgb(231, 236, 242), CSurface = Color.FromArgb(255, 255, 255),
+        CSurface2 = Color.FromArgb(242, 245, 249), CLine = Color.FromArgb(203, 211, 221),
+        CFg = Color.FromArgb(30, 39, 51), CMuted = Color.FromArgb(92, 102, 117),
+        CAccent = Color.FromArgb(37, 99, 235), CSel = Color.FromArgb(219, 232, 253), CSelFg = Color.FromArgb(15, 42, 94);
 
-    private static readonly (string cat, Color color)[] Cats =
-    {
-        ("Equipamentos", Color.FromArgb(91, 155, 213)), ("Itens", Color.FromArgb(120, 170, 120)),
-        ("Monstros", Color.FromArgb(210, 120, 120)), ("NPCs", Color.FromArgb(200, 170, 90)),
-        ("Faces", Color.FromArgb(180, 130, 200)), ("Receitas", Color.FromArgb(120, 190, 190)),
-        ("Pets", Color.FromArgb(220, 150, 110)), ("Tasks", Color.FromArgb(150, 160, 180)),
-    };
+    // Cores de grade (sistema de cores do PW nos nomes)
+    private static readonly Color GNormal = Color.FromArgb(43, 50, 64), G1 = Color.FromArgb(31, 143, 78),
+        G2 = Color.FromArgb(29, 111, 184), G3 = Color.FromArgb(142, 63, 176), GGold = Color.FromArgb(194, 121, 26);
 
-    private ItemList? _block;
     private Item? _current;
+    private ItemList? _curBlock;
 
     public EditorForm()
     {
         Text = "MyAceEditor";
-        Width = 1300; Height = 820;
+        Width = 1320; Height = 840;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(960, 620);
+        MinimumSize = new Size(980, 640);
         BackColor = CBg; ForeColor = CFg;
-        BuildIcons();
+        Font = new Font("Segoe UI", 9.5f);
 
-        Controls.Add(BuildEditorsTabs());
+        Controls.Add(BuildTabs());
         Controls.Add(BuildToolbar());
         Controls.Add(BuildMenu());
         Controls.Add(BuildStatus());
+
+        Shown += (_, _) => { if (_split is not null) _split.SplitterDistance = 340; };
     }
 
-    private void BuildIcons()
-    {
-        foreach (var (_, color) in Cats)
-        {
-            var bmp = new Bitmap(18, 18);
-            using var g = Graphics.FromImage(bmp);
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using var b = new SolidBrush(color);
-            g.FillRectangle(b, 3, 3, 12, 12);
-            using var p = new Pen(Color.FromArgb(220, 230, 240), 1);
-            g.DrawRectangle(p, 3, 3, 12, 12);
-            _icons.Images.Add(bmp);
-        }
-    }
-    private int IconOf(string group)
-    {
-        for (int i = 0; i < Cats.Length; i++) if (Cats[i].cat == group) return i;
-        return 1;
-    }
-
-    // ---------------- topo ----------------
+    // ---------- topo ----------
     private MenuStrip BuildMenu()
     {
-        var menu = new MenuStrip { BackColor = CPanel, ForeColor = CFg };
+        var menu = new MenuStrip { BackColor = CSurface, ForeColor = CFg, Padding = new Padding(4, 2, 0, 2) };
         ToolStripMenuItem M(string t) => new(t) { ForeColor = CFg };
         var arq = M("&Arquivo");
         arq.DropDownItems.Add("Abrir &pasta do Perfect World…", null, (_, _) => OpenPwFolder());
         arq.DropDownItems.Add("Abrir &elements.data…", null, (_, _) => OpenElements());
         arq.DropDownItems.Add(new ToolStripSeparator());
-        arq.DropDownItems.Add("&Salvar", null, (_, _) => Save(true));
+        arq.DropDownItems.Add("&Salvar…", null, (_, _) => SaveAs());
         arq.DropDownItems.Add("Sa&ir", null, (_, _) => Close());
         var ed = M("&Editar");
         ed.DropDownItems.Add("&Novo item", null, (_, _) => AddItem());
         ed.DropDownItems.Add("&Remover item", null, (_, _) => RemoveItem());
         var aj = M("A&juda");
-        aj.DropDownItems.Add("Sobre", null, (_, _) => MessageBox.Show(
-            "MyAceEditor — suíte de editores do Perfect World.", "Sobre", MessageBoxButtons.OK, MessageBoxIcon.Information));
+        aj.DropDownItems.Add("Sobre", null, (_, _) => MessageBox.Show("MyAceEditor — editor dos dados do Perfect World.", "Sobre"));
         menu.Items.AddRange(new ToolStripItem[] { arq, ed, aj });
         MainMenuStrip = menu;
         return menu;
@@ -95,123 +74,108 @@ public sealed class EditorForm : Form
 
     private ToolStrip BuildToolbar()
     {
-        var tb = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, BackColor = CPanel2, ForeColor = CFg, Renderer = new DarkRenderer() };
-        ToolStripButton B(string t, Action a) { var b = new ToolStripButton(t) { ForeColor = CFg }; b.Click += (_, _) => a(); return b; }
-        tb.Items.Add(B("📂 Abrir pasta do PW", OpenPwFolder));
+        var tb = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, BackColor = CSurface2, ForeColor = CFg, Renderer = new LightRenderer(), Padding = new Padding(6, 3, 6, 3) };
+        ToolStripButton B(string t, Action a) { var b = new ToolStripButton(t) { ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) }; b.Click += (_, _) => a(); return b; }
+        tb.Items.Add(B("Abrir pasta do PW", OpenPwFolder));
         tb.Items.Add(B("Abrir elements.data", OpenElements));
-        tb.Items.Add(B("Salvar", () => Save(true)));
+        tb.Items.Add(B("Salvar", SaveAs));
         tb.Items.Add(new ToolStripSeparator());
-        tb.Items.Add(B("+ Adicionar", AddItem));
-        tb.Items.Add(B("Excluir", RemoveItem));
+        tb.Items.Add(B("＋ Adicionar", AddItem));
+        tb.Items.Add(B("🗑 Excluir", RemoveItem));
         return tb;
     }
 
-    private TabControl BuildEditorsTabs()
+    private TabControl BuildTabs()
     {
-        var tabs = new TabControl { Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed };
+        var tabs = new TabControl { Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(130, 30) };
         tabs.DrawItem += (s, e) =>
         {
             var tp = tabs.TabPages[e.Index]; bool sel = e.Index == tabs.SelectedIndex;
-            e.Graphics.FillRectangle(new SolidBrush(sel ? CBg : CPanel2), e.Bounds);
+            e.Graphics.FillRectangle(new SolidBrush(sel ? CBg : CSurface2), e.Bounds);
+            if (sel) e.Graphics.FillRectangle(new SolidBrush(CAccent), new Rectangle(e.Bounds.X, e.Bounds.Bottom - 3, e.Bounds.Width, 3));
             TextRenderer.DrawText(e.Graphics, tp.Text, new Font("Segoe UI", 10, sel ? FontStyle.Bold : FontStyle.Regular),
-                e.Bounds, sel ? CAccent : CMuted);
+                e.Bounds, sel ? CAccent : CMuted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         };
-        var tElements = new TabPage("Elements") { BackColor = CBg };
-        tElements.Controls.Add(BuildElementsView());
-        tabs.TabPages.Add(tElements);
-        foreach (var (name, hint) in new[] { ("GShop", "Editor de loja (gshop.data)"), ("Tasks", "Editor de tarefas (tasks.data)"),
-            ("AI Policy", "Editor de IA (aipolicy.data)"), ("Extrator PCK", "Extrair/empacotar arquivos .pck") })
+        var tEl = new TabPage("Elements") { BackColor = CBg };
+        tEl.Controls.Add(BuildElements());
+        tabs.TabPages.Add(tEl);
+        foreach (var (n, h) in new[] { ("GShop", "Editor de loja"), ("Tasks", "Editor de tarefas"), ("AI Policy", "Editor de IA"), ("Extrator PCK", "Extrair .pck (ícones/texturas)") })
         {
-            var tp = new TabPage(name) { BackColor = CBg };
-            tp.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted,
-                Text = $"{hint}\n\n(em breve)", Font = new Font("Segoe UI", 11) });
+            var tp = new TabPage(n) { BackColor = CBg };
+            tp.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted, Text = $"{h}\n(em breve)", Font = new Font("Segoe UI", 11) });
             tabs.TabPages.Add(tp);
         }
         return tabs;
     }
 
-    private Control BuildElementsView()
+    private Control BuildElements()
     {
-        var outer = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 230, BackColor = CLine };
-        // coluna 1: categorias
-        _cats.BackColor = CPanel; _cats.ForeColor = CFg; _cats.BorderStyle = BorderStyle.None; _cats.ImageList = _icons;
-        _cats.AfterSelect += (_, e) => OnCatSelected(e.Node);
-        var catHost = new Panel { Dock = DockStyle.Fill, BackColor = CPanel, Padding = new Padding(4) };
-        catHost.Controls.Add(_cats);
-        catHost.Controls.Add(new Label { Dock = DockStyle.Top, Height = 26, Text = "  Categorias", ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft });
-        outer.Panel1.Controls.Add(catHost);
+        _split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, SplitterWidth = 6, BackColor = CLine, Panel1MinSize = 240, SplitterDistance = 340 };
 
-        var inner = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 340, BackColor = CLine };
-        // coluna 2: lista de itens
-        var listHost = new Panel { Dock = DockStyle.Fill, BackColor = CPanel, Padding = new Padding(4) };
-        _list.BackColor = CPanel2; _list.ForeColor = CFg; _list.BorderStyle = BorderStyle.None; _list.SmallImageList = _icons;
-        _list.Columns.Add("ID", 80); _list.Columns.Add("Nome", 230);
-        _list.SelectedIndexChanged += (_, _) => OnItemSelected();
-        _search.BackColor = CPanel2; _search.ForeColor = CFg; _search.BorderStyle = BorderStyle.FixedSingle;
-        _search.TextChanged += (_, _) => PopulateList();
-        var lh = new Panel { Dock = DockStyle.Fill }; lh.Controls.Add(_list);
-        listHost.Controls.Add(lh);
-        listHost.Controls.Add(_search);
-        inner.Panel1.Controls.Add(listHost);
+        // ESQUERDA: busca + árvore
+        var left = new Panel { Dock = DockStyle.Fill, BackColor = CSurface, Padding = new Padding(8) };
+        _search.BackColor = CSurface; _search.ForeColor = CFg; _search.Font = new Font("Segoe UI", 10);
+        _search.TextChanged += (_, _) => OnSearch();
+        _tree.BackColor = CSurface; _tree.ForeColor = CFg; _tree.LineColor = CLine;
+        _tree.BeforeExpand += (_, e) => LazyLoad(e.Node);
+        _tree.AfterSelect += (_, e) => { if (e.Node?.Tag is Item it) { _current = it; _curBlock = FindBlockOf(e.Node); ShowItem(it); } };
+        var treeHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0) };
+        treeHost.Controls.Add(_tree);
+        left.Controls.Add(treeHost);
+        left.Controls.Add(_search);
+        _split.Panel1.Controls.Add(left);
 
-        // coluna 3: detalhes (todos os campos editáveis)
-        var right = new Panel { Dock = DockStyle.Fill, BackColor = CPanel };
-        _header.BackColor = CPanel2; _header.ForeColor = CAccent;
+        // DIREITA: cabeçalho + campos
+        var right = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
+        _header.BackColor = CSurface2; _header.ForeColor = CFg;
         StyleGrid();
         right.Controls.Add(_grid);
         right.Controls.Add(_header);
-        inner.Panel2.Controls.Add(right);
-
-        outer.Panel2.Controls.Add(inner);
-        return outer;
+        _split.Panel2.Controls.Add(right);
+        return _split;
     }
 
     private void StyleGrid()
     {
-        _grid.BackgroundColor = CPanel;
+        _grid.BackgroundColor = CSurface;
         _grid.EnableHeadersVisualStyles = false;
-        _grid.ColumnHeadersDefaultCellStyle.BackColor = CPanel2;
-        _grid.ColumnHeadersDefaultCellStyle.ForeColor = CFg;
-        _grid.DefaultCellStyle.BackColor = CPanel;
+        _grid.DefaultCellStyle.BackColor = CSurface;
         _grid.DefaultCellStyle.ForeColor = CFg;
-        _grid.DefaultCellStyle.SelectionBackColor = CAccent;
-        _grid.DefaultCellStyle.SelectionForeColor = Color.White;
-        _grid.AlternatingRowsDefaultCellStyle.BackColor = CPanel2;
-        _grid.GridColor = CLine;
+        _grid.DefaultCellStyle.SelectionBackColor = CSel;
+        _grid.DefaultCellStyle.SelectionForeColor = CSelFg;
+        _grid.DefaultCellStyle.Padding = new Padding(4, 2, 4, 2);
+        _grid.GridColor = Color.FromArgb(226, 231, 238);
+        _grid.RowTemplate.Height = 26;
         _grid.ColumnCount = 2;
         _grid.Columns[0].Name = "Campo"; _grid.Columns[0].ReadOnly = true; _grid.Columns[0].Width = 230;
-        _grid.Columns[0].DefaultCellStyle.ForeColor = Color.FromArgb(120, 170, 255);
+        _grid.Columns[0].DefaultCellStyle.ForeColor = CMuted;
         _grid.Columns[1].Name = "Valor"; _grid.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _grid.Columns[1].DefaultCellStyle.Font = new Font("Segoe UI Semibold", 9.5f);
         _grid.CellEndEdit += (_, e) => OnFieldEdited(e.RowIndex);
     }
 
     private StatusStrip BuildStatus()
     {
-        var s = new StatusStrip { BackColor = CPanel, ForeColor = CMuted };
+        var s = new StatusStrip { BackColor = CSurface2, ForeColor = CMuted };
         s.Items.Add(_status);
         return s;
     }
 
-    // ---------------- carregar ----------------
+    // ---------- carregar ----------
     private void OpenPwFolder()
     {
         using var dlg = new FolderBrowserDialog { Description = "Selecione a pasta do Perfect World (que contém 'element')" };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        var root = dlg.SelectedPath;
-        string? ele = FindFile(root, "elements.data");
-        if (ele is null) { Status("Não achei elements.data dentro dessa pasta."); return; }
+        var ele = FindFile(dlg.SelectedPath, "elements.data");
+        if (ele is null) { Status("Não achei elements.data nessa pasta."); return; }
         LoadElements(ele);
     }
 
     private static string? FindFile(string root, string name)
     {
         foreach (var c in new[] { name, Path.Combine("element", "data", name), Path.Combine("data", name), Path.Combine("element", name) })
-        {
-            var p = Path.Combine(root, c);
-            if (File.Exists(p)) return p;
-        }
-        try { return Directory.EnumerateFiles(root, name, SearchOption.AllDirectories).FirstOrDefault(); }
-        catch { return null; }
+            if (File.Exists(Path.Combine(root, c))) return Path.Combine(root, c);
+        try { return Directory.EnumerateFiles(root, name, SearchOption.AllDirectories).FirstOrDefault(); } catch { return null; }
     }
 
     private void OpenElements()
@@ -227,15 +191,14 @@ public sealed class EditorForm : Form
             UseWaitCursor = true;
             var reader = new CfgElementsReader(path);
             if (!reader.SignatureValid) { Status($"Assinatura inválida (0x{reader.Signature:X8})."); return; }
-            var cfgPath = FindCfg(reader.Version);
-            if (cfgPath is null) { Status($"Sem .cfg para a versão v{reader.Version & 0xFF}."); return; }
-            var module = reader.Parse(ElementsCfg.Load(cfgPath));
+            var cfg = FindCfg(reader.Version);
+            if (cfg is null) { Status($"Sem definição .cfg para a versão v{reader.Version & 0xFF}."); return; }
+            var module = reader.Parse(ElementsCfg.Load(cfg));
             module.Name = Path.GetFileName(path);
             _store.Adopt(module);
-            PopulateCats();
+            BuildTree();
             int items = module.Lists.Sum(l => l.Items.Count);
-            double pct = 100.0 * reader.Position / reader.Length;
-            Status($"{module.Name} · {Path.GetFileName(cfgPath)} · {module.Lists.Count} blocos · {items:N0} itens · {pct:0.0}%");
+            Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * reader.Position / reader.Length:0.0}%");
         }
         catch (Exception ex) { Error("Falha ao ler elements.data", ex); }
         finally { UseWaitCursor = false; }
@@ -245,153 +208,181 @@ public sealed class EditorForm : Form
     {
         int v = (int)(version & 0xFF);
         var dir = Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg");
-        if (!Directory.Exists(dir)) return null;
-        return Directory.GetFiles(dir, $"*_v{v}.cfg").FirstOrDefault() ?? Directory.GetFiles(dir, $"*v{v}.cfg").FirstOrDefault();
+        return Directory.Exists(dir) ? (Directory.GetFiles(dir, $"*_v{v}.cfg").FirstOrDefault() ?? Directory.GetFiles(dir, $"*v{v}.cfg").FirstOrDefault()) : null;
     }
 
-    private void Save(bool saveAs)
+    private void SaveAs()
     {
         if (_store.Current is null) { Status("Nada para salvar"); return; }
         using var dlg = new SaveFileDialog { Filter = "Módulo (*.data)|*.data", FileName = _store.Current.Name };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        try { Status($"Salvo em {_store.Save(dlg.FileName)} (obs: escrita no formato binário do PW ainda não implementada)"); }
+        try { Status($"Salvo em {_store.Save(dlg.FileName)} (escrita binária do PW: em breve)"); }
         catch (Exception ex) { Error("Falha ao salvar", ex); }
     }
 
-    // ---------------- categorias / lista ----------------
-    // Cada folha da árvore guarda o bloco (para add/remove) e os itens a listar (filtrados).
-    private sealed record NodeData(ItemList Block, List<Item> Items);
+    // ---------- árvore (categoria → tipo → subtipo → itens) ----------
+    private sealed record Container(ItemList Block, List<Item> Items);
 
-    private void PopulateCats()
+    private static readonly (string cat, string[] groups)[] CatMap =
     {
-        _cats.BeginUpdate();
-        _cats.Nodes.Clear();
+        ("Equipamentos", new[] { "Equipamentos" }), ("Itens", new[] { "Itens" }),
+        ("Monstros", new[] { "Monstros" }), ("NPCs", new[] { "NPCs" }),
+        ("Faces", new[] { "Faces" }), ("Receitas", new[] { "Receitas" }),
+        ("Pets", new[] { "Pets" }), ("Tarefas", new[] { "Tasks" }),
+    };
+
+    private void BuildTree()
+    {
+        _search.Text = "";
+        _tree.BeginUpdate();
+        _tree.Nodes.Clear();
         if (_store.Current is not null)
         {
             var lists = _store.Current.Lists;
-            foreach (var (cat, _) in Cats)
+            foreach (var (cat, groups) in CatMap)
             {
-                var blocks = lists.Where(l => l.Group == cat).ToList();
+                var blocks = lists.Where(l => groups.Contains(l.Group)).ToList();
                 if (blocks.Count == 0) continue;
-                int icon = IconOf(cat);
-                var catNode = new TreeNode($"{cat} ({blocks.Sum(b => b.Items.Count):N0})") { ImageIndex = icon, SelectedImageIndex = icon };
-
+                var catNode = new TreeNode($"{cat}  ({blocks.Sum(b => b.Items.Count):N0})") { ForeColor = CFg, NodeFont = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
                 foreach (var b in blocks)
                 {
-                    // Pula os blocos de TIPO (usados só para montar a hierarquia).
                     if (b.Name.Contains("_MAJOR_TYPE") || b.Name.Contains("_SUB_TYPE")) continue;
-
-                    if (TryBuildHierarchy(b, lists, icon, out var blockNode)) catNode.Nodes.Add(blockNode);
-                    else catNode.Nodes.Add(new TreeNode($"{Pretty(b.Name)}  ({b.Items.Count})")
-                    { Tag = new NodeData(b, b.Items), ImageIndex = icon, SelectedImageIndex = icon });
+                    if (!AddHierarchy(catNode, b, lists)) AddContainer(catNode, Pretty(b.Name), b, b.Items);
                 }
-                if (catNode.Nodes.Count > 0) _cats.Nodes.Add(catNode);
+                if (catNode.Nodes.Count > 0) _tree.Nodes.Add(catNode);
             }
-            if (_cats.Nodes.Count > 0) _cats.Nodes[0].Expand();
+            if (_tree.Nodes.Count > 0) _tree.Nodes[0].Expand();
         }
-        _cats.EndUpdate();
+        _tree.EndUpdate();
         Text = _store.Current is null ? "MyAceEditor" : $"MyAceEditor — {_store.Current.Name}";
     }
 
-    // Se o bloco for um *_ESSENCE com id_major_type/id_sub_type, monta Tipo -> Subtipo -> itens.
-    private bool TryBuildHierarchy(ItemList essence, List<ItemList> all, int icon, out TreeNode node)
+    private bool AddHierarchy(TreeNode parent, ItemList essence, List<ItemList> all)
     {
-        node = null!;
         if (!essence.Name.EndsWith("_ESSENCE")) return false;
-        var first = essence.Items.FirstOrDefault();
-        if (first is null || !first.Fields.ContainsKey("id_major_type") || !first.Fields.ContainsKey("id_sub_type")) return false;
-
+        var f = essence.Items.FirstOrDefault();
+        if (f is null || !f.Fields.ContainsKey("id_major_type") || !f.Fields.ContainsKey("id_sub_type")) return false;
         string prefix = essence.Name[..^"_ESSENCE".Length];
-        var majorNames = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_MAJOR_TYPE"));
-        var subNames = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_SUB_TYPE"));
-
-        node = new TreeNode($"{Pretty(essence.Name)}  ({essence.Items.Count})") { ImageIndex = icon, SelectedImageIndex = icon };
+        var majors = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_MAJOR_TYPE"));
+        var subs = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_SUB_TYPE"));
+        var node = new TreeNode($"{Pretty(essence.Name)}  ({essence.Items.Count})") { ForeColor = CFg };
         foreach (var byMajor in essence.Items.GroupBy(i => i.Fields.GetValueOrDefault("id_major_type")?.Value ?? "0"))
         {
-            string mName = majorNames.GetValueOrDefault(byMajor.Key, $"Tipo {byMajor.Key}");
-            var mNode = new TreeNode($"{mName}  ({byMajor.Count()})") { ImageIndex = icon, SelectedImageIndex = icon };
+            var mNode = new TreeNode($"{majors.GetValueOrDefault(byMajor.Key, "Tipo " + byMajor.Key)}  ({byMajor.Count()})") { ForeColor = CFg };
             foreach (var bySub in byMajor.GroupBy(i => i.Fields.GetValueOrDefault("id_sub_type")?.Value ?? "0"))
-            {
-                string sName = subNames.GetValueOrDefault(bySub.Key, $"Subtipo {bySub.Key}");
-                mNode.Nodes.Add(new TreeNode($"{sName}  ({bySub.Count()})")
-                { Tag = new NodeData(essence, bySub.ToList()), ImageIndex = icon, SelectedImageIndex = icon });
-            }
+                AddContainer(mNode, subs.GetValueOrDefault(bySub.Key, "Subtipo " + bySub.Key), essence, bySub.ToList());
             node.Nodes.Add(mNode);
         }
+        parent.Nodes.Add(node);
         return true;
     }
 
-    private static Dictionary<string, string> NameMap(ItemList? typeBlock)
+    private void AddContainer(TreeNode parent, string label, ItemList block, List<Item> items)
+    {
+        var n = new TreeNode($"{label}  ({items.Count})") { Tag = new Container(block, items), ForeColor = CFg };
+        if (items.Count > 0) n.Nodes.Add(new TreeNode()); // dummy p/ lazy load
+        parent.Nodes.Add(n);
+    }
+
+    private void LazyLoad(TreeNode node)
+    {
+        if (node.Tag is not Container c) return;
+        if (node.Nodes.Count == 1 && node.Nodes[0].Tag is null && node.Nodes[0].Text == "")
+        {
+            node.Nodes.Clear();
+            _tree.BeginUpdate();
+            foreach (var it in c.Items)
+                node.Nodes.Add(new TreeNode(string.IsNullOrEmpty(it.Name) ? $"#{it.Id}" : it.Name) { Tag = it, ForeColor = GradeColor(it.Name) });
+            _tree.EndUpdate();
+        }
+    }
+
+    private ItemList? FindBlockOf(TreeNode node)
+    {
+        var p = node.Parent;
+        while (p is not null) { if (p.Tag is Container c) return c.Block; p = p.Parent; }
+        return null;
+    }
+
+    private static Dictionary<string, string> NameMap(ItemList? b)
     {
         var d = new Dictionary<string, string>();
-        if (typeBlock is not null)
-            foreach (var it in typeBlock.Items) d[it.Id] = it.Name;
+        if (b is not null) foreach (var it in b.Items) d[it.Id] = it.Name;
         return d;
     }
 
-    private static string Pretty(string block) => block switch
+    private static Color GradeColor(string name)
     {
-        "WEAPON_ESSENCE" => "Armas", "ARMOR_ESSENCE" => "Armaduras", "DECORATION_ESSENCE" => "Acessórios",
-        "MEDICINE_ESSENCE" => "Poções", "MATERIAL_ESSENCE" => "Materiais", "PROJECTILE_ESSENCE" => "Projéteis",
-        "FASHION_ESSENCE" => "Moda", "PET_ESSENCE" => "Pets", "RECIPE_ESSENCE" => "Receitas",
-        _ => block.Replace("_ESSENCE", "").Replace("_", " ")
-    };
-
-    private List<Item>? _items;
-    private void OnCatSelected(TreeNode? node)
-    {
-        if (node?.Tag is NodeData nd) { _block = nd.Block; _items = nd.Items; }
-        else { _block = null; _items = null; }
-        PopulateList();
-    }
-
-    private void PopulateList()
-    {
-        _list.BeginUpdate();
-        _list.Items.Clear();
-        if (_items is not null && _block is not null)
+        int g = 0;
+        foreach (var ch in name)
         {
-            string q = _search.Text.Trim();
-            int icon = IconOf(_block.Group);
-            int n = 0;
-            foreach (var it in _items)
-            {
-                if (q.Length > 0 && !it.Name.Contains(q, StringComparison.OrdinalIgnoreCase) && !it.Id.Contains(q)) continue;
-                if (n++ >= MaxRows) break;
-                var lvi = new ListViewItem(it.Id) { Tag = it, ImageIndex = icon };
-                lvi.SubItems.Add(it.Name);
-                _list.Items.Add(lvi);
-            }
+            if (ch == '*' || ch == '★' || ch == '☆') g++;
+            else if (ch == '»' || ch == '«') return GGold;
+            else break;
         }
-        _list.EndUpdate();
+        return g switch { 0 => GNormal, 1 => G1, 2 => G2, 3 => G3, _ => GGold };
     }
 
-    private void OnItemSelected()
+    private static readonly Dictionary<string, string> BlockPt = new()
     {
-        if (_list.SelectedItems.Count > 0 && _list.SelectedItems[0].Tag is Item it) ShowItem(it);
+        ["WEAPON_ESSENCE"] = "Armas", ["ARMOR_ESSENCE"] = "Armaduras", ["DECORATION_ESSENCE"] = "Acessórios",
+        ["MEDICINE_ESSENCE"] = "Poções", ["MATERIAL_ESSENCE"] = "Materiais", ["PROJECTILE_ESSENCE"] = "Projéteis",
+        ["QUIVER_ESSENCE"] = "Aljavas", ["STONE_ESSENCE"] = "Pedras", ["FASHION_ESSENCE"] = "Moda",
+        ["PET_ESSENCE"] = "Pets", ["PET_EGG_ESSENCE"] = "Ovos de Pet", ["PET_FOOD_ESSENCE"] = "Comida de Pet",
+        ["RECIPE_ESSENCE"] = "Receitas", ["MONSTER_ESSENCE"] = "Monstros", ["NPC_ESSENCE"] = "NPCs",
+        ["FACE_TEXTURE_ESSENCE"] = "Texturas de Face", ["FACE_HAIR_ESSENCE"] = "Cabelos",
+        ["FIREWORKS_ESSENCE"] = "Fogos", ["SUITE_ESSENCE"] = "Conjuntos", ["REFINE_TICKET_ESSENCE"] = "Tíquetes de Refino",
+        ["ELEMENT_ESSENCE"] = "Elementos", ["TOWNSCROLL_ESSENCE"] = "Pergaminhos de Cidade",
+    };
+    private static string Pretty(string block) =>
+        BlockPt.TryGetValue(block, out var p) ? p
+        : System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(block.Replace("_ESSENCE", "").Replace("_", " ").ToLowerInvariant());
+
+    // ---------- busca global ----------
+    private void OnSearch()
+    {
+        string q = _search.Text.Trim();
+        if (q.Length == 0) { BuildTree(); return; }
+        if (_store.Current is null) return;
+        _tree.BeginUpdate();
+        _tree.Nodes.Clear();
+        var root = new TreeNode("Resultados") { ForeColor = CFg, NodeFont = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+        int n = 0;
+        foreach (var b in _store.Current.Lists)
+        {
+            foreach (var it in b.Items)
+            {
+                if (!it.Name.Contains(q, StringComparison.OrdinalIgnoreCase) && !it.Id.Contains(q)) continue;
+                if (n++ >= MaxLeaves) break;
+                root.Nodes.Add(new TreeNode($"{it.Name}   [{it.Id}]  ·  {Pretty(b.Name)}") { Tag = it, ForeColor = GradeColor(it.Name) });
+            }
+            if (n >= MaxLeaves) break;
+        }
+        root.Text = $"Resultados ({n}{(n >= MaxLeaves ? "+" : "")})";
+        _tree.Nodes.Add(root); root.Expand();
+        _tree.EndUpdate();
     }
 
+    // ---------- detalhes ----------
     private void ShowItem(Item item)
     {
-        _current = item;
-        _header.Text = string.IsNullOrEmpty(item.Name) ? $"#{item.Id}" : $"{item.Name}      (ID {item.Id})";
+        _header.Text = string.IsNullOrEmpty(item.Name) ? $"#{item.Id}" : $"{item.Name}     (ID {item.Id})";
+        _header.ForeColor = GradeColor(item.Name);
         _grid.Rows.Clear();
-        // agrupa e rotula; esconde addons vazios
-        var groups = item.Fields.GroupBy(f => FieldLabels.Group(f.Key))
-                         .ToDictionary(g => g.Key, g => g.ToList());
+        var groups = item.Fields.GroupBy(f => FieldLabels.Group(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
         foreach (var gname in FieldLabels.GroupOrder)
         {
             if (!groups.TryGetValue(gname, out var fields)) continue;
-            var visible = fields.Where(f => gname != "Atributos / Addons" || !IsEmpty(f.Value.Value)).ToList();
-            if (visible.Count == 0) continue;
-            int hr = _grid.Rows.Add(gname.ToUpperInvariant(), "");
-            var hrow = _grid.Rows[hr];
-            hrow.ReadOnly = true; hrow.DefaultCellStyle.BackColor = CPanel2;
-            hrow.DefaultCellStyle.ForeColor = CAccent; hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-            foreach (var (k, f) in visible)
+            var vis = fields.Where(f => gname != "Atributos / Addons" || !IsEmpty(f.Value.Value)).ToList();
+            if (vis.Count == 0) continue;
+            int hr = _grid.Rows.Add("  " + gname.ToUpperInvariant(), "");
+            var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
+            hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
+            hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            foreach (var (k, f) in vis)
             {
-                int r = _grid.Rows.Add(FieldLabels.Label(k), f.Value);
-                _grid.Rows[r].Tag = k; // nome técnico original p/ salvar
+                int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value);
+                _grid.Rows[r].Tag = k;
             }
         }
     }
@@ -400,54 +391,49 @@ public sealed class EditorForm : Form
 
     private void OnFieldEdited(int row)
     {
-        if (_current is null || row < 0) return;
-        if (_grid.Rows[row].Tag is not string key || !_current.Fields.ContainsKey(key)) return;
+        if (_current is null || row < 0 || _grid.Rows[row].Tag is not string key || !_current.Fields.ContainsKey(key)) return;
         var val = _grid.Rows[row].Cells[1].Value?.ToString() ?? "";
         _current.Fields[key] = Field.Of(_current.Fields[key].Type, val);
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase))
         {
             _current.Name = val;
-            if (_list.SelectedItems.Count > 0) _list.SelectedItems[0].SubItems[1].Text = val;
-            _header.Text = $"{val}      (ID {_current.Id})";
+            if (_tree.SelectedNode is not null) { _tree.SelectedNode.Text = val; _tree.SelectedNode.ForeColor = GradeColor(val); }
+            _header.Text = $"{val}     (ID {_current.Id})";
         }
         Status($"'{FieldLabels.Label(key)}' atualizado");
     }
 
     private void AddItem()
     {
-        if (_block is null) { Status("Selecione um bloco"); return; }
-        var it = new Item { Name = "Novo item", Id = "0" };
-        _block.Items.Add(it); _items?.Add(it);
-        PopulateList();
-        Status($"Item adicionado em {Pretty(_block.Name)}");
+        if (_curBlock is null) { Status("Selecione um item/bloco primeiro"); return; }
+        _curBlock.Items.Add(new Item { Name = "Novo item", Id = "0" });
+        Status($"Item adicionado em {Pretty(_curBlock.Name)} (reabra o nó para ver)");
     }
 
     private void RemoveItem()
     {
-        if (_current is null || _block is null) { Status("Selecione um item"); return; }
-        _block.Items.Remove(_current); _items?.Remove(_current); _current = null;
-        PopulateList();
+        if (_current is null || _curBlock is null) { Status("Selecione um item"); return; }
+        _curBlock.Items.Remove(_current);
+        _tree.SelectedNode?.Remove();
+        _current = null;
         Status("Item removido");
     }
 
     private void Status(string s) => _status.Text = s;
-    private void Error(string msg, Exception ex)
-    {
-        Status(msg + ": " + ex.Message);
-        MessageBox.Show(ex.Message, msg, MessageBoxButtons.OK, MessageBoxIcon.Error);
-    }
+    private void Error(string msg, Exception ex) { Status(msg + ": " + ex.Message); MessageBox.Show(ex.Message, msg, MessageBoxButtons.OK, MessageBoxIcon.Error); }
 }
 
-internal sealed class DarkRenderer : ToolStripProfessionalRenderer
+internal sealed class LightRenderer : ToolStripProfessionalRenderer
 {
-    public DarkRenderer() : base(new DarkColors()) { }
+    public LightRenderer() : base(new LightColors()) { }
 }
-internal sealed class DarkColors : ProfessionalColorTable
+internal sealed class LightColors : ProfessionalColorTable
 {
-    public override Color ToolStripGradientBegin => Color.FromArgb(40, 45, 55);
-    public override Color ToolStripGradientMiddle => Color.FromArgb(40, 45, 55);
-    public override Color ToolStripGradientEnd => Color.FromArgb(40, 45, 55);
-    public override Color ButtonSelectedHighlight => Color.FromArgb(55, 61, 73);
-    public override Color ButtonSelectedGradientBegin => Color.FromArgb(55, 61, 73);
-    public override Color ButtonSelectedGradientEnd => Color.FromArgb(55, 61, 73);
+    public override Color ToolStripGradientBegin => Color.FromArgb(242, 245, 249);
+    public override Color ToolStripGradientMiddle => Color.FromArgb(242, 245, 249);
+    public override Color ToolStripGradientEnd => Color.FromArgb(242, 245, 249);
+    public override Color ButtonSelectedHighlight => Color.FromArgb(219, 232, 253);
+    public override Color ButtonSelectedGradientBegin => Color.FromArgb(219, 232, 253);
+    public override Color ButtonSelectedGradientEnd => Color.FromArgb(219, 232, 253);
+    public override Color ButtonSelectedBorder => Color.FromArgb(37, 99, 235);
 }
