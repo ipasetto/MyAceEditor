@@ -22,6 +22,7 @@ public sealed class EditorForm : Form
     private readonly ToolTip _tip = new() { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 100 };
     private string[] _tipLines = Array.Empty<string>();
     private readonly ComboBox _sort = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Height = 24 };
+    private readonly PictureBox _iconBox = new() { Dock = DockStyle.Left, Width = 44, SizeMode = PictureBoxSizeMode.Zoom, Padding = new Padding(6) };
     private readonly ContextMenuStrip _ctx = new();
     private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
@@ -115,12 +116,15 @@ public sealed class EditorForm : Form
         var tEl = new TabPage("Elements") { BackColor = CBg };
         tEl.Controls.Add(BuildElements());
         tabs.TabPages.Add(tEl);
-        foreach (var (n, h) in new[] { ("GShop", "Editor de loja"), ("Tasks", "Editor de tarefas"), ("AI Policy", "Editor de IA"), ("Extrator PCK", "Extrair .pck (ícones/texturas)") })
+        foreach (var (n, h) in new[] { ("GShop", "Editor de loja"), ("Tasks", "Editor de tarefas"), ("AI Policy", "Editor de IA") })
         {
             var tp = new TabPage(n) { BackColor = CBg };
             tp.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted, Text = $"{h}\n(em breve)", Font = new Font("Segoe UI", 11) });
             tabs.TabPages.Add(tp);
         }
+        var tPck = new TabPage("Extrator PCK") { BackColor = CBg };
+        tPck.Controls.Add(BuildPckView());
+        tabs.TabPages.Add(tPck);
         return tabs;
     }
 
@@ -157,12 +161,16 @@ public sealed class EditorForm : Form
         foreach (var k in LoadFavorites()) _favorites.Add(k);
         _split.Panel1.Controls.Add(left);
 
-        // DIREITA: cabeçalho + campos
+        // DIREITA: cabeçalho (ícone + nome) + campos
         var right = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
         _header.BackColor = CSurface2; _header.ForeColor = CFg;
+        var headPanel = new Panel { Dock = DockStyle.Top, Height = 46, BackColor = CSurface2 };
+        _iconBox.BackColor = CSurface2;
+        headPanel.Controls.Add(_header);
+        headPanel.Controls.Add(_iconBox);
         StyleGrid();
         right.Controls.Add(_grid);
-        right.Controls.Add(_header);
+        right.Controls.Add(headPanel);
         _split.Panel2.Controls.Add(right);
         return _split;
     }
@@ -440,7 +448,8 @@ public sealed class EditorForm : Form
     private void ShowItem(Item item)
     {
         _header.Text = string.IsNullOrEmpty(item.Name) ? $"#{item.Id}" : $"{item.Name}     (ID {item.Id})";
-        _header.ForeColor = GradeColor(item.Name);
+        _header.ForeColor = Color.FromArgb(30, 39, 51);
+        LoadItemIcon(item);
         _grid.Rows.Clear();
         var groups = item.Fields.GroupBy(f => FieldLabels.Group(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
         foreach (var gname in FieldLabels.GroupOrder)
@@ -641,6 +650,74 @@ public sealed class EditorForm : Form
     { try { Directory.CreateDirectory(Path.GetDirectoryName(SettingsFile)!); File.WriteAllText(SettingsFile, p); } catch { } }
     private static string? LoadLast()
     { try { return File.Exists(SettingsFile) ? File.ReadAllText(SettingsFile).Trim() : null; } catch { return null; } }
+
+    // ---------- ícones (via pasta extraída do .pck) ----------
+    private void LoadItemIcon(Item item)
+    {
+        _iconBox.Image?.Dispose(); _iconBox.Image = null;
+        var root = LoadSetting("icons");
+        if (root is null || !item.Fields.TryGetValue("file_icon", out var fi)) return;
+        try { _iconBox.Image = IconLoader.Load(root, fi.Value); } catch { }
+    }
+
+    // ---------- aba Extrator PCK (invólucro do sPCK) ----------
+    private Label _lblSpck = null!, _lblIcons = null!;
+    private Control BuildPckView()
+    {
+        var p = new Panel { Dock = DockStyle.Fill, BackColor = CBg, Padding = new Padding(20) };
+        int y = 10;
+        Label Title(string t) { var l = new Label { Text = t, Location = new Point(14, y), AutoSize = true, Font = new Font("Segoe UI", 12, FontStyle.Bold), ForeColor = CFg }; y += 34; return l; }
+        Label Info(string t) { var l = new Label { Text = t, Location = new Point(14, y), AutoSize = true, MaximumSize = new Size(820, 0), ForeColor = CMuted }; y += l.PreferredHeight + 10; return l; }
+        Button Btn(string t, Action a) { var b = new Button { Text = t, Location = new Point(14, y), Size = new Size(260, 30), FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; b.Click += (_, _) => a(); y += 40; return b; }
+
+        p.Controls.Add(Title("Extrator de PCK (via sPCK)"));
+        p.Controls.Add(Info("Os ícones/texturas do jogo ficam dentro dos arquivos .pck. Use o sPCK (ferramenta livre que você já tem) para extrair, e depois aponte aqui a pasta extraída — o editor mostra os ícones dos itens automaticamente."));
+        p.Controls.Add(Btn("1) Localizar o sPCK (sPCK-GUI.exe)", LocateSpck));
+        _lblSpck = new Label { Location = new Point(290, y - 34), AutoSize = true, ForeColor = CMuted, MaximumSize = new Size(520, 0) };
+        p.Controls.Add(_lblSpck);
+        p.Controls.Add(Btn("2) Abrir o sPCK para extrair", OpenSpck));
+        p.Controls.Add(Info("No sPCK, extraia o .pck dos ícones (ex.: interfaces.pck / o pacote de ícones) para uma pasta."));
+        p.Controls.Add(Btn("3) Definir a pasta de ícones extraída", SetIconsFolder));
+        _lblIcons = new Label { Location = new Point(290, y - 34), AutoSize = true, ForeColor = CMuted, MaximumSize = new Size(520, 0) };
+        p.Controls.Add(_lblIcons);
+        p.Controls.Add(Info("Pronto: ao selecionar um item na aba Elements, o ícone aparece ao lado do nome (formatos PNG/BMP/TGA)."));
+        RefreshPckLabels();
+        return p;
+    }
+
+    private void RefreshPckLabels()
+    {
+        _lblSpck.Text = LoadSetting("spck") ?? "(não definido — ou deixe que eu procuro no padrão)";
+        _lblIcons.Text = LoadSetting("icons") ?? "(não definida)";
+    }
+    private void LocateSpck()
+    {
+        using var dlg = new OpenFileDialog { Filter = "sPCK (*.exe)|*.exe", Title = "Selecione o sPCK-GUI.exe" };
+        if (dlg.ShowDialog(this) == DialogResult.OK) { SaveSetting("spck", dlg.FileName); RefreshPckLabels(); }
+    }
+    private void OpenSpck()
+    {
+        var path = LoadSetting("spck") ?? DefaultSpck();
+        if (path is null || !File.Exists(path)) { Status("sPCK não encontrado — use 'Localizar o sPCK'."); return; }
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(path)! }); }
+        catch (Exception ex) { Error("Falha ao abrir o sPCK", ex); }
+    }
+    private static string? DefaultSpck()
+    {
+        foreach (var c in new[] { @"D:\Perfect World\PW\Outros Editores\sPCK GUI\sPCK-GUI.exe" })
+            if (File.Exists(c)) return c;
+        return null;
+    }
+    private void SetIconsFolder()
+    {
+        using var dlg = new FolderBrowserDialog { Description = "Pasta com os ícones extraídos do .pck" };
+        if (dlg.ShowDialog(this) == DialogResult.OK) { SaveSetting("icons", dlg.SelectedPath); RefreshPckLabels(); Status("Pasta de ícones definida."); }
+    }
+
+    // ---------- settings genéricas ----------
+    private static string SettingsDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor");
+    private static void SaveSetting(string k, string v) { try { Directory.CreateDirectory(SettingsDir); File.WriteAllText(Path.Combine(SettingsDir, k + ".txt"), v); } catch { } }
+    private static string? LoadSetting(string k) { try { var p = Path.Combine(SettingsDir, k + ".txt"); return File.Exists(p) ? File.ReadAllText(p).Trim() : null; } catch { return null; } }
 
     private void Status(string s) => _status.Text = s;
     private void Error(string msg, Exception ex) { Status(msg + ": " + ex.Message); MessageBox.Show(ex.Message, msg, MessageBoxButtons.OK, MessageBoxIcon.Error); }
