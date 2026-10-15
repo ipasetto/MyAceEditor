@@ -259,20 +259,33 @@ public sealed class EditorForm : Form
     }
 
     // ---------------- categorias / lista ----------------
+    // Cada folha da árvore guarda o bloco (para add/remove) e os itens a listar (filtrados).
+    private sealed record NodeData(ItemList Block, List<Item> Items);
+
     private void PopulateCats()
     {
         _cats.BeginUpdate();
         _cats.Nodes.Clear();
         if (_store.Current is not null)
         {
+            var lists = _store.Current.Lists;
             foreach (var (cat, _) in Cats)
             {
-                var blocks = _store.Current.Lists.Where(l => l.Group == cat).ToList();
+                var blocks = lists.Where(l => l.Group == cat).ToList();
                 if (blocks.Count == 0) continue;
-                var parent = new TreeNode($"{cat} ({blocks.Sum(b => b.Items.Count):N0})") { ImageIndex = IconOf(cat), SelectedImageIndex = IconOf(cat) };
+                int icon = IconOf(cat);
+                var catNode = new TreeNode($"{cat} ({blocks.Sum(b => b.Items.Count):N0})") { ImageIndex = icon, SelectedImageIndex = icon };
+
                 foreach (var b in blocks)
-                    parent.Nodes.Add(new TreeNode($"{b.Name}  ({b.Items.Count})") { Tag = b, ImageIndex = IconOf(cat), SelectedImageIndex = IconOf(cat) });
-                _cats.Nodes.Add(parent);
+                {
+                    // Pula os blocos de TIPO (usados só para montar a hierarquia).
+                    if (b.Name.Contains("_MAJOR_TYPE") || b.Name.Contains("_SUB_TYPE")) continue;
+
+                    if (TryBuildHierarchy(b, lists, icon, out var blockNode)) catNode.Nodes.Add(blockNode);
+                    else catNode.Nodes.Add(new TreeNode($"{Pretty(b.Name)}  ({b.Items.Count})")
+                    { Tag = new NodeData(b, b.Items), ImageIndex = icon, SelectedImageIndex = icon });
+                }
+                if (catNode.Nodes.Count > 0) _cats.Nodes.Add(catNode);
             }
             if (_cats.Nodes.Count > 0) _cats.Nodes[0].Expand();
         }
@@ -280,9 +293,55 @@ public sealed class EditorForm : Form
         Text = _store.Current is null ? "MyAceEditor" : $"MyAceEditor — {_store.Current.Name}";
     }
 
+    // Se o bloco for um *_ESSENCE com id_major_type/id_sub_type, monta Tipo -> Subtipo -> itens.
+    private bool TryBuildHierarchy(ItemList essence, List<ItemList> all, int icon, out TreeNode node)
+    {
+        node = null!;
+        if (!essence.Name.EndsWith("_ESSENCE")) return false;
+        var first = essence.Items.FirstOrDefault();
+        if (first is null || !first.Fields.ContainsKey("id_major_type") || !first.Fields.ContainsKey("id_sub_type")) return false;
+
+        string prefix = essence.Name[..^"_ESSENCE".Length];
+        var majorNames = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_MAJOR_TYPE"));
+        var subNames = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_SUB_TYPE"));
+
+        node = new TreeNode($"{Pretty(essence.Name)}  ({essence.Items.Count})") { ImageIndex = icon, SelectedImageIndex = icon };
+        foreach (var byMajor in essence.Items.GroupBy(i => i.Fields.GetValueOrDefault("id_major_type")?.Value ?? "0"))
+        {
+            string mName = majorNames.GetValueOrDefault(byMajor.Key, $"Tipo {byMajor.Key}");
+            var mNode = new TreeNode($"{mName}  ({byMajor.Count()})") { ImageIndex = icon, SelectedImageIndex = icon };
+            foreach (var bySub in byMajor.GroupBy(i => i.Fields.GetValueOrDefault("id_sub_type")?.Value ?? "0"))
+            {
+                string sName = subNames.GetValueOrDefault(bySub.Key, $"Subtipo {bySub.Key}");
+                mNode.Nodes.Add(new TreeNode($"{sName}  ({bySub.Count()})")
+                { Tag = new NodeData(essence, bySub.ToList()), ImageIndex = icon, SelectedImageIndex = icon });
+            }
+            node.Nodes.Add(mNode);
+        }
+        return true;
+    }
+
+    private static Dictionary<string, string> NameMap(ItemList? typeBlock)
+    {
+        var d = new Dictionary<string, string>();
+        if (typeBlock is not null)
+            foreach (var it in typeBlock.Items) d[it.Id] = it.Name;
+        return d;
+    }
+
+    private static string Pretty(string block) => block switch
+    {
+        "WEAPON_ESSENCE" => "Armas", "ARMOR_ESSENCE" => "Armaduras", "DECORATION_ESSENCE" => "Acessórios",
+        "MEDICINE_ESSENCE" => "Poções", "MATERIAL_ESSENCE" => "Materiais", "PROJECTILE_ESSENCE" => "Projéteis",
+        "FASHION_ESSENCE" => "Moda", "PET_ESSENCE" => "Pets", "RECIPE_ESSENCE" => "Receitas",
+        _ => block.Replace("_ESSENCE", "").Replace("_", " ")
+    };
+
+    private List<Item>? _items;
     private void OnCatSelected(TreeNode? node)
     {
-        _block = node?.Tag as ItemList;
+        if (node?.Tag is NodeData nd) { _block = nd.Block; _items = nd.Items; }
+        else { _block = null; _items = null; }
         PopulateList();
     }
 
@@ -290,12 +349,12 @@ public sealed class EditorForm : Form
     {
         _list.BeginUpdate();
         _list.Items.Clear();
-        if (_block is not null)
+        if (_items is not null && _block is not null)
         {
             string q = _search.Text.Trim();
             int icon = IconOf(_block.Group);
             int n = 0;
-            foreach (var it in _block.Items)
+            foreach (var it in _items)
             {
                 if (q.Length > 0 && !it.Name.Contains(q, StringComparison.OrdinalIgnoreCase) && !it.Id.Contains(q)) continue;
                 if (n++ >= MaxRows) break;
@@ -315,39 +374,58 @@ public sealed class EditorForm : Form
     private void ShowItem(Item item)
     {
         _current = item;
-        _header.Text = $"{(string.IsNullOrEmpty(item.Name) ? "#" + item.Id : item.Name)}      [id {item.Id} · {item.Fields.Count} campos]";
+        _header.Text = string.IsNullOrEmpty(item.Name) ? $"#{item.Id}" : $"{item.Name}      (ID {item.Id})";
         _grid.Rows.Clear();
-        foreach (var (k, f) in item.Fields)
-            _grid.Rows.Add(k, f.Value);
+        // agrupa e rotula; esconde addons vazios
+        var groups = item.Fields.GroupBy(f => FieldLabels.Group(f.Key))
+                         .ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var gname in FieldLabels.GroupOrder)
+        {
+            if (!groups.TryGetValue(gname, out var fields)) continue;
+            var visible = fields.Where(f => gname != "Atributos / Addons" || !IsEmpty(f.Value.Value)).ToList();
+            if (visible.Count == 0) continue;
+            int hr = _grid.Rows.Add(gname.ToUpperInvariant(), "");
+            var hrow = _grid.Rows[hr];
+            hrow.ReadOnly = true; hrow.DefaultCellStyle.BackColor = CPanel2;
+            hrow.DefaultCellStyle.ForeColor = CAccent; hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            foreach (var (k, f) in visible)
+            {
+                int r = _grid.Rows.Add(FieldLabels.Label(k), f.Value);
+                _grid.Rows[r].Tag = k; // nome técnico original p/ salvar
+            }
+        }
     }
+
+    private static bool IsEmpty(string v) => v is "0" or "" or "0.0" or "-1";
 
     private void OnFieldEdited(int row)
     {
         if (_current is null || row < 0) return;
-        var key = _grid.Rows[row].Cells[0].Value?.ToString();
-        if (string.IsNullOrEmpty(key) || !_current.Fields.ContainsKey(key)) return;
+        if (_grid.Rows[row].Tag is not string key || !_current.Fields.ContainsKey(key)) return;
         var val = _grid.Rows[row].Cells[1].Value?.ToString() ?? "";
         _current.Fields[key] = Field.Of(_current.Fields[key].Type, val);
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase))
         {
             _current.Name = val;
             if (_list.SelectedItems.Count > 0) _list.SelectedItems[0].SubItems[1].Text = val;
+            _header.Text = $"{val}      (ID {_current.Id})";
         }
-        Status($"Campo '{key}' atualizado");
+        Status($"'{FieldLabels.Label(key)}' atualizado");
     }
 
     private void AddItem()
     {
         if (_block is null) { Status("Selecione um bloco"); return; }
-        _block.Items.Add(new Item { Name = "Novo item", Id = "0" });
+        var it = new Item { Name = "Novo item", Id = "0" };
+        _block.Items.Add(it); _items?.Add(it);
         PopulateList();
-        Status($"Item adicionado em {_block.Name}");
+        Status($"Item adicionado em {Pretty(_block.Name)}");
     }
 
     private void RemoveItem()
     {
         if (_current is null || _block is null) { Status("Selecione um item"); return; }
-        _block.Items.Remove(_current); _current = null;
+        _block.Items.Remove(_current); _items?.Remove(_current); _current = null;
         PopulateList();
         Status("Item removido");
     }
