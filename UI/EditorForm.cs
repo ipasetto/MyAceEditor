@@ -23,6 +23,9 @@ public sealed class EditorForm : Form
     private string[] _tipLines = Array.Empty<string>();
     private readonly ComboBox _sort = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Height = 24 };
     private readonly PictureBox _iconBox = new() { Dock = DockStyle.Left, Width = 44, SizeMode = PictureBoxSizeMode.Zoom, Padding = new Padding(6) };
+    private readonly ImageList _treeIcons = new() { ImageSize = new Size(18, 18), ColorDepth = ColorDepth.Depth32Bit };
+    private readonly Dictionary<string, int> _iconIdx = new();
+    private string? _iconsRoot;
     private readonly ContextMenuStrip _ctx = new();
     private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
@@ -137,6 +140,7 @@ public sealed class EditorForm : Form
         _search.BackColor = CTreeInput; _search.ForeColor = CTreeFg; _search.Font = new Font("Segoe UI", 10);
         _search.TextChanged += (_, _) => OnSearch();
         _tree.BackColor = CTreeBg; _tree.ForeColor = CTreeFg; _tree.LineColor = Color.FromArgb(60, 64, 72);
+        _tree.ImageList = _treeIcons;
         _tree.BeforeExpand += (_, e) => LazyLoad(e.Node);
         _tree.AfterSelect += (_, e) => OnSelect(e.Node);
         _tree.ShowNodeToolTips = false;
@@ -274,6 +278,7 @@ public sealed class EditorForm : Form
 
     private void BuildTree()
     {
+        _iconsRoot = LoadSetting("icons");
         _search.Text = "";
         _tree.BeginUpdate();
         _tree.Nodes.Clear();
@@ -349,8 +354,26 @@ public sealed class EditorForm : Form
         }
     }
 
-    private TreeNode ItemNode(Item it) =>
-        new($"{it.Id}   {(string.IsNullOrEmpty(it.Name) ? "(sem nome)" : it.Name)}") { Tag = it, ForeColor = GradeColor(it.Name) };
+    private TreeNode ItemNode(Item it)
+    {
+        int img = IconIndexFor(it);
+        return new TreeNode($"{it.Id}   {(string.IsNullOrEmpty(it.Name) ? "(sem nome)" : it.Name)}")
+        { Tag = it, ForeColor = GradeColor(it.Name), ImageIndex = img, SelectedImageIndex = img };
+    }
+
+    private int IconIndexFor(Item it)
+    {
+        if (_iconsRoot is null) return -1;
+        if (!it.Fields.TryGetValue("file_icon", out var fi) || string.IsNullOrEmpty(fi.Value)) return -1;
+        if (_iconIdx.TryGetValue(fi.Value, out var idx)) return idx;
+        Image? img = null;
+        try { img = IconLoader.Load(_iconsRoot, fi.Value); } catch { }
+        if (img is null) { _iconIdx[fi.Value] = -1; return -1; }
+        _treeIcons.Images.Add(img);
+        int i = _treeIcons.Images.Count - 1;
+        _iconIdx[fi.Value] = i;
+        return i;
+    }
 
     private IEnumerable<Item> Sorted(IEnumerable<Item> items) =>
         _sortMode == SortMode.Nome
@@ -711,7 +734,13 @@ public sealed class EditorForm : Form
     private void SetIconsFolder()
     {
         using var dlg = new FolderBrowserDialog { Description = "Pasta com os ícones extraídos do .pck" };
-        if (dlg.ShowDialog(this) == DialogResult.OK) { SaveSetting("icons", dlg.SelectedPath); RefreshPckLabels(); Status("Pasta de ícones definida."); }
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            SaveSetting("icons", dlg.SelectedPath); RefreshPckLabels();
+            _iconsRoot = dlg.SelectedPath; _iconIdx.Clear(); _treeIcons.Images.Clear();
+            RefreshView();
+            Status("Pasta de ícones definida — ícones ativados na lista.");
+        }
     }
 
     // ---------- settings genéricas ----------
