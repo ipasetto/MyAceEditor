@@ -1,26 +1,31 @@
-# MyAceEditor — editor de dados de jogo (WinForms nativo)
+# MyAceEditor — engine de edição do Perfect World (WinForms nativo)
 
-Editor desktop **nativo em C# / WinForms** (.NET 10), inspirado no Angelica Core Editor /
-sEledit. Sem servidor web, sem navegador — uma janela nativa com árvore + grade.
+Aplicação desktop **nativa em C# / WinForms** (.NET 10). O objetivo não é só editar
+`.data`: é ser uma **engine do Perfect World**, tornando o jogo **100% editável** a
+partir de uma única janela (dados, skills, servidor e, no futuro, as próprias telas do jogo).
+
+> Resumo completo e atualizado do projeto: **[COMPILADO.md](COMPILADO.md)**.
+> Projeto isolado — nada aqui se mistura com o jogo em `C:\Godot\sapo`.
 
 ## Modos
 
 - **(padrão)** editor desktop: `MyAceEditor.exe`
-- **`--mcp`** servidor MCP por stdio, para um agente de IA
-- **`--inspect <elements.data>`** diagnóstico do parser do Perfect World (gera inspect-report.txt)
+- **`--mcp`** servidor MCP por stdio (as mesmas operações para um agente de IA)
+- **`--inspect <elements.data>`** diagnóstico do parser (gera `inspect-report.txt`)
+- **`--testcfg <cfg> <data>`** valida um `.cfg` contra um `elements.data`
 
 ## Arquitetura
 
 ```
-EditorForm (WinForms)  ──►  ModuleStore / ElementsReader  ──►  .data / elements.data
+EditorForm (WinForms)  ──►  ModuleStore / CfgElementsReader  ──►  elements.data (.cfg)
 ```
 
-- **UI** (`UI/EditorForm.cs`): MenuStrip + TreeView (listas→itens) + DataGridView (campos).
+- **UI** (`UI/EditorForm.cs`): árvore categoria→tipo→subtipo + lista estilo jogo
+  (código + ícone + descrição, cores de grade) + grade de campos agrupados.
 - **Modelo** (`Model/DataModel.cs`): Módulo→Lista→Item→Campo (tipado).
-- **Store** (`Store/ModuleStore.cs`): módulo carregado, load/save JSON, change set.
-- **Perfect World** (`PerfectWorld/`): parser binário do `elements.data` recuperado por
-  engenharia reversa do cliente (ver `FORMAT.md`). 1ª metade (itens/equip/NPCs) já mapeada.
-- **Tools MCP** (`Tools/*.cs`): as mesmas operações expostas a um agente de IA (modo `--mcp`).
+- **Perfect World** (`PerfectWorld/`): parser do `elements.data` guiado por `.cfg` da
+  comunidade (`PW_1.4.4_v60.cfg`, 150 blocos). ~98,6% do arquivo já mapeado.
+- **MCP** (`--mcp`): expõe as operações a um agente de IA.
 
 ## Rodar
 
@@ -28,8 +33,8 @@ EditorForm (WinForms)  ──►  ModuleStore / ElementsReader  ──►  .data
 dotnet run
 ```
 
-Abre o editor. Use **Arquivo → Abrir elements.data (Perfect World)…** para carregar um
-`elements.data` real (seleção por diálogo nativo).
+Em **Arquivo → Abrir pasta do PW / elements.data…**. A última pasta é **recarregada
+automaticamente** na próxima abertura.
 
 ## Executável único
 
@@ -39,8 +44,11 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true 
 
 Gera `dist\MyAceEditor.exe`.
 
-## Próximos passos
+## Roadmap
 
-1. Mapear os CAMPOS dos registros grandes (nome/stats/ícone dos itens e equipamentos).
-2. Fechar o parse da 2ª metade do elements.data (região de tasks) até o EOF.
-3. Implementar a ESCRITA binária (gravar o elements.data de volta).
+Curto prazo: PCK nativo (ícones automáticos), **escrita** do `elements.data`, fechar a
+cauda restante (~1,4%), abas GShop/Tasks/AI Policy.
+Longo prazo (engine): edição de skills, geração e deploy de servidor com checagem de
+conflitos/versão/erros, e abertura das interfaces do jogo dentro da engine.
+
+Detalhes, formato binário e pendências em **[COMPILADO.md](COMPILADO.md)**.
