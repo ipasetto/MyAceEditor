@@ -1,0 +1,111 @@
+# ENGINE-KB — MyAceEditor (engine de edicao do Perfect World)
+# Base de conhecimento da ENGINE. Complementa (nao duplica) a KB do JOGO: D:\Perfect World\Estudo PW\pw-kb.md (= "PWKB").
+# Formato: igual PWKB. Linhas "chave: valor" / "a | b | c". Busque por ID (ex: §E3). pt-BR telegrafico. Ref cruzada: PWKB§S17 = secao S17 da KB do jogo.
+# Estado: vivo. Atualizar SEMPRE que algo novo for provado (protocolo em §U).
+
+## §L LEGENDA
+conf: mesma da PWKB§L ([C] codigo [A] arquivo real [B] binario [F] fonte forte [M] medio [W] fraco [I] inferencia [?] duvida) + [T]=testado no nosso codigo contra arquivo real do usuario
+alvo do usuario: PKG144 (PWKB§L) = client/server "PW 1.4.4 v60" em D:\Perfect World\Perfect World 144
+projeto: C:\Godot\MyAceEditor (isolado; NAO e o jogo C:\Godot\sapo)
+
+## §0 INDICE
+E1 visao/capacidades | E2 mapa engine x jogo (onde cada capacidade toca) | E3 elements.data (implementado) | E4 .pck/.pkx (plano nativo) | E5 versao/edition (checagem de erros) | E6 codigo (mapa) | E7 UI/features prontas | E8 roadmap | Z resolvidos | Q abertos | U protocolo de atualizacao | R fontes
+
+## §E1 VISAO
+engine (nao so editor): jogo 100% editavel por 1 app desktop nativa.
+capacidades-alvo: editar todos os dados client+server | editar/criar skills | gerar arquivos de servidor + deploy automatico | detectar conflitos client x server | checar versao/edition | checar erros de servidor (logs/conf) | abrir janelas do jogo dentro da engine (gshop, inventario, personagem) p/ edicao visual
+stack: C# .NET 10 WinForms nativo (WinExe net10.0-windows AllowUnsafeBlocks). SEM web (decisao do usuario). Pacotes: ModelContextProtocol 0.4.0-preview.1, Microsoft.Extensions.Hosting 10.0.0
+modos (Program.cs): padrao=UI | --mcp=servidor MCP stdio (agente IA) | --inspect <data> | --testcfg <cfg> <data>
+restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | icones SEMPRE do jogo (nunca gerados) | tema: paineis branco aco, painel de itens preto (como no jogo)
+
+## §E2 MAPA ENGINE x JOGO (capacidade -> arquivos/sistemas -> secao PWKB)
+capacidade | client | server | PWKB | status
+itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; escrita pendente
+quests | data/tasks.data | tasks.data | §S7 §S17(tasks) | pendente
+IA mobs | data/aipolicy.data | aipolicy.data | §S7 | pendente
+loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 (NAO espelho byte a byte) | pendente
+spawns | - | npcgen.data | §S6 §S7 | pendente
+regioes/portais | maps/*/region.clt precinct.clt | region.sev precinct.sev | §S6 §S17(mapas) | pendente
+skills | elementskill.dll (CElementSkill) + configs/skillstr.txt | gs (mesmo codigo #ifdef _SKILL_SERVER) | §S17(skills) | pendente; exige recompilar dll+gs -> maior risco
+icones | surfaces.pck iconset/ (.dds+.txt) | - | §S2 §S3 | via sPCK manual; nativo pendente (§E4)
+janelas do jogo | interfaces.pck (XML, ex: qshop bag character) | - | §S2(interfaces) | pendente; base p/ "abrir gshop/inventario na engine"
+inventario/personagem | - | gamedbd (GetRoleData 8003, PutRole 3024) | §S8 §S9 §S10 | pendente; blobs opacos (PWKB§Q3)
+deploy/servidor | - | daemons, gs.conf, gamesys.conf, start.sh | §S4 §S5 §S6 | pendente
+regra de ouro: mudar dado de um lado sem o outro = erro/comportamento estranho (PWKB§S7). Engine deve editar o PAR client+server junto.
+
+## §E3 elements.data (IMPLEMENTADO) [T]
+arquivo do usuario: version=0x3000003C (=60; escala 0x30000000+n, cf. 1.5.2=0x3000007f PWKB§S17) | 2o u32=0x4F614E5B = time_t timestamp (~15/mar/2012) [I forte; antes chamado "assinatura" por engano]
+layout (casa c/ PWKB§S17): u32 version | time_t | listas em ordem fixa (u32 count + count*registro fixo) | 2 blocos de assinatura do exportador (tags 0xab7689dd e 0xee35679f; lidos e ignorados) | TALK_PROC variavel
+definicao de campos: .cfg da comunidade (sTASKedit/Rody/DataTranslator). Usado: PerfectWorld/cfg/PW_1.4.4_v60.cfg (150 listas). = "declaracoes por versao" de PWKB§S3/§Q2
+formato .cfg: linha contagem; por bloco "NNN - NOME" | linha flag | nomes de campo (;) | tipos (;). Tipos: int32/float=4 int16=2 byte=1 wstring:N=N bytes (N/2 chars UTF-16) string:N=N bytes. TALK_PROC = RAW/byte:AUTO
+TALK_PROC: u32 count; por item: 4 + 0x80 + M*(8 + len1 + len1*2 + len2 + len2*0x88) [T]
+hierarquia: id_major_type/id_sub_type -> listas *_MAJOR_TYPE / *_SUB_TYPE (categoria>tipo>subtipo)
+armadilha [T]: ItemList.Name = nome PURO do bloco (sem prefixo numero), senao *_MAJOR_TYPE nao casa
+cobertura: ~98,6% byte-perfeito; para em NPC_WAR_TOWERBUILD_SERVICE (cauda guerra territorio) -> §Q1
+ref servidor: gs ELF c/ DWARF -> elementdataman 216 arrays + structs (PerfectWorld/server_ref/). Server analisado v145 tem *_ESSENCE ~4B maiores que o v144 do usuario -> para o arquivo do usuario confiar no .cfg v60
+numeracao de listas client x server difere (PWKB§S3); conferir antes de editar par
+
+## §E4 .pck/.pkx (PLANO NATIVO; adiado ate gatilho "pode fazer o pck nativo")
+formato COMPLETO ja documentado em PWKB§S3 (fonte uPCK) -> implementacao nativa agora e BARATA (sem RE).
+leitor minimo: PWKB§S3 "leitor minimo" (versao@-4, n@-8, offsetTabela @-272 v2 / @-280 v3 XOR KEY_1, entradas 276/288B, zlib c/ header se csize<size; .pkx = continuacao logica a partir de 0x7FFFFF00)
+falta: valores KEY_1/KEY_2/ASIG/FSIG (estao em PCKKey.cs do uPCK local; PWKB omite de proposito) | path em GBK/cp936 (.NET: CodePagesEncodingProvider) | icones em surfaces.pck/iconset (.dds + .txt de indice) -> precisa leitor DDS
+hoje: lanca GUI do sPCK + pasta de icones manual; IconLoader le TGA(tipo 2 e RLE 10, 24/32bpp)/PNG/BMP/JPG; DDS nao
+
+## §E5 VERSAO/EDITION (base da checagem de erros de versao)
+client manda Challenge.edition = hex(ELEMENTDATA_VERSION, task_templ_version, gshop_ts1, gshop_ts2) (PWKB§S17). Divergencia = "versao errada"/fecha sessao.
+=> engine deve: ler version de elements.data + version de tasks.data (magic 0x93858361) + timestamps gshop, nos 2 lados, e acusar diferenca ANTES do deploy.
+glinkd version = HEX (10404=1.4.4) (PWKB§S5). tasks.data versao divergente = erro -2/-3.
+
+## §E6 CODIGO (C:\Godot\MyAceEditor)
+arquivo | papel
+Program.cs | entrypoint + modos
+UI/EditorForm.cs | UI principal (arvore, lista, grade, busca, menus, icones, tooltip, settings %AppData%/MyAceEditor)
+PerfectWorld/CfgElementsReader.cs | parser elements.data guiado por .cfg (blobs, TALK_PROC, Id/Name)
+PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
+PerfectWorld/FieldLabels.cs | rotulos PT + grupos (Basico Requisitos Ataque Defesa Durabilidade Economia Atributos/Addons Modelo/Arquivos Outros)
+PerfectWorld/IconLoader.cs | icones (TGA proprio, unsafe)
+PerfectWorld/ElementsReader.cs ElementsSchema.cs ElementsBlocks.cs ElementsProgram.cs FORMAT.md | parser antigo via RE (superado; usado por --inspect)
+PerfectWorld/cfg/ | .cfg v60 v61 + README + cfg_walk_poc.py
+PerfectWorld/server_ref/ | block_order.tsv struct_fields.txt elementdataman_members.tsv
+Model/DataModel.cs | Module>ItemList(Name Group Kind Items)>Item(Id Name Fields)>Field(Type Value)
+Store/ModuleStore.cs Changes/ChangeSet.cs | estado, load/save, mudancas
+fluxo: EditorForm -> ModuleStore/CfgElementsReader -> elements.data(+.cfg)
+
+## §E7 UI/FEATURES PRONTAS [T]
+abrir pasta PW/elements.data + auto-recarrega ultima | arvore categoria>tipo>subtipo traduzida | lista: codigo + icone + nome c/ cor de grade (★☆»«*) | tooltip estilo jogo | busca global nome/ID | ordenar codigo/nome | clique direito: clonar/novo/deletar/favoritar | categoria Favoritos | novo item c/ proximo codigo | campos agrupados/rotulados, addons vazios ocultos | paineis fixos | abas: Elements (pronta), GShop/Tasks/AI Policy (vazias), Extrator PCK (lanca sPCK)
+
+## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
+1 ESCRITA elements.data (round-trip byte-identico antes de editar) M
+2 PCK nativo (§E4) B-M | gatilho do usuario
+3 checagem version/edition client x server (§E5) B
+4 tasks.data / gshop / aipolicy (abas) M cada
+5 fechar cauda elements.data (§Q1) B-M
+6 renderizar janelas do jogo a partir de interfaces.pck XML (gshop/qshop primeiro) A
+7 deploy servidor (gerar conf, subir, validar portas/ordem PWKB§S4-S5) A
+8 inventario/personagem via gamedbd rpc (PWKB§S8-S10; blobs opacos) A
+9 skills (dll+gs; PWKB§S17 skills) A+
+
+## §Z RESOLVIDOS
+- formato elements.data do usuario: v60 via .cfg comunidade (nao RE) [T]
+- 2o u32 do header = timestamp, nao assinatura [I forte, casa PWKB§S17]
+- "blobs especiais" = blocos de assinatura do exportador (PWKB§S17) [I forte]
+- ItemList.Name sem prefixo numerico (bug de hierarquia corrigido) [T]
+- UI nativa WinForms (web/WebView2 abandonado)
+
+## §Q ABERTOS
+1 cauda ~1,4% elements.data a partir de NPC_WAR_TOWERBUILD_SERVICE (guerra territorio; comparar .cfg v60 x v61 / PWKB DOMAIN_COUNT=52)
+2 escrita: offsets/ordem dos blocos de assinatura ao regravar; timestamp atualizar ou manter?
+3 icones: formato exato iconset (.dds atlas + .txt?) em surfaces.pck do PKG144
+4 numeracao client x server das listas no PKG144 (p/ editar par)
+5 push git: repo privado MyAceEditor ainda nao publicado (remote origin removido; publicar via GitHub Desktop)
+
+## §U PROTOCOLO DE ATUALIZACAO (como chegar a 100%)
+- fato novo sobre o JOGO -> PWKB (secao §S certa, com tag conf). Fato sobre a ENGINE/nosso codigo -> aqui.
+- toda linha nova leva tag conf; [T] so se testado contra arquivo real.
+- contradicao resolvida -> registrar em §Z (e corrigir a linha original). Duvida nova -> §Q.
+- feature concluida -> mover de §E8 p/ §E7; atualizar §E6 se criar arquivo.
+- nao colar dumps; telegrafico; preferir referencia cruzada (PWKB§Sx) a repetir.
+- ler por secao (Grep "## §E3"), nunca o arquivo inteiro sem necessidade (economia de token).
+
+## §R FONTES
+PWKB (D:\Perfect World\Estudo PW\pw-kb.md) | cfg comunidade (sTASKedit/Rody/DataTranslator) | gs DWARF via REA+Ghidra (server_ref/) | forum mmorpg-devs.ru (threads pkx, estrutura do client) | uPCK local (source_uPCK, chaves PCKKey.cs)

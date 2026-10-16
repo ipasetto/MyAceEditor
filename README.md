@@ -4,7 +4,7 @@ Aplicação desktop **nativa em C# / WinForms** (.NET 10). O objetivo não é s�
 `.data`: é ser uma **engine do Perfect World**, tornando o jogo **100% editável** a
 partir de uma única janela (dados, skills, servidor e, no futuro, as próprias telas do jogo).
 
-> Resumo completo e atualizado do projeto: **[COMPILADO.md](COMPILADO.md)**.
+> Resumo completo e atualizado do projeto: **[docs/ENGINE-KB.md](docs/ENGINE-KB.md)**.
 > Projeto isolado — nada aqui se mistura com o jogo em `C:\Godot\sapo`.
 
 ## Modos
@@ -51,4 +51,4 @@ cauda restante (~1,4%), abas GShop/Tasks/AI Policy.
 Longo prazo (engine): edição de skills, geração e deploy de servidor com checagem de
 conflitos/versão/erros, e abertura das interfaces do jogo dentro da engine.
 
-Detalhes, formato binário e pendências em **[COMPILADO.md](COMPILADO.md)**.
+Detalhes, formato binário e pendências em **[docs/ENGINE-KB.md](docs/ENGINE-KB.md)**.
