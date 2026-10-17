@@ -21,20 +21,22 @@ restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | i
 ## §E2 MAPA ENGINE x JOGO (capacidade -> arquivos/sistemas -> secao PWKB)
 capacidade | client | server | PWKB | status
 itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; escrita pendente
-quests | data/tasks.data | tasks.data | §S7 §S17(tasks) | pendente
-IA mobs | data/aipolicy.data | aipolicy.data | §S7 | pendente
-loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 (NAO espelho byte a byte) | pendente
-spawns | - | npcgen.data | §S6 §S7 | pendente
-regioes/portais | maps/*/region.clt precinct.clt | region.sev precinct.sev | §S6 §S17(mapas) | pendente
+quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | pendente; header/offsets conhecidos, corpo ATaskTempl [Q]
+IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | pendente; formato COMPLETO (mais pronto p/ implementar)
+loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
+spawns | - | npcgen.data | §S6 §S22 | pendente; formato v7-11 conhecido
+regioes/portais/terreno | maps/*/region.clt precinct.clt .t2bk | region.sev precinct.sev .hmap .rmap .wmap path.sev | §S6 §S17 §S22 | pendente
 skills | elementskill.dll (CElementSkill) + configs/skillstr.txt | gs (mesmo codigo #ifdef _SKILL_SERVER) | §S17(skills) | pendente; exige recompilar dll+gs -> maior risco
 icones | surfaces.pck iconset/ (.dds+.txt) | - | §S2 §S3 | via sPCK manual; nativo pendente (§E4)
-janelas do jogo | interfaces.pck (XML, ex: qshop bag character) | - | §S2(interfaces) | pendente; base p/ "abrir gshop/inventario na engine"
+janelas do jogo | interfaces.pck (XML, ex: qshop bag character) | - | §S2 §S20 | pendente; render: controles + moldura 9-slice + surfaces
 inventario/personagem | - | gamedbd (GetRoleData 8003, PutRole 3024) | §S8 §S9 §S10 | pendente; blobs opacos (PWKB§Q3)
-deploy/servidor | - | daemons, gs.conf, gamesys.conf, start.sh | §S4 §S5 §S6 | pendente
+deploy/servidor | - | daemons, gs.conf, gamesys.conf, start.sh | §S4 §S5 §S6 §S24 | pendente
+regras hardcoded (cla, TW, correio) | - | ELF gdeliveryd/gfactiond | §S25 | pendente; patch por simbolo DWARF + hash, nunca offset fixo
+skills (textos) | configs.pck skillstr.txt | - | §S25 | pendente
 regra de ouro: mudar dado de um lado sem o outro = erro/comportamento estranho (PWKB§S7). Engine deve editar o PAR client+server junto.
 
 ## §E3 elements.data (IMPLEMENTADO) [T]
-arquivo do usuario: version=0x3000003C (=60; escala 0x30000000+n, cf. 1.5.2=0x3000007f PWKB§S17) | 2o u32=0x4F614E5B = time_t timestamp (~15/mar/2012) [I forte; antes chamado "assinatura" por engano]
+arquivo do usuario: u32 0x3000003C = i16 versao 60 + i16 assinatura 0x3000 (PWKB§S23) | 2o u32=0x4F614E5B = time_t timestamp (~15/mar/2012) [I forte]
 layout (casa c/ PWKB§S17): u32 version | time_t | listas em ordem fixa (u32 count + count*registro fixo) | 2 blocos de assinatura do exportador (tags 0xab7689dd e 0xee35679f; lidos e ignorados) | TALK_PROC variavel
 definicao de campos: .cfg da comunidade (sTASKedit/Rody/DataTranslator). Usado: PerfectWorld/cfg/PW_1.4.4_v60.cfg (150 listas). = "declaracoes por versao" de PWKB§S3/§Q2
 formato .cfg: linha contagem; por bloco "NNN - NOME" | linha flag | nomes de campo (;) | tipos (;). Tipos: int32/float=4 int16=2 byte=1 wstring:N=N bytes (N/2 chars UTF-16) string:N=N bytes. TALK_PROC = RAW/byte:AUTO
@@ -76,6 +78,7 @@ abrir pasta PW/elements.data + auto-recarrega ultima | arvore categoria>tipo>sub
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 1 ESCRITA elements.data (round-trip byte-identico antes de editar) M
+1b aba GShop (formato completo PWKB§S19; exporta client+server) M | aba AI Policy (PWKB§S18) M | npcgen/spawns (PWKB§S22) M
 2 PCK nativo (§E4) B-M | gatilho do usuario
 3 checagem version/edition client x server (§E5) B
 4 tasks.data / gshop / aipolicy (abas) M cada
@@ -85,10 +88,21 @@ abrir pasta PW/elements.data + auto-recarrega ultima | arvore categoria>tipo>sub
 8 inventario/personagem via gamedbd rpc (PWKB§S8-S10; blobs opacos) A
 9 skills (dll+gs; PWKB§S17 skills) A+
 
+## §E9 LICOES DOS EDITORES DE TERCEIROS (PWKB§S18-S25) — o que a engine deve fazer MELHOR
+todos: decompilados (C++/CLI ou C#), x86, net20-45; NENHUM faz backup confiavel -> engine: backup automatico + escrita atomica (grava tmp, renomeia) SEMPRE
+validacao: round-trip byte-identico (ler->gravar->comparar) antes de liberar edicao de qualquer formato. Critico em aipolicy (op sem tamanho)
+strings: string:N = GBK (acentos pt-BR viram ?) | wstring:N = UTF-16LE. .NET: registrar CodePagesEncodingProvider p/ GBK (936)
+versoes: tratar layout por versao (aipolicy dwVersion por trigger; npcgen v7-11; tasks limiares; elements .cfg por versao)
+recursos a copiar: .rules (converter versao EL), join por ID c/ log, xref via references.txt, validacoes (soma de probabilidades, skills invalidas, valores fora de faixa do sTASKedit), busca por valor/tipo (AIPolicy)
+par client+server: gshop (1380B x 164B, control_type), elements, tasks -> exportar os 2 lados juntos e checar timestamps (§E5)
+patches em binario: tabela de patches c/ verificacao de hash do ELF, achar alvo por simbolo DWARF, nunca offset fixo de outro build
+coordenadas: client exibe X=400+x/10 Z=550+z/10 (tasks); path 1px=1un centro; wmap 1px=2un -> unificar num conversor so
+
 ## §Z RESOLVIDOS
 - formato elements.data do usuario: v60 via .cfg comunidade (nao RE) [T]
 - 2o u32 do header = timestamp, nao assinatura [I forte, casa PWKB§S17]
-- "blobs especiais" = blocos de assinatura do exportador (PWKB§S17) [I forte]
+- "blobs especiais" = blocos de assinatura do exportador (PWKB§S17) = listas especiais 20 e 100 do sELedit (PWKB§S23) [I forte]
+- header elements: 1o u32 = i16 versao + i16 assinatura (PWKB§S23)
 - ItemList.Name sem prefixo numerico (bug de hierarquia corrigido) [T]
 - UI nativa WinForms (web/WebView2 abandonado)
 
@@ -97,7 +111,9 @@ abrir pasta PW/elements.data + auto-recarrega ultima | arvore categoria>tipo>sub
 2 escrita: offsets/ordem dos blocos de assinatura ao regravar; timestamp atualizar ou manter?
 3 icones: formato exato iconset (.dds atlas + .txt?) em surfaces.pck do PKG144
 4 numeracao client x server das listas no PKG144 (p/ editar par)
-5 push git: repo privado MyAceEditor ainda nao publicado (remote origin removido; publicar via GitHub Desktop)
+5 nosso TALK_PROC (4+0x80+M*(...)) x layout Dialog/Question/Choice do sELedit (PWKB§S23): conferir se descrevem o mesmo
+6 ordem de implementacao dos novos formatos: aipolicy e gshop ja tem formato completo; tasks depende do corpo ATaskTempl
+7 push git: repo privado MyAceEditor ainda nao publicado (remote origin removido; publicar via GitHub Desktop)
 
 ## §U PROTOCOLO DE ATUALIZACAO (como chegar a 100%)
 - fato novo sobre o JOGO -> PWKB (secao §S certa, com tag conf). Fato sobre a ENGINE/nosso codigo -> aqui.
