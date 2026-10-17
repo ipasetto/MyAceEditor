@@ -66,6 +66,19 @@ Formato: frases curtas, uma ideia por linha, com **etiqueta de confiança** em c
 `[C]` código-fonte lido · `[A]` arquivo real · `[B]` binário · `[T]` testado no nosso código ·
 `[I]` inferência · `[?]` dúvida. Contradição resolvida vai para a seção `§Z`; dúvida nova, para `§Q`.
 
+## 4.1 Traduzir a interface (sem programar)
+
+Os textos da interface ficam em arquivos JSON na pasta `lang/`:
+
+- `lang/en.json`: inglês, já traduzido. Use como modelo.
+- Para outro idioma, copie `en.json` para `lang/<código>.json` (ex.: `lang/es.json`, `lang/zh.json`) e traduza **só os valores** (o texto à direita dos `:`). Não mude as chaves (o texto à esquerda).
+- Mantenha os trechos especiais: `&` (atalho do menu), `
+` (quebra de linha), `{0}` e `{1}` (valores preenchidos pelo programa).
+- Chave que faltar no seu arquivo aparece em português, então dá para traduzir aos poucos.
+- Para testar, escolha o idioma no menu **Idioma / Language** e abra o programa. Quando o idioma aparecer no menu, envie um Pull Request com o arquivo `lang/<código>.json`.
+
+Ao rodar a versão compilada, a pasta `lang\` precisa estar ao lado do `MyAceEditor.exe`.
+
 ## 5. Código
 
 - C# moderno, no estilo do código ao redor (nomes, densidade de comentários, organização).
