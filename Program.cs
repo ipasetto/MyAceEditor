@@ -50,16 +50,27 @@ internal static class Program
     // --tasks <tasks.data>: lista amostra de quests e prova a gravação de nomes (tasks-report.txt).
     private static void TestTasks(string path)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var t = new TasksFile(path);
-        var sb = new StringBuilder($"versão {t.Version} · {t.Quests.Count:N0} quests principais\n");
-        foreach (var q in t.Quests.Take(6).Concat(t.Quests.TakeLast(2))) sb.AppendLine($"  {q.Id}  {q.Name}");
+        var sb = new StringBuilder($"versão {t.Version} · {t.Quests.Count:N0} quests de topo · leitura {sw.ElapsedMilliseconds} ms\n");
+        if (!t.FullSchema) { sb.AppendLine($"esquema completo: FALHOU ({t.SchemaError})"); File.WriteAllText("tasks-report.txt", sb.ToString(), new UTF8Encoding(false)); return; }
+        var all = t.AllNodes().ToList();
+        sb.AppendLine($"esquema completo: OK · {all.Count:N0} quests no total (com subquests) · campos por quest: {all[0].Fields.Count}");
+        int textBad = all.Count(q => !TaskSchema93.EncodeTexts(q).AsSpan().SequenceEqual(q.TextRaw));
+        sb.AppendLine($"textos recodificados idênticos: {all.Count - textBad:N0} de {all.Count:N0}");
         var original = File.ReadAllBytes(path);
-        sb.AppendLine($"sem mudanças: {(t.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICO" : "DIFERENTE")}");
-        var q0 = t.Quests[0]; var old = q0.Name; q0.Name = "^ffcc00Teste de Nome";
+        sb.AppendLine($"regravar sem mudanças: {(t.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICO" : "DIFERENTE")}");
+        var q0 = t.Roots![1];
+        sb.AppendLine($"amostra {q0.Id} \"{q0.Name}\": {q0.Children.Count} subquests");
+        sb.AppendLine($"  descrição: {q0.Texts[0][..Math.Min(120, q0.Texts[0].Length)]}");
+        foreach (var f in q0.Fields.Take(12)) sb.AppendLine($"  [{f.Group}] {f.Name} = {q0.Get(f)}");
+        var talk = q0.Talks.FirstOrDefault(x => x.Windows.Count > 0);
+        if (talk is not null) sb.AppendLine($"  diálogo: {talk.Windows[0].Text[..Math.Min(100, talk.Windows[0].Text.Length)]}");
+        // edição de texto: muda a descrição e confere a releitura
+        q0.Texts[0] = "Descrição de teste ✓"; q0.TextsChanged = true;
         var edited = t.Build();
-        int diff = 0; for (int i = 0; i < edited.Length; i++) if (edited[i] != original[i]) diff++;
-        var again = new TasksFile(edited).Quests[0];
-        sb.AppendLine($"renomear {q0.Id}: {diff} bytes mudaram; releitura = \"{again.Name}\" {(again.Name == q0.Name ? "OK" : "FALHOU")} (antes: \"{old}\")");
+        var again = new TasksFile(edited);
+        sb.AppendLine($"editar descrição: {(again.FullSchema && again.Roots![1].Texts[0] == "Descrição de teste ✓" ? "OK" : "FALHOU " + again.SchemaError)} ({edited.Length - original.Length:+#;-#;0} bytes)");
         File.WriteAllText("tasks-report.txt", sb.ToString(), new UTF8Encoding(false));
     }
 

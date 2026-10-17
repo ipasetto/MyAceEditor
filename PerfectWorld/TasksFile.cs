@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace MyAceEditor.PerfectWorld;
 
-/// <summary>Uma quest de topo do tasks.data (só cabeçalho: ID + nome).</summary>
+/// <summary>Uma quest de topo do tasks.data (cabeçalho: ID + nome) — usado quando o esquema completo não existe.</summary>
 public sealed class QuestEntry
 {
     public int Offset { get; init; }
@@ -15,9 +15,9 @@ public sealed class QuestEntry
 
 /// <summary>
 /// tasks.data (PW-KB §S21): u32 magic 0x93858361 | u32 versão | u32 n | n×u32 offset | corpos.
-/// Cada corpo começa com u32 ID + nome de 30 caracteres UTF-16 (60 bytes) embaralhado com XOR do
-/// próprio ID (ushort). O restante do corpo (bloco fixo por versão, textos, diálogos, subquests)
-/// ainda não é interpretado — é preservado byte a byte. Ver ENGINE-KB §E3c.
+/// Versão 93: esquema completo (<see cref="TaskSchema93"/>) — árvore de quests, campos, textos e diálogos,
+/// gravação reconstruindo a tabela de offsets. Outras versões: só ID/nome das quests de topo.
+/// Ver ENGINE-KB §E3c.
 /// </summary>
 public sealed class TasksFile
 {
@@ -27,6 +27,9 @@ public sealed class TasksFile
     public byte[] Data { get; private set; }
     public int Version { get; }
     public List<QuestEntry> Quests { get; } = new();
+    public List<QuestNode>? Roots { get; }
+    public string? SchemaError { get; }
+    public bool FullSchema => Roots is not null;
 
     public TasksFile(string path) : this(File.ReadAllBytes(path)) { }
 
@@ -38,46 +41,61 @@ public sealed class TasksFile
         Version = BitConverter.ToInt32(data, 4);
         int n = BitConverter.ToInt32(data, 8);
         if (n < 0 || 12 + n * 4 > data.Length) throw new InvalidDataException($"Contagem de quests inválida ({n}).");
+        var offsets = new int[n];
+        for (int i = 0; i < n; i++) offsets[i] = BitConverter.ToInt32(data, 12 + i * 4);
+
         for (int i = 0; i < n; i++)
         {
-            int off = BitConverter.ToInt32(data, 12 + i * 4);
+            int off = offsets[i];
             if (off < 0 || off + 4 + NameChars * 2 > data.Length) continue;
             int id = BitConverter.ToInt32(data, off);
-            var name = DecodeName(data, off + 4, id);
+            var name = TaskSchema93.Xor(data, off + 4, NameChars, id);
             Quests.Add(new QuestEntry { Offset = off, Id = id, Name = name, OriginalName = name });
         }
-    }
 
-    static string DecodeName(byte[] d, int p, int id)
-    {
-        var sb = new StringBuilder(NameChars);
-        ushort key = unchecked((ushort)id);
-        for (int i = 0; i < NameChars; i++)
+        if (Version == 93)
         {
-            char c = (char)(BitConverter.ToUInt16(d, p + i * 2) ^ key);
-            if (c == '\0') break;
-            sb.Append(c);
-        }
-        return sb.ToString();
-    }
-
-    static void EncodeName(byte[] d, int p, int id, string name)
-    {
-        ushort key = unchecked((ushort)id);
-        for (int i = 0; i < NameChars; i++)
-        {
-            ushort c = i < name.Length && i < NameChars - 1 ? name[i] : (ushort)0;  // sempre termina em \0
-            BitConverter.GetBytes((ushort)(c ^ key)).CopyTo(d, p + i * 2);
+            try
+            {
+                var roots = new List<QuestNode>(n);
+                for (int i = 0; i < n; i++)
+                {
+                    var schema = new TaskSchema93(data);
+                    var q = schema.Read(offsets[i]);
+                    int end = schema.Position, expected = i + 1 < n ? offsets[i + 1] : data.Length;
+                    if (end != expected)
+                        throw new InvalidDataException($"quest {q.Id} terminou em {end:N0}, esperado {expected:N0}");
+                    roots.Add(q);
+                }
+                Roots = roots;
+            }
+            catch (Exception ex) { SchemaError = ex.Message; }
         }
     }
 
-    /// <summary>Bytes do arquivo com os nomes alterados aplicados (o resto fica idêntico).</summary>
+    public IEnumerable<QuestNode> AllNodes() => Roots is null ? Enumerable.Empty<QuestNode>() : Roots.SelectMany(r => new[] { r }.Concat(r.Descendants()));
+
+    /// <summary>Bytes do arquivo com as alterações aplicadas.</summary>
     public byte[] Build()
     {
-        var outBytes = (byte[])Data.Clone();
-        foreach (var q in Quests.Where(q => q.Changed))
-            EncodeName(outBytes, q.Offset + 4, q.Id, q.Name);
-        return outBytes;
+        if (Roots is null)
+        {
+            var outBytes = (byte[])Data.Clone();
+            foreach (var q in Quests.Where(q => q.Changed))
+                for (int i = 0; i < NameChars; i++)
+                    BitConverter.GetBytes((ushort)((i < q.Name.Length && i < NameChars - 1 ? q.Name[i] : '\0') ^ (ushort)q.Id)).CopyTo(outBytes, q.Offset + 4 + i * 2);
+            return outBytes;
+        }
+        using var ms = new MemoryStream(Data.Length + 4096);
+        var w = new BinaryWriter(ms);
+        w.Write(BitConverter.ToUInt32(Data, 0)); w.Write(Version); w.Write(Roots.Count);
+        long table = ms.Position;
+        for (int i = 0; i < Roots.Count; i++) w.Write(0);
+        var offs = new int[Roots.Count];
+        for (int i = 0; i < Roots.Count; i++) { offs[i] = (int)ms.Position; TaskSchema93.Write(w, Roots[i]); }
+        ms.Position = table;
+        foreach (var o in offs) w.Write(o);
+        return ms.ToArray();
     }
 
     /// <summary>Backup com data/hora + escrita atômica (mesma regra do elements.data).</summary>
