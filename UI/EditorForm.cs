@@ -26,6 +26,8 @@ public sealed class EditorForm : Form
     private readonly ImageList _treeIcons = new() { ImageSize = new Size(18, 18), ColorDepth = ColorDepth.Depth32Bit };
     private readonly Dictionary<string, int> _iconIdx = new();
     private string? _iconsRoot;
+    private IconAtlas? _atlas;
+    private string? _atlasPck;
     private readonly ContextMenuStrip _ctx = new();
     private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
@@ -240,13 +242,36 @@ public sealed class EditorForm : Form
             var module = reader.Parse(ElementsCfg.Load(cfg));
             module.Name = Path.GetFileName(path);
             _store.Adopt(module);
+            LoadAtlas(path);
             BuildTree();
             SaveLast(path);
             int items = module.Lists.Sum(l => l.Items.Count);
-            Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * reader.Position / reader.Length:0.0}%");
+            Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * reader.Position / reader.Length:0.0}%"
+                + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo"));
         }
         catch (Exception ex) { Error("Falha ao ler elements.data", ex); }
         finally { UseWaitCursor = false; }
+    }
+
+    // Ícones nativos: lê o atlas direto do surfaces.pck (sem extrair nada).
+    private void LoadAtlas(string elementsPath)
+    {
+        var pck = IconAtlas.FindSurfacesPck(elementsPath);
+        if (pck == _atlasPck && _atlas is not null) return;
+        _atlas = null; _atlasPck = pck;
+        _iconIdx.Clear(); _treeIcons.Images.Clear();
+        if (pck is null) return;
+        try { _atlas = IconAtlas.Load(pck); } catch { _atlas = null; }
+    }
+
+    private Image? IconFor(Item it)
+    {
+        if (!it.Fields.TryGetValue("file_icon", out var fi) || string.IsNullOrEmpty(fi.Value)) return null;
+        Image? img = null;
+        try { img = _atlas?.Get(fi.Value); } catch { }
+        if (img is null && _iconsRoot is not null)
+            try { img = IconLoader.Load(_iconsRoot, fi.Value); } catch { }
+        return img;
     }
 
     private static string? FindCfg(uint version)
@@ -363,11 +388,10 @@ public sealed class EditorForm : Form
 
     private int IconIndexFor(Item it)
     {
-        if (_iconsRoot is null) return -1;
+        if (_atlas is null && _iconsRoot is null) return -1;
         if (!it.Fields.TryGetValue("file_icon", out var fi) || string.IsNullOrEmpty(fi.Value)) return -1;
         if (_iconIdx.TryGetValue(fi.Value, out var idx)) return idx;
-        Image? img = null;
-        try { img = IconLoader.Load(_iconsRoot, fi.Value); } catch { }
+        var img = IconFor(it);
         if (img is null) { _iconIdx[fi.Value] = -1; return -1; }
         _treeIcons.Images.Add(img);
         int i = _treeIcons.Images.Count - 1;
@@ -674,13 +698,11 @@ public sealed class EditorForm : Form
     private static string? LoadLast()
     { try { return File.Exists(SettingsFile) ? File.ReadAllText(SettingsFile).Trim() : null; } catch { return null; } }
 
-    // ---------- ícones (via pasta extraída do .pck) ----------
+    // ---------- ícones (atlas nativo do surfaces.pck; pasta extraída = alternativa) ----------
     private void LoadItemIcon(Item item)
     {
         _iconBox.Image?.Dispose(); _iconBox.Image = null;
-        var root = LoadSetting("icons");
-        if (root is null || !item.Fields.TryGetValue("file_icon", out var fi)) return;
-        try { _iconBox.Image = IconLoader.Load(root, fi.Value); } catch { }
+        _iconBox.Image = IconFor(item);
     }
 
     // ---------- aba Extrator PCK (invólucro do sPCK) ----------
@@ -693,8 +715,8 @@ public sealed class EditorForm : Form
         Label Info(string t) { var l = new Label { Text = t, Location = new Point(14, y), AutoSize = true, MaximumSize = new Size(820, 0), ForeColor = CMuted }; y += l.PreferredHeight + 10; return l; }
         Button Btn(string t, Action a) { var b = new Button { Text = t, Location = new Point(14, y), Size = new Size(260, 30), FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; b.Click += (_, _) => a(); y += 40; return b; }
 
-        p.Controls.Add(Title("Extrator de PCK (via sPCK)"));
-        p.Controls.Add(Info("Os ícones/texturas do jogo ficam dentro dos arquivos .pck. Use o sPCK (ferramenta livre que você já tem) para extrair, e depois aponte aqui a pasta extraída — o editor mostra os ícones dos itens automaticamente."));
+        p.Controls.Add(Title("Pacotes .pck"));
+        p.Controls.Add(Info("Os ícones dos itens agora são lidos DIRETO do surfaces.pck, automaticamente, ao abrir a pasta do Perfect World — não precisa extrair nada. As opções abaixo (sPCK + pasta extraída) ficam só como alternativa, caso algum ícone não apareça."));
         p.Controls.Add(Btn("1) Localizar o sPCK (sPCK-GUI.exe)", LocateSpck));
         _lblSpck = new Label { Location = new Point(290, y - 34), AutoSize = true, ForeColor = CMuted, MaximumSize = new Size(520, 0) };
         p.Controls.Add(_lblSpck);

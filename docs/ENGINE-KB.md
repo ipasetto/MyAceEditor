@@ -27,7 +27,7 @@ loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (
 spawns | - | npcgen.data | §S6 §S22 | pendente; formato v7-11 conhecido
 regioes/portais/terreno | maps/*/region.clt precinct.clt .t2bk | region.sev precinct.sev .hmap .rmap .wmap path.sev | §S6 §S17 §S22 | pendente
 skills | elementskill.dll (CElementSkill) + configs/skillstr.txt | gs (mesmo codigo #ifdef _SKILL_SERVER) | §S17(skills) | pendente; exige recompilar dll+gs -> maior risco
-icones | surfaces.pck iconset/ (.dds+.txt) | - | §S2 §S3 | via sPCK manual; nativo pendente (§E4)
+icones | surfaces.pck iconset/ (.dds+.txt) | - | §S2 §S3 | NATIVO PRONTO [T] (§E4)
 janelas do jogo | interfaces.pck (XML, ex: qshop bag character) | - | §S2 §S20 | pendente; render: controles + moldura 9-slice + surfaces
 inventario/personagem | - | gamedbd (GetRoleData 8003, PutRole 3024) | §S8 §S9 §S10 | pendente; blobs opacos (PWKB§Q3)
 deploy/servidor | - | daemons, gs.conf, gamesys.conf, start.sh | §S4 §S5 §S6 §S24 | pendente
@@ -47,11 +47,15 @@ cobertura: ~98,6% byte-perfeito; para em NPC_WAR_TOWERBUILD_SERVICE (cauda guerr
 ref servidor: gs ELF c/ DWARF -> elementdataman 216 arrays + structs (PerfectWorld/server_ref/). Server analisado v145 tem *_ESSENCE ~4B maiores que o v144 do usuario -> para o arquivo do usuario confiar no .cfg v60
 numeracao de listas client x server difere (PWKB§S3); conferir antes de editar par
 
-## §E4 .pck/.pkx (PLANO NATIVO; adiado ate gatilho "pode fazer o pck nativo")
-formato COMPLETO ja documentado em PWKB§S3 (fonte uPCK) -> implementacao nativa agora e BARATA (sem RE).
-leitor minimo: PWKB§S3 "leitor minimo" (versao@-4, n@-8, offsetTabela @-272 v2 / @-280 v3 XOR KEY_1, entradas 276/288B, zlib c/ header se csize<size; .pkx = continuacao logica a partir de 0x7FFFFF00)
-falta: valores KEY_1/KEY_2/ASIG/FSIG (estao em PCKKey.cs do uPCK local; PWKB omite de proposito) | path em GBK/cp936 (.NET: CodePagesEncodingProvider) | icones em surfaces.pck/iconset (.dds + .txt de indice) -> precisa leitor DDS
-hoje: lanca GUI do sPCK + pasta de icones manual; IconLoader le TGA(tipo 2 e RLE 10, 24/32bpp)/PNG/BMP/JPG; DDS nao
+## §E4 .pck/.pkx (NATIVO, IMPLEMENTADO) [T]
+PckArchive.cs: le v2/v3 + .pkx logico, tabela XOR KEY_1, entradas zlib (ZLibStream), paths GBK. Chaves (uPCK PCKKey.cs): KEY_1=-1466731422 KEY_2=-240896429 ASIG_1=-33685778 ASIG_2=-267534609 FSIG_1=0x4DCA23EF FSIG_2=1453361591 (PWKB omite de proposito; a engine precisa) [C-uPCK][T]
+surfaces.pck do usuario: v2, 5147 entradas, 130MB [T]
+icones de item: surfaces\iconset\iconlist_ivtrm.dds (masc) + iconlist_ivtrf.dds (fem): DXT1 4096x2048 | .txt GBK: linhas 1-4 = iconW(32) iconH(32) linhas_usadas(46) colunas(128), depois 1 nome por icone; icone i = col i%128, linha i/128 [T]
+file_icon do elements ("Surfaces\图标\通用物品\nome.dds") casa pelo NOME do arquivo no .txt [T]. Cobertura: 15568/17047 = 91,3% [T]; o resto NAO existe no pck (itens sem icone no proprio jogo) -> mostra unknown.dds (1a entrada do .txt), como o client [I]
+outros atlas: iconlist_skill _pet _guild _action _elf _faction _pq _calendar, emotions (mesmo formato [I])
+DdsDecoder.cs: DXT1/3/5 + RGB(A) 24/32bpp. IconAtlas.cs: carga 0,13-0,3s, recorte 32x32 sob demanda
+modos CLI: --pck <arquivo> [filtro] (lista em pck-list.txt) | --icons <elements.data> (cobertura em icons-report.txt + amostras PNG)
+sPCK/pasta extraida: so alternativa (aba Pacotes .pck)
 
 ## §E5 VERSAO/EDITION (base da checagem de erros de versao)
 client manda Challenge.edition = hex(ELEMENTDATA_VERSION, task_templ_version, gshop_ts1, gshop_ts2) (PWKB§S17). Divergencia = "versao errada"/fecha sessao.
@@ -65,7 +69,10 @@ UI/EditorForm.cs | UI principal (arvore, lista, grade, busca, menus, icones, too
 PerfectWorld/CfgElementsReader.cs | parser elements.data guiado por .cfg (blobs, TALK_PROC, Id/Name)
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
 PerfectWorld/FieldLabels.cs | rotulos PT + grupos (Basico Requisitos Ataque Defesa Durabilidade Economia Atributos/Addons Modelo/Arquivos Outros)
-PerfectWorld/IconLoader.cs | icones (TGA proprio, unsafe)
+PerfectWorld/PckArchive.cs | leitor nativo .pck/.pkx
+PerfectWorld/DdsDecoder.cs | DDS DXT1/3/5 + RGB(A)
+PerfectWorld/IconAtlas.cs | icones do surfaces.pck (ivtrm+ivtrf, fallback unknown.dds)
+PerfectWorld/IconLoader.cs | icones de pasta extraida (alternativa; TGA proprio, unsafe)
 PerfectWorld/ElementsReader.cs ElementsSchema.cs ElementsBlocks.cs ElementsProgram.cs FORMAT.md | parser antigo via RE (superado; usado por --inspect)
 PerfectWorld/cfg/ | .cfg v60 v61 + README + cfg_walk_poc.py
 PerfectWorld/server_ref/ | block_order.tsv struct_fields.txt elementdataman_members.tsv
@@ -74,12 +81,11 @@ Store/ModuleStore.cs Changes/ChangeSet.cs | estado, load/save, mudancas
 fluxo: EditorForm -> ModuleStore/CfgElementsReader -> elements.data(+.cfg)
 
 ## §E7 UI/FEATURES PRONTAS [T]
-abrir pasta PW/elements.data + auto-recarrega ultima | arvore categoria>tipo>subtipo traduzida | lista: codigo + icone + nome c/ cor de grade (★☆»«*) | tooltip estilo jogo | busca global nome/ID | ordenar codigo/nome | clique direito: clonar/novo/deletar/favoritar | categoria Favoritos | novo item c/ proximo codigo | campos agrupados/rotulados, addons vazios ocultos | paineis fixos | abas: Elements (pronta), GShop/Tasks/AI Policy (vazias), Extrator PCK (lanca sPCK)
+abrir pasta PW/elements.data + auto-recarrega ultima | arvore categoria>tipo>subtipo traduzida | lista: codigo + icone REAL do jogo lido nativo do surfaces.pck + nome c/ cor de grade (★☆»«*) | tooltip estilo jogo | busca global nome/ID | ordenar codigo/nome | clique direito: clonar/novo/deletar/favoritar | categoria Favoritos | novo item c/ proximo codigo | campos agrupados/rotulados, addons vazios ocultos | paineis fixos | abas: Elements (pronta), GShop/Tasks/AI Policy (vazias), Extrator PCK (lanca sPCK)
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 1 ESCRITA elements.data (round-trip byte-identico antes de editar) M
 1b aba GShop (formato completo PWKB§S19; exporta client+server) M | aba AI Policy (PWKB§S18) M | npcgen/spawns (PWKB§S22) M
-2 PCK nativo (§E4) B-M | gatilho do usuario
 3 checagem version/edition client x server (§E5) B
 4 tasks.data / gshop / aipolicy (abas) M cada
 5 fechar cauda elements.data (§Q1) B-M
@@ -105,11 +111,12 @@ coordenadas: client exibe X=400+x/10 Z=550+z/10 (tasks); path 1px=1un centro; wm
 - header elements: 1o u32 = i16 versao + i16 assinatura (PWKB§S23)
 - ItemList.Name sem prefixo numerico (bug de hierarquia corrigido) [T]
 - UI nativa WinForms (web/WebView2 abandonado)
+- string:N do elements e GBK (era lido como Latin-1: caminhos saiam embaralhados) [T]
+- PCK nativo pronto; icones automaticos sem sPCK [T]
 
 ## §Q ABERTOS
 1 cauda ~1,4% elements.data a partir de NPC_WAR_TOWERBUILD_SERVICE (guerra territorio; comparar .cfg v60 x v61 / PWKB DOMAIN_COUNT=52)
 2 escrita: offsets/ordem dos blocos de assinatura ao regravar; timestamp atualizar ou manter?
-3 icones: formato exato iconset (.dds atlas + .txt?) em surfaces.pck do PKG144
 4 numeracao client x server das listas no PKG144 (p/ editar par)
 5 nosso TALK_PROC (4+0x80+M*(...)) x layout Dialog/Question/Choice do sELedit (PWKB§S23): conferir se descrevem o mesmo
 6 ordem de implementacao dos novos formatos: aipolicy e gshop ja tem formato completo; tasks depende do corpo ATaskTempl

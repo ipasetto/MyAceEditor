@@ -20,9 +20,48 @@ internal static class Program
         if (args.Contains("--mcp")) { RunMcpMode(args).GetAwaiter().GetResult(); return; }
         if (args.Length >= 2 && args[0] == "--inspect") { InspectElements(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--testcfg") { TestCfg(args[1], args[2]); return; }
+        if (args.Length >= 2 && args[0] == "--pck") { ListPck(args[1], args.Length >= 3 ? args[2] : ""); return; }
+        if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
 
         ApplicationConfiguration.Initialize();
         Application.Run(new EditorForm());
+    }
+
+    // --icons <elements.data>: cobertura dos ícones nativos (icons-report.txt + amostras icon_*.png).
+    private static void TestIcons(string dataPath)
+    {
+        var pckPath = IconAtlas.FindSurfacesPck(dataPath) ?? throw new FileNotFoundException("surfaces.pck");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var atlas = IconAtlas.Load(pckPath) ?? throw new InvalidDataException("atlas não encontrado");
+        long tAtlas = sw.ElapsedMilliseconds;
+        var reader = new CfgElementsReader(dataPath);
+        var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{reader.Version & 0xFF}.cfg")[0];
+        var module = reader.Parse(ElementsCfg.Load(cfg));
+        int with = 0, found = 0, saved = 0;
+        var missing = new List<string>();
+        foreach (var it in module.Lists.SelectMany(l => l.Items))
+        {
+            if (!it.Fields.TryGetValue("file_icon", out var fi) || string.IsNullOrEmpty(fi.Value)) continue;
+            with++;
+            if (!atlas.Has(fi.Value)) { if (missing.Count < 20) missing.Add($"{it.Id} {fi.Value}"); continue; }
+            using var bmp = atlas.Get(fi.Value)!;
+            found++;
+            if (saved < 6 && found % 997 == 1) bmp.Save($"icon_{it.Id}.png", System.Drawing.Imaging.ImageFormat.Png);
+            if (found % 997 == 1) saved++;
+        }
+        File.WriteAllText("icons-report.txt",
+            $"atlas: {atlas.Count} ícones em {tAtlas} ms\nitens com file_icon: {with}\nresolvidos: {found} ({100.0 * found / Math.Max(1, with):0.0}%)\nfaltando (amostra):\n{string.Join("\n", missing)}\n",
+            Encoding.UTF8);
+    }
+
+    // --pck <arquivo.pck> [filtro]: lista as entradas em pck-list.txt (UTF-8).
+    private static void ListPck(string pckPath, string filter)
+    {
+        using var pck = new PckArchive(pckPath);
+        var sb = new StringBuilder($"v{pck.Version} entradas={pck.Entries.Count}\n");
+        foreach (var e in pck.Entries.Where(e => e.Path.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+            sb.Append($"{e.Path}\t{e.Size}\t{e.CSize}\n");
+        File.WriteAllText("pck-list.txt", sb.ToString(), Encoding.UTF8);
     }
 
     private static void TestCfg(string cfgPath, string dataPath)

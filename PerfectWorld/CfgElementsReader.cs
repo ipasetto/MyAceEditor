@@ -108,7 +108,14 @@ public sealed class CfgElementsReader
     {
         int end = p; int limit = Math.Min(p + bytes, _d.Length);
         while (end < limit && _d[end] != 0) end++;
-        return Encoding.Latin1.GetString(_d, p, Math.Max(0, end - p));
+        return Gbk.GetString(_d, p, Math.Max(0, end - p)); // string:N = GBK (PWKB §S23)
+    }
+
+    private static readonly Encoding Gbk = CreateGbk();
+    private static Encoding CreateGbk()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(936);
     }
 
     // Seções especiais (blob): A(4) + len(4) + len bytes + [trailer(4)], disparam quando o count parece absurdo.
