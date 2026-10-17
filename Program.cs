@@ -24,7 +24,20 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
 
         ApplicationConfiguration.Initialize();
+        if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1]); return; }
         Application.Run(new EditorForm());
+    }
+
+    // --snapshot <saida.png>: abre o editor fora da tela (com a última pasta), salva um print e sai.
+    private static void Snapshot(string outPng)
+    {
+        using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
+        f.Show();
+        var until = DateTime.Now.AddSeconds(12);
+        while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
+        using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
+        f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
+        bmp.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
     }
 
     // --icons <elements.data>: cobertura dos ícones nativos (icons-report.txt + amostras icon_*.png).

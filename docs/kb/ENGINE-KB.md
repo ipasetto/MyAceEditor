@@ -1,5 +1,5 @@
 # ENGINE-KB — MyAceEditor (engine de edicao do Perfect World)
-# Base de conhecimento da ENGINE. Complementa (nao duplica) a KB do JOGO: D:\Perfect World\Estudo PW\pw-kb.md (= "PWKB").
+# Base de conhecimento da ENGINE. Complementa (nao duplica) a KB do JOGO: docs/kb/PW-KB.md (= "PWKB"). Visao para humanos: docs/ARQUITETURA.md.
 # Formato: igual PWKB. Linhas "chave: valor" / "a | b | c". Busque por ID (ex: §E3). pt-BR telegrafico. Ref cruzada: PWKB§S17 = secao S17 da KB do jogo.
 # Estado: vivo. Atualizar SEMPRE que algo novo for provado (protocolo em §U).
 
@@ -54,7 +54,7 @@ icones de item: surfaces\iconset\iconlist_ivtrm.dds (masc) + iconlist_ivtrf.dds 
 file_icon do elements ("Surfaces\图标\通用物品\nome.dds") casa pelo NOME do arquivo no .txt [T]. Cobertura: 15568/17047 = 91,3% [T]; o resto NAO existe no pck (itens sem icone no proprio jogo) -> mostra unknown.dds (1a entrada do .txt), como o client [I]
 outros atlas: iconlist_skill _pet _guild _action _elf _faction _pq _calendar, emotions (mesmo formato [I])
 DdsDecoder.cs: DXT1/3/5 + RGB(A) 24/32bpp. IconAtlas.cs: carga 0,13-0,3s, recorte 32x32 sob demanda
-modos CLI: --pck <arquivo> [filtro] (lista em pck-list.txt) | --icons <elements.data> (cobertura em icons-report.txt + amostras PNG)
+modos CLI: --pck <arquivo> [filtro] (lista em pck-list.txt) | --icons <elements.data> (cobertura em icons-report.txt + amostras PNG) | --snapshot <png>
 sPCK/pasta extraida: so alternativa (aba Pacotes .pck)
 
 ## §E5 VERSAO/EDITION (base da checagem de erros de versao)
@@ -81,7 +81,12 @@ Store/ModuleStore.cs Changes/ChangeSet.cs | estado, load/save, mudancas
 fluxo: EditorForm -> ModuleStore/CfgElementsReader -> elements.data(+.cfg)
 
 ## §E7 UI/FEATURES PRONTAS [T]
-abrir pasta PW/elements.data + auto-recarrega ultima | arvore categoria>tipo>subtipo traduzida | lista: codigo + icone REAL do jogo lido nativo do surfaces.pck + nome c/ cor de grade (★☆»«*) | tooltip estilo jogo | busca global nome/ID | ordenar codigo/nome | clique direito: clonar/novo/deletar/favoritar | categoria Favoritos | novo item c/ proximo codigo | campos agrupados/rotulados, addons vazios ocultos | paineis fixos | abas: Elements (pronta), GShop/Tasks/AI Policy (vazias), Extrator PCK (lanca sPCK)
+layout = modelo do Rody's Angelica Editor (decisao do usuario; arvore em cascata abandonada). Rody: exe nativo x86 sem metadados .NET (protegido/empacotado) -> layout copiado do print, sem RE
+esquerda (fundo preto): seletor de bloco "[NNN] Nome (qtd)" (1a opcao = ★ Favoritos; lembra o ultimo; padrao WEAPON_ESSENCE) | filtro tipo/subtipo (so blocos *_ESSENCE c/ id_major_type/id_sub_type) | busca nome/ID + caixa "todos os blocos" | ListView VIRTUAL owner-draw: ID | icone 24px + nome na cor de grade (★☆»«*) | clique na coluna ordena | rodape: Adicionar | ir para ID (Enter) | Excluir
+direita: cabecalho icone+nome+ID | grade de campos agrupados/rotulados (addons vazios ocultos) | edicao inline
+geral: tooltip estilo jogo no hover | menu de contexto clonar/novo/excluir/favoritar | novo item c/ proximo codigo | auto-recarrega ultima pasta | icones nativos do surfaces.pck | scrollbar escura (SetWindowTheme DarkMode_Explorer) | combos escuros owner-draw
+abas: Elements (pronta), GShop/Tasks/AI Policy (vazias), Pacotes .pck (alternativa sPCK)
+diagnostico: --snapshot <png> abre o editor fora da tela c/ a ultima pasta e salva print (verificacao visual sem abrir janela)
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 1 ESCRITA elements.data (round-trip byte-identico antes de editar) M
@@ -120,7 +125,7 @@ coordenadas: client exibe X=400+x/10 Z=550+z/10 (tasks); path 1px=1un centro; wm
 4 numeracao client x server das listas no PKG144 (p/ editar par)
 5 nosso TALK_PROC (4+0x80+M*(...)) x layout Dialog/Question/Choice do sELedit (PWKB§S23): conferir se descrevem o mesmo
 6 ordem de implementacao dos novos formatos: aipolicy e gshop ja tem formato completo; tasks depende do corpo ATaskTempl
-7 push git: repo privado MyAceEditor ainda nao publicado (remote origin removido; publicar via GitHub Desktop)
+7 git: repo github.com/ipasetto/MyAceEditor, branch main = historico completo; main remoto antigo (Initial commit + HelloWorld c/ bin/obj) precisa de force push feito pelo usuario; backup local em main-antigo. Repo sera PUBLICO: nada de segredos nas KBs
 
 ## §U PROTOCOLO DE ATUALIZACAO (como chegar a 100%)
 - fato novo sobre o JOGO -> PWKB (secao §S certa, com tag conf). Fato sobre a ENGINE/nosso codigo -> aqui.
@@ -131,4 +136,4 @@ coordenadas: client exibe X=400+x/10 Z=550+z/10 (tasks); path 1px=1un centro; wm
 - ler por secao (Grep "## §E3"), nunca o arquivo inteiro sem necessidade (economia de token).
 
 ## §R FONTES
-PWKB (D:\Perfect World\Estudo PW\pw-kb.md) | cfg comunidade (sTASKedit/Rody/DataTranslator) | gs DWARF via REA+Ghidra (server_ref/) | forum mmorpg-devs.ru (threads pkx, estrutura do client) | uPCK local (source_uPCK, chaves PCKKey.cs)
+PWKB (docs/kb/PW-KB.md) | cfg comunidade (sTASKedit/Rody/DataTranslator) | gs DWARF via REA+Ghidra (server_ref/) | forum mmorpg-devs.ru (threads pkx, estrutura do client) | uPCK local (source_uPCK, chaves PCKKey.cs)

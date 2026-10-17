@@ -1,54 +1,63 @@
-# MyAceEditor — engine de edição do Perfect World (WinForms nativo)
+# MyAceEditor
 
-Aplicação desktop **nativa em C# / WinForms** (.NET 10). O objetivo não é só editar
-`.data`: é ser uma **engine do Perfect World**, tornando o jogo **100% editável** a
-partir de uma única janela (dados, skills, servidor e, no futuro, as próprias telas do jogo).
+**Engine de edição do Perfect World (motor Angelica)**: aplicação desktop nativa em C#/WinForms
+(.NET 10) para ler e editar os dados do jogo, cliente e servidor, numa única janela.
 
-> Resumo completo e atualizado do projeto: **[docs/ENGINE-KB.md](docs/ENGINE-KB.md)**.
-> Projeto isolado — nada aqui se mistura com o jogo em `C:\Godot\sapo`.
+![Editor de elementos](docs/img/editor.png)
 
-## Modos
+## Recursos
 
-- **(padrão)** editor desktop: `MyAceEditor.exe`
-- **`--mcp`** servidor MCP por stdio (as mesmas operações para um agente de IA)
-- **`--inspect <elements.data>`** diagnóstico do parser (gera `inspect-report.txt`)
-- **`--testcfg <cfg> <data>`** valida um `.cfg` contra um `elements.data`
+- Abre a pasta do Perfect World e **recarrega sozinho** na próxima vez.
+- Lê o `elements.data` (cerca de 40 mil itens em 95 blocos) a partir de definições `.cfg` por versão.
+- **Ícones reais do jogo**, lidos direto do `surfaces.pck`, sem extrair nada.
+- Lista no estilo dos editores clássicos (Rody's Angelica Editor): seletor de bloco, filtro por
+  tipo/subtipo, busca por nome ou ID (no bloco ou em todos), ordenação por coluna.
+- Nomes nas **cores de grade** do jogo, tooltip no estilo do jogo, campos agrupados e rotulados em português.
+- Novo item com código seguinte automático, clonar, excluir, favoritos.
+- Modo **MCP**: as mesmas operações disponíveis para agentes de IA.
 
-## Arquitetura
+## Documentação
 
-```
-EditorForm (WinForms)  ──►  ModuleStore / CfgElementsReader  ──►  elements.data (.cfg)
-```
-
-- **UI** (`UI/EditorForm.cs`): árvore categoria→tipo→subtipo + lista estilo jogo
-  (código + ícone + descrição, cores de grade) + grade de campos agrupados.
-- **Modelo** (`Model/DataModel.cs`): Módulo→Lista→Item→Campo (tipado).
-- **Perfect World** (`PerfectWorld/`): parser do `elements.data` guiado por `.cfg` da
-  comunidade (`PW_1.4.4_v60.cfg`, 150 blocos). ~98,6% do arquivo já mapeado.
-- **MCP** (`--mcp`): expõe as operações a um agente de IA.
+| Documento | Para quê |
+|---|---|
+| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | Como a engine e o Perfect World funcionam: diagramas, camadas, fluxo, formatos |
+| [docs/kb/PW-KB.md](docs/kb/PW-KB.md) | Base de conhecimento do **jogo**: cliente, servidor, protocolo, formatos binários, versões |
+| [docs/kb/ENGINE-KB.md](docs/kb/ENGINE-KB.md) | Base de conhecimento da **engine**: o que está implementado, roadmap, dúvidas em aberto |
+| [.claude/skills/pw-engine](.claude/skills/pw-engine/SKILL.md) | Skill do Claude Code que ensina o agente a usar e manter as KBs |
 
 ## Rodar
+
+Requer o SDK do .NET 10 e Windows.
 
 ```bash
 dotnet run
 ```
 
-Em **Arquivo → Abrir pasta do PW / elements.data…**. A última pasta é **recarregada
-automaticamente** na próxima abertura.
+Depois, **Arquivo → Abrir pasta do Perfect World…** e escolha a pasta que contém `element\`.
 
-## Executável único
+## Gerar o executável
 
 ```bash
 dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist
 ```
 
-Gera `dist\MyAceEditor.exe`.
+Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada.
 
-## Roadmap
+## Estado
 
-Curto prazo: PCK nativo (ícones automáticos), **escrita** do `elements.data`, fechar a
-cauda restante (~1,4%), abas GShop/Tasks/AI Policy.
-Longo prazo (engine): edição de skills, geração e deploy de servidor com checagem de
-conflitos/versão/erros, e abertura das interfaces do jogo dentro da engine.
+| Área | Estado |
+|---|---|
+| `elements.data`: leitura | ✅ ~98,6% (falta a cauda de Guerra Territorial) |
+| `elements.data`: gravação | 🔜 |
+| `.pck`/`.pkx` nativo + ícones | ✅ |
+| GShop, AI Policy, Tasks, NPCGen | 🔜 formatos documentados na PW-KB |
+| Checagem de versão cliente × servidor, deploy de servidor | 🔜 |
 
-Detalhes, formato binário e pendências em **[docs/ENGINE-KB.md](docs/ENGINE-KB.md)**.
+Versão de referência testada: cliente/servidor Perfect World 1.4.4 (`elements.data` v60).
+
+## Créditos
+
+O conhecimento dos formatos vem do estudo de ferramentas e documentação da comunidade
+(sELedit, sTASKedit, sGSHOPedit, AIPolicyEditor, sNPCedit, sMAPtool, uPCK, UIEdit, fóruns
+mmorpg-devs.ru, RaGEZONE e PWDevGroup), listadas em [PW-KB §R](docs/kb/PW-KB.md).
+Perfect World é marca da Perfect World Co., Ltd. Este projeto não é afiliado a ela.
