@@ -23,6 +23,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--pck") { ListPck(args[1], args.Length >= 3 ? args[2] : ""); return; }
         if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
+        if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
 
         ApplicationConfiguration.Initialize();
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1]); return; }
@@ -39,6 +40,15 @@ internal static class Program
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
         bmp.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
+    }
+
+    // --check <pasta element do cliente> <pasta home do servidor>: compara o par (check-report.txt).
+    private static void CheckPair(string client, string server)
+    {
+        var sb = new StringBuilder();
+        foreach (var r in VersionCheck.Run(client, server))
+            sb.AppendLine($"[{r.Nivel}] {r.Item} | cliente: {r.Cliente} | servidor: {r.Servidor} | {r.Dica}");
+        File.WriteAllText("check-report.txt", sb.ToString(), Encoding.UTF8);
     }
 
     // --roundtrip <elements.data>: prova a gravação (roundtrip-report.txt). Não altera o arquivo de entrada.

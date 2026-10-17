@@ -134,6 +134,9 @@ public sealed class EditorForm : Form
             tp.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted, Text = $"{h}\n(em breve)", Font = new Font("Segoe UI", 11) });
             tabs.TabPages.Add(tp);
         }
+        var tChk = new TabPage("Verificação") { BackColor = CBg };
+        tChk.Controls.Add(BuildCheckView());
+        tabs.TabPages.Add(tChk);
         var tPck = new TabPage("Extrator PCK") { BackColor = CBg };
         tPck.Controls.Add(BuildPckView());
         tabs.TabPages.Add(tPck);
@@ -837,6 +840,84 @@ public sealed class EditorForm : Form
     {
         _iconBox.Image?.Dispose(); _iconBox.Image = null;
         _iconBox.Image = IconFor(item);
+    }
+
+    // ---------- aba Verificação (par cliente × servidor) ----------
+    private readonly TextBox _chkClient = new() { BorderStyle = BorderStyle.FixedSingle };
+    private readonly TextBox _chkServer = new() { BorderStyle = BorderStyle.FixedSingle };
+    private readonly ListView _chkList = new() { View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill, HeaderStyle = ColumnHeaderStyle.Nonclickable };
+    private readonly Label _chkSummary = new() { Dock = DockStyle.Top, Height = 34, Font = new Font("Segoe UI Semibold", 11), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 0, 0, 0) };
+
+    private Control BuildCheckView()
+    {
+        var root = new Panel { Dock = DockStyle.Fill, BackColor = CBg, Padding = new Padding(16) };
+        var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 118, ColumnCount = 3, BackColor = CBg };
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        Label L(string t) => new() { Text = t, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CFg };
+        Button B(string t, Action a) { var b = new Button { Text = t, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; b.Click += (_, _) => a(); return b; }
+        _chkClient.Dock = DockStyle.Fill; _chkServer.Dock = DockStyle.Fill;
+        _chkClient.Text = LoadSetting("check_client") ?? "";
+        _chkServer.Text = LoadSetting("check_server") ?? "";
+        form.Controls.Add(L("Cliente (pasta element)"), 0, 0); form.Controls.Add(_chkClient, 1, 0);
+        form.Controls.Add(B("Procurar…", () => PickFolder(_chkClient, "Pasta element do cliente")), 2, 0);
+        form.Controls.Add(L("Servidor (pasta home)"), 0, 1); form.Controls.Add(_chkServer, 1, 1);
+        form.Controls.Add(B("Procurar…", () => PickFolder(_chkServer, "Pasta home do servidor (contém gamed, glinkd…)")), 2, 1);
+        var run = B("✔ Verificar", RunCheck); run.BackColor = CAccent; run.ForeColor = Color.White; run.Font = new Font("Segoe UI Semibold", 10);
+        form.Controls.Add(new Label { Text = "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).", Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
+        form.SetColumnSpan(form.GetControlFromPosition(0, 2)!, 2);
+        form.Controls.Add(run, 2, 2);
+        for (int i = 0; i < 3; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+
+        _chkList.Columns.Add("", 34);
+        _chkList.Columns.Add("Item", 300);
+        _chkList.Columns.Add("Cliente", 170);
+        _chkList.Columns.Add("Servidor", 170);
+        _chkList.Columns.Add("O que significa", 520);
+        _chkList.BackColor = CSurface; _chkList.ForeColor = CFg;
+        _chkSummary.ForeColor = CFg;
+
+        var listHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0), BackColor = CBg };
+        listHost.Controls.Add(_chkList);
+        listHost.Controls.Add(_chkSummary);
+        root.Controls.Add(listHost);
+        root.Controls.Add(form);
+        return root;
+    }
+
+    private void PickFolder(TextBox target, string title)
+    {
+        using var dlg = new FolderBrowserDialog { Description = title, UseDescriptionForTitle = true, SelectedPath = target.Text };
+        if (dlg.ShowDialog(this) == DialogResult.OK) target.Text = dlg.SelectedPath;
+    }
+
+    private void RunCheck()
+    {
+        if (_chkClient.Text.Length == 0 && _dataPath is not null)
+            _chkClient.Text = Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "";
+        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status("Escolha as pastas do cliente e do servidor."); return; }
+        SaveSetting("check_client", _chkClient.Text); SaveSetting("check_server", _chkServer.Text);
+        var rows = VersionCheck.Run(_chkClient.Text, _chkServer.Text);
+        _chkList.BeginUpdate(); _chkList.Items.Clear();
+        foreach (var r in rows)
+        {
+            var (sym, col) = r.Nivel switch
+            {
+                CheckLevel.Ok => ("✔", Color.FromArgb(22, 128, 61)),
+                CheckLevel.Info => ("ℹ", CMuted),
+                CheckLevel.Aviso => ("⚠", Color.FromArgb(180, 110, 0)),
+                _ => ("✖", Color.FromArgb(200, 30, 30)),
+            };
+            var li = new ListViewItem(new[] { sym, r.Item, r.Cliente, r.Servidor, r.Dica }) { ForeColor = col, UseItemStyleForSubItems = true };
+            _chkList.Items.Add(li);
+        }
+        _chkList.EndUpdate();
+        int err = rows.Count(r => r.Nivel == CheckLevel.Erro), warn = rows.Count(r => r.Nivel == CheckLevel.Aviso);
+        _chkSummary.Text = err > 0 ? $"✖ {err} erro(s) que impedem o login · {warn} aviso(s)"
+                         : warn > 0 ? $"⚠ Sem erros de login · {warn} aviso(s)" : "✔ Cliente e servidor compatíveis";
+        _chkSummary.ForeColor = err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
+        Status("Verificação concluída");
     }
 
     // ---------- aba Extrator PCK (invólucro do sPCK) ----------
