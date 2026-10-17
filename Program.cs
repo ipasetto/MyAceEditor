@@ -26,6 +26,7 @@ internal static class Program
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--addons") { TestAddons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--configs")
         {
             var gc = GameConfigs.Load(args[1])!;
@@ -80,6 +81,22 @@ internal static class Program
         var again = new TasksFile(edited);
         sb.AppendLine($"editar descrição: {(again.FullSchema && again.Roots![1].Texts[0] == "Descrição de teste ✓" ? "OK" : "FALHOU " + again.SchemaError)} ({edited.Length - original.Length:+#;-#;0} bytes)");
         File.WriteAllText("tasks-report.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --addons <elements.data>: descrição dos addons como no jogo (addons-report.txt).
+    private static void TestAddons(string dataPath)
+    {
+        var r = new CfgElementsReader(dataPath);
+        var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{r.Version & 0xFF}.cfg")[0];
+        var module = r.Parse(ElementsCfg.Load(cfg));
+        using var pck = new PckArchive(GameConfigs.FindConfigsPck(dataPath)!);
+        var at = AddonText.Load(pck)!;
+        var addons = module.FindListByName("EQUIPMENT_ADDON")!.Items;
+        int ok = addons.Count(a => at.Describe(a) is not null);
+        var sb = new StringBuilder($"tipos conhecidos: {at.Count} ids · addons com descrição: {ok} de {addons.Count}\n");
+        foreach (var a in addons.Where((_, i) => i % 97 == 0).Take(30))
+            sb.AppendLine($"  {a.Id} {a.Name} [tipo {at.TypeOf(a.Id)}] p=({a.Fields["param1"].Value},{a.Fields["param2"].Value}) => {at.Describe(a)}");
+        File.WriteAllText("addons-report.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --kinds <cfg>: classificação de cada campo (kinds.tsv: bloco, campo, tipo) para conferência.

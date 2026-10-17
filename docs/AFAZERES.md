@@ -1,5 +1,6 @@
 # AFAZERES — mapa de etapas (ler 1o; curto de proposito)
 # legenda: [x] feito [~] parcial [ ] falta [>] em andamento | detalhes: docs/kb/ENGINE-KB.md (§Exx)
+# PARIDADE: checklist completo das funcoes do Rody em docs/PARIDADE-RODY.md (ver antes de escolher a proxima tarefa)
 # META: app fazer 100% do Rody's Angelica Editor, codigo nosso, interface parecida (§E8)
 
 ## FASE 1 — base
