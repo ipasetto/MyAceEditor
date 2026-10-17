@@ -18,7 +18,7 @@ public sealed class EditorForm : Form
     private readonly ComboBox _blockCombo = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly ComboBox _typeCombo = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Visible = false };
     private readonly CheckBox _searchAll = new() { Dock = DockStyle.Right, Width = 22, Padding = new Padding(6, 0, 0, 0) };
-    private readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, VirtualMode = true, FullRowSelect = true, HideSelection = false, MultiSelect = false, OwnerDraw = true, BorderStyle = BorderStyle.None, HeaderStyle = ColumnHeaderStyle.Clickable };
+    private readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, VirtualMode = true, FullRowSelect = true, HideSelection = false, MultiSelect = true, OwnerDraw = true, BorderStyle = BorderStyle.None, HeaderStyle = ColumnHeaderStyle.Clickable };
     private readonly NumericUpDown _gotoId = new() { Maximum = 999999999, BorderStyle = BorderStyle.FixedSingle, TextAlign = HorizontalAlignment.Center };
     private int _hoverIdx = -1;
     private readonly Label _header = new() { Dock = DockStyle.Top, Height = 46, Font = new Font("Segoe UI Semibold", 13), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0) };
@@ -203,6 +203,13 @@ public sealed class EditorForm : Form
         _list.DrawSubItem += OnDrawSubItem;
         _list.ColumnClick += (_, e) => OnColumnClick(e.Column);
         _list.SelectedIndexChanged += (_, _) => OnListSelect();
+        _list.VirtualItemsSelectionRangeChanged += (_, _) => OnListSelect();
+        _list.KeyDown += (_, e) =>
+        {
+            if (e.Control && e.KeyCode == Keys.A) { SelectAllItems(); e.Handled = true; }
+            else if (e.KeyCode == Keys.Delete) { if (_list.SelectedIndices.Count > 1) BulkDelete(); else RemoveItem(); e.Handled = true; }
+            else if (e.Control && e.KeyCode == Keys.N) { BulkClone(); e.Handled = true; }
+        };
         _list.Resize += (_, _) => _list.Columns[1].Width = Math.Max(120, _list.ClientSize.Width - _list.Columns[0].Width - _list.Columns[2].Width - 1);
         _list.HandleCreated += (_, _) => SetWindowTheme(_list.Handle, "DarkMode_Explorer", null);
         _tip.OwnerDraw = true; _tip.Draw += DrawTip; _tip.Popup += SizeTip;
@@ -302,9 +309,17 @@ public sealed class EditorForm : Form
         _grid.Columns[2].DefaultCellStyle.ForeColor = CAccent;
         _grid.CellDoubleClick += (_, e) =>
         {
-            if (e.RowIndex < 0 || e.ColumnIndex != 2 || _current is null || _grid.Rows[e.RowIndex].Tag is not string k) return;
-            var kind = FieldKinds.Of(k);
-            if (_refs?.Resolve(kind, _current.Fields[k].Value) is { } hit) GoToItem(hit.Item);
+            if (e.RowIndex < 0 || _current is null || _grid.Rows[e.RowIndex].Tag is not string k) return;
+            if (EditFieldSpecial(_current, k)) { _grid.CancelEdit(); _grid.EndEdit(); }
+        };
+        _grid.CellContentClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex != 2 && e.ColumnIndex != 0 || _grid.Rows[e.RowIndex].Cells[e.ColumnIndex] is not DataGridViewLinkCell) return;
+            switch (_grid.Rows[e.RowIndex].Tag)
+            {
+                case string k when _current is not null && _refs?.Resolve(FieldKinds.Of(k), _current.Fields[k].Value) is { } hit: GoToItem(hit.Item); break;
+                case Item it: GoToItem(it); break;
+            }
         };
         _grid.Columns[1].DefaultCellStyle.Font = new Font("Segoe UI Semibold", 9.5f);
         _grid.CellEndEdit += (_, e) => OnFieldEdited(e.RowIndex);
@@ -429,10 +444,23 @@ public sealed class EditorForm : Form
 
     // ---------- lista de itens (estilo Rody: seletor de bloco + lista plana) ----------
     // Entrada do seletor de bloco. Block == null => Favoritos.
-    private sealed record BlockEntry(ItemList? Block, string Label)
+    private sealed record BlockEntry(ItemList? Block, string Label, bool Header = false)
     {
         public override string ToString() => Label;
     }
+
+    // Categoria do bloco para organizar o seletor (como os grupos do Rody).
+    private static string BlockCategory(string n) =>
+        n.Contains("MONSTER") || n.StartsWith("NPC") || n.Contains("MINE") || n == "TALK_PROC" ? "Monstros, NPCs e minas"
+        : n.Contains("PET") ? "Pets"
+        : n.Contains("RECIPE") || n.Contains("PRODUCE") ? "Receitas e produção"
+        : n is "WEAPON_ESSENCE" or "ARMOR_ESSENCE" or "DECORATION_ESSENCE" or "FASHION_ESSENCE" or "PROJECTILE_ESSENCE" or "QUIVER_ESSENCE"
+              or "FLYSWORD_ESSENCE" or "WINGMANWING_ESSENCE" or "SUITE_ESSENCE" or "EQUIPMENT_ADDON" || n.Contains("WEAPON") || n.Contains("ARMOR") || n.Contains("DECORATION") || n.Contains("FASHION") ? "Equipamentos"
+        : n.Contains("FACE") || n.Contains("CHARACTER") || n.Contains("PLAYER") || n.Contains("CONFIG") || n.Contains("LEVEL") ? "Personagem e configurações"
+        : n.EndsWith("_ESSENCE") ? "Itens, consumíveis e materiais"
+        : "Outros";
+
+    static readonly string[] CategoryOrder = { "Equipamentos", "Itens, consumíveis e materiais", "Monstros, NPCs e minas", "Pets", "Receitas e produção", "Personagem e configurações", "Outros" };
     // Entrada do filtro de tipo (Major/Sub null => todos).
     private sealed record TypeEntry(string? Major, string? Sub, string Label)
     {
@@ -454,11 +482,13 @@ public sealed class EditorForm : Form
             var lists = _store.Current.Lists;
             foreach (var l in lists) foreach (var it in l.Items) _owner[it] = l;
             _blockCombo.Items.Add(new BlockEntry(null, $"★ Favoritos ({_favorites.Count})"));
-            for (int i = 0; i < lists.Count; i++)
+            var entries = lists.Select((b, i) => (b, i)).Where(x => x.b.Items.Count > 0).ToList();
+            foreach (var cat in CategoryOrder)
             {
-                var b = lists[i];
-                if (b.Items.Count == 0) continue;
-                _blockCombo.Items.Add(new BlockEntry(b, $"[{i:000}] {Pretty(b.Name)} ({b.Items.Count:N0})"));
+                var inCat = entries.Where(x => BlockCategory(x.b.Name) == cat).ToList();
+                if (inCat.Count == 0) continue;
+                _blockCombo.Items.Add(new BlockEntry(null, $"── {cat} ──", Header: true));
+                foreach (var (b, i) in inCat) _blockCombo.Items.Add(new BlockEntry(b, $"   [{i:000}] {Pretty(b.Name)} ({b.Items.Count:N0})"));
             }
             var last = LoadSetting("block") ?? "WEAPON_ESSENCE";
             int sel = 1;
@@ -473,6 +503,8 @@ public sealed class EditorForm : Form
 
     private void OnBlockChanged()
     {
+        if (_blockCombo.SelectedItem is BlockEntry { Header: true } && _blockCombo.SelectedIndex + 1 < _blockCombo.Items.Count)
+        { _blockCombo.SelectedIndex++; return; }
         _curBlock = (_blockCombo.SelectedItem as BlockEntry)?.Block;
         if (_curBlock is not null) SaveSetting("block", _curBlock.Name);
         BuildTypeFilter();
@@ -516,7 +548,7 @@ public sealed class EditorForm : Form
         using (var bg = new SolidBrush(sel ? CListSel : CTreeInput)) e.Graphics.FillRectangle(bg, e.Bounds);
         if (e.Index < 0) return;
         var o = cb.Items[e.Index];
-        var col = o is BlockEntry { Block: null } ? GGold : CTreeFg;
+        var col = o is BlockEntry { Header: true } ? CListId : o is BlockEntry { Block: null } ? GGold : CTreeFg;
         TextRenderer.DrawText(e.Graphics, o.ToString(), cb.Font, Rectangle.Inflate(e.Bounds, -4, 0), sel ? Color.White : col,
             TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }
@@ -629,6 +661,61 @@ public sealed class EditorForm : Form
         _sortMode == SortMode.Nome
             ? items.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             : items.OrderBy(i => long.TryParse(i.Id, out var n) ? n : long.MaxValue);
+
+    private List<Item> SelectedItems() => _list.SelectedIndices.Cast<int>().Where(i => i < _view.Count).Select(i => _view[i]).ToList();
+
+    private void SelectAllItems()
+    {
+        _list.BeginUpdate();
+        for (int i = 0; i < _view.Count; i++) _list.SelectedIndices.Add(i);
+        _list.EndUpdate();
+        Status($"{_view.Count:N0} itens selecionados");
+    }
+
+    private void BulkClone()
+    {
+        var sel = SelectedItems();
+        if (sel.Count == 0) return;
+        Item? last = null;
+        foreach (var src in sel)
+        {
+            if (!_owner.TryGetValue(src, out var block)) continue;
+            var ni = new Item { Id = NextCode(block).ToString(), Name = src.Name, Fields = src.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)), Raw = src.Raw?.ToArray() };
+            SetIdName(ni);
+            block.Items.Add(ni); _owner[ni] = block; last = ni;
+        }
+        if (_store.Current is not null) _refs = new RefIndex(_store.Current);
+        RefreshView();
+        if (last is not null) { _current = last; SelectItem(last); ShowItem(last); }
+        Status($"{sel.Count} item(ns) clonado(s)");
+    }
+
+    private void BulkDelete()
+    {
+        var sel = SelectedItems();
+        if (sel.Count == 0) return;
+        if (MessageBox.Show($"Excluir {sel.Count} item(ns) selecionado(s)?", "Excluir", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        foreach (var it in sel) if (_owner.TryGetValue(it, out var b)) { b.Items.Remove(it); _owner.Remove(it); _favorites.Remove(FavKey(b, it)); }
+        SaveFavorites();
+        if (_store.Current is not null) _refs = new RefIndex(_store.Current);
+        _current = null;
+        RefreshView();
+        Status($"{sel.Count} item(ns) excluído(s)");
+    }
+
+    private void BulkChange()
+    {
+        var sel = SelectedItems();
+        if (sel.Count == 0) return;
+        var fields = sel[0].Fields.Keys.ToList();
+        if (FieldEditors.BulkValue(this, fields, sel.Count, FieldLabels.Label) is not { } r) return;
+        int n = 0;
+        foreach (var it in sel)
+            if (it.Fields.TryGetValue(r.Field, out var f)) { it.Fields[r.Field] = Field.Of(f.Type, r.Value); if (r.Field.Equals("Name", StringComparison.OrdinalIgnoreCase)) it.Name = r.Value; n++; }
+        _list.Invalidate();
+        if (_current is not null) ShowItem(_current);
+        Status($"'{FieldLabels.Label(r.Field)}' = {r.Value} em {n} item(ns)");
+    }
 
     private void OnListSelect()
     {
@@ -791,10 +878,118 @@ public sealed class EditorForm : Form
             }
             foreach (var (k, f) in vis)
             {
-                int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, Describe(item, k, f.Value));
+                var desc = Describe(item, k, f.Value);
+                int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, desc);
                 _grid.Rows[r].Tag = k;
+                if (desc.StartsWith("→")) _grid.Rows[r].Cells[2] = LinkCell(desc);
+                if (IsSpecialEditor(k)) _grid.Rows[r].Cells[0].ToolTipText = "Duplo clique para escolher";
             }
         }
+        // efeito do addon (bloco EQUIPMENT_ADDON) e "dropado por" (monstros que dropam o item)
+        if (sel is "Todos" or "Básico" && CurrentItemBlock?.Name == "EQUIPMENT_ADDON" && _cfgs?.Addons?.Describe(item) is { } eff)
+        {
+            _grid.Rows.Insert(0, "  Efeito no jogo", eff, _cfgs.Addons.TypeCaption(item.Id) ?? "");
+            _grid.Rows[0].ReadOnly = true;
+            _grid.Rows[0].DefaultCellStyle.ForeColor = Color.FromArgb(22, 128, 61);
+            _grid.Rows[0].DefaultCellStyle.Font = new Font("Segoe UI Semibold", 10);
+        }
+        if (sel is "Todos" or "Queda")
+        {
+            var drops = (_refs?.UsedBy(item.Id) ?? Array.Empty<RefIndex.Ref>())
+                .Where(u => u.Field.Contains("drop", StringComparison.OrdinalIgnoreCase) && u.Block.Name == "MONSTER_ESSENCE").ToList();
+            if (drops.Count > 0)
+            {
+                int hr = _grid.Rows.Add($"  DROPADO POR ({drops.Count} monstros)", "", "");
+                var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
+                hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
+                hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                foreach (var d in drops.OrderByDescending(d => ParsePct(d.Probability)).Take(300))
+                {
+                    int r = _grid.Rows.Add("", ParsePct(d.Probability) is var p && p > 0 ? $"{p * 100:0.###}%" : "", "");
+                    _grid.Rows[r].Cells[0] = LinkCell($"  {d.Item.Name}  (ID {d.Item.Id})");
+                    _grid.Rows[r].Cells[2].Value = $"nível {d.Item.Fields.GetValueOrDefault("level")?.Value} · {FieldLabels.Label(d.Field)}";
+                    _grid.Rows[r].Tag = d.Item; _grid.Rows[r].ReadOnly = true;
+                }
+            }
+        }
+    }
+
+    private static float ParsePct(string? v) =>
+        float.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : 0;
+
+    private DataGridViewLinkCell LinkCell(string text) => new()
+    {
+        Value = text, LinkColor = CAccent, ActiveLinkColor = CAccent, VisitedLinkColor = CAccent,
+        LinkBehavior = LinkBehavior.HoverUnderline, TrackVisitedState = false,
+    };
+
+    // ---------- editores por duplo clique (estilo Rody) ----------
+    private static bool IsSpecialEditor(string key) =>
+        FieldKinds.Of(key) is FieldKind.ClassMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef;
+
+    private bool EditFieldSpecial(Item item, string key)
+    {
+        var kind = FieldKinds.Of(key);
+        var cur = item.Fields[key].Value;
+        switch (kind)
+        {
+            case FieldKind.ClassMask:
+                if (FieldEditors.ClassMask(this, long.TryParse(cur, out var m) ? m : 0) is { } nm) SetField(item, key, nm.ToString());
+                return true;
+            case FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef:
+            {
+                var src = PickSource(kind);
+                if (src.Count == 0) return false;
+                bool multi = System.Text.RegularExpressions.Regex.IsMatch(key, @"_\d+_");
+                var addons = _cfgs?.Addons;
+                var picked = FieldEditors.Pick(this, kind switch
+                    {
+                        FieldKind.AddonRef => "Escolher atributo (addon)", FieldKind.MonsterRef => "Escolher monstro",
+                        FieldKind.RecipeRef => "Escolher receita", _ => "Escolher item",
+                    }, src, cur, IconIndexFor, _treeIcons,
+                    it => kind == FieldKind.AddonRef ? addons?.Describe(it) ?? "" : _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "",
+                    kind == FieldKind.AddonRef && addons is not null ? it => addons.TypeCaption(it.Id) : it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null,
+                    multi);
+                if (picked is null || picked.Count == 0) return true;
+                // vários: preenche este campo e os próximos do mesmo padrão (addons_1_id, addons_2_id…)
+                var slots = new List<string> { key };
+                var mm = System.Text.RegularExpressions.Regex.Match(key, @"^(.*_)(\d+)(_.*)$");
+                if (picked.Count > 1 && mm.Success)
+                    for (int n = int.Parse(mm.Groups[2].Value) + 1; slots.Count < picked.Count; n++)
+                    {
+                        var k2 = mm.Groups[1].Value + n + mm.Groups[3].Value;
+                        if (!item.Fields.ContainsKey(k2)) break;
+                        slots.Add(k2);
+                    }
+                for (int i = 0; i < slots.Count && i < picked.Count; i++) SetField(item, slots[i], picked[i].Id, refresh: false);
+                FillGrid(item);
+                Status(picked.Count > slots.Count ? $"{slots.Count} de {picked.Count} escolhidos couberam nos campos disponíveis" : $"{picked.Count} valor(es) aplicado(s)");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Item> PickSource(FieldKind kind)
+    {
+        var lists = _store.Current?.Lists ?? new List<ItemList>();
+        IEnumerable<ItemList> src = kind switch
+        {
+            FieldKind.AddonRef => lists.Where(l => l.Name == "EQUIPMENT_ADDON"),
+            FieldKind.MonsterRef => lists.Where(l => l.Name == "MONSTER_ESSENCE"),
+            FieldKind.RecipeRef => lists.Where(l => l.Name == "RECIPE_ESSENCE"),
+            _ => lists.Where(l => l.Name.EndsWith("_ESSENCE") && l.Name is not ("MONSTER_ESSENCE" or "NPC_ESSENCE" or "RECIPE_ESSENCE") && !l.Name.StartsWith("NPC_")),
+        };
+        return src.SelectMany(l => l.Items).ToList();
+    }
+
+    private void SetField(Item item, string key, string value, bool refresh = true)
+    {
+        item.Fields[key] = Field.Of(item.Fields[key].Type, value);
+        if (key.Equals("Name", StringComparison.OrdinalIgnoreCase)) item.Name = value;
+        if (refresh) FillGrid(item);
+        _list.Invalidate();
+        Status($"'{FieldLabels.Label(key)}' = {value}");
     }
 
     // Descrição do jogo com as cores (^RRGGBB) — como aparece no tooltip do cliente.
@@ -878,6 +1073,7 @@ public sealed class EditorForm : Form
             default:
                 if (!FieldKinds.IsReference(kind) || _refs?.Resolve(kind, value) is not { } hit) return "";
                 var name = string.IsNullOrEmpty(hit.Item.Name) ? $"#{hit.Item.Id}" : hit.Item.Name;
+                if (kind == FieldKind.AddonRef && _cfgs?.Addons?.Describe(hit.Item) is { } eff) return $"→ {eff}   ({name})";
                 var prob = FieldKinds.ProbabilityFor(field, item.Fields);
                 var pct = prob is not null && float.TryParse(item.Fields[prob].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) && p > 0
                     ? $"  ·  {p * 100:0.###}%" : "";
@@ -900,6 +1096,12 @@ public sealed class EditorForm : Form
     }
 
     // Navega até um item de qualquer bloco (troca o seletor de bloco se precisar).
+    /// <summary>Diagnóstico (--snapshot): abre o item de um bloco pelo ID.</summary>
+    internal void GoToId(string block, string id)
+    {
+        if (_store.Current?.FindListByName(block)?.FindById(id) is { } it) GoToItem(it);
+    }
+
     private void GoToItem(Item it)
     {
         if (!_owner.TryGetValue(it, out var b)) return;
@@ -935,11 +1137,20 @@ public sealed class EditorForm : Form
         _ctx.Items.Add("Clonar item", null, (_, _) => CloneItem());
         _ctx.Items.Add("Excluir item", null, (_, _) => RemoveItem());
         _ctx.Items.Add(new ToolStripSeparator());
+        _ctx.Items.Add("Clonar selecionados", null, (_, _) => BulkClone());
+        _ctx.Items.Add("Excluir selecionados", null, (_, _) => BulkDelete());
+        _ctx.Items.Add("Alterar campo nos selecionados…", null, (_, _) => BulkChange());
+        _ctx.Items.Add("Copiar IDs selecionados", null, (_, _) => { var ids = SelectedItems().Select(i => i.Id); Clipboard.SetText(string.Join(Environment.NewLine, ids)); Status("IDs copiados"); });
+        _ctx.Items.Add("Selecionar todos (Ctrl+A)", null, (_, _) => SelectAllItems());
+        _ctx.Items.Add(new ToolStripSeparator());
         _miFav = new ToolStripMenuItem("Favoritar", null, (_, _) => ToggleFavorite());
         _ctx.Items.Add(_miFav);
         _ctx.Opening += (_, e) =>
         {
             bool isItem = _list.SelectedIndices.Count > 0 && _current is not null;
+            int nSel = _list.SelectedIndices.Count;
+            foreach (ToolStripItem i in _ctx.Items)
+                if (i.Text is { } t && t.EndsWith("selecionados") || i.Text?.StartsWith("Alterar campo") == true) i.Text = System.Text.RegularExpressions.Regex.Replace(i.Text!, @" \(\d+\)$", "") + (nSel > 1 ? $" ({nSel})" : "");
             foreach (ToolStripItem i in _ctx.Items) i.Enabled = isItem || i.Text == "Novo item";
             if (isItem && CurrentItemBlock is { } cb)
                 _miFav.Text = _favorites.Contains(FavKey(cb, _current!)) ? "Desfavoritar" : "Favoritar";

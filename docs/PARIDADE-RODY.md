@@ -18,8 +18,8 @@
 [ ] B alterar valores global (mesmo campo em muitos itens)
 
 ## 3. LISTA DE ITENS (menu de contexto)
-[x] adicionar | [x] clonar | [x] excluir | [x] favoritar | [x] ordenar por ID/nome (coluna)
-[ ] A selecao multipla (Ctrl/Shift/Ctrl+A) e acoes em lote (clonar/excluir/copiar/colar/alterar valor)
+[x] seletor de blocos agrupado por categoria | [x] adicionar | [x] clonar | [x] excluir | [x] favoritar | [x] ordenar por ID/nome (coluna)
+[~] A selecao multipla (Ctrl/Shift/Ctrl+A) + lote: [x] clonar (Ctrl+N) [x] excluir (Del) [x] alterar campo [x] copiar IDs [ ] copiar/colar itens
 [ ] B mover itens (cima/baixo/topo/fim) | [ ] B ordenar selecionados (ID/nome/valor, cresc/decr)
 [ ] A mudanca de ID avancada / refatorar ID (trocar em elements+tasks+gshop+npcgen) | [ ] B definir ID unico | [ ] B copiar IDs
 [ ] B adicionar ao GShop / procurar no GShop | [ ] A traduzir itens selecionados (Ctrl+T)
@@ -29,9 +29,9 @@
 
 ## 4. DETALHE DO ITEM
 [x] Valores com sub-abas (conjunto de campos) | [x] coluna de vinculo (nome/%/classes) | [x] Referencias/Vinculos (quem usa) | [x] Buscar | [x] Descricao e cor
-[ ] A editores por duplo clique: [ ] mascara de classes (checkbox) [ ] addons (lista c/ descricao, multi) [ ] item/monstro/receita (seletor c/ busca e icone) [ ] protecao de item (proc_type mask) [ ] imunidades (mask) [ ] cor [ ] bool [ ] enums
+[~] A editores por duplo clique: [x] mascara de classes (checkbox) [x] addons (lista c/ descricao e filtro por tipo, multi preenche slots seguintes) [x] item/monstro/receita (seletor c/ busca e icone) [ ] protecao de item (proc_type mask) [ ] imunidades (mask) [ ] cor [ ] bool [ ] enums
 [x] descricao de addon (texto como no jogo, §E3e) 
-[ ] A links clicaveis nos vinculos | [ ] A "dropado por" no item (monstros + chance, link)
+[x] A links clicaveis nos vinculos | [x] A "dropado por" no item (monstros + chance, link) | [x] efeito do addon no bloco de addons
 [ ] B alterar valor (Ctrl+E) / limpar campos / copiar-colar campos / pesquisar iguais / nao iguais / itens com este ID
 [ ] B definir tipo do campo / lista vinculada (custom pelo usuario)
 [ ] B preview de modelo 3D / de receita

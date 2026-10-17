@@ -23,6 +23,7 @@ public sealed class GameConfigs
 
     public Dictionary<int, int> ItemColors { get; } = new();
     public Dictionary<int, string> ItemDescs { get; } = new();
+    public AddonText? Addons { get; private set; }
 
     public static GameConfigs? Load(string configsPck)
     {
@@ -40,7 +41,8 @@ public sealed class GameConfigs
                 var m = Regex.Match(line, "^(\\d+)\\s+\"(.*)\"\\s*$");
                 if (m.Success) gc.ItemDescs[int.Parse(m.Groups[1].Value)] = m.Groups[2].Value;
             }
-        return gc.ItemColors.Count + gc.ItemDescs.Count > 0 ? gc : null;
+        gc.Addons = AddonText.Load(pck);
+        return gc.ItemColors.Count + gc.ItemDescs.Count > 0 || gc.Addons is not null ? gc : null;
     }
 
     static string Decode(byte[] b) =>

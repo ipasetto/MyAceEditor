@@ -82,7 +82,10 @@ public static class FieldKinds
     }
 
     // Classes na ordem dos bits (PW-KB §S24).
-    static readonly string[] Classes = { "Guerreiro", "Mago", "Espiritualista", "Bárbara", "Feiticeira", "Mercenário", "Arqueiro", "Sacerdote", "Arcano", "Místico", "Lâmina Sombria", "Tempestade" };
+    // bit i: BM=1 WIZ=2 PSY=4 VEN=8 BAR=16 AS=32 AR=64 CLE=128 SE=256 MY=512 (PW-KB §S24), nomes da versão BR
+    static readonly string[] Classes = { "Guerreiro", "Mago", "Espiritualista", "Feiticeira", "Bárbaro", "Mercenário", "Arqueiro", "Sacerdote", "Arcano", "Místico", "Lâmina Sombria", "Tempestade" };
+
+    public static string ClassName(int bit) => bit < Classes.Length ? Classes[bit] : $"Classe {bit + 1}";
 
     public static string ClassNames(string value)
     {
