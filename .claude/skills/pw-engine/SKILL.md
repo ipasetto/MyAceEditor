@@ -14,6 +14,8 @@ Caminhos relativos a raiz do repositorio MyAceEditor:
 | **ENGINE-KB** (engine) | `docs/kb/ENGINE-KB.md` | o que ja esta implementado, mapa capacidade -> arquivos -> §PW-KB, licoes, roadmap, abertos |
 | Arquitetura (humanos) | `docs/ARQUITETURA.md` | visao geral com diagramas; atualizar quando mudar camada/fluxo |
 
+**Comece por `docs/AFAZERES.md`** (mapa curto de etapas: o que esta feito, em andamento e falta). Atualize-o ao iniciar/concluir etapa.
+
 ## Como ler (economia de token — PW-KB tem ~35k tokens)
 1. Leia SO o indice (`## §0`) da KB, depois Grep a secao: `## §S17`, `## §E3` etc.
 2. Nunca leia a PW-KB inteira sem necessidade. ENGINE-KB e pequena, pode ler inteira.
