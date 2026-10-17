@@ -5,7 +5,7 @@ editores clássicos da comunidade (Rody's Angelica Editor / sELedit); os marcos 
 o editor numa **engine** completa do Perfect World.
 
 Legenda: ✅ pronto · 🚧 em andamento · ⬜ a fazer · 🟢 bom para começar · 🔴 difícil
-Detalhe função por função: [PARIDADE-RODY.md](PARIDADE-RODY.md). Ao pegar uma tarefa, abra uma *issue*.
+Cada tarefa tem uma **[issue no GitHub](https://github.com/ipasetto/MyAceEditor/issues)** (#1–#32) com contexto, por onde começar e critério de pronto — comente lá antes de começar. Boas para começar: [good first issue](https://github.com/ipasetto/MyAceEditor/labels/good%20first%20issue). Detalhe função por função: [PARIDADE-RODY.md](PARIDADE-RODY.md).
 
 ---
 
