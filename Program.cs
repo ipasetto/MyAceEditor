@@ -25,23 +25,42 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
         ApplicationConfiguration.Initialize();
-        if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null); return; }
         Application.Run(new EditorForm());
     }
 
-    // --snapshot <saida.png>: abre o editor fora da tela (com a última pasta), salva um print e sai.
-    private static void Snapshot(string outPng)
+    // --snapshot <saida.png> [aba]: abre o editor fora da tela (com a última pasta), salva um print e sai.
+    private static void Snapshot(string outPng, string? tab)
     {
         using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
         f.Show();
+        if (tab is not null && f.Controls.OfType<TabControl>().FirstOrDefault() is { } tc)
+            foreach (TabPage tp in tc.TabPages) if (tp.Text.StartsWith(tab, StringComparison.OrdinalIgnoreCase)) tc.SelectedTab = tp;
         var until = DateTime.Now.AddSeconds(12);
         while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
         bmp.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
+    }
+
+    // --tasks <tasks.data>: lista amostra de quests e prova a gravação de nomes (tasks-report.txt).
+    private static void TestTasks(string path)
+    {
+        var t = new TasksFile(path);
+        var sb = new StringBuilder($"versão {t.Version} · {t.Quests.Count:N0} quests principais\n");
+        foreach (var q in t.Quests.Take(6).Concat(t.Quests.TakeLast(2))) sb.AppendLine($"  {q.Id}  {q.Name}");
+        var original = File.ReadAllBytes(path);
+        sb.AppendLine($"sem mudanças: {(t.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICO" : "DIFERENTE")}");
+        var q0 = t.Quests[0]; var old = q0.Name; q0.Name = "^ffcc00Teste de Nome";
+        var edited = t.Build();
+        int diff = 0; for (int i = 0; i < edited.Length; i++) if (edited[i] != original[i]) diff++;
+        var again = new TasksFile(edited).Quests[0];
+        sb.AppendLine($"renomear {q0.Id}: {diff} bytes mudaram; releitura = \"{again.Name}\" {(again.Name == q0.Name ? "OK" : "FALHOU")} (antes: \"{old}\")");
+        File.WriteAllText("tasks-report.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --kinds <cfg>: classificação de cada campo (kinds.tsv: bloco, campo, tipo) para conferência.

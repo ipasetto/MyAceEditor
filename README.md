@@ -50,8 +50,11 @@ Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada.
 | `elements.data`: leitura | ✅ ~98,6% (falta a cauda de Guerra Territorial) |
 | `elements.data`: gravação | ✅ byte-idêntica, com backup automático |
 | `.pck`/`.pkx` nativo + ícones | ✅ |
-| GShop, AI Policy, Tasks, NPCGen | 🔜 formatos documentados na PW-KB |
-| Checagem de versão cliente × servidor, deploy de servidor | 🔜 |
+| Vínculos (drops com nome/%, quem usa o item) | ✅ |
+| Quests (`tasks.data`): listar, buscar, renomear | ✅ parcial (textos/diálogos/prêmios 🔜) |
+| GShop, AI Policy, NPCGen | 🔜 formatos documentados na PW-KB |
+| Verificação do par cliente × servidor | ✅ |
+| Deploy de servidor | 🔜 |
 
 Versão de referência testada: cliente/servidor Perfect World 1.4.4 (`elements.data` v60).
 

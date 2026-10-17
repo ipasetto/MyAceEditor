@@ -21,7 +21,7 @@ restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | i
 ## §E2 MAPA ENGINE x JOGO (capacidade -> arquivos/sistemas -> secao PWKB)
 capacidade | client | server | PWKB | status
 itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; ESCRITA PRONTA byte-identica [T] (§E3)
-quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | pendente; header/offsets conhecidos, corpo ATaskTempl [Q]
+quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | PARCIAL [T]: lista/busca/renomeia quests de topo (§E3c); corpo completo pendente
 IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | pendente; formato COMPLETO (mais pronto p/ implementar)
 loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
 spawns | - | npcgen.data | §S6 §S22 | pendente; formato v7-11 conhecido
@@ -56,6 +56,23 @@ ESCRITA (ElementsWriter.cs) [T]: cada Item guarda Raw (bytes originais do regist
  limites: string:N grava GBK (caracter fora do GBK vira ?), trunca deixando terminador; wstring:N UTF-16
  pendente: gravar o PAR client+server (numeracao de listas difere, PWKB§S3), atualizar timestamp? (§Q2), blocos com count 0 nao aparecem na UI (nao da p/ adicionar o 1o item)
 
+## §E3b TIPOS DE CAMPO + VINCULOS (FieldKinds.cs) [T]
+regras NOSSAS pelo nome do campo (nao copiadas): ItemRef AddonRef RecipeRef MonsterRef SkillRef TaskRef Probability ClassMask File Color Plain
+v60: ~3.600 campos classificados (ItemRef 831, TaskRef 1050, SkillRef 731, Probability 395, AddonRef 286, RecipeRef 136...); conferido c/ PW_types.csv do Rody: 0 conflitos nos 185 campos de mesmo nome [T]
+par referencia->probabilidade: ProbabilityFor (drop_matters_N_id -> drop_matters_N_probability; addons_N_id_addon -> addons_N_probability_addon)
+RefIndex: IDs essence (+monstros) / addon / recipe / monster; indice reverso UsedBy (quem usa o item) construido sob demanda
+UI: coluna Vinculo na grade (nome + bloco + %, classes por extenso; duplo clique navega) | aba Vinculos (quem usa) | tooltip c/ drops icone+nome+% (ex. monstro 986: 32 drops resolvidos) [T]
+pendente: SkillRef/TaskRef so dizem "habilidade"/"quest" (sem nomes ainda: skillstr.txt / tasks.data); id_strategy -> aipolicy; icones de monstro
+
+## §E3c tasks.data (TasksFile.cs) — PARCIAL [T]
+le header + offsets + ID/nome de cada quest de topo (nome XOR ID, PW-KB §S21); renomeia e grava: so os 60B do nome mudam, resto identico (backup + atomico) [T]
+aba Quests: lista virtual c/ cores ^RRGGBB, busca, editar nome (max 29 chars), salvar. Carrega o data/tasks.data junto do elements
+proximo: portar o esquema completo da v93 (bloco fixo + textos + 5 dialogos + subquests) estudando Rody V22 tasks/ATaskTemplFixedData.cs (~2000 linhas de leitura + AWARD_DATA ~1400) -> destrava editor completo e auto-tradutor
+
+## §E5b VERIFICACAO DO PAR (VersionCheck.cs) [T]
+aba Verificacao + --check <element> <home>: elements versao/data, copias de elements por mapa (gamed/config/aNN), tasks versao/nº, gshop×gshopsev e gshop1×gshopsev1 timestamp/nº, aipolicy, glinkd version (hex), isec/osec cruzadas (sem mostrar chaves)
+par real do usuario: cliente D:/Perfect World/Perfect World 144/element ; servidor D:/Perfect World/PW_ServerFiles_1.4.4v60/[andrey.pw]_PW_ServerFiles_1.4.4v60/server files/home -> ERRO loja (ts/itens diferentes); avisos: copias a29/a32/a33 antigas (v27/v12), gshopsev1 ausente
+
 ## §E4 .pck/.pkx (NATIVO, IMPLEMENTADO) [T]
 PckArchive.cs: le v2/v3 + .pkx logico, tabela XOR KEY_1, entradas zlib (ZLibStream), paths GBK. Chaves (uPCK PCKKey.cs): KEY_1=-1466731422 KEY_2=-240896429 ASIG_1=-33685778 ASIG_2=-267534609 FSIG_1=0x4DCA23EF FSIG_2=1453361591 (PWKB omite de proposito; a engine precisa) [C-uPCK][T]
 surfaces.pck do usuario: v2, 5147 entradas, 130MB [T]
@@ -63,7 +80,7 @@ icones de item: surfaces\iconset\iconlist_ivtrm.dds (masc) + iconlist_ivtrf.dds 
 file_icon do elements ("Surfaces\图标\通用物品\nome.dds") casa pelo NOME do arquivo no .txt [T]. Cobertura: 15568/17047 = 91,3% [T]; o resto NAO existe no pck (itens sem icone no proprio jogo) -> mostra unknown.dds (1a entrada do .txt), como o client [I]
 outros atlas: iconlist_skill _pet _guild _action _elf _faction _pq _calendar, emotions (mesmo formato [I])
 DdsDecoder.cs: DXT1/3/5 + RGB(A) 24/32bpp. IconAtlas.cs: carga 0,13-0,3s, recorte 32x32 sob demanda
-modos CLI: --pck <arquivo> [filtro] (lista em pck-list.txt) | --icons <elements.data> (cobertura em icons-report.txt + amostras PNG) | --snapshot <png> | --roundtrip <elements.data> (prova da gravacao em roundtrip-report.txt)
+modos CLI: --pck <arquivo> [filtro] | --icons <elements.data> | --snapshot <png> [aba] | --roundtrip <elements.data> | --check <element> <home> | --kinds <cfg> | --refs <elements.data> <bloco> <id> | --tasks <tasks.data>
 sPCK/pasta extraida: so alternativa (aba Pacotes .pck)
 
 ## §E5 VERSAO/EDITION (base da checagem de erros de versao)
@@ -77,6 +94,9 @@ Program.cs | entrypoint + modos
 UI/EditorForm.cs | UI principal (arvore, lista, grade, busca, menus, icones, tooltip, settings %AppData%/MyAceEditor)
 PerfectWorld/CfgElementsReader.cs | parser elements.data guiado por .cfg (blobs, TALK_PROC, Id/Name, Raw + layout)
 PerfectWorld/ElementsWriter.cs | gravacao byte-identica + ElementsLayout + salvar c/ backup atomico
+PerfectWorld/FieldKinds.cs | tipos de campo + RefIndex (vinculos)
+PerfectWorld/VersionCheck.cs | verificacao do par cliente x servidor
+PerfectWorld/TasksFile.cs | tasks.data parcial (ID/nome das quests de topo)
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
 PerfectWorld/FieldLabels.cs | rotulos PT + grupos (Basico Requisitos Ataque Defesa Durabilidade Economia Atributos/Addons Modelo/Arquivos Outros)
 PerfectWorld/PckArchive.cs | leitor nativo .pck/.pkx
@@ -95,7 +115,8 @@ layout = modelo do Rody's Angelica Editor (decisao do usuario; arvore em cascata
 esquerda (fundo preto): seletor de bloco "[NNN] Nome (qtd)" (1a opcao = ★ Favoritos; lembra o ultimo; padrao WEAPON_ESSENCE) | filtro tipo/subtipo (so blocos *_ESSENCE c/ id_major_type/id_sub_type) | busca nome/ID + caixa "todos os blocos" | ListView VIRTUAL owner-draw: ID | icone 24px + nome na cor de grade (★☆»«*) | clique na coluna ordena | rodape: Adicionar | ir para ID (Enter) | Excluir
 direita: cabecalho icone+nome+ID | grade de campos agrupados/rotulados (addons vazios ocultos) | edicao inline
 geral: tooltip estilo jogo no hover | menu de contexto clonar/novo/excluir/favoritar | novo item c/ proximo codigo | auto-recarrega ultima pasta | icones nativos do surfaces.pck | scrollbar escura (SetWindowTheme DarkMode_Explorer) | combos escuros owner-draw
-abas: Elements (pronta), GShop/Tasks/AI Policy (vazias), Pacotes .pck (alternativa sPCK)
+abas: Elements (pronta) | Quests (parcial §E3c) | GShop/AI Policy (vazias) | Verificacao (§E5b) | Pacotes .pck (alternativa sPCK)
+detalhe do item: abas Valores (grade c/ coluna Vinculo) | Vinculos (N) (§E3b)
 diagnostico: --snapshot <png> abre o editor fora da tela c/ a ultima pasta e salva print (verificacao visual sem abrir janela)
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
@@ -105,9 +126,9 @@ META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's A
  usuario afirma que o material do Rody foi liberado pela comunidade/autor (2026-10-17); mesmo assim: seguir modelos/UI/formatos (ok) e escrever codigo proprio.
  REGRA: consultar so o trecho do passo atual; NUNCA copiar codigo nem arquivos de dados dele p/ o repo (repo publico; parece pasta de trabalho privada de software licenciado). Escrever a nossa versao.
 1b aba GShop (formato completo PWKB§S19; exporta client+server) M | aba AI Policy (PWKB§S18) M | npcgen/spawns (PWKB§S22) M
-3 checagem version/edition client x server (§E5) B
 4 tasks.data / gshop / aipolicy (abas) M cada
 5 fechar cauda elements.data (§Q1) B-M
+5b tasks.data esquema completo (§E3c) A | nomes de skill (skillstr.txt) p/ SkillRef B
 6 renderizar janelas do jogo a partir de interfaces.pck XML (gshop/qshop primeiro) A
 7 deploy servidor (gerar conf, subir, validar portas/ordem PWKB§S4-S5) A
 8 inventario/personagem via gamedbd rpc (PWKB§S8-S10; blobs opacos) A

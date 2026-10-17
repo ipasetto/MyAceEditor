@@ -133,7 +133,10 @@ public sealed class EditorForm : Form
         var tEl = new TabPage("Elements") { BackColor = CBg };
         tEl.Controls.Add(BuildElements());
         tabs.TabPages.Add(tEl);
-        foreach (var (n, h) in new[] { ("GShop", "Editor de loja"), ("Tasks", "Editor de tarefas"), ("AI Policy", "Editor de IA") })
+        var tQ = new TabPage("Quests") { BackColor = CBg };
+        tQ.Controls.Add(BuildQuestView());
+        tabs.TabPages.Add(tQ);
+        foreach (var (n, h) in new[] { ("GShop", "Editor de loja"), ("AI Policy", "Editor de IA") })
         {
             var tp = new TabPage(n) { BackColor = CBg };
             tp.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted, Text = $"{h}\n(em breve)", Font = new Font("Segoe UI", 11) });
@@ -311,6 +314,7 @@ public sealed class EditorForm : Form
             _store.Adopt(module);
             _refs = new RefIndex(module);
             LoadAtlas(path);
+            LoadTasksNear(path);
             BuildTree();
             SaveLast(path);
             _dataPath = path;
@@ -948,6 +952,160 @@ public sealed class EditorForm : Form
     {
         _iconBox.Image?.Dispose(); _iconBox.Image = null;
         _iconBox.Image = IconFor(item);
+    }
+
+    // ---------- aba Quests (tasks.data) ----------
+    private TasksFile? _tasks;
+    private string? _tasksPath;
+    private List<QuestEntry> _qView = new();
+    private readonly ListView _qList = new() { Dock = DockStyle.Fill, View = View.Details, VirtualMode = true, FullRowSelect = true, HideSelection = false, MultiSelect = false, OwnerDraw = true, BorderStyle = BorderStyle.None };
+    private readonly TextBox _qSearch = new() { Dock = DockStyle.Top, PlaceholderText = "  Pesquisar quest por nome ou ID…", BorderStyle = BorderStyle.FixedSingle };
+    private readonly TextBox _qName = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 11) };
+    private readonly Label _qInfo = new() { Dock = DockStyle.Top, Height = 46, Font = new Font("Segoe UI Semibold", 13), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0) };
+    private readonly Label _qStatus = new() { Dock = DockStyle.Top, Height = 28, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0) };
+
+    private Control BuildQuestView()
+    {
+        var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, SplitterWidth = 6, BackColor = CLine, Panel1MinSize = 300 };
+        var left = new Panel { Dock = DockStyle.Fill, BackColor = CTreeBg, Padding = new Padding(8) };
+        _qSearch.BackColor = CTreeInput; _qSearch.ForeColor = CTreeFg; _qSearch.Font = new Font("Segoe UI", 10);
+        _qSearch.TextChanged += (_, _) => RefreshQuests();
+        _qList.BackColor = CTreeBg; _qList.ForeColor = CTreeFg; _qList.Font = new Font("Segoe UI", 10);
+        _qList.Columns.Add("ID", 70, HorizontalAlignment.Right);
+        _qList.Columns.Add("Quest", 300);
+        _qList.RetrieveVirtualItem += (_, e) =>
+        {
+            var q = _qView[e.ItemIndex];
+            e.Item = new ListViewItem(q.Id.ToString()) { Tag = q };
+            e.Item.SubItems.Add(q.Name);
+        };
+        _qList.DrawColumnHeader += OnDrawHeader;
+        _qList.DrawSubItem += (_, e) =>
+        {
+            if (e.Item?.Tag is not QuestEntry q) return;
+            bool sel = e.Item.Selected;
+            using (var bg = new SolidBrush(sel ? CListSel : (e.ItemIndex % 2 == 0 ? CTreeBg : CTreeAlt))) e.Graphics.FillRectangle(bg, e.Bounds);
+            var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
+            if (e.ColumnIndex == 0) { TextRenderer.DrawText(e.Graphics, q.Id.ToString(), _qList.Font, Rectangle.Inflate(e.Bounds, -6, 0), sel ? Color.White : CListId, flags | TextFormatFlags.Right); return; }
+            var (text, col) = TasksFile.SplitColor(q.Name);
+            var fg = sel ? Color.White : q.Changed ? GGold : col is { } c && c.GetBrightness() > 0.25f ? c : CTreeFg;
+            TextRenderer.DrawText(e.Graphics, (q.Changed ? "● " : "") + (text.Length == 0 ? "(sem nome)" : text), _qList.Font, Rectangle.Inflate(e.Bounds, -6, 0), fg, flags);
+        };
+        _qList.Resize += (_, _) => _qList.Columns[1].Width = Math.Max(120, _qList.ClientSize.Width - _qList.Columns[0].Width - 1);
+        _qList.HandleCreated += (_, _) => SetWindowTheme(_qList.Handle, "DarkMode_Explorer", null);
+        _qList.SelectedIndexChanged += (_, _) => ShowQuest();
+        var host = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0), BackColor = CTreeBg };
+        host.Controls.Add(_qList);
+        left.Controls.Add(host);
+        left.Controls.Add(_qSearch);
+        split.Panel1.Controls.Add(left);
+
+        var right = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
+        _qInfo.BackColor = CSurface2; _qInfo.ForeColor = CFg;
+        _qStatus.ForeColor = CMuted; _qStatus.BackColor = CSurface;
+        var editRow = new TableLayoutPanel { Dock = DockStyle.Top, Height = 44, ColumnCount = 3, Padding = new Padding(10, 6, 10, 6), BackColor = CSurface };
+        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+        var apply = new Button { Text = "Aplicar nome", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
+        apply.Click += (_, _) => ApplyQuestName();
+        _qName.MaxLength = TasksFile.MaxNameLength;
+        _qName.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; ApplyQuestName(); } };
+        editRow.Controls.Add(new Label { Text = "Nome", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CMuted }, 0, 0);
+        editRow.Controls.Add(_qName, 1, 0);
+        editRow.Controls.Add(apply, 2, 0);
+        var tools = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 4, 10, 4), BackColor = CSurface };
+        Button T(string t, Action a) { var b = new Button { Text = t, AutoSize = true, Height = 30, FlatStyle = FlatStyle.Flat, BackColor = CSurface2, ForeColor = CFg }; b.Click += (_, _) => a(); return b; }
+        tools.Controls.Add(T("Abrir tasks.data…", OpenTasksDialog));
+        tools.Controls.Add(T("💾 Salvar tasks.data", SaveTasks));
+        var note = new Label
+        {
+            Dock = DockStyle.Fill, ForeColor = CMuted, Padding = new Padding(14, 10, 14, 0),
+            Text = "O nome aceita o código de cor do jogo no início (ex.: ^ffcc00Nome). Máximo de 29 caracteres.\n\n" +
+                   "Nesta fase dá para listar, buscar e renomear as quests principais. Textos, diálogos, subquests, requisitos e prêmios " +
+                   "entram quando o esquema completo do tasks.data for implementado. O restante do arquivo é preservado byte a byte ao salvar."
+        };
+        right.Controls.Add(note);
+        right.Controls.Add(tools);
+        right.Controls.Add(editRow);
+        right.Controls.Add(_qStatus);
+        right.Controls.Add(_qInfo);
+        split.Panel2.Controls.Add(right);
+        split.SizeChanged += (_, _) => { if (split.Width > 700 && split.SplitterDistance != 430 && split.Tag is null) { split.SplitterDistance = 430; split.Tag = true; } };
+        return split;
+    }
+
+    // tasks.data ao lado do elements.data (data\tasks.data)
+    private void LoadTasksNear(string elementsPath)
+    {
+        var p = Path.Combine(Path.GetDirectoryName(elementsPath) ?? "", "tasks.data");
+        if (File.Exists(p) && p != _tasksPath) LoadTasks(p);
+    }
+
+    private void OpenTasksDialog()
+    {
+        using var dlg = new OpenFileDialog { Filter = "tasks.data (*.data)|*.data|Todos (*.*)|*.*" };
+        if (dlg.ShowDialog(this) == DialogResult.OK) LoadTasks(dlg.FileName);
+    }
+
+    private void LoadTasks(string path)
+    {
+        try
+        {
+            _tasks = new TasksFile(path);
+            _tasksPath = path;
+            RefreshQuests();
+            _qStatus.Text = $"{Path.GetFileName(path)} · versão {_tasks.Version} · {_tasks.Quests.Count:N0} quests principais";
+        }
+        catch (Exception ex) { _tasks = null; _qStatus.Text = "Falha ao ler tasks.data: " + ex.Message; }
+    }
+
+    private void RefreshQuests()
+    {
+        if (_tasks is null) return;
+        string q = _qSearch.Text.Trim();
+        _qView = (q.Length == 0 ? _tasks.Quests : _tasks.Quests.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Id.ToString().Contains(q)))
+            .OrderBy(x => x.Id).ToList();
+        _qList.Columns[1].Text = $"Quest ({_qView.Count:N0} de {_tasks.Quests.Count:N0})";
+        _qList.VirtualListSize = _qView.Count;
+        _qList.Invalidate();
+    }
+
+    private QuestEntry? CurrentQuest => _qList.SelectedIndices.Count > 0 ? _qView[_qList.SelectedIndices[0]] : null;
+
+    private void ShowQuest()
+    {
+        if (CurrentQuest is not { } q) return;
+        var (text, col) = TasksFile.SplitColor(q.Name);
+        _qInfo.Text = $"{(text.Length == 0 ? "(sem nome)" : text)}     (ID {q.Id})";
+        _qInfo.ForeColor = col is { } c && c.GetBrightness() < 0.85f ? c : CFg;
+        _qName.Text = q.Name;
+    }
+
+    private void ApplyQuestName()
+    {
+        if (CurrentQuest is not { } q) return;
+        q.Name = _qName.Text;
+        _qList.Invalidate();
+        ShowQuest();
+        int n = _tasks!.Quests.Count(x => x.Changed);
+        _qStatus.Text = $"{n} quest(s) alterada(s) — clique em Salvar tasks.data para gravar.";
+    }
+
+    private void SaveTasks()
+    {
+        if (_tasks is null || _tasksPath is null) { _qStatus.Text = "Abra um tasks.data primeiro."; return; }
+        int n = _tasks.Quests.Count(x => x.Changed);
+        if (n == 0) { _qStatus.Text = "Nada alterado."; return; }
+        if (MessageBox.Show($"Gravar {n} nome(s) de quest em:\n{_tasksPath}\n\nUma cópia de segurança será criada ao lado.\nLembre: o servidor precisa do MESMO tasks.data (aba Verificação).",
+                "Salvar tasks.data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        try
+        {
+            var backup = _tasks.Save(_tasksPath);
+            LoadTasks(_tasksPath);
+            _qStatus.Text = $"Salvo · backup: {Path.GetFileName(backup)}";
+        }
+        catch (Exception ex) { Error("Falha ao salvar tasks.data", ex); }
     }
 
     // ---------- aba Verificação (par cliente × servidor) ----------
