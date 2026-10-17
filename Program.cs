@@ -24,6 +24,8 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
+        if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
+        if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
         ApplicationConfiguration.Initialize();
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1]); return; }
@@ -40,6 +42,44 @@ internal static class Program
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
         bmp.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
+    }
+
+    // --kinds <cfg>: classificação de cada campo (kinds.tsv: bloco, campo, tipo) para conferência.
+    private static void DumpKinds(string cfgPath)
+    {
+        var sb = new StringBuilder();
+        foreach (var b in ElementsCfg.Load(cfgPath).Blocks)
+            foreach (var f in b.Fields)
+                sb.AppendLine($"{b.Name}	{f.Name}	{FieldKinds.Of(f.Name)}");
+        File.WriteAllText("kinds.tsv", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --refs <elements.data> <bloco> <id>: vínculos resolvidos de um item + quem usa o 1o item referenciado (refs.txt).
+    private static void DumpRefs(string dataPath, string block, string id)
+    {
+        var r = new CfgElementsReader(dataPath);
+        var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{r.Version & 0xFF}.cfg")[0];
+        var module = r.Parse(ElementsCfg.Load(cfg));
+        var refs = new RefIndex(module);
+        var item = module.FindListByName(block)!.FindById(id)!;
+        var sb = new StringBuilder($"{block} {id} {item.Name}\n");
+        string? firstRef = null;
+        foreach (var (k, f) in item.Fields)
+        {
+            var kind = FieldKinds.Of(k);
+            if (kind == FieldKind.Plain || f.Value is "0" or "" or "-1") continue;
+            var hit = refs.Resolve(kind, f.Value);
+            var prob = FieldKinds.ProbabilityFor(k, item.Fields);
+            sb.AppendLine($"  {k} [{kind}] = {f.Value}" + (hit is { } h ? $" -> {h.Item.Name} ({h.Block.Name})" : "") + (prob is null ? "" : $" | {prob}={item.Fields[prob].Value}"));
+            if (hit is not null && kind == FieldKind.ItemRef) firstRef ??= f.Value;
+        }
+        if (firstRef is not null)
+        {
+            var used = refs.UsedBy(firstRef);
+            sb.AppendLine($"quem usa {firstRef}: {used.Count}");
+            foreach (var u in used.Take(8)) sb.AppendLine($"  {u.Block.Name} {u.Item.Id} {u.Item.Name} · {u.Field} · {u.Probability}");
+        }
+        File.WriteAllText("refs.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --check <pasta element do cliente> <pasta home do servidor>: compara o par (check-report.txt).

@@ -26,6 +26,7 @@ public sealed class EditorForm : Form
     private readonly ToolStripStatusLabel _status = new("Abra a pasta do Perfect World para começar.");
     private readonly ToolTip _tip = new() { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 100 };
     private string[] _tipLines = Array.Empty<string>();
+    private readonly List<(Image? Icon, string Text, string Pct)> _tipDrops = new();
     private readonly PictureBox _iconBox = new() { Dock = DockStyle.Left, Width = 44, SizeMode = PictureBoxSizeMode.Zoom, Padding = new Padding(6) };
     private readonly ImageList _treeIcons = new() { ImageSize = new Size(24, 24), ColorDepth = ColorDepth.Depth32Bit };
     private readonly Dictionary<string, int> _iconIdx = new();
@@ -33,6 +34,10 @@ public sealed class EditorForm : Form
     private IconAtlas? _atlas;
     private string? _atlasPck;
     private string? _dataPath;
+    private RefIndex? _refs;
+    private readonly ListView _links = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None, HideSelection = false };
+    private readonly TabControl _detailTabs = new() { Dock = DockStyle.Fill };
+    private TabPage _tabLinks = null!;
     private readonly ContextMenuStrip _ctx = new();
     private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
@@ -218,7 +223,18 @@ public sealed class EditorForm : Form
         headPanel.Controls.Add(_header);
         headPanel.Controls.Add(_iconBox);
         StyleGrid();
-        right.Controls.Add(_grid);
+        var tVal = new TabPage("Valores") { BackColor = CSurface };
+        tVal.Controls.Add(_grid);
+        _tabLinks = new TabPage("Vínculos") { BackColor = CSurface };
+        _links.Columns.Add("Bloco", 170); _links.Columns.Add("ID", 70, HorizontalAlignment.Right);
+        _links.Columns.Add("Nome", 280); _links.Columns.Add("Campo", 220); _links.Columns.Add("%", 70, HorizontalAlignment.Right);
+        _links.BackColor = CSurface; _links.ForeColor = CFg; _links.SmallImageList = _treeIcons;
+        _links.DoubleClick += (_, _) => { if (_links.SelectedItems.Count > 0 && _links.SelectedItems[0].Tag is Item it) GoToItem(it); };
+        _tabLinks.Controls.Add(_links);
+        _detailTabs.TabPages.Add(tVal);
+        _detailTabs.TabPages.Add(_tabLinks);
+        _detailTabs.SelectedIndexChanged += (_, _) => { if (_detailTabs.SelectedTab == _tabLinks && _current is not null) FillLinks(_current); };
+        right.Controls.Add(_detailTabs);
         right.Controls.Add(headPanel);
         _split.Panel2.Controls.Add(right);
         return _split;
@@ -235,10 +251,18 @@ public sealed class EditorForm : Form
         _grid.DefaultCellStyle.Padding = new Padding(4, 2, 4, 2);
         _grid.GridColor = Color.FromArgb(226, 231, 238);
         _grid.RowTemplate.Height = 26;
-        _grid.ColumnCount = 2;
+        _grid.ColumnCount = 3;
         _grid.Columns[0].Name = "Campo"; _grid.Columns[0].ReadOnly = true; _grid.Columns[0].Width = 230;
         _grid.Columns[0].DefaultCellStyle.ForeColor = CMuted;
-        _grid.Columns[1].Name = "Valor"; _grid.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _grid.Columns[1].Name = "Valor"; _grid.Columns[1].Width = 260;
+        _grid.Columns[2].Name = "Vínculo"; _grid.Columns[2].ReadOnly = true; _grid.Columns[2].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _grid.Columns[2].DefaultCellStyle.ForeColor = CAccent;
+        _grid.CellDoubleClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex != 2 || _current is null || _grid.Rows[e.RowIndex].Tag is not string k) return;
+            var kind = FieldKinds.Of(k);
+            if (_refs?.Resolve(kind, _current.Fields[k].Value) is { } hit) GoToItem(hit.Item);
+        };
         _grid.Columns[1].DefaultCellStyle.Font = new Font("Segoe UI Semibold", 9.5f);
         _grid.CellEndEdit += (_, e) => OnFieldEdited(e.RowIndex);
     }
@@ -285,6 +309,7 @@ public sealed class EditorForm : Form
             var module = reader.Parse(ElementsCfg.Load(cfg));
             module.Name = Path.GetFileName(path);
             _store.Adopt(module);
+            _refs = new RefIndex(module);
             LoadAtlas(path);
             BuildTree();
             SaveLast(path);
@@ -633,6 +658,9 @@ public sealed class EditorForm : Form
         _header.Text = string.IsNullOrEmpty(item.Name) ? $"#{item.Id}" : $"{item.Name}     (ID {item.Id})";
         _header.ForeColor = Color.FromArgb(30, 39, 51);
         LoadItemIcon(item);
+        var uses = _refs?.UsedBy(item.Id).Count ?? 0;
+        _tabLinks.Text = uses > 0 ? $"Vínculos ({uses})" : "Vínculos";
+        if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
         _grid.Rows.Clear();
         var groups = item.Fields.GroupBy(f => FieldLabels.Group(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
         foreach (var gname in FieldLabels.GroupOrder)
@@ -646,13 +674,63 @@ public sealed class EditorForm : Form
             hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             foreach (var (k, f) in vis)
             {
-                int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value);
+                int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, Describe(item, k, f.Value));
                 _grid.Rows[r].Tag = k;
             }
         }
     }
 
     private static bool IsEmpty(string v) => v is "0" or "" or "0.0" or "-1";
+
+    // Texto da coluna "Vínculo": nome do item/addon/receita apontado, % e classes por extenso.
+    private string Describe(Item item, string field, string value)
+    {
+        var kind = FieldKinds.Of(field);
+        switch (kind)
+        {
+            case FieldKind.Probability:
+                return float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pr) && pr > 0 && pr <= 1
+                    ? $"{pr * 100:0.###}%" : "";
+            case FieldKind.ClassMask: return FieldKinds.ClassNames(value);
+            case FieldKind.SkillRef: return IsEmpty(value) ? "" : "habilidade";
+            case FieldKind.TaskRef: return IsEmpty(value) ? "" : "quest";
+            default:
+                if (!FieldKinds.IsReference(kind) || _refs?.Resolve(kind, value) is not { } hit) return "";
+                var name = string.IsNullOrEmpty(hit.Item.Name) ? $"#{hit.Item.Id}" : hit.Item.Name;
+                var prob = FieldKinds.ProbabilityFor(field, item.Fields);
+                var pct = prob is not null && float.TryParse(item.Fields[prob].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) && p > 0
+                    ? $"  ·  {p * 100:0.###}%" : "";
+                return $"→ {name}  [{Pretty(hit.Block.Name)}]{pct}";
+        }
+    }
+
+    // Aba Vínculos: quem referencia o item atual (drops, receitas, loja, addons…).
+    private void FillLinks(Item item)
+    {
+        _links.BeginUpdate();
+        _links.Items.Clear();
+        foreach (var r in _refs?.UsedBy(item.Id) ?? Array.Empty<RefIndex.Ref>())
+        {
+            string pct = r.Probability is not null && float.TryParse(r.Probability, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) && p > 0 ? $"{p * 100:0.###}%" : "";
+            var li = new ListViewItem(new[] { Pretty(r.Block.Name), r.Item.Id, r.Item.Name, FieldLabels.Label(r.Field), pct }, IconIndexFor(r.Item)) { Tag = r.Item };
+            _links.Items.Add(li);
+        }
+        _links.EndUpdate();
+    }
+
+    // Navega até um item de qualquer bloco (troca o seletor de bloco se precisar).
+    private void GoToItem(Item it)
+    {
+        if (!_owner.TryGetValue(it, out var b)) return;
+        if (_curBlock != b)
+            foreach (var o in _blockCombo.Items)
+                if (o is BlockEntry be && be.Block == b) { _search.Text = ""; _blockCombo.SelectedItem = be; break; }
+        if (_typeCombo.Visible && _typeCombo.SelectedIndex > 0) _typeCombo.SelectedIndex = 0;
+        _current = it;
+        SelectItem(it);
+        ShowItem(it);
+        _detailTabs.SelectedIndex = 0;
+    }
 
     private void OnFieldEdited(int row)
     {
@@ -704,6 +782,7 @@ public sealed class EditorForm : Form
     {
         block.Items.Add(ni);
         _owner[ni] = block;
+        if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         _current = ni;
         RefreshView();
         SelectItem(ni);
@@ -750,6 +829,7 @@ public sealed class EditorForm : Form
             MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         _favorites.Remove(FavKey(block, _current)); SaveFavorites();
         block.Items.Remove(_current); _owner.Remove(_current);
+        if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         _current = null;
         RefreshView();
         Status("Item removido");
@@ -794,7 +874,8 @@ public sealed class EditorForm : Form
         using var f = new Font("Segoe UI", 9);
         int w = 120;
         foreach (var l in _tipLines) w = Math.Max(w, TextRenderer.MeasureText(l, f).Width);
-        e.ToolTipSize = new Size(w + 22, _tipLines.Length * 18 + 16);
+        foreach (var d in _tipDrops) w = Math.Max(w, TextRenderer.MeasureText($"Item: {d.Text}  {d.Pct}", f).Width + 22);
+        e.ToolTipSize = new Size(w + 22, _tipLines.Length * 18 + (_tipDrops.Count > 0 ? _tipDrops.Count * 20 + 8 : 0) + 16);
     }
 
     private void DrawTip(object? s, DrawToolTipEventArgs e)
@@ -810,20 +891,47 @@ public sealed class EditorForm : Form
             TextRenderer.DrawText(e.Graphics, _tipLines[i], i == 0 ? fName : f, new Point(10, y), col);
             y += 18;
         }
+        if (_tipDrops.Count > 0) y += 6;
+        foreach (var d in _tipDrops)
+        {
+            TextRenderer.DrawText(e.Graphics, "Item:", f, new Point(10, y + 1), Color.FromArgb(206, 211, 219));
+            int x = 50;
+            if (d.Icon is not null) e.Graphics.DrawImage(d.Icon, x, y, 18, 18);
+            x += 22;
+            var sz = TextRenderer.MeasureText(d.Text, f);
+            TextRenderer.DrawText(e.Graphics, d.Text, f, new Point(x, y + 1), GradeColor(d.Text));
+            TextRenderer.DrawText(e.Graphics, d.Pct, f, new Point(x + sz.Width + 4, y + 1), Color.FromArgb(232, 182, 78));
+            y += 20;
+        }
     }
 
     private static readonly string[] TipGroups = { "Básico", "Requisitos", "Ataque", "Defesa", "Durabilidade", "Economia" };
-    private static string[] BuildTipLines(Item it)
+    private string[] BuildTipLines(Item it)
     {
         var lines = new List<string> { string.IsNullOrEmpty(it.Name) ? $"#{it.Id}" : it.Name, $"ID: {it.Id}" };
         foreach (var g in TipGroups)
             foreach (var (k, f) in it.Fields)
             {
+                if (lines.Count >= 16) break;
                 if (FieldLabels.Group(k) != g) continue;
-                if (k is "ID" or "Name" || k.StartsWith("id_") || IsEmpty(f.Value)) continue;
+                if (k is "ID" or "Name" || k.StartsWith("id_") || IsEmpty(f.Value) || FieldKinds.Of(k) != FieldKind.Plain) continue;
                 lines.Add($"{FieldLabels.Label(k)}: {f.Value}");
-                if (lines.Count >= 20) return lines.ToArray();
             }
+        if (FieldKinds.ClassNames(it.Fields.GetValueOrDefault("character_combo_id")?.Value ?? "") is { Length: > 0 } cls)
+            lines.Add($"Classes: {cls}");
+
+        // drops/itens referenciados com probabilidade (como o tooltip do Rody)
+        _tipDrops.Clear();
+        foreach (var (k, f) in it.Fields)
+        {
+            if (_tipDrops.Count >= 10) break;
+            if (FieldKinds.Of(k) != FieldKind.ItemRef || IsEmpty(f.Value)) continue;
+            var prob = FieldKinds.ProbabilityFor(k, it.Fields);
+            if (prob is null || _refs?.Resolve(FieldKind.ItemRef, f.Value) is not { } hit) continue;
+            if (!float.TryParse(it.Fields[prob].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) || p <= 0) continue;
+            var ico = IconIndexFor(hit.Item);
+            _tipDrops.Add((ico >= 0 ? _treeIcons.Images[ico] : null, hit.Item.Name, $"{p * 100:0.##}%"));
+        }
         return lines.ToArray();
     }
 
