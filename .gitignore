@@ -7,3 +7,25 @@ dist/
 # Logs
 *.log
 srv.log
+
+# Saídas dos modos de diagnóstico (--inspect, --pck, --icons, --tasks…)
+*-report.txt
+pck-list.txt
+kinds.tsv
+refs.txt
+testcfg.txt
+icon_*.png
+inspect-report.txt
+
+# Backups e temporários gerados ao salvar
+*.bak
+*.tmp
+
+# Arquivos do jogo nunca vão para o repositório (são da Perfect World Co.)
+*.pck
+*.pkx
+elements.data
+tasks.data
+gshop*.data
+aipolicy.data
+npcgen.data

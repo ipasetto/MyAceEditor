@@ -1,5 +1,6 @@
 # AFAZERES — mapa de etapas (ler 1o; curto de proposito)
 # legenda: [x] feito [~] parcial [ ] falta [>] em andamento | detalhes: docs/kb/ENGINE-KB.md (§Exx)
+# PUBLICO (GPL-3.0): roadmap p/ comunidade em docs/ROADMAP.md (manter em sincronia c/ este arquivo); guia em CONTRIBUTING.md
 # PARIDADE: checklist completo das funcoes do Rody em docs/PARIDADE-RODY.md (ver antes de escolher a proxima tarefa)
 # META: app fazer 100% do Rody's Angelica Editor, codigo nosso, interface parecida (§E8)
 
@@ -36,7 +37,7 @@
 [ ] deploy de servidor | editor de mapa (PW-KB §S22) | skills
 
 ## ESTADO GIT
-repo github.com/ipasetto/MyAceEditor, branch main. Usuario faz "Push origin" (force push bloqueado p/ mim).
+repo PUBLICO github.com/ipasetto/MyAceEditor (GPL-3.0), branch main. Usuario faz "Push origin" (force push bloqueado p/ mim).
 
 ## REGRAS RAPIDAS
 recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round-trip antes de editar formato | editar o PAR cliente+servidor | codigo nosso (Rody = referencia de estudo) | atualizar este arquivo ao concluir/iniciar etapa

@@ -1,8 +1,0 @@
-cfg blocos: 150  ·  listas com dados: 95  ·  itens: 40485
-pos 33396900/33859144  (98.63%)  parou: NPC_WAR_TOWERBUILD_SERVICE (ultrapassa)
-  001 EQUIPMENT_ADDON: 2580 itens | ex id=216 "A_A11" [ID=216, Name=A_A11, num_params=2, param1=100]
-  002 WEAPON_MAJOR_TYPE: 9 itens | ex id=1 "Espada" [ID=1, Name=Espada]
-  003 WEAPON_SUB_TYPE: 30 itens | ex id=2 "Lâmina" [ID=2, Name=Lâmina, file_hitgfx=GFX\³ÌÐòÁªÈë\»÷ÖÐ\µ¶½£»÷ÖÐ.gfx, file_hitsfx=SFX\Item\WeaponHit\ToFlesh.wav]
-  004 WEAPON_ESSENCE: 2180 itens | ex id=6 "☆Lâmina com Ponta de Aço" [ID=6, id_major_type=1, id_sub_type=2, Name=☆Lâmina com Ponta de Aço]
-  005 ARMOR_MAJOR_TYPE: 7 itens | ex id=125 "Corpo" [ID=125, Name=Corpo]
-  006 ARMOR_SUB_TYPE: 17 itens | ex id=127 "Armadura Pesada" [ID=127, Name=Armadura Pesada, equip_mask=16]
