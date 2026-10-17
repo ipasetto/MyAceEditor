@@ -21,7 +21,7 @@ restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | i
 ## §E2 MAPA ENGINE x JOGO (capacidade -> arquivos/sistemas -> secao PWKB)
 capacidade | client | server | PWKB | status
 itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; ESCRITA PRONTA byte-identica [T] (§E3)
-quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | PARCIAL [T]: lista/busca/renomeia quests de topo (§E3c); corpo completo pendente
+quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | v93 COMPLETO [T] (§E3c): campos, textos, dialogos, subquests; premios preservados
 IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | pendente; formato COMPLETO (mais pronto p/ implementar)
 loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
 spawns | - | npcgen.data | §S6 §S22 | pendente; formato v7-11 conhecido
@@ -64,10 +64,19 @@ RefIndex: IDs essence (+monstros) / addon / recipe / monster; indice reverso Use
 UI: coluna Vinculo na grade (nome + bloco + %, classes por extenso; duplo clique navega) | aba Vinculos (quem usa) | tooltip c/ drops icone+nome+% (ex. monstro 986: 32 drops resolvidos) [T]
 pendente: SkillRef/TaskRef so dizem "habilidade"/"quest" (sem nomes ainda: skillstr.txt / tasks.data); id_strategy -> aipolicy; icones de monstro
 
-## §E3c tasks.data (TasksFile.cs) — PARCIAL [T]
-le header + offsets + ID/nome de cada quest de topo (nome XOR ID, PW-KB §S21); renomeia e grava: so os 60B do nome mudam, resto identico (backup + atomico) [T]
-aba Quests: lista virtual c/ cores ^RRGGBB, busca, editar nome (max 29 chars), salvar. Carrega o data/tasks.data junto do elements
-proximo: portar o esquema completo da v93 (bloco fixo + textos + 5 dialogos + subquests) estudando Rody V22 tasks/ATaskTemplFixedData.cs (~2000 linhas de leitura + AWARD_DATA ~1400) -> destrava editor completo e auto-tradutor
+## §E3c tasks.data (TasksFile.cs + TaskSchema.cs) — v93 COMPLETO [T]
+esquema v93 escrito a partir do estudo do Rody V22 (reducao automatica dos ifs de versao: scratch v93_reduce.py; codigo nosso, declarativo)
+quest = 58 fases do bloco fixo (238 campos rotulados PT, editaveis no lugar) + arrays variaveis (horarios, chaves, expr PQ, contrib, regioes, itens pedidos/dados, membros, monstros/itens a obter, expressoes, textos de quest, locais) + premios AWARD_DATA (sucesso, falha, 2× por razao [5 escalas], 2× por itens [5 escalas]) + 4 pwstr (descricao/ok/no/tributo) + 5 talk_proc (id, texto 64ch, janelas{id,pai,texto,opcoes{param,texto 64ch,id}}) + i32 nSub + subquests
+textos: UTF-16 XOR (ushort)ID (nome, pwstr, dialogos, opcoes). pwstr vazio = len 0; terminador \0 so se o original tinha (NullFlags); textos fixos de 64ch carregam lixo apos o \0 -> guardar Raw e reusar se nao mudou [T]
+prova (--tasks): 9.298 topo / 21.777 total; cada quest termina no offset da proxima; textos recodificados identicos 21.777/21.777; regravar = IDENTICO; editar descricao OK [T]
+gravacao: reconstroi tabela de offsets; bloco fixo + textos originais (se nao mudaram) + filhos
+UI aba Quests: arvore (subquests ao expandir, cores ^RRGGBB), Dados (grade agrupada, nomes de item/monstro/quest), Textos, Dialogos (arvore janelas/opcoes editavel), Salvar c/ backup
+pendente: editar premios/listas (hoje preservados), criar/clonar quest, outras versoes (so nomes)
+
+## §E3d CONFIGS DO CLIENTE (GameConfigs.cs) [T]
+configs.pck: item_color.txt (5.444; "ID<TAB>idx") + tabela oficial l_aNameCols (source_client EC_Game.cpp): 0 branco 1 azul-claro 8080ff 2 amarelo ffdc50 3 roxo aa32ff 4 dourado-escuro ff6000 5 branco 6 cinza b0b0b0 7 verde-agua 00ffae 8 vermelho [C][T]
+item_ext_desc.txt (9.681; UTF-16, "ID<TAB>\"texto\"", ^RRGGBB, \r literal = quebra) -> aba "Descricao e cor" [T]
+equipamentos geralmente sem entrada (descricao gerada pelos atributos no jogo)
 
 ## §E5b VERIFICACAO DO PAR (VersionCheck.cs) [T]
 aba Verificacao + --check <element> <home>: elements versao/data, copias de elements por mapa (gamed/config/aNN), tasks versao/nº, gshop×gshopsev e gshop1×gshopsev1 timestamp/nº, aipolicy, glinkd version (hex), isec/osec cruzadas (sem mostrar chaves)
@@ -80,7 +89,7 @@ icones de item: surfaces\iconset\iconlist_ivtrm.dds (masc) + iconlist_ivtrf.dds 
 file_icon do elements ("Surfaces\图标\通用物品\nome.dds") casa pelo NOME do arquivo no .txt [T]. Cobertura: 15568/17047 = 91,3% [T]; o resto NAO existe no pck (itens sem icone no proprio jogo) -> mostra unknown.dds (1a entrada do .txt), como o client [I]
 outros atlas: iconlist_skill _pet _guild _action _elf _faction _pq _calendar, emotions (mesmo formato [I])
 DdsDecoder.cs: DXT1/3/5 + RGB(A) 24/32bpp. IconAtlas.cs: carga 0,13-0,3s, recorte 32x32 sob demanda
-modos CLI: --pck <arquivo> [filtro] | --icons <elements.data> | --snapshot <png> [aba] | --roundtrip <elements.data> | --check <element> <home> | --kinds <cfg> | --refs <elements.data> <bloco> <id> | --tasks <tasks.data>
+modos CLI: --pck <arquivo> [filtro] | --icons <elements.data> | --snapshot <png> [aba] | --roundtrip <elements.data> | --check <element> <home> | --kinds <cfg> | --refs <elements.data> <bloco> <id> | --tasks <tasks.data> | --configs <configs.pck> [id]
 sPCK/pasta extraida: so alternativa (aba Pacotes .pck)
 
 ## §E5 VERSAO/EDITION (base da checagem de erros de versao)
@@ -96,7 +105,9 @@ PerfectWorld/CfgElementsReader.cs | parser elements.data guiado por .cfg (blobs,
 PerfectWorld/ElementsWriter.cs | gravacao byte-identica + ElementsLayout + salvar c/ backup atomico
 PerfectWorld/FieldKinds.cs | tipos de campo + RefIndex (vinculos)
 PerfectWorld/VersionCheck.cs | verificacao do par cliente x servidor
-PerfectWorld/TasksFile.cs | tasks.data parcial (ID/nome das quests de topo)
+PerfectWorld/TasksFile.cs | tasks.data (arvore, gravacao c/ tabela de offsets)
+PerfectWorld/TaskSchema.cs | esquema v93 (campos, premios, textos, dialogos)
+PerfectWorld/GameConfigs.cs | item_color + item_ext_desc do configs.pck
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
 PerfectWorld/FieldLabels.cs | rotulos PT + grupos (Basico Requisitos Ataque Defesa Durabilidade Economia Atributos/Addons Modelo/Arquivos Outros)
 PerfectWorld/PckArchive.cs | leitor nativo .pck/.pkx
@@ -115,8 +126,9 @@ layout = modelo do Rody's Angelica Editor (decisao do usuario; arvore em cascata
 esquerda (fundo preto): seletor de bloco "[NNN] Nome (qtd)" (1a opcao = ★ Favoritos; lembra o ultimo; padrao WEAPON_ESSENCE) | filtro tipo/subtipo (so blocos *_ESSENCE c/ id_major_type/id_sub_type) | busca nome/ID + caixa "todos os blocos" | ListView VIRTUAL owner-draw: ID | icone 24px + nome na cor de grade (★☆»«*) | clique na coluna ordena | rodape: Adicionar | ir para ID (Enter) | Excluir
 direita: cabecalho icone+nome+ID | grade de campos agrupados/rotulados (addons vazios ocultos) | edicao inline
 geral: tooltip estilo jogo no hover | menu de contexto clonar/novo/excluir/favoritar | novo item c/ proximo codigo | auto-recarrega ultima pasta | icones nativos do surfaces.pck | scrollbar escura (SetWindowTheme DarkMode_Explorer) | combos escuros owner-draw
-abas: Elements (pronta) | Quests (parcial §E3c) | GShop/AI Policy (vazias) | Verificacao (§E5b) | Pacotes .pck (alternativa sPCK)
-detalhe do item: abas Valores (grade c/ coluna Vinculo) | Vinculos (N) (§E3b)
+abas: Elements (pronta) | Quests (v93 completa §E3c) | GShop/AI Policy (vazias) | Verificacao (§E5b) | Pacotes .pck (alternativa sPCK)
+detalhe do item: cabecalho escuro (icone|ID|nome cor oficial) | abas Valores (sub-abas por grupo: Todos/Basico/.../Queda/Habilidades/Modelo; coluna Vinculo) | Vinculos (N) | Buscar (campo op valor) | Descricao e cor (§E3d)
+lista: coluna ∞ = nº de vinculos | barra: ◀ ▶ historico | status: total/bloco/selecionado
 diagnostico: --snapshot <png> abre o editor fora da tela c/ a ultima pasta e salva print (verificacao visual sem abrir janela)
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
@@ -128,7 +140,7 @@ META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's A
 1b aba GShop (formato completo PWKB§S19; exporta client+server) M | aba AI Policy (PWKB§S18) M | npcgen/spawns (PWKB§S22) M
 4 tasks.data / gshop / aipolicy (abas) M cada
 5 fechar cauda elements.data (§Q1) B-M
-5b tasks.data esquema completo (§E3c) A | nomes de skill (skillstr.txt) p/ SkillRef B
+5b nomes de skill (skillstr.txt) p/ SkillRef B | editar premios de quest M
 6 renderizar janelas do jogo a partir de interfaces.pck XML (gshop/qshop primeiro) A
 7 deploy servidor (gerar conf, subir, validar portas/ordem PWKB§S4-S5) A
 8 inventario/personagem via gamedbd rpc (PWKB§S8-S10; blobs opacos) A

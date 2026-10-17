@@ -384,7 +384,7 @@ header 12B: i32 magic 0x93858361 (editor aceita 0) | i32 version | i32 count | c
 corpo da quest = [bloco fixo por versao (logic_read_task_data_struct, ~40 sub-blocos, arrays c/ contagem)] + [textos: descricao, ok, no, tributo (pwstr) + 5 talk_proc: delv, unqualified, delv_item, exe, award] + [i32 nSub + subquests recursivas] [C-Rody V22 tasks/ATaskTempl.cs] -> o bloco fixo NAO pode ser pulado sem o esquema completo (Rody V22 removeu o modo "adivinhar o fim")
 corpo: u32 ID @0 (v>=153: 2 bytes antes) + nome 30 chars UTF-16 (60B) @4, cada char XOR (ushort)ID; padding = 0^ID [T no PKG144 v93]
 PKG144: tasks.data v93, 9.298 quests de topo, offsets crescentes; nomes com cor ^RRGGBB no inicio (ex. "^ffffffO Renascer dos Alados") [T]
-corpo da quest (ATaskTempl): ordem binaria dos campos esta no Rody V22 tasks/ATaskTemplFixedData.cs (nosso parser completo ainda pendente) [Q]; ~424 nomes de campo (grupos: basico, entrega, tempo, premissas, itens dados, requisitos de conclusao, eventos, falha, UI, casa/PQ/torre)
+corpo da quest v93 (layout completo, PROVADO no PKG144: 21.777 quests, cada uma termina no offset da proxima) [T]: 58 fases do bloco fixo (campos + contadores + ponteiros mortos de 4B) -> arrays variaveis na ordem: assinatura(60B se HasSign) | horarios (n×(tm 24B inicio + tm 24B fim)) | chaves (n×9B) | expr PQ (n×(64B + 64×8B)) | contrib monstros (n×16B) | regioes entrega/entrar/sair (n×24B) | itens exigidos/dados (n×17B) | membros (n×32B) | monstros (n×30B) / itens a obter (n×17B) | expressoes (n×(64+512B)) | textos de quest (n×128B) | locais alcancar/sair (n×24B) -> premios: AWARD_DATA ×2 + RATIO_SCALE ×2 (i32 n, 5 floats, n×AWARD) + ITEMS_SCALE ×2 (i32 n, i32 item, 5 i32, n×AWARD) -> 4 pwstr + 5 talk_proc -> i32 nSub + subquests. AWARD_DATA v93 = 153B fixos + arrays (cand: bool+n+n×17B; monstros invocados se n>0: 6B+n×16B; ranking PQ se n>0: 1B+n×21B; chaves n×9B; display n×4B; expr; textos n×128B). Todos os textos XOR (ushort)ID. ~424 nomes de campo (grupos: basico, entrega, tempo, premissas, itens dados, requisitos de conclusao, eventos, falha, UI, casa/PQ/torre)
 arvore: sub-quests recursivas (m_ulParent FirstChild NextSibling PrevSibling). Premio sucesso/falha, tipo 0-5, variantes normal/razao/itens/carrier/evento
 limiares versao tasks: <80 1 regiao | >=69 timetable 24 | >=80 listas de regioes | <=119 mascara classe 1023 (10 bits), >=120 4095 (12) | >=140 TaskEvent + 6 faixas de razao
 limiares elements usados pelo editor: >=87 lista de titulos (169) | >=191 listas >=58 deslocam +1 | <52 mascara 255
@@ -465,7 +465,9 @@ skillstr.txt (configs.pck): UTF-16; skill_translator gera skillstr.tab "ID<TAB>n
 - glinkd version=10505 = 1.5.5 (confirma esquema hex §S5)
 - formatos .rmap .wmap .hmap path.sev .t2bk npcgen.data: agora em §S22 (era §Q6)
 - edition na pratica: par real PKG144 tinha gshop.data do cliente (ts fev/2017, 498 itens) != gshopsev.data do servidor (ts jan/2012, 507) -> login recusado; elements/tasks/aipolicy iguais [T]
-- nome de quest no tasks.data = UTF-16 XOR (ushort)ID (§S21) [T]
+- nome de quest no tasks.data = UTF-16 XOR (ushort)ID (§S21) [T]; vale para TODOS os textos da quest (descricao, dialogos, opcoes) [T]
+- cor oficial do nome do item: configs/item_color.txt (indice) + tabela l_aNameCols do cliente: 0 ffffff 1 8080ff 2 ffdc50 3 aa32ff 4 ff6000 5 ffffff 6 b0b0b0 7 00ffae 8 ff0000 [C][A]
+- configs/item_ext_desc.txt: UTF-16, "ID<TAB>\"texto\"", cores ^RRGGBB, \r literal = quebra (PKG144: 9.681 descricoes) [A]
 
 ## §Q ABERTOS (proximos passos sugeridos, por valor)
 1 [PARCIAL: lido via uPCK, §S3] falta: confirmar vs AFilePackage oficial/autoangel-rs; chaves por jogo/regiao; campos ignorados da entrada v3; rodape v3 completo; significado do int16 de versao

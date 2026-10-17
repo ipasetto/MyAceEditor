@@ -26,6 +26,14 @@ internal static class Program
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--configs")
+        {
+            var gc = GameConfigs.Load(args[1])!;
+            var d = gc.ItemDescs.TryGetValue(args.Length >= 3 ? int.Parse(args[2]) : 174, out var x) ? x : "(sem)";
+            File.WriteAllText("configs-report.txt", $"cores: {gc.ItemColors.Count}  descrições: {gc.ItemDescs.Count}\n{d}\n" +
+                string.Join(" | ", GameConfigs.Runs(d, System.Drawing.Color.White).Select(r => $"#{r.Color.R:X2}{r.Color.G:X2}{r.Color.B:X2}:{r.Text.Replace("\n", "⏎")}")), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
         ApplicationConfiguration.Initialize();

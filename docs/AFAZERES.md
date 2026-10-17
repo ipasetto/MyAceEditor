@@ -11,14 +11,18 @@
 ## FASE 2 — paridade Rody (Elements)
 [x] lista plana: bloco | filtro tipo | busca | ID+icone+nome colorido | ordenar
 [x] detalhe: Valores (coluna Vinculo) | Vinculos (quem usa) | tooltip c/ drops
-[>] tela 100% Rody: cabecalho ID+nome escuro | sub-abas por grupo (Basico/Habilidades/Queda/Modelo…) | col. nº vinculos | voltar/avancar | Descricao e cor (item_ext_desc do configs.pck) | Buscar por campo | barra de status
-[ ] editores especiais: addons, mascaras (classes) c/ checkbox, cor, probabilidades
+[x] tela Rody: cabecalho escuro ID+nome (cor oficial item_color) | sub-abas por grupo (Todos/Basico/.../Queda/Habilidades/Modelo) | col. ∞ vinculos | ◀ ▶ | Descricao e cor (item_ext_desc) | Buscar por campo | barra de status
+[ ] editores especiais: addons, mascaras (classes) c/ checkbox, bool como checkbox, cor, probabilidades
+[ ] editar descricao do item (exige gravar configs.pck)
+[ ] rotulos PT melhores p/ campos (ex. "Magico defences 1 min")
 [ ] nomes de skill (skillstr.txt) e de quest nos vinculos
 [ ] icones de monstro/NPC
 [ ] importar/exportar item (entre elements de versoes diferentes, .rules)
 
 ## FASE 3 — outros arquivos
-[>] tasks.data esquema completo v93 (textos, dialogos, subquests, premios) (§E3c)  [~] lista/renomeia quests
+[x] tasks.data v93 completo: 21.777 quests, 238 campos, textos, dialogos; leitura/gravacao byte-identica (§E3c)
+[x] aba Quests: arvore + Dados + Textos + Dialogos
+[ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | outras versoes (so v93 completa)
 [ ] auto-tradutor (quests + elements + configs.pck)
 [ ] GShop (cliente+servidor juntos; formato PW-KB §S19)
 [ ] AI Policy (PW-KB §S18) | NPCGen/spawns (PW-KB §S22)

@@ -17,7 +17,7 @@ A meta de longo prazo é tornar o jogo **100% editável** a partir de uma única
 | 1 | Ícones reais do jogo, lidos direto do `.pck` | ✅ 91,3% (o resto não existe no jogo) |
 | 2 | Gravar `elements.data` (escrita byte-idêntica, backup automático) | ✅ |
 | 2 | Vínculos entre itens (drops, receitas, quem usa) | ✅ |
-| 2 | Quests: listar, buscar, renomear | ✅ parcial |
+| 2 | Quests (v93): campos, textos, diálogos, subquests | ✅ |
 | 2 | GShop, AI Policy, NPCGen (spawns), quests completas | 🔜 formatos já documentados |
 | 3 | Checar versão/edition do par cliente + servidor antes de publicar | ✅ |
 | 3 | Gerar e publicar arquivos de servidor | 🔜 |

@@ -51,7 +51,8 @@ Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada.
 | `elements.data`: gravação | ✅ byte-idêntica, com backup automático |
 | `.pck`/`.pkx` nativo + ícones | ✅ |
 | Vínculos (drops com nome/%, quem usa o item) | ✅ |
-| Quests (`tasks.data`): listar, buscar, renomear | ✅ parcial (textos/diálogos/prêmios 🔜) |
+| Quests (`tasks.data` v93): campos, textos, diálogos, subquests | ✅ (edição de prêmios 🔜) |
+| Descrição e cor oficial dos itens (`configs.pck`) | ✅ |
 | GShop, AI Policy, NPCGen | 🔜 formatos documentados na PW-KB |
 | Verificação do par cliente × servidor | ✅ |
 | Deploy de servidor | 🔜 |
