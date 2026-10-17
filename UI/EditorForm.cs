@@ -26,7 +26,7 @@ public sealed class EditorForm : Form
     private readonly ToolStripStatusLabel _status = new("Abra a pasta do Perfect World para começar.");
     private readonly ToolTip _tip = new() { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 100 };
     private string[] _tipLines = Array.Empty<string>();
-    private readonly List<(Image? Icon, string Text, string Pct)> _tipDrops = new();
+    private readonly List<(Image? Icon, string Text, string Pct, Color Color)> _tipDrops = new();
     private readonly PictureBox _iconBox = new() { Dock = DockStyle.Left, Width = 44, SizeMode = PictureBoxSizeMode.Zoom, Padding = new Padding(6) };
     private readonly ImageList _treeIcons = new() { ImageSize = new Size(24, 24), ColorDepth = ColorDepth.Depth32Bit };
     private readonly Dictionary<string, int> _iconIdx = new();
@@ -35,6 +35,18 @@ public sealed class EditorForm : Form
     private string? _atlasPck;
     private string? _dataPath;
     private RefIndex? _refs;
+    private GameConfigs? _cfgs;
+    private readonly TabControl _groupTabs = new() { Dock = DockStyle.Top, Height = 26 };
+    private readonly RichTextBox _descBox = new() { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10.5f) };
+    private readonly ComboBox _findField = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
+    private readonly ComboBox _findOp = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
+    private readonly TextBox _findValue = new() { Width = 160, BorderStyle = BorderStyle.FixedSingle };
+    private readonly ListView _findList = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None };
+    private readonly Label _idLabel = new() { Dock = DockStyle.Left, Width = 92, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI Semibold", 11) };
+    private readonly List<Item> _history = new();
+    private int _histPos = -1;
+    private bool _navigating;
+    private readonly ToolStripStatusLabel _stTotal = new() { Spring = false }, _stBlock = new(), _stSel = new();
     private readonly ListView _links = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None, HideSelection = false };
     private readonly TabControl _detailTabs = new() { Dock = DockStyle.Fill };
     private TabPage _tabLinks = null!;
@@ -110,6 +122,10 @@ public sealed class EditorForm : Form
     {
         var tb = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, BackColor = CSurface2, ForeColor = CFg, Renderer = new LightRenderer(), Padding = new Padding(6, 3, 6, 3) };
         ToolStripButton B(string t, Action a) { var b = new ToolStripButton(t) { ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) }; b.Click += (_, _) => a(); return b; }
+        tb.Items.Add(B("◀", () => Navigate(-1)));
+        tb.Items.Add(B("▶", () => Navigate(+1)));
+        tb.Items[0].ToolTipText = "Voltar (item anterior)"; tb.Items[1].ToolTipText = "Avançar";
+        tb.Items.Add(new ToolStripSeparator());
         tb.Items.Add(B("Abrir pasta do PW", OpenPwFolder));
         tb.Items.Add(B("Abrir elements.data", OpenElements));
         tb.Items.Add(B("Salvar", SaveAs));
@@ -181,12 +197,13 @@ public sealed class EditorForm : Form
         _list.SmallImageList = _treeIcons;
         _list.Columns.Add("ID", 70, HorizontalAlignment.Right);
         _list.Columns.Add("Nome", 240);
+        _list.Columns.Add("∞", 58, HorizontalAlignment.Right);
         _list.RetrieveVirtualItem += OnRetrieveItem;
         _list.DrawColumnHeader += OnDrawHeader;
         _list.DrawSubItem += OnDrawSubItem;
         _list.ColumnClick += (_, e) => OnColumnClick(e.Column);
         _list.SelectedIndexChanged += (_, _) => OnListSelect();
-        _list.Resize += (_, _) => _list.Columns[1].Width = Math.Max(120, _list.ClientSize.Width - _list.Columns[0].Width - 1);
+        _list.Resize += (_, _) => _list.Columns[1].Width = Math.Max(120, _list.ClientSize.Width - _list.Columns[0].Width - _list.Columns[2].Width - 1);
         _list.HandleCreated += (_, _) => SetWindowTheme(_list.Handle, "DarkMode_Explorer", null);
         _tip.OwnerDraw = true; _tip.Draw += DrawTip; _tip.Popup += SizeTip;
         _list.MouseMove += OnListHover;
@@ -220,14 +237,35 @@ public sealed class EditorForm : Form
 
         // DIREITA: cabeçalho (ícone + nome) + campos
         var right = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
-        _header.BackColor = CSurface2; _header.ForeColor = CFg;
-        var headPanel = new Panel { Dock = DockStyle.Top, Height = 46, BackColor = CSurface2 };
-        _iconBox.BackColor = CSurface2;
+        // cabeçalho estilo Rody: ícone | ID | nome na cor do jogo sobre fundo escuro
+        _header.BackColor = CTreeBg; _header.ForeColor = CTreeFg;
+        var headPanel = new Panel { Dock = DockStyle.Top, Height = 46, BackColor = CTreeBg };
+        _iconBox.BackColor = CTreeBg;
+        _idLabel.BackColor = CTreeInput; _idLabel.ForeColor = CListId;
         headPanel.Controls.Add(_header);
+        headPanel.Controls.Add(_idLabel);
         headPanel.Controls.Add(_iconBox);
         StyleGrid();
         var tVal = new TabPage("Valores") { BackColor = CSurface };
         tVal.Controls.Add(_grid);
+        tVal.Controls.Add(_groupTabs);
+        _groupTabs.SelectedIndexChanged += (_, _) => { if (_current is not null) FillGrid(_current); };
+        // Buscar por campo (no bloco atual)
+        var tFind = new TabPage("Buscar") { BackColor = CSurface };
+        var findBar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(6, 6, 6, 0), BackColor = CSurface };
+        _findOp.Items.AddRange(new object[] { "=", "≠", ">", "<", "contém" }); _findOp.SelectedIndex = 0;
+        var findBtn = new Button { Text = "Buscar", Height = 26, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
+        findBtn.Click += (_, _) => RunFind();
+        _findValue.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; RunFind(); } };
+        findBar.Controls.AddRange(new Control[] { new Label { Text = "Campo", AutoSize = true, Padding = new Padding(0, 6, 0, 0), ForeColor = CMuted }, _findField, _findOp, _findValue, findBtn });
+        _findList.Columns.Add("ID", 70, HorizontalAlignment.Right); _findList.Columns.Add("Nome", 300); _findList.Columns.Add("Valor", 200);
+        _findList.SmallImageList = _treeIcons; _findList.BackColor = CSurface; _findList.ForeColor = CFg;
+        _findList.DoubleClick += (_, _) => { if (_findList.SelectedItems.Count > 0 && _findList.SelectedItems[0].Tag is Item it) GoToItem(it); };
+        tFind.Controls.Add(_findList); tFind.Controls.Add(findBar);
+        // Descrição e cor (item_ext_desc.txt do configs.pck)
+        var tDesc = new TabPage("Descrição e cor") { BackColor = CTreeBg, Padding = new Padding(12) };
+        _descBox.BackColor = CTreeBg; _descBox.ForeColor = CTreeFg;
+        tDesc.Controls.Add(_descBox);
         _tabLinks = new TabPage("Vínculos") { BackColor = CSurface };
         _links.Columns.Add("Bloco", 170); _links.Columns.Add("ID", 70, HorizontalAlignment.Right);
         _links.Columns.Add("Nome", 280); _links.Columns.Add("Campo", 220); _links.Columns.Add("%", 70, HorizontalAlignment.Right);
@@ -236,6 +274,8 @@ public sealed class EditorForm : Form
         _tabLinks.Controls.Add(_links);
         _detailTabs.TabPages.Add(tVal);
         _detailTabs.TabPages.Add(_tabLinks);
+        _detailTabs.TabPages.Add(tFind);
+        _detailTabs.TabPages.Add(tDesc);
         _detailTabs.SelectedIndexChanged += (_, _) => { if (_detailTabs.SelectedTab == _tabLinks && _current is not null) FillLinks(_current); };
         right.Controls.Add(_detailTabs);
         right.Controls.Add(headPanel);
@@ -273,7 +313,9 @@ public sealed class EditorForm : Form
     private StatusStrip BuildStatus()
     {
         var s = new StatusStrip { BackColor = CSurface2, ForeColor = CMuted };
+        _status.Spring = true; _status.TextAlign = ContentAlignment.MiddleLeft;
         s.Items.Add(_status);
+        foreach (var l in new[] { _stTotal, _stBlock, _stSel }) { l.BorderSides = ToolStripStatusLabelBorderSides.Left; l.BorderStyle = Border3DStyle.Etched; l.ForeColor = CMuted; s.Items.Add(l); }
         return s;
     }
 
@@ -314,6 +356,7 @@ public sealed class EditorForm : Form
             _store.Adopt(module);
             _refs = new RefIndex(module);
             LoadAtlas(path);
+            try { _cfgs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp) : null; } catch { _cfgs = null; }
             LoadTasksNear(path);
             BuildTree();
             SaveLast(path);
@@ -504,6 +547,8 @@ public sealed class EditorForm : Form
         _view = Sorted(src).ToList();
 
         int total = _curBlock?.Items.Count ?? _view.Count;
+        _stTotal.Text = $"Total de elementos: {_store.Current.Lists.Sum(l => l.Items.Count):N0}";
+        _stBlock.Text = $"No bloco: {total:N0} · visíveis: {_view.Count:N0}";
         _list.Columns[1].Text = $"Nome ({_view.Count:N0} de {total:N0})";
         _list.VirtualListSize = _view.Count;
         _list.SelectedIndices.Clear();
@@ -517,6 +562,7 @@ public sealed class EditorForm : Form
         var it = _view[e.ItemIndex];
         e.Item = new ListViewItem(it.Id, IconIndexFor(it)) { Tag = it };
         e.Item.SubItems.Add(string.IsNullOrEmpty(it.Name) ? "(sem nome)" : it.Name);
+        e.Item.SubItems.Add("");
     }
 
     private int IconIndexFor(Item it)
@@ -545,6 +591,12 @@ public sealed class EditorForm : Form
             TextRenderer.DrawText(g, it.Id, _list.Font, Rectangle.Inflate(e.Bounds, -6, 0), sel ? Color.White : CListId, flags | TextFormatFlags.Right);
             return;
         }
+        if (e.ColumnIndex == 2)
+        {
+            int uses = _refs?.UsedBy(it.Id).Count ?? 0;
+            TextRenderer.DrawText(g, uses.ToString(), _list.Font, Rectangle.Inflate(e.Bounds, -6, 0), sel ? Color.White : uses > 0 ? GGold : Color.FromArgb(90, 96, 106), flags | TextFormatFlags.Right);
+            return;
+        }
         int x = e.Bounds.X + 4;
         int img = IconIndexFor(it);
         if (img >= 0)
@@ -555,7 +607,7 @@ public sealed class EditorForm : Form
         }
         else x += _treeIcons.ImageSize.Width + 6;
         var r = new Rectangle(x, e.Bounds.Y, e.Bounds.Right - x, e.Bounds.Height);
-        TextRenderer.DrawText(g, e.SubItem!.Text, _list.Font, r, sel ? Color.White : GradeColor(it.Name), flags);
+        TextRenderer.DrawText(g, e.SubItem!.Text, _list.Font, r, sel ? Color.White : NameColor(it), flags);
     }
 
     private void OnDrawHeader(object? s, DrawListViewColumnHeaderEventArgs e)
@@ -627,6 +679,14 @@ public sealed class EditorForm : Form
         return d;
     }
 
+    // Cor do nome: tabela oficial do cliente (item_color.txt) quando houver; senão, pelos símbolos do nome.
+    private Color NameColor(Item it)
+    {
+        if (_cfgs?.NameColor(it.Id) is { } c && !(c.R == 255 && c.G == 255 && c.B == 255)) return c;
+        var g = GradeColor(it.Name);
+        return g == GNormal && _cfgs is not null && _cfgs.ItemColors.Count > 0 ? GNormal : g;
+    }
+
     private static Color GradeColor(string name)
     {
         int g = 0;
@@ -659,29 +719,146 @@ public sealed class EditorForm : Form
     // ---------- detalhes ----------
     private void ShowItem(Item item)
     {
-        _header.Text = string.IsNullOrEmpty(item.Name) ? $"#{item.Id}" : $"{item.Name}     (ID {item.Id})";
-        _header.ForeColor = Color.FromArgb(30, 39, 51);
+        _header.Text = string.IsNullOrEmpty(item.Name) ? "(sem nome)" : TasksFile.SplitColor(item.Name).Text;
+        _header.ForeColor = NameColor(item);
+        _idLabel.Text = item.Id;
         LoadItemIcon(item);
         var uses = _refs?.UsedBy(item.Id).Count ?? 0;
         _tabLinks.Text = uses > 0 ? $"Vínculos ({uses})" : "Vínculos";
         if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
-        _grid.Rows.Clear();
-        var groups = item.Fields.GroupBy(f => FieldLabels.Group(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
-        foreach (var gname in FieldLabels.GroupOrder)
+
+        // sub-abas por grupo (Básico, Habilidades, Queda, Modelo…), mantendo a aba escolhida se existir
+        var groups = GroupsOf(item);
+        var keep = _groupTabs.SelectedTab?.Text;
+        if (!groups.SequenceEqual(_groupTabs.TabPages.Cast<TabPage>().Select(t => t.Text)))
         {
-            if (!groups.TryGetValue(gname, out var fields)) continue;
-            var vis = fields.Where(f => gname != "Atributos / Addons" || !IsEmpty(f.Value.Value)).ToList();
+            _groupTabs.TabPages.Clear();
+            foreach (var g in groups) _groupTabs.TabPages.Add(new TabPage(g));
+            var again = _groupTabs.TabPages.Cast<TabPage>().FirstOrDefault(t => t.Text == keep);
+            if (again is not null) _groupTabs.SelectedTab = again;
+        }
+        FillGrid(item);
+        FillDescription(item);
+        FillFindFields(item);
+
+        if (!_navigating)
+        {
+            if (_histPos >= 0 && _histPos < _history.Count - 1) _history.RemoveRange(_histPos + 1, _history.Count - _histPos - 1);
+            if (_history.Count == 0 || _history[^1] != item) { _history.Add(item); if (_history.Count > 200) _history.RemoveAt(0); }
+            _histPos = _history.Count - 1;
+        }
+        _stSel.Text = $"Selecionado: {item.Id}";
+    }
+
+    // Grupo de exibição: drops → Queda, habilidades → Habilidades, arquivos → Modelo; resto pelo FieldLabels.
+    private static string DisplayGroup(string key)
+    {
+        var k = key.ToLowerInvariant();
+        var kind = FieldKinds.Of(key);
+        if (k.Contains("drop") || (kind == FieldKind.ItemRef && k.Contains("matter") && !k.Contains("material"))) return "Queda";
+        if (kind == FieldKind.SkillRef || k.Contains("skill")) return "Habilidades";
+        if (kind == FieldKind.File) return "Modelo";
+        return FieldLabels.Group(key);
+    }
+
+    private static List<string> GroupsOf(Item item)
+    {
+        var present = item.Fields.Keys.Select(DisplayGroup).ToHashSet();
+        var order = new List<string> { "Todos" };
+        foreach (var g in FieldLabels.GroupOrder.Concat(new[] { "Habilidades", "Queda", "Modelo" }))
+            if (present.Contains(g) && !order.Contains(g)) order.Add(g);
+        foreach (var g in present) if (!order.Contains(g)) order.Add(g);
+        return order;
+    }
+
+    private void FillGrid(Item item)
+    {
+        var sel = _groupTabs.SelectedTab?.Text ?? "Todos";
+        _grid.Rows.Clear();
+        var byGroup = item.Fields.GroupBy(f => DisplayGroup(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var gname in GroupsOf(item).Skip(1))
+        {
+            if (sel != "Todos" && sel != gname) continue;
+            if (!byGroup.TryGetValue(gname, out var fields)) continue;
+            var vis = fields.Where(f => (gname != "Atributos / Addons" && gname != "Queda" && gname != "Habilidades") || !IsEmpty(f.Value.Value) || sel == gname).ToList();
             if (vis.Count == 0) continue;
-            int hr = _grid.Rows.Add("  " + gname.ToUpperInvariant(), "");
-            var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
-            hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
-            hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            if (sel == "Todos")
+            {
+                int hr = _grid.Rows.Add("  " + gname.ToUpperInvariant(), "", "");
+                var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
+                hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
+                hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
             foreach (var (k, f) in vis)
             {
                 int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, Describe(item, k, f.Value));
                 _grid.Rows[r].Tag = k;
             }
         }
+    }
+
+    // Descrição do jogo com as cores (^RRGGBB) — como aparece no tooltip do cliente.
+    private void FillDescription(Item item)
+    {
+        _descBox.Clear();
+        void Put(string t, Color c, bool bold = false)
+        {
+            _descBox.SelectionStart = _descBox.TextLength; _descBox.SelectionLength = 0;
+            _descBox.SelectionColor = c;
+            _descBox.SelectionFont = new Font("Segoe UI", bold ? 12 : 10.5f, bold ? FontStyle.Bold : FontStyle.Regular);
+            _descBox.AppendText(t);
+        }
+        Put((string.IsNullOrEmpty(item.Name) ? "(sem nome)" : TasksFile.SplitColor(item.Name).Text) + "\n", NameColor(item), bold: true);
+        Put($"ID {item.Id}\n\n", CMuted);
+        if (_cfgs is not null && int.TryParse(item.Id, out var id) && _cfgs.ItemDescs.TryGetValue(id, out var desc))
+            foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg)) Put(t, c);
+        else Put(_cfgs is null ? "(configs.pck não encontrado)" : "(este item não tem descrição no configs.pck)", CMuted);
+    }
+
+    private void FillFindFields(Item item)
+    {
+        var keys = item.Fields.Keys.ToList();
+        if (_findField.Items.Count == keys.Count && _findField.Tag == _curBlock) return;
+        var keep = _findField.SelectedItem as string;
+        _findField.Items.Clear();
+        foreach (var k in keys) _findField.Items.Add(k);
+        _findField.Tag = _curBlock;
+        _findField.SelectedItem = keep != null && keys.Contains(keep) ? keep : keys.FirstOrDefault(k => k.Equals("Name", StringComparison.OrdinalIgnoreCase)) ?? keys.FirstOrDefault();
+    }
+
+    private void RunFind()
+    {
+        if (_findField.SelectedItem is not string key) return;
+        var block = _curBlock ?? CurrentItemBlock;
+        if (block is null) return;
+        string v = _findValue.Text.Trim(), op = _findOp.SelectedItem as string ?? "=";
+        bool Match(string fv)
+        {
+            if (op == "contém") return fv.Contains(v, StringComparison.OrdinalIgnoreCase);
+            if (op is ">" or "<" && double.TryParse(fv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var a)
+                && double.TryParse(v.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var b))
+                return op == ">" ? a > b : a < b;
+            return op == "=" ? fv == v : op == "≠" && fv != v;
+        }
+        _findList.BeginUpdate(); _findList.Items.Clear();
+        int n = 0;
+        foreach (var it in block.Items)
+        {
+            if (!it.Fields.TryGetValue(key, out var f) || !Match(f.Value)) continue;
+            _findList.Items.Add(new ListViewItem(new[] { it.Id, it.Name, f.Value }, IconIndexFor(it)) { Tag = it });
+            if (++n >= 2000) break;
+        }
+        _findList.EndUpdate();
+        Status($"Buscar: {n}{(n >= 2000 ? "+" : "")} item(ns) em {Pretty(block.Name)} com {key} {op} {v}");
+    }
+
+    private void Navigate(int delta)
+    {
+        int np = _histPos + delta;
+        if (np < 0 || np >= _history.Count) return;
+        _histPos = np;
+        _navigating = true;
+        try { GoToItem(_history[np]); } finally { _navigating = false; }
     }
 
     private static bool IsEmpty(string v) => v is "0" or "" or "0.0" or "-1";
@@ -869,7 +1046,7 @@ public sealed class EditorForm : Form
         if (idx < 0 || idx >= _view.Count) { _tip.Hide(_list); return; }
         var it = _view[idx];
         _tipLines = BuildTipLines(it);
-        _tipColor = GradeColor(it.Name);
+        _tipColor = NameColor(it);
         _tip.Show(" ", _list, e.X + 22, e.Y + 16, 15000);
     }
 
@@ -903,7 +1080,7 @@ public sealed class EditorForm : Form
             if (d.Icon is not null) e.Graphics.DrawImage(d.Icon, x, y, 18, 18);
             x += 22;
             var sz = TextRenderer.MeasureText(d.Text, f);
-            TextRenderer.DrawText(e.Graphics, d.Text, f, new Point(x, y + 1), GradeColor(d.Text));
+            TextRenderer.DrawText(e.Graphics, d.Text, f, new Point(x, y + 1), d.Color);
             TextRenderer.DrawText(e.Graphics, d.Pct, f, new Point(x + sz.Width + 4, y + 1), Color.FromArgb(232, 182, 78));
             y += 20;
         }
@@ -934,7 +1111,7 @@ public sealed class EditorForm : Form
             if (prob is null || _refs?.Resolve(FieldKind.ItemRef, f.Value) is not { } hit) continue;
             if (!float.TryParse(it.Fields[prob].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) || p <= 0) continue;
             var ico = IconIndexFor(hit.Item);
-            _tipDrops.Add((ico >= 0 ? _treeIcons.Images[ico] : null, hit.Item.Name, $"{p * 100:0.##}%"));
+            _tipDrops.Add((ico >= 0 ? _treeIcons.Images[ico] : null, hit.Item.Name, $"{p * 100:0.##}%", NameColor(hit.Item)));
         }
         return lines.ToArray();
     }
