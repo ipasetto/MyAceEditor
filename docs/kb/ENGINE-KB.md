@@ -20,7 +20,7 @@ restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | i
 
 ## §E2 MAPA ENGINE x JOGO (capacidade -> arquivos/sistemas -> secao PWKB)
 capacidade | client | server | PWKB | status
-itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; escrita pendente
+itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; ESCRITA PRONTA byte-identica [T] (§E3)
 quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | pendente; header/offsets conhecidos, corpo ATaskTempl [Q]
 IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | pendente; formato COMPLETO (mais pronto p/ implementar)
 loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
@@ -47,6 +47,15 @@ cobertura: ~98,6% byte-perfeito; para em NPC_WAR_TOWERBUILD_SERVICE (cauda guerr
 ref servidor: gs ELF c/ DWARF -> elementdataman 216 arrays + structs (PerfectWorld/server_ref/). Server analisado v145 tem *_ESSENCE ~4B maiores que o v144 do usuario -> para o arquivo do usuario confiar no .cfg v60
 numeracao de listas client x server difere (PWKB§S3); conferir antes de editar par
 
+ESCRITA (ElementsWriter.cs) [T]: cada Item guarda Raw (bytes originais do registro); Module.Source = ElementsLayout (bytes do arquivo + CountPos/EndPos de cada bloco lido)
+ gravacao: copia byte a byte tudo fora dos blocos (header, blocos de assinatura, TALK_PROC, cauda nao lida ~1,4%) + por bloco: count novo + registros; registro parte do Raw e so recodifica campo cujo valor (texto) difere do decodificado do Raw -> floats/padding de strings preservados
+ prova (--roundtrip): sem mudanca = IDENTICO 33.859.144 B (leitura 1,8s, gravacao 0,8s); renomear 1 item = 25 bytes diferentes so naquele registro (1420 B), mesmo tamanho, releitura OK [T]
+ salvar na UI: Ctrl+S / Salvar como; backup <arquivo>.<yyyyMMdd-HHmmss>.bak + escrita atomica (tmp + File.Replace) + recarrega o arquivo
+ novo item: Raw null -> todos os campos codificados do texto (zeros); clonar copia Raw
+ leitor nao corta mais em 5000 itens/lista (cortava blocos grandes; perderia dados ao gravar)
+ limites: string:N grava GBK (caracter fora do GBK vira ?), trunca deixando terminador; wstring:N UTF-16
+ pendente: gravar o PAR client+server (numeracao de listas difere, PWKB§S3), atualizar timestamp? (§Q2), blocos com count 0 nao aparecem na UI (nao da p/ adicionar o 1o item)
+
 ## §E4 .pck/.pkx (NATIVO, IMPLEMENTADO) [T]
 PckArchive.cs: le v2/v3 + .pkx logico, tabela XOR KEY_1, entradas zlib (ZLibStream), paths GBK. Chaves (uPCK PCKKey.cs): KEY_1=-1466731422 KEY_2=-240896429 ASIG_1=-33685778 ASIG_2=-267534609 FSIG_1=0x4DCA23EF FSIG_2=1453361591 (PWKB omite de proposito; a engine precisa) [C-uPCK][T]
 surfaces.pck do usuario: v2, 5147 entradas, 130MB [T]
@@ -54,7 +63,7 @@ icones de item: surfaces\iconset\iconlist_ivtrm.dds (masc) + iconlist_ivtrf.dds 
 file_icon do elements ("Surfaces\图标\通用物品\nome.dds") casa pelo NOME do arquivo no .txt [T]. Cobertura: 15568/17047 = 91,3% [T]; o resto NAO existe no pck (itens sem icone no proprio jogo) -> mostra unknown.dds (1a entrada do .txt), como o client [I]
 outros atlas: iconlist_skill _pet _guild _action _elf _faction _pq _calendar, emotions (mesmo formato [I])
 DdsDecoder.cs: DXT1/3/5 + RGB(A) 24/32bpp. IconAtlas.cs: carga 0,13-0,3s, recorte 32x32 sob demanda
-modos CLI: --pck <arquivo> [filtro] (lista em pck-list.txt) | --icons <elements.data> (cobertura em icons-report.txt + amostras PNG) | --snapshot <png>
+modos CLI: --pck <arquivo> [filtro] (lista em pck-list.txt) | --icons <elements.data> (cobertura em icons-report.txt + amostras PNG) | --snapshot <png> | --roundtrip <elements.data> (prova da gravacao em roundtrip-report.txt)
 sPCK/pasta extraida: so alternativa (aba Pacotes .pck)
 
 ## §E5 VERSAO/EDITION (base da checagem de erros de versao)
@@ -66,7 +75,8 @@ glinkd version = HEX (10404=1.4.4) (PWKB§S5). tasks.data versao divergente = er
 arquivo | papel
 Program.cs | entrypoint + modos
 UI/EditorForm.cs | UI principal (arvore, lista, grade, busca, menus, icones, tooltip, settings %AppData%/MyAceEditor)
-PerfectWorld/CfgElementsReader.cs | parser elements.data guiado por .cfg (blobs, TALK_PROC, Id/Name)
+PerfectWorld/CfgElementsReader.cs | parser elements.data guiado por .cfg (blobs, TALK_PROC, Id/Name, Raw + layout)
+PerfectWorld/ElementsWriter.cs | gravacao byte-identica + ElementsLayout + salvar c/ backup atomico
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
 PerfectWorld/FieldLabels.cs | rotulos PT + grupos (Basico Requisitos Ataque Defesa Durabilidade Economia Atributos/Addons Modelo/Arquivos Outros)
 PerfectWorld/PckArchive.cs | leitor nativo .pck/.pkx
@@ -89,7 +99,9 @@ abas: Elements (pronta), GShop/Tasks/AI Policy (vazias), Pacotes .pck (alternati
 diagnostico: --snapshot <png> abre o editor fora da tela c/ a ultima pasta e salva print (verificacao visual sem abrir janela)
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
-1 ESCRITA elements.data (round-trip byte-identico antes de editar) M
+META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's Angelica Editor faz, com CODIGO NOSSO e interface parecida com a dele.
+ referencia de estudo: codigo-fonte do Rody em D:/Perfect World/PW/Outros Editores/Rodys Angelica Editor.zip (C# net481, ~1200 .cs; modulos NextAIPolicyEditor2 NpcGenDataEditor PCKManager DDS MppcLibrary RAE_Octets; dados configs/PW/PW_types.csv (tipo/vinculo de cada campo: matters, skills_pw, ft_prob, ft_bool, ft_hex_color, time_seconds, *_ESSENCE...), PW_pt.csv (rotulos PT), PW_enums.json, 134 .cfg, 23 .rules)
+ REGRA: consultar so o trecho do passo atual; NUNCA copiar codigo nem arquivos de dados dele p/ o repo (repo publico; parece pasta de trabalho privada de software licenciado). Escrever a nossa versao.
 1b aba GShop (formato completo PWKB§S19; exporta client+server) M | aba AI Policy (PWKB§S18) M | npcgen/spawns (PWKB§S22) M
 3 checagem version/edition client x server (§E5) B
 4 tasks.data / gshop / aipolicy (abas) M cada
@@ -118,10 +130,11 @@ coordenadas: client exibe X=400+x/10 Z=550+z/10 (tasks); path 1px=1un centro; wm
 - UI nativa WinForms (web/WebView2 abandonado)
 - string:N do elements e GBK (era lido como Latin-1: caminhos saiam embaralhados) [T]
 - PCK nativo pronto; icones automaticos sem sPCK [T]
+- escrita elements.data pronta e provada byte-identica (§E3) [T]
 
 ## §Q ABERTOS
 1 cauda ~1,4% elements.data a partir de NPC_WAR_TOWERBUILD_SERVICE (guerra territorio; comparar .cfg v60 x v61 / PWKB DOMAIN_COUNT=52)
-2 escrita: offsets/ordem dos blocos de assinatura ao regravar; timestamp atualizar ou manter?
+2 escrita: manter ou atualizar o timestamp (2o u32) ao salvar? hoje mantem (copia intacto)
 4 numeracao client x server das listas no PKG144 (p/ editar par)
 5 nosso TALK_PROC (4+0x80+M*(...)) x layout Dialog/Question/Choice do sELedit (PWKB§S23): conferir se descrevem o mesmo
 6 ordem de implementacao dos novos formatos: aipolicy e gshop ja tem formato completo; tasks depende do corpo ATaskTempl

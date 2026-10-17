@@ -48,7 +48,7 @@ Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada.
 | Área | Estado |
 |---|---|
 | `elements.data`: leitura | ✅ ~98,6% (falta a cauda de Guerra Territorial) |
-| `elements.data`: gravação | 🔜 |
+| `elements.data`: gravação | ✅ byte-idêntica, com backup automático |
 | `.pck`/`.pkx` nativo + ícones | ✅ |
 | GShop, AI Policy, Tasks, NPCGen | 🔜 formatos documentados na PW-KB |
 | Checagem de versão cliente × servidor, deploy de servidor | 🔜 |

@@ -33,9 +33,11 @@ public sealed class CfgElementsReader
     private uint U32(int p) => p + 4 <= _d.Length ? BitConverter.ToUInt32(_d, p) : uint.MaxValue;
     private bool TryU32(int p, out uint v) { v = U32(p); return p + 4 <= _d.Length; }
 
-    public Module Parse(ElementsCfg cfg, int maxPerList = 5000)
+    public Module Parse(ElementsCfg cfg)
     {
         var mod = new Module { Name = "elements.data", Version = (int)Version };
+        var layout = new ElementsLayout(_d);
+        mod.Source = layout;
         foreach (var block in cfg.Blocks)
         {
             SkipSpecials();
@@ -44,20 +46,18 @@ public sealed class CfgElementsReader
 
             uint count = U32(_pos);
             if (count > MaxCount) { StoppedAt = $"{block.Name} (count {count} @{_pos})"; break; }
+            int countPos = _pos;
             _pos += 4;
             if (_pos + (long)count * block.RecordSize > _d.Length) { StoppedAt = $"{block.Name} (ultrapassa)"; break; }
 
-            if (count > 0)
+            var list = new ItemList { Name = block.Name, Group = GroupOf(block.Name), Kind = KindOf(block.Name) };
+            for (uint r = 0; r < count; r++)
             {
-                var list = new ItemList { Name = block.Name, Group = GroupOf(block.Name), Kind = KindOf(block.Name) };
-                for (uint r = 0; r < count; r++)
-                {
-                    int recStart = _pos;
-                    if (r < (uint)maxPerList) list.Items.Add(ReadRecord(block, recStart));
-                    _pos += block.RecordSize;
-                }
-                mod.Lists.Add(list);
+                list.Items.Add(ReadRecord(block, _pos));
+                _pos += block.RecordSize;
             }
+            layout.Blocks.Add(new ElementsLayout.BlockSpan(block, list, countPos, _pos));
+            if (count > 0) mod.Lists.Add(list);
         }
         return mod;
     }
@@ -77,8 +77,14 @@ public sealed class CfgElementsReader
         }
         item.Id = id ?? "";
         item.Name = name ?? "";
+        item.Raw = _d.AsSpan(start, block.RecordSize).ToArray();
         return item;
     }
+
+    /// <summary>Decodifica um campo a partir de um buffer (mesma regra da leitura).</summary>
+    public static string DecodeField(CfgField f, byte[] buf, int p) => new CfgElementsReader(buf).ReadField(f, p).Item2;
+
+    private CfgElementsReader(byte[] buf) { _d = buf; }
 
     private (FieldType, string) ReadField(CfgField f, int p)
     {

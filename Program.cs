@@ -22,6 +22,7 @@ internal static class Program
         if (args.Length >= 3 && args[0] == "--testcfg") { TestCfg(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--pck") { ListPck(args[1], args.Length >= 3 ? args[2] : ""); return; }
         if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
 
         ApplicationConfiguration.Initialize();
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1]); return; }
@@ -38,6 +39,52 @@ internal static class Program
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
         bmp.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
+    }
+
+    // --roundtrip <elements.data>: prova a gravação (roundtrip-report.txt). Não altera o arquivo de entrada.
+    //  1) ler e gravar sem mudanças => bytes idênticos;
+    //  2) editar o nome de 1 item => só bytes daquele registro mudam, e a releitura mostra o nome novo.
+    private static void RoundTrip(string dataPath)
+    {
+        static Model.Module Load(string path)
+        {
+            var r = new CfgElementsReader(path);
+            var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{r.Version & 0xFF}.cfg")[0];
+            return r.Parse(ElementsCfg.Load(cfg));
+        }
+        var sb = new StringBuilder();
+        var original = File.ReadAllBytes(dataPath);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var module = Load(dataPath);
+        long tRead = sw.ElapsedMilliseconds; sw.Restart();
+        var same = ElementsWriter.Build(module);
+        long tWrite = sw.ElapsedMilliseconds;
+        bool identical = same.AsSpan().SequenceEqual(original);
+        sb.AppendLine($"itens: {module.Lists.Sum(l => l.Items.Count):N0} em {module.Lists.Count} blocos | leitura {tRead} ms | gravação {tWrite} ms");
+        sb.AppendLine($"1) sem mudanças: {(identical ? "IDÊNTICO" : "DIFERENTE")} ({same.Length:N0} x {original.Length:N0} bytes)");
+        if (!identical)
+        {
+            int n = Math.Min(same.Length, original.Length), i = 0;
+            while (i < n && same[i] == original[i]) i++;
+            sb.AppendLine($"   primeira diferença no byte {i:N0}");
+        }
+
+        var weapons = module.FindListByName("WEAPON_ESSENCE")!;
+        var item = weapons.Items[0];
+        string oldName = item.Fields["Name"].Value, newName = "Teste Gravação ✓";
+        item.Fields["Name"].Value = newName;
+        var edited = ElementsWriter.Build(module);
+        int diff = 0, first = -1, last = -1;
+        for (int i = 0; i < Math.Min(edited.Length, original.Length); i++)
+            if (edited[i] != original[i]) { diff++; if (first < 0) first = i; last = i; }
+        var tmp = Path.Combine(Path.GetTempPath(), "myace-roundtrip.data");
+        File.WriteAllBytes(tmp, edited);
+        var reread = Load(tmp).FindListByName("WEAPON_ESSENCE")!.Items[0];
+        File.Delete(tmp);
+        sb.AppendLine($"2) nome do item {item.Id}: \"{oldName}\" -> \"{newName}\"");
+        sb.AppendLine($"   bytes diferentes: {diff} (faixa {first:N0}..{last:N0}, registro de {weapons.Items[0].Raw!.Length} bytes) | mesmo tamanho: {edited.Length == original.Length}");
+        sb.AppendLine($"   releitura: \"{reread.Fields["Name"].Value}\" {(reread.Fields["Name"].Value == newName ? "OK" : "FALHOU")}");
+        File.WriteAllText("roundtrip-report.txt", sb.ToString(), Encoding.UTF8);
     }
 
     // --icons <elements.data>: cobertura dos ícones nativos (icons-report.txt + amostras icon_*.png).

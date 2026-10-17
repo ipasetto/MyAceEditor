@@ -15,7 +15,7 @@ A meta de longo prazo é tornar o jogo **100% editável** a partir de uma única
 |---|---|---|
 | 1 | Ler e navegar `elements.data` (itens, equipamentos, NPCs, monstros…) | ✅ ~98,6% do arquivo |
 | 1 | Ícones reais do jogo, lidos direto do `.pck` | ✅ 91,3% (o resto não existe no jogo) |
-| 2 | Gravar `elements.data` (escrita byte-idêntica) | 🔜 |
+| 2 | Gravar `elements.data` (escrita byte-idêntica, backup automático) | ✅ |
 | 2 | GShop, AI Policy, Tasks, NPCGen (spawns) | 🔜 formatos já documentados |
 | 3 | Checar versão/edition do par cliente + servidor antes de publicar | 🔜 |
 | 3 | Gerar e publicar arquivos de servidor | 🔜 |

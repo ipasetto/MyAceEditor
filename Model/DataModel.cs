@@ -12,6 +12,10 @@ public sealed class Module
     public int Version { get; set; } = 1;
     public List<ItemList> Lists { get; set; } = new();
 
+    /// <summary>Origem binária (ex.: layout do elements.data) para gravar de volta. Não vai para o JSON.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public object? Source { get; set; }
+
     public ItemList? FindListByName(string name) =>
         Lists.FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
 
@@ -37,6 +41,13 @@ public sealed class Item
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     public string Name { get; set; } = "";
     public Dictionary<string, Field> Fields { get; set; } = new();
+
+    /// <summary>
+    /// Bytes originais do registro (formatos binários). Ao gravar, partimos deles e só recodificamos
+    /// os campos alterados — garante round-trip byte-idêntico. Não vai para o JSON.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public byte[]? Raw { get; set; }
 }
 
 public enum FieldType { String, Int, Float, Bool, Reference }

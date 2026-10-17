@@ -32,6 +32,7 @@ public sealed class EditorForm : Form
     private string? _iconsRoot;
     private IconAtlas? _atlas;
     private string? _atlasPck;
+    private string? _dataPath;
     private readonly ContextMenuStrip _ctx = new();
     private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
@@ -87,7 +88,8 @@ public sealed class EditorForm : Form
         arq.DropDownItems.Add("Abrir &pasta do Perfect World…", null, (_, _) => OpenPwFolder());
         arq.DropDownItems.Add("Abrir &elements.data…", null, (_, _) => OpenElements());
         arq.DropDownItems.Add(new ToolStripSeparator());
-        arq.DropDownItems.Add("&Salvar…", null, (_, _) => SaveAs());
+        arq.DropDownItems.Add(new ToolStripMenuItem("&Salvar", null, (_, _) => SaveAs()) { ShortcutKeys = Keys.Control | Keys.S });
+        arq.DropDownItems.Add("Salvar &como…", null, (_, _) => SaveElementsAs());
         arq.DropDownItems.Add("Sa&ir", null, (_, _) => Close());
         var ed = M("&Editar");
         ed.DropDownItems.Add("&Novo item", null, (_, _) => AddItem());
@@ -283,6 +285,7 @@ public sealed class EditorForm : Form
             LoadAtlas(path);
             BuildTree();
             SaveLast(path);
+            _dataPath = path;
             int items = module.Lists.Sum(l => l.Items.Count);
             Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * reader.Position / reader.Length:0.0}%"
                 + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo"));
@@ -319,13 +322,34 @@ public sealed class EditorForm : Form
         return Directory.Exists(dir) ? (Directory.GetFiles(dir, $"*_v{v}.cfg").FirstOrDefault() ?? Directory.GetFiles(dir, $"*v{v}.cfg").FirstOrDefault()) : null;
     }
 
-    private void SaveAs()
+    // Salvar: grava o elements.data no próprio arquivo (backup com data/hora + escrita atômica).
+    private void SaveAs() => SaveElements(saveAs: false);
+    private void SaveElementsAs() => SaveElements(saveAs: true);
+
+    private void SaveElements(bool saveAs)
     {
-        if (_store.Current is null) { Status("Nada para salvar"); return; }
-        using var dlg = new SaveFileDialog { Filter = "Módulo (*.data)|*.data", FileName = _store.Current.Name };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        try { Status($"Salvo em {_store.Save(dlg.FileName)} (escrita binária do PW: em breve)"); }
+        if (_store.Current?.Source is not ElementsLayout || _dataPath is null) { Status("Abra um elements.data primeiro"); return; }
+        var target = _dataPath;
+        if (saveAs)
+        {
+            using var dlg = new SaveFileDialog { Filter = "elements.data (*.data)|*.data", FileName = Path.GetFileName(_dataPath), InitialDirectory = Path.GetDirectoryName(_dataPath) };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            target = dlg.FileName;
+        }
+        else if (MessageBox.Show($"Gravar as alterações em:\n{target}\n\nUma cópia de segurança do arquivo atual será criada ao lado dele.",
+                     "Salvar elements.data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        try
+        {
+            UseWaitCursor = true;
+            (string? Block, string Id)? keep = _current is null ? null : (BlockContaining(_current)?.Name, _current.Id);
+            var backup = ElementsWriter.Save(_store.Current, target);
+            LoadElements(target);                      // recarrega: o layout passa a refletir o arquivo novo
+            if (keep is { } k && _store.Current?.FindListByName(k.Block ?? "")?.FindById(k.Id) is { } again)
+            { _current = again; SelectItem(again); ShowItem(again); }
+            Status($"Salvo em {Path.GetFileName(target)}" + (backup is null ? "" : $" · backup: {Path.GetFileName(backup)}"));
+        }
         catch (Exception ex) { Error("Falha ao salvar", ex); }
+        finally { UseWaitCursor = false; }
     }
 
     // ---------- lista de itens (estilo Rody: seletor de bloco + lista plana) ----------
@@ -706,7 +730,8 @@ public sealed class EditorForm : Form
         {
             Id = code.ToString(),
             Name = _current.Name + " (cópia)",
-            Fields = _current.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value))
+            Fields = _current.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)),
+            Raw = _current.Raw?.ToArray()
         };
         SetIdName(ni);
         InsertNewItem(block, ni);
