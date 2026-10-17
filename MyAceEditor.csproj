@@ -21,6 +21,8 @@
   <ItemGroup>
     <None Update="sample.data" CopyToOutputDirectory="PreserveNewest" />
     <None Update="PerfectWorld\cfg\*.cfg" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Catálogos de idioma (lang/*.json): ficam ao lado do executável para a comunidade editar sem recompilar -->
+    <None Update="lang\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

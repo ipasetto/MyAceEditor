@@ -40,10 +40,10 @@ Depois, **Arquivo → Abrir pasta do Perfect World…** e escolha a pasta que co
 ## Gerar o executável
 
 ```bash
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PublishReadyToRun=true -o dist
 ```
 
-Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada.
+Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada. Copie também a pasta `lang\` para ao lado do `.exe` (ela traz os idiomas da interface; veja [CONTRIBUTING.md](CONTRIBUTING.md) para traduzir).
 
 ## Estado
 

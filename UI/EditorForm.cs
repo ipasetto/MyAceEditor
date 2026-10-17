@@ -14,7 +14,7 @@ public sealed class EditorForm : Form
     private const int MaxLeaves = 4000;
 
     private readonly ModuleStore _store = new();
-    private readonly TextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "  Pesquisar item por nome ou ID…", BorderStyle = BorderStyle.FixedSingle };
+    private readonly TextBox _search = new() { Dock = DockStyle.Top, BorderStyle = BorderStyle.FixedSingle };
     private readonly ComboBox _blockCombo = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly ComboBox _typeCombo = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, Visible = false };
     private readonly CheckBox _searchAll = new() { Dock = DockStyle.Right, Width = 22, Padding = new Padding(6, 0, 0, 0) };
@@ -23,7 +23,7 @@ public sealed class EditorForm : Form
     private int _hoverIdx = -1;
     private readonly Label _header = new() { Dock = DockStyle.Top, Height = 46, Font = new Font("Segoe UI Semibold", 13), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0) };
     private readonly DataGridView _grid = new() { Dock = DockStyle.Fill, AllowUserToAddRows = false, AllowUserToResizeRows = false, RowHeadersVisible = false, BorderStyle = BorderStyle.None, ColumnHeadersVisible = false };
-    private readonly ToolStripStatusLabel _status = new("Abra a pasta do Perfect World para começar.");
+    private readonly ToolStripStatusLabel _status = new();
     private readonly ToolTip _tip = new() { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 100 };
     private string[] _tipLines = Array.Empty<string>();
     private readonly List<(Image? Icon, string Text, string Pct, Color Color)> _tipDrops = new();
@@ -73,9 +73,16 @@ public sealed class EditorForm : Form
 
     private Item? _current;
     private ItemList? _curBlock;
+    // cada entrada reaplica um texto no idioma atual (ver Loc.T); chamada ao criar e ao trocar o idioma
+    private readonly List<Action> _texts = new();
+    private void Bind(Action apply) { apply(); _texts.Add(apply); }
+    private void ApplyLanguage() { foreach (var a in _texts) a(); }
+    private AiPolicyView? _aiView;
 
     public EditorForm()
     {
+        Bind(() => _search.PlaceholderText = Loc.T("search.placeholder", "  Pesquisar item por nome ou ID…"));
+        Bind(() => { if (_store.Current is null) _status.Text = Loc.T("status.start", "Abra a pasta do Perfect World para começar."); });
         Text = "MyAceEditor";
         Width = 1320; Height = 840;
         StartPosition = FormStartPosition.CenterScreen;
@@ -83,6 +90,7 @@ public sealed class EditorForm : Form
         BackColor = CBg; ForeColor = CFg;
         Font = new Font("Segoe UI", 9.5f);
 
+        Loc.Changed += () => { if (IsHandleCreated) BeginInvoke(ApplyLanguage); else ApplyLanguage(); };
         Controls.Add(BuildTabs());
         Controls.Add(BuildToolbar());
         Controls.Add(BuildMenu());
@@ -100,20 +108,44 @@ public sealed class EditorForm : Form
     private MenuStrip BuildMenu()
     {
         var menu = new MenuStrip { BackColor = CSurface, ForeColor = CFg, Padding = new Padding(4, 2, 0, 2) };
-        ToolStripMenuItem M(string t) => new(t) { ForeColor = CFg };
-        var arq = M("&Arquivo");
-        arq.DropDownItems.Add("Abrir &pasta do Perfect World…", null, (_, _) => OpenPwFolder());
-        arq.DropDownItems.Add("Abrir &elements.data…", null, (_, _) => OpenElements());
-        arq.DropDownItems.Add(new ToolStripSeparator());
-        arq.DropDownItems.Add(new ToolStripMenuItem("&Salvar", null, (_, _) => SaveAs()) { ShortcutKeys = Keys.Control | Keys.S });
-        arq.DropDownItems.Add("Salvar &como…", null, (_, _) => SaveElementsAs());
-        arq.DropDownItems.Add("Sa&ir", null, (_, _) => Close());
-        var ed = M("&Editar");
-        ed.DropDownItems.Add("&Novo item", null, (_, _) => AddItem());
-        ed.DropDownItems.Add("&Remover item", null, (_, _) => RemoveItem());
-        var aj = M("A&juda");
-        aj.DropDownItems.Add("Sobre", null, (_, _) => MessageBox.Show("MyAceEditor — editor dos dados do Perfect World.", "Sobre"));
-        menu.Items.AddRange(new ToolStripItem[] { arq, ed, aj });
+        ToolStripMenuItem M() => new() { ForeColor = CFg };
+        var arq = M(); var ed = M(); var aj = M(); var lg = M();
+        var openPw = new ToolStripMenuItem { ForeColor = CFg }; openPw.Click += (_, _) => OpenPwFolder();
+        var openEl = new ToolStripMenuItem { ForeColor = CFg }; openEl.Click += (_, _) => OpenElements();
+        var save = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.S }; save.Click += (_, _) => SaveAs();
+        var saveAs = new ToolStripMenuItem { ForeColor = CFg }; saveAs.Click += (_, _) => SaveElementsAs();
+        var exit = new ToolStripMenuItem { ForeColor = CFg }; exit.Click += (_, _) => Close();
+        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, exit });
+        var newItem = new ToolStripMenuItem { ForeColor = CFg }; newItem.Click += (_, _) => AddItem();
+        var removeItem = new ToolStripMenuItem { ForeColor = CFg }; removeItem.Click += (_, _) => RemoveItem();
+        ed.DropDownItems.AddRange(new ToolStripItem[] { newItem, removeItem });
+        var about = new ToolStripMenuItem { ForeColor = CFg };
+        about.Click += (_, _) => MessageBox.Show(Loc.T("menu.aboutText", "MyAceEditor — editor dos dados do Perfect World."), Loc.T("menu.about", "Sobre"));
+        aj.DropDownItems.Add(about);
+        foreach (var (code, name) in AppLang.All)
+        {
+            var mi = new ToolStripMenuItem(name) { ForeColor = CFg, Checked = AppLang.Current == code, Tag = code };
+            mi.Click += (_, _) => AppLang.Current = code;
+            lg.DropDownItems.Add(mi);
+        }
+        AppLang.Changed += () => { foreach (ToolStripMenuItem x in lg.DropDownItems) x.Checked = (string?)x.Tag == AppLang.Current; };
+        // o seletor de idioma fica sempre em "Idioma / Language" (universal), com cada língua pelo próprio nome
+        lg.Text = "Idioma / Language";
+        Bind(() =>
+        {
+            arq.Text = Loc.T("menu.file", "&Arquivo");
+            openPw.Text = Loc.T("menu.openPw", "Abrir &pasta do Perfect World…");
+            openEl.Text = Loc.T("menu.openElements", "Abrir &elements.data…");
+            save.Text = Loc.T("menu.save", "&Salvar");
+            saveAs.Text = Loc.T("menu.saveAs", "Salvar &como…");
+            exit.Text = Loc.T("menu.exit", "Sa&ir");
+            ed.Text = Loc.T("menu.edit", "&Editar");
+            newItem.Text = Loc.T("menu.newItem", "&Novo item");
+            removeItem.Text = Loc.T("menu.removeItem", "&Remover item");
+            aj.Text = Loc.T("menu.help", "A&juda");
+            about.Text = Loc.T("menu.about", "Sobre");
+        });
+        menu.Items.AddRange(new ToolStripItem[] { arq, ed, lg, aj });
         MainMenuStrip = menu;
         return menu;
     }
@@ -121,17 +153,16 @@ public sealed class EditorForm : Form
     private ToolStrip BuildToolbar()
     {
         var tb = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, BackColor = CSurface2, ForeColor = CFg, Renderer = new LightRenderer(), Padding = new Padding(6, 3, 6, 3) };
-        ToolStripButton B(string t, Action a) { var b = new ToolStripButton(t) { ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) }; b.Click += (_, _) => a(); return b; }
-        tb.Items.Add(B("◀", () => Navigate(-1)));
-        tb.Items.Add(B("▶", () => Navigate(+1)));
-        tb.Items[0].ToolTipText = "Voltar (item anterior)"; tb.Items[1].ToolTipText = "Avançar";
+        ToolStripButton B(Action a, Action<ToolStripButton> text) { var b = new ToolStripButton { ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) }; b.Click += (_, _) => a(); Bind(() => text(b)); return b; }
+        tb.Items.Add(B(() => Navigate(-1), b => { b.Text = "◀"; b.ToolTipText = Loc.T("tb.back", "Voltar (item anterior)"); }));
+        tb.Items.Add(B(() => Navigate(+1), b => { b.Text = "▶"; b.ToolTipText = Loc.T("tb.forward", "Avançar"); }));
         tb.Items.Add(new ToolStripSeparator());
-        tb.Items.Add(B("Abrir pasta do PW", OpenPwFolder));
-        tb.Items.Add(B("Abrir elements.data", OpenElements));
-        tb.Items.Add(B("Salvar", SaveAs));
+        tb.Items.Add(B(OpenPwFolder, b => b.Text = Loc.T("tb.openPw", "Abrir pasta do PW")));
+        tb.Items.Add(B(OpenElements, b => b.Text = Loc.T("tb.openElements", "Abrir elements.data")));
+        tb.Items.Add(B(SaveAs, b => b.Text = Loc.T("tb.save", "Salvar")));
         tb.Items.Add(new ToolStripSeparator());
-        tb.Items.Add(B("＋ Adicionar", AddItem));
-        tb.Items.Add(B("🗑 Excluir", RemoveItem));
+        tb.Items.Add(B(AddItem, b => b.Text = Loc.T("tb.add", "＋ Adicionar")));
+        tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
         return tb;
     }
 
@@ -146,22 +177,29 @@ public sealed class EditorForm : Form
             TextRenderer.DrawText(e.Graphics, tp.Text, new Font("Segoe UI", 10, sel ? FontStyle.Bold : FontStyle.Regular),
                 e.Bounds, sel ? CAccent : CMuted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         };
-        var tEl = new TabPage("Elements") { BackColor = CBg };
+        var tEl = new TabPage() { BackColor = CBg };
+        Bind(() => tEl.Text = Loc.T("tab.elements", "Elements"));
         tEl.Controls.Add(BuildElements());
         tabs.TabPages.Add(tEl);
-        var tQ = new TabPage("Quests") { BackColor = CBg };
+        var tQ = new TabPage() { BackColor = CBg };
+        Bind(() => tQ.Text = Loc.T("tab.quests", "Quests"));
         tQ.Controls.Add(BuildQuestView());
         tabs.TabPages.Add(tQ);
-        foreach (var (n, h) in new[] { ("GShop", "Editor de loja"), ("AI Policy", "Editor de IA") })
-        {
-            var tp = new TabPage(n) { BackColor = CBg };
-            tp.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted, Text = $"{h}\n(em breve)", Font = new Font("Segoe UI", 11) });
-            tabs.TabPages.Add(tp);
-        }
-        var tChk = new TabPage("Verificação") { BackColor = CBg };
+        var tG = new TabPage() { BackColor = CBg };
+        Bind(() => { tG.Text = Loc.T("tab.gshop", "GShop"); foreach (Control c in tG.Controls) c.Text = Loc.T("tab.gshopSoon", "Editor de loja\n(em breve)"); });
+        tG.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted, Text = "Editor de loja\n(em breve)", Font = new Font("Segoe UI", 11) });
+        tabs.TabPages.Add(tG);
+        var tAi = new TabPage() { BackColor = CBg };
+        Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));
+        _aiView = new AiPolicyView(CBg, CFg, CTreeBg, CTreeFg, CAccent);
+        tAi.Controls.Add(_aiView);
+        tabs.TabPages.Add(tAi);
+        var tChk = new TabPage() { BackColor = CBg };
+        Bind(() => tChk.Text = Loc.T("tab.verify", "Verificação"));
         tChk.Controls.Add(BuildCheckView());
         tabs.TabPages.Add(tChk);
-        var tPck = new TabPage("Extrator PCK") { BackColor = CBg };
+        var tPck = new TabPage() { BackColor = CBg };
+        Bind(() => tPck.Text = Loc.T("tab.pck", "Extrator PCK"));
         tPck.Controls.Add(BuildPckView());
         tabs.TabPages.Add(tPck);
         return tabs;
@@ -227,9 +265,11 @@ public sealed class EditorForm : Form
         _gotoId.BackColor = CTreeInput; _gotoId.ForeColor = CTreeFg; _gotoId.Dock = DockStyle.Fill; _gotoId.Margin = new Padding(0, 2, 4, 0);
         _gotoId.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; GoToId(); } };
         _tip.SetToolTip(_gotoId, "Ir para o ID (Enter)");
-        foot.Controls.Add(FootBtn("＋ Adicionar", AddItem), 0, 0);
+        var footAdd = FootBtn("＋ Adicionar", AddItem); foot.Controls.Add(footAdd, 0, 0);
+        Bind(() => footAdd.Text = Loc.T("footer.add", "＋ Adicionar"));
         foot.Controls.Add(_gotoId, 1, 0);
-        foot.Controls.Add(FootBtn("✕ Excluir", RemoveItem), 2, 0);
+        var footDel = FootBtn("✕ Excluir", RemoveItem); foot.Controls.Add(footDel, 2, 0);
+        Bind(() => footDel.Text = Loc.T("footer.delete", "✕ Excluir"));
 
         var listHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0), BackColor = CTreeBg };
         listHost.Controls.Add(_list);
@@ -253,12 +293,14 @@ public sealed class EditorForm : Form
         headPanel.Controls.Add(_idLabel);
         headPanel.Controls.Add(_iconBox);
         StyleGrid();
-        var tVal = new TabPage("Valores") { BackColor = CSurface };
+        var tVal = new TabPage() { BackColor = CSurface };
+        Bind(() => tVal.Text = Loc.T("detail.values", "Valores"));
         tVal.Controls.Add(_grid);
         tVal.Controls.Add(_groupTabs);
         _groupTabs.SelectedIndexChanged += (_, _) => { if (_current is not null) FillGrid(_current); };
         // Buscar por campo (no bloco atual)
-        var tFind = new TabPage("Buscar") { BackColor = CSurface };
+        var tFind = new TabPage() { BackColor = CSurface };
+        Bind(() => tFind.Text = Loc.T("detail.search", "Buscar"));
         var findBar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(6, 6, 6, 0), BackColor = CSurface };
         _findOp.Items.AddRange(new object[] { "=", "≠", ">", "<", "contém" }); _findOp.SelectedIndex = 0;
         var findBtn = new Button { Text = "Buscar", Height = 26, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
@@ -270,10 +312,12 @@ public sealed class EditorForm : Form
         _findList.DoubleClick += (_, _) => { if (_findList.SelectedItems.Count > 0 && _findList.SelectedItems[0].Tag is Item it) GoToItem(it); };
         tFind.Controls.Add(_findList); tFind.Controls.Add(findBar);
         // Descrição e cor (item_ext_desc.txt do configs.pck)
-        var tDesc = new TabPage("Descrição e cor") { BackColor = CTreeBg, Padding = new Padding(12) };
+        var tDesc = new TabPage() { BackColor = CTreeBg, Padding = new Padding(12) };
+        Bind(() => tDesc.Text = Loc.T("detail.description", "Descrição e cor"));
         _descBox.BackColor = CTreeBg; _descBox.ForeColor = CTreeFg;
         tDesc.Controls.Add(_descBox);
-        _tabLinks = new TabPage("Vínculos") { BackColor = CSurface };
+        _tabLinks = new TabPage() { BackColor = CSurface };
+        Bind(() => _tabLinks.Text = Loc.T("detail.links", "Vínculos"));
         _links.Columns.Add("Bloco", 170); _links.Columns.Add("ID", 70, HorizontalAlignment.Right);
         _links.Columns.Add("Nome", 280); _links.Columns.Add("Campo", 220); _links.Columns.Add("%", 70, HorizontalAlignment.Right);
         _links.BackColor = CSurface; _links.ForeColor = CFg; _links.SmallImageList = _treeIcons;
@@ -357,44 +401,87 @@ public sealed class EditorForm : Form
         if (dlg.ShowDialog(this) == DialogResult.OK) LoadElements(dlg.FileName);
     }
 
+    // Carregamento em segundo plano: a leitura pesada (elements, ícones, configs, quests) roda fora da tela;
+    // a tela só recebe o resultado pronto. Assim a janela não congela ao abrir a pasta do jogo.
+    private int _loadSeq;
+    private sealed record Loaded(Module Module, string? AtlasPck, IconAtlas? Atlas, GameConfigs? Cfgs,
+        TasksFile? Tasks, string? TasksPath, int Position, int Length, long Ms, string? Error);
+
     private void LoadElements(string path)
+    {
+        var seq = ++_loadSeq;
+        UseWaitCursor = true;
+        Status(Loc.T("status.loading", "Carregando…") + " " + Path.GetFileName(path));
+        _ = LoadElementsAsync(path, seq);
+    }
+
+    private async Task LoadElementsAsync(string path, int seq)
     {
         try
         {
-            UseWaitCursor = true;
-            var reader = new CfgElementsReader(path);
-            if (!reader.SignatureValid) { Status($"Assinatura inválida (0x{reader.Signature:X8})."); return; }
-            var cfg = FindCfg(reader.Version);
-            if (cfg is null) { Status($"Sem definição .cfg para a versão v{reader.Version & 0xFF}."); return; }
-            var module = reader.Parse(ElementsCfg.Load(cfg));
-            module.Name = Path.GetFileName(path);
-            _store.Adopt(module);
-            _refs = new RefIndex(module);
-            LoadAtlas(path);
-            try { _cfgs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp) : null; } catch { _cfgs = null; }
-            LoadTasksNear(path);
-            BuildTree();
-            SaveLast(path);
-            _dataPath = path;
-            int items = module.Lists.Sum(l => l.Items.Count);
-            Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * reader.Position / reader.Length:0.0}%"
-                + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo"));
+            var r = await Task.Run(() => ReadAll(path));
+            if (seq != _loadSeq) return;                 // outra abertura começou depois: descarta esta
+            if (r.Error is not null) { Status(r.Error); return; }
+            ApplyLoaded(path, r);
         }
         catch (Exception ex) { Error("Falha ao ler elements.data", ex); }
-        finally { UseWaitCursor = false; }
+        finally { if (seq == _loadSeq) UseWaitCursor = false; }
+    }
+
+    // Só leitura de arquivos: não toca em nenhum controle (roda em outra thread).
+    private static Loaded ReadAll(string path)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var reader = new CfgElementsReader(path);
+        if (!reader.SignatureValid) return new Loaded(null!, null, null, null, null, null, 0, 0, 0, $"Assinatura inválida (0x{reader.Signature:X8}).");
+        var cfg = FindCfg(reader.Version);
+        if (cfg is null) return new Loaded(null!, null, null, null, null, null, 0, 0, 0, $"Sem definição .cfg para a versão v{reader.Version & 0xFF}.");
+        var module = reader.Parse(ElementsCfg.Load(cfg));
+        module.Name = Path.GetFileName(path);
+
+        var pck = IconAtlas.FindSurfacesPck(path);
+        IconAtlas? atlas = null;
+        if (pck is not null) try { atlas = IconAtlas.Load(pck); } catch { atlas = null; }
+
+        GameConfigs? cfgs = null;
+        try { cfgs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp) : null; } catch { cfgs = null; }
+
+        TasksFile? tasks = null; string? tasksPath = null;
+        var tp = Path.Combine(Path.GetDirectoryName(path) ?? "", "tasks.data");
+        if (File.Exists(tp)) { try { tasks = new TasksFile(tp); tasksPath = tp; } catch { tasks = null; } }
+
+        return new Loaded(module, pck, atlas, cfgs, tasks, tasksPath, reader.Position, reader.Length, sw.ElapsedMilliseconds, null);
+    }
+
+    // Aplicação na tela (thread da interface).
+    private void ApplyLoaded(string path, Loaded r)
+    {
+        var module = r.Module;
+        _store.Adopt(module);
+        _refs = new RefIndex(module);
+        _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
+        _aiView?.LoadRememberedIfNeeded();
+        _atlasPck = r.AtlasPck; _atlas = r.Atlas;          // ícones: cache novo para este pacote
+        _iconIdx.Clear(); _treeIcons.Images.Clear();
+        _cfgs = r.Cfgs;
+        if (r.Tasks is { } t)
+        {
+            _tasks = t; _tasksPath = r.TasksPath; _tasksDirty = false;
+            RefreshQuests();
+            _qStatus.Text = t.FullSchema
+                ? $"{Path.GetFileName(r.TasksPath)} · versão {t.Version} · {t.Roots!.Count:N0} quests ({t.AllNodes().Count():N0} com subquests) · edição completa"
+                : $"{Path.GetFileName(r.TasksPath)} · versão {t.Version} · {t.Quests.Count:N0} quests · só nomes";
+        }
+        BuildTree();
+        SaveLast(path);
+        _dataPath = path;
+        int items = module.Lists.Sum(l => l.Items.Count);
+        Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
+            + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo"));
+        UseWaitCursor = false;
     }
 
     // Ícones nativos: lê o atlas direto do surfaces.pck (sem extrair nada).
-    private void LoadAtlas(string elementsPath)
-    {
-        var pck = IconAtlas.FindSurfacesPck(elementsPath);
-        if (pck == _atlasPck && _atlas is not null) return;
-        _atlas = null; _atlasPck = pck;
-        _iconIdx.Clear(); _treeIcons.Images.Clear();
-        if (pck is null) return;
-        try { _atlas = IconAtlas.Load(pck); } catch { _atlas = null; }
-    }
-
     private Image? IconFor(Item it)
     {
         if (!it.Fields.TryGetValue("file_icon", out var fi) || string.IsNullOrEmpty(fi.Value)) return null;
@@ -811,7 +898,7 @@ public sealed class EditorForm : Form
         _idLabel.Text = item.Id;
         LoadItemIcon(item);
         var uses = _refs?.UsedBy(item.Id).Count ?? 0;
-        _tabLinks.Text = uses > 0 ? $"Vínculos ({uses})" : "Vínculos";
+        _tabLinks.Text = (uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos"));
         if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
 
         // sub-abas por grupo (Básico, Habilidades, Queda, Modelo…), mantendo a aba escolhida se existir
@@ -1131,29 +1218,54 @@ public sealed class EditorForm : Form
 
     // ---------- menu de contexto (clicar direito) ----------
     private ToolStripMenuItem _miFav = null!;
+    // textos padrão (pt) do menu de clique direito; o idioma escolhido vem de lang/*.json (chave ctx.<marca>)
+    static readonly Dictionary<string, string> CtxPt = new()
+    {
+        ["new"] = "Novo item", ["clone"] = "Clonar item", ["delete"] = "Excluir item",
+        ["bulkClone"] = "Clonar selecionados", ["bulkDelete"] = "Excluir selecionados", ["bulkChange"] = "Alterar campo nos selecionados…",
+        ["copyIds"] = "Copiar IDs selecionados", ["selectAll"] = "Selecionar todos (Ctrl+A)",
+    };
+
     private void BuildContextMenu()
     {
-        _ctx.Items.Add("Novo item", null, (_, _) => NewItem());
-        _ctx.Items.Add("Clonar item", null, (_, _) => CloneItem());
-        _ctx.Items.Add("Excluir item", null, (_, _) => RemoveItem());
+        ToolStripMenuItem Item(string tag, Action run, string key, string pt)
+        {
+            var mi = new ToolStripMenuItem { Tag = tag };
+            mi.Click += (_, _) => run();
+            _ctx.Items.Add(mi);
+            Bind(() => mi.Text = Loc.T(key, pt));
+            return mi;
+        }
+        Item("new", NewItem, "ctx.new", "Novo item");
+        Item("clone", CloneItem, "ctx.clone", "Clonar item");
+        Item("delete", RemoveItem, "ctx.delete", "Excluir item");
         _ctx.Items.Add(new ToolStripSeparator());
-        _ctx.Items.Add("Clonar selecionados", null, (_, _) => BulkClone());
-        _ctx.Items.Add("Excluir selecionados", null, (_, _) => BulkDelete());
-        _ctx.Items.Add("Alterar campo nos selecionados…", null, (_, _) => BulkChange());
-        _ctx.Items.Add("Copiar IDs selecionados", null, (_, _) => { var ids = SelectedItems().Select(i => i.Id); Clipboard.SetText(string.Join(Environment.NewLine, ids)); Status("IDs copiados"); });
-        _ctx.Items.Add("Selecionar todos (Ctrl+A)", null, (_, _) => SelectAllItems());
+        Item("bulkClone", BulkClone, "ctx.bulkClone", "Clonar selecionados");
+        Item("bulkDelete", BulkDelete, "ctx.bulkDelete", "Excluir selecionados");
+        Item("bulkChange", BulkChange, "ctx.bulkChange", "Alterar campo nos selecionados…");
+        Item("copyIds", () => { var ids = SelectedItems().Select(i => i.Id); Clipboard.SetText(string.Join(Environment.NewLine, ids)); Status(Loc.T("status.idsCopied", "IDs copiados")); }, "ctx.copyIds", "Copiar IDs selecionados");
+        Item("selectAll", SelectAllItems, "ctx.selectAll", "Selecionar todos (Ctrl+A)");
         _ctx.Items.Add(new ToolStripSeparator());
-        _miFav = new ToolStripMenuItem("Favoritar", null, (_, _) => ToggleFavorite());
+        _miFav = new ToolStripMenuItem { Tag = "fav" };
+        _miFav.Click += (_, _) => ToggleFavorite();
         _ctx.Items.Add(_miFav);
+        Bind(() => _miFav.Text = Loc.T("ctx.fav", "Favoritar"));
         _ctx.Opening += (_, e) =>
         {
             bool isItem = _list.SelectedIndices.Count > 0 && _current is not null;
             int nSel = _list.SelectedIndices.Count;
             foreach (ToolStripItem i in _ctx.Items)
-                if (i.Text is { } t && t.EndsWith("selecionados") || i.Text?.StartsWith("Alterar campo") == true) i.Text = System.Text.RegularExpressions.Regex.Replace(i.Text!, @" \(\d+\)$", "") + (nSel > 1 ? $" ({nSel})" : "");
-            foreach (ToolStripItem i in _ctx.Items) i.Enabled = isItem || i.Text == "Novo item";
+            {
+                if (i.Tag is not string tag) continue;
+                i.Enabled = isItem || tag == "new";
+                if (CtxPt.TryGetValue(tag, out var pt))
+                {
+                    var t = Loc.T("ctx." + tag, pt);
+                    i.Text = tag is "bulkClone" or "bulkDelete" or "bulkChange" or "copyIds" && nSel > 1 ? $"{t} ({nSel})" : t;
+                }
+            }
             if (isItem && CurrentItemBlock is { } cb)
-                _miFav.Text = _favorites.Contains(FavKey(cb, _current!)) ? "Desfavoritar" : "Favoritar";
+                _miFav.Text = _favorites.Contains(FavKey(cb, _current!)) ? Loc.T("ctx.unfav", "Desfavoritar") : Loc.T("ctx.fav", "Favoritar");
         };
     }
 
@@ -1470,12 +1582,6 @@ public sealed class EditorForm : Form
     }
 
     // tasks.data ao lado do elements.data (data\tasks.data)
-    private void LoadTasksNear(string elementsPath)
-    {
-        var p = Path.Combine(Path.GetDirectoryName(elementsPath) ?? "", "tasks.data");
-        if (File.Exists(p) && p != _tasksPath) LoadTasks(p);
-    }
-
     private void OpenTasksDialog()
     {
         using var dlg = new OpenFileDialog { Filter = "tasks.data (*.data)|*.data|Todos (*.*)|*.*" };

@@ -26,6 +26,8 @@ internal static class Program
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
+        if (args.Length >= 1 && args[0] == "--translate-selftest") { TranslateSelfTest().GetAwaiter().GetResult(); return; }
         if (args.Length >= 2 && args[0] == "--addons") { TestAddons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--configs")
         {
@@ -55,6 +57,87 @@ internal static class Program
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
         bmp.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
+    }
+
+
+    // --translate-selftest: prova a fila do tradutor sem internet (limite de uso, falhas, retomada).
+    private static async Task TranslateSelfTest()
+    {
+        var sb = new StringBuilder();
+        var texts = Enumerable.Range(1, 40).Select(i => $"texto {i}").ToList();
+
+        // 1) limite de uso nas 6 primeiras chamadas (Retry-After 1 s), depois tudo certo
+        var fake = new FlakyProvider(rateLimitFirst: 6, failFirst: 0);
+        var tr = new AiTranslator(new TranslationCache(Path.Combine(Path.GetTempPath(), "myace-t1.json")), fake, baseBackoffSeconds: 1);
+        var r = await tr.TranslateAsync(texts, "pt", null, CancellationToken.None);
+        sb.AppendLine($"1) limite de uso: traduzidos {r.Translated}/40 · falhas {r.Failed} · não tentados {r.NotTried} · chamadas {fake.Calls}");
+
+        // 2) falhas de rede poucas: cada item tenta 3 vezes e depois desiste só daquele item
+        fake = new FlakyProvider(0, failFirst: 4);
+        tr = new AiTranslator(new TranslationCache(Path.Combine(Path.GetTempPath(), "myace-t2.json")), fake, baseBackoffSeconds: 1);
+        r = await tr.TranslateAsync(texts, "pt", null, CancellationToken.None);
+        sb.AppendLine($"2) falhas pontuais: traduzidos {r.Translated}/40 · falhas definitivas {r.Failed} · não tentados {r.NotTried}");
+
+        // 3) serviço fora do ar: para depois de 20 falhas seguidas e deixa o resto para depois (retomada)
+        fake = new FlakyProvider(0, failFirst: int.MaxValue);
+        var cache3 = new TranslationCache(Path.Combine(Path.GetTempPath(), "myace-t3.json"));
+        tr = new AiTranslator(cache3, fake, baseBackoffSeconds: 1);
+        r = await tr.TranslateAsync(texts, "pt", null, CancellationToken.None);
+        sb.AppendLine($"3) fora do ar: traduzidos {r.Translated} · falhas {r.Failed} · não tentados {r.NotTried} (para a fila sobrar)");
+        fake = new FlakyProvider(0, 0);
+        tr = new AiTranslator(cache3, fake, baseBackoffSeconds: 1);
+        r = await tr.TranslateAsync(texts, "pt", null, CancellationToken.None);
+        sb.AppendLine($"   ao voltar: traduzidos {r.Translated} · não tentados {r.NotTried} (o cache continua de onde parou)");
+        File.WriteAllText("translate-selftest.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    sealed class FlakyProvider : ITranslationProvider
+    {
+        readonly int _rl, _fail; int _calls, _rlSeen, _failSeen;
+        public FlakyProvider(int rateLimitFirst, int failFirst) { _rl = rateLimitFirst; _fail = failFirst; }
+        public int Calls => _calls;
+        public string Name => "fake";
+        public Task<string> TranslateAsync(string text, string targetLang, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _calls);
+            if (Interlocked.Increment(ref _rlSeen) <= _rl)
+                throw new RateLimitedException(429, TimeSpan.FromMilliseconds(300));
+            if (Interlocked.Increment(ref _failSeen) <= _fail)
+                throw new HttpRequestException("falha simulada");
+            return Task.FromResult("[" + targetLang + "] " + text);
+        }
+    }
+
+    // --aipolicy <aipolicy.data>: lê, prova o round-trip byte a byte e aponta onde o esquema para (aipolicy-report.txt).
+    private static void TestAiPolicy(string path)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var f = new AiPolicyFile(path);
+        var sb = new StringBuilder($"versão {f.Version} · {f.Policies.Count:N0} políticas · {f.Policies.Sum(p => p.Triggers.Count):N0} triggers · leitura {sw.ElapsedMilliseconds} ms\n");
+        if (!f.Ok)
+        {
+            sb.AppendLine("LEITURA INCOMPLETA — não edite este arquivo ainda:");
+            sb.AppendLine(f.Error);
+            sb.AppendLine("Complemente o layout em aipolicy_layouts.json (ao lado do .exe) e rode de novo.");
+        }
+        else
+        {
+            sb.AppendLine($"round-trip (reler→gravar sem mudar): {(f.RoundTripIdentical() ? "IDÊNTICO" : "DIFERENTE")}");
+            sb.AppendLine("operações usadas (tipo nome × qtd [layout]):");
+            foreach (var (t, n) in f.OpHistogram)
+                sb.AppendLine($"  {t,2} {AiSchema.OpName(t),-20} × {n,6}  {(AiSchema.Op(t)?.Guess == true ? "[inferido]" : "[KB/arquivo]")}");
+            var dv = f.Policies.SelectMany(p => p.Triggers).GroupBy(t => t.Version).OrderBy(g => g.Key);
+            sb.AppendLine("dwVersion dos triggers: " + string.Join(", ", dv.Select(g => $"v{g.Key}×{g.Count()}")));
+            var ctx = new AiContext();
+            var t0 = System.Diagnostics.Stopwatch.StartNew();
+            int nt = 0;
+            foreach (var p in f.Policies) foreach (var t in p.Triggers) { _ = AiMeaning.TriggerName(t, ctx); nt++; }
+            sb.AppendLine($"texto de {nt:N0} triggers: {t0.ElapsedMilliseconds} ms");
+            t0.Restart();
+            foreach (var p in f.Policies) foreach (var t in p.Triggers) { _ = AiMeaning.TriggerSummary(t, ctx); }
+            sb.AppendLine($"resumo detalhado de {nt:N0} triggers: {t0.ElapsedMilliseconds} ms");
+        }
+        File.WriteAllText("aipolicy-report.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --tasks <tasks.data>: lista amostra de quests e prova a gravação de nomes (tasks-report.txt).
