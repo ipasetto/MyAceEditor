@@ -1,128 +1,162 @@
+using System.Globalization;
 using System.Text;
 using MyAceEditor.Model;
 
 namespace MyAceEditor.PerfectWorld;
 
-/// <summary>
-/// Mapa do elements.data original: bytes do arquivo + onde cada bloco de registros começa e termina.
-/// Tudo que fica fora desses blocos (cabeçalho, blocos de assinatura, TALK_PROC, cauda não lida)
-/// é copiado byte a byte na gravação.
-/// </summary>
 public sealed class ElementsLayout
 {
-    public sealed record BlockSpan(CfgBlock Block, ItemList List, int CountPos, int EndPos);
-
+    public sealed record BlockSpan(CfgBlock Block, ItemList List, int CountPos, int EndPos, int DataPos = -1, int StoredRecordSize = 0)
+    {
+        public Item[] OriginalOrder { get; init; } = Array.Empty<Item>();
+        public int RecordSize => StoredRecordSize > 0 ? StoredRecordSize : Block.RecordSize;
+        public int RecordsAt => DataPos >= 0 ? DataPos : CountPos + 4;
+    }
     public byte[] Original { get; }
     public List<BlockSpan> Blocks { get; } = new();
-
+    public List<(string Name, int Start, int End)> OpaqueSections { get; } = new();
+    public List<string> Warnings { get; } = new();
+    public string ConfigPath { get; set; } = "";
+    public ElementsReadFormat Format { get; set; }
+    public bool Complete { get; set; }
+    public string? Failure { get; set; }
+    public bool RoundTripVerified { get; set; }
+    public bool CanWrite => Complete && Format != ElementsReadFormat.MppcLists && Warnings.Count == 0 && RoundTripVerified;
+    public string ReadOnlyReason => !Complete ? "未完整读取：" + Failure
+        : Format == ElementsReadFormat.MppcLists ? "MPPC 压缩格式当前仅开放读取，尚未验证压缩写回。"
+        : Warnings.Count > 0 ? string.Join("\n", Warnings)
+        : !RoundTripVerified ? "无修改写回验证未通过。" : "";
     public ElementsLayout(byte[] original) => Original = original;
 }
 
-/// <summary>
-/// Grava o elements.data a partir do módulo lido por <see cref="CfgElementsReader"/>.
-/// Cada registro parte dos bytes originais (Item.Raw) e só os campos cujo valor mudou são
-/// recodificados — sem mudanças, a saída é idêntica ao arquivo lido (ENGINE-KB §E3).
-/// </summary>
 public static class ElementsWriter
 {
-    static readonly Encoding Gbk;
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+    private static readonly Encoding Gbk;
     static ElementsWriter()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        Gbk = Encoding.GetEncoding(936);
+        Gbk = Encoding.GetEncoding(936, EncoderFallback.ExceptionFallback, DecoderFallback.ReplacementFallback);
     }
-
+    public static bool VerifyRoundTrip(Module module, LoadContext? context = null)
+    {
+        if (module.Source is not ElementsLayout layout || !layout.Complete || layout.Format == ElementsReadFormat.MppcLists) return false;
+        try
+        {
+            context?.Check();
+            byte[] rebuilt = BuildCore(layout, context);
+            context?.Check();
+            bool same = rebuilt.AsSpan().SequenceEqual(layout.Original);
+            context?.Report(1, "验证写回", same ? "无修改重建与原文件一致" : "无修改重建不一致", force: true);
+            return same;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or FormatException or OverflowException or EncoderFallbackException) { return false; }
+    }
     public static byte[] Build(Module module)
     {
-        if (module.Source is not ElementsLayout layout)
-            throw new InvalidOperationException("Este módulo não veio de um elements.data (sem layout de origem).");
-
-        var src = layout.Original;
-        using var ms = new MemoryStream(src.Length + 4096);
+        if (module.Source is not ElementsLayout layout) throw new InvalidOperationException("此模块缺少 elements.data 原始布局。");
+        if (!layout.CanWrite) throw new InvalidOperationException("当前数据为只读，不能保存。" + layout.ReadOnlyReason);
+        return BuildCore(layout);
+    }
+    private static byte[] BuildCore(ElementsLayout layout, LoadContext? context = null)
+    {
+        byte[] src = layout.Original;
+        using var ms = new MemoryStream(src.Length);
         int copied = 0;
+        long done = 0, total = layout.Blocks.Sum(b => (long)b.List.Items.Count);
         foreach (var span in layout.Blocks)
         {
-            ms.Write(src, copied, span.CountPos - copied);            // trecho intacto antes do bloco
+            context?.Check();
+            if (span.CountPos < copied || span.RecordsAt < span.CountPos + 4 || span.EndPos > src.Length)
+                throw new InvalidDataException("保存布局的偏移无效。");
+            ms.Write(src, copied, span.CountPos - copied);
             ms.Write(BitConverter.GetBytes(span.List.Items.Count));
+            // v191+ 的记录长度字段位于 count 与首记录之间，必须原样保留。
+            if (layout.Format == ElementsReadFormat.SizedLists && span.List.Items.Count > 0
+                && BitConverter.ToUInt32(src, span.CountPos + 4) == 0)
+                ms.Write(BitConverter.GetBytes(span.RecordSize));
+            else ms.Write(src, span.CountPos + 4, span.RecordsAt - span.CountPos - 4);
             foreach (var item in span.List.Items)
-                ms.Write(EncodeRecord(span.Block, item));
+            {
+                if ((done & 127) == 0)
+                {
+                    context?.Check();
+                    context?.Report(done / (double)Math.Max(1, total), "验证写回", $"{done:N0}/{total:N0} 条记录");
+                }
+                ms.Write(EncodeRecord(span.Block, item, span.RecordSize, context)); done++;
+            }
             copied = span.EndPos;
         }
-        ms.Write(src, copied, src.Length - copied);                    // resto do arquivo intacto
+        ms.Write(src, copied, src.Length - copied);
         return ms.ToArray();
     }
-
-    /// <summary>
-    /// Grava com segurança: backup com data/hora ao lado do original e escrita atômica
-    /// (arquivo temporário + substituição). Retorna o caminho do backup (ou null se o arquivo não existia).
-    /// </summary>
     public static string? Save(Module module, string path)
     {
-        var bytes = Build(module);
+        byte[] bytes = Build(module);
+        string full = Path.GetFullPath(path), tmp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
         string? backup = null;
-        if (File.Exists(path))
+        try
         {
-            backup = $"{path}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
-            File.Copy(path, backup, overwrite: false);
-        }
-        var tmp = path + ".tmp";
-        File.WriteAllBytes(tmp, bytes);
-        if (File.Exists(path)) File.Replace(tmp, path, null);
-        else File.Move(tmp, path);
-        return backup;
-    }
-
-    static byte[] EncodeRecord(CfgBlock block, Item item)
-    {
-        var rec = new byte[block.RecordSize];
-        if (item.Raw is { } raw) Array.Copy(raw, rec, Math.Min(raw.Length, rec.Length));
-
-        int p = 0;
-        foreach (var f in block.Fields)
-        {
-            if (item.Fields.TryGetValue(f.Name, out var field))
+            using (var stream = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            { stream.Write(bytes); stream.Flush(flushToDisk: true); }
+            if (File.Exists(full))
             {
-                bool changed = item.Raw is null || CfgElementsReader.DecodeField(f, rec, p) != field.Value;
-                if (changed) EncodeField(f, field.Value, rec, p);
+                backup = $"{full}.{DateTime.Now:yyyyMMdd-HHmmss-fff}.{Guid.NewGuid().ToString("N")[..6]}.bak";
+                File.Copy(full, backup, overwrite: false);
+                File.Replace(tmp, full, null);
             }
-            p += f.Size;
+            else File.Move(tmp, full);
+            return backup;
         }
-        return rec;
+        finally { if (File.Exists(tmp)) File.Delete(tmp); }
     }
-
-    static void EncodeField(CfgField f, string value, byte[] rec, int p)
+    private static byte[] EncodeRecord(CfgBlock block, Item item, int recordSize, LoadContext? context = null)
     {
-        string t = f.Type.ToLowerInvariant();
+        if (item.Raw is { } existing && existing.Length != recordSize) throw new InvalidDataException("记录长度与目标列表不一致。");
+        var raw = item.Raw is null ? new byte[recordSize] : (byte[])item.Raw.Clone();
+        int at = 0, ordinal = 0;
+        foreach (var field in block.Fields)
+        {
+            if ((ordinal++ & 255) == 0) context?.Check();
+            if (item.Fields.TryGetValue(field.Name, out var value)
+                && (item.Raw is null || CfgElementsReader.DecodeField(field, raw, at) != value.Value))
+                EncodeField(field, value.Value, raw, at);
+            at += field.Size;
+        }
+        return raw;
+    }
+    private static void EncodeField(CfgField field, string value, byte[] raw, int at)
+    {
+        string t = field.Type.ToLowerInvariant();
         if (t.StartsWith("wstring:") || t.StartsWith("string:"))
         {
-            var bytes = t.StartsWith("w") ? Encoding.Unicode.GetBytes(value) : Gbk.GetBytes(value);
-            int max = f.Size - (t.StartsWith("w") ? 2 : 1);              // deixa espaço para o terminador
-            int n = Math.Min(bytes.Length, max);
-            if (t.StartsWith("w")) n &= ~1;
-            Array.Clear(rec, p, f.Size);
-            Array.Copy(bytes, 0, rec, p, n);
-            return;
+            bool unicode = t.StartsWith("wstring:");
+            byte[] bytes = unicode ? Encoding.Unicode.GetBytes(value) : Gbk.GetBytes(value);
+            int limit = field.Size - (unicode ? 2 : 1);
+            // 超长文本不能静默截断，以免切开 GBK 字符或 UTF-16 代理对。
+            if (bytes.Length > limit) throw new InvalidDataException($"{field.Name}：文本超过可用的 {limit} 字节。");
+            Array.Clear(raw, at, field.Size); bytes.CopyTo(raw, at); return;
         }
-        var inv = System.Globalization.CultureInfo.InvariantCulture;
-        switch (t)
+        if (t.StartsWith("byte:") || t.StartsWith("bytes:"))
         {
-            case "float":
-                float fv = float.TryParse(value.Replace(',', '.'), System.Globalization.NumberStyles.Float, inv, out var x) ? x : 0f;
-                BitConverter.GetBytes(fv).CopyTo(rec, p);
-                break;
-            case "int16" or "word" or "short":
-                BitConverter.GetBytes(short.TryParse(value, out var s) ? s : (short)0).CopyTo(rec, p);
-                break;
-            case "int8" or "byte" or "char" or "bool":
-                rec[p] = byte.TryParse(value, out var b) ? b : (byte)0;
-                break;
-            case "int64" or "double":
-                BitConverter.GetBytes(long.TryParse(value, out var l) ? l : 0L).CopyTo(rec, p);
-                break;
-            default:
-                int iv = int.TryParse(value, out var i) ? i : (uint.TryParse(value, out var u) ? unchecked((int)u) : 0);
-                BitConverter.GetBytes(iv).CopyTo(rec, p);
-                break;
+            byte[] bytes = Convert.FromHexString(value.Replace("-", "").Replace(" ", ""));
+            if (bytes.Length != field.Size) throw new InvalidDataException($"{field.Name}：需要 {field.Size} 字节的十六进制数据。");
+            bytes.CopyTo(raw, at); return;
         }
+        byte[] data = t switch
+        {
+            "float" => BitConverter.GetBytes(float.Parse(value.Replace(',', '.'), NumberStyles.Float, Inv)),
+            "double" => BitConverter.GetBytes(double.Parse(value.Replace(',', '.'), NumberStyles.Float, Inv)),
+            "int64" or "long" => BitConverter.GetBytes(long.Parse(value, Inv)),
+            "uint64" or "ulong" => BitConverter.GetBytes(ulong.Parse(value, Inv)),
+            "uint32" or "uint" or "dword" => BitConverter.GetBytes(uint.Parse(value, Inv)),
+            "int16" or "short" => BitConverter.GetBytes(short.Parse(value, Inv)),
+            "uint16" or "word" or "ushort" => BitConverter.GetBytes(ushort.Parse(value, Inv)),
+            "int8" or "sbyte" => new[] { unchecked((byte)sbyte.Parse(value, Inv)) },
+            "uint8" or "byte" or "char" or "bool" => new[] { byte.Parse(value, Inv) },
+            "int32" or "int" => BitConverter.GetBytes(int.TryParse(value, NumberStyles.Integer, Inv, out int signed) ? signed : unchecked((int)uint.Parse(value, Inv))),
+            _ => throw new InvalidDataException($"不支持字段类型：{t}"),
+        };
+        data.CopyTo(raw, at);
     }
 }

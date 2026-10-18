@@ -9,7 +9,7 @@ namespace MyAceEditor.Tools;
 [McpServerToolType]
 public sealed class CommonTools
 {
-    [McpServerTool, Description("Mostra o estado atual: módulo carregado, caminho e mudanças pendentes.")]
+    [McpServerTool, Description("显示当前状态：已加载的模块、路径和待应用的修改。")]
     public static object get_status(ModuleStore store) => new
     {
         loaded = store.Current is not null,
@@ -19,28 +19,28 @@ public sealed class CommonTools
         pending_changes = store.Changes.Pending.Count
     };
 
-    [McpServerTool, Description("Carrega um módulo a partir de um arquivo JSON no disco.")]
+    [McpServerTool, Description("从磁盘上的 JSON 文件加载模块。")]
     public static object load_module(
         ModuleStore store,
-        [Description("Caminho absoluto do arquivo .json do módulo")] string path)
+        [Description("模块 .json 文件的绝对路径")] string path)
     {
         var m = store.Load(path);
         return new { loaded = m.Name, lists = m.Lists.Count };
     }
 
-    [McpServerTool, Description("Cria um módulo novo e vazio em memória.")]
+    [McpServerTool, Description("在内存中创建一个空模块。")]
     public static object new_module(ModuleStore store,
-        [Description("Nome do novo módulo")] string name)
+        [Description("新模块名称")] string name)
     {
         var m = store.NewModule(name);
         return new { created = m.Name };
     }
 
-    [McpServerTool, Description("Salva o módulo atual no caminho de onde foi carregado.")]
+    [McpServerTool, Description("将当前模块保存到原始加载路径。")]
     public static object save_module(ModuleStore store) => new { saved_to = store.Save() };
 
-    [McpServerTool, Description("Salva o módulo atual em um novo caminho.")]
+    [McpServerTool, Description("将当前模块另存到新路径。")]
     public static object save_module_as(ModuleStore store,
-        [Description("Caminho absoluto de destino")] string path)
+        [Description("目标绝对路径")] string path)
         => new { saved_to = store.Save(path) };
 }

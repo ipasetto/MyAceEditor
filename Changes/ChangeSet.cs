@@ -56,11 +56,11 @@ public sealed record ApplyResult(int AppliedCount, IReadOnlyList<string> Applied
 public sealed class AddItemChange(string listName, Item item) : IChange
 {
     public string Op => "add";
-    public string Describe() => $"add item '{item.Name}' (id {item.Id}) to list '{listName}'";
+    public string Describe() => $"向列表“{listName}”添加物品“{item.Name}”（ID {item.Id}）";
     public void ApplyTo(Module module)
     {
         var list = module.FindListByName(listName)
-                   ?? throw new InvalidOperationException($"list '{listName}' not found");
+                   ?? throw new InvalidOperationException($"未找到列表“{listName}”");
         list.Items.Add(item);
     }
 }
@@ -68,11 +68,11 @@ public sealed class AddItemChange(string listName, Item item) : IChange
 public sealed class RemoveItemChange(string listName, string itemId) : IChange
 {
     public string Op => "rem";
-    public string Describe() => $"remove item {itemId} from list '{listName}'";
+    public string Describe() => $"从列表“{listName}”删除物品 {itemId}";
     public void ApplyTo(Module module)
     {
         var list = module.FindListByName(listName)
-                   ?? throw new InvalidOperationException($"list '{listName}' not found");
+                   ?? throw new InvalidOperationException($"未找到列表“{listName}”");
         list.Items.RemoveAll(i => i.Id == itemId);
     }
 }
@@ -80,11 +80,11 @@ public sealed class RemoveItemChange(string listName, string itemId) : IChange
 public sealed class SetFieldsChange(string listName, string itemId, Dictionary<string, Field> fields) : IChange
 {
     public string Op => "set";
-    public string Describe() => $"set {fields.Count} field(s) on item {itemId} in '{listName}'";
+    public string Describe() => $"设置列表“{listName}”中物品 {itemId} 的 {fields.Count} 个字段";
     public void ApplyTo(Module module)
     {
         var item = module.FindListByName(listName)?.FindById(itemId)
-                   ?? throw new InvalidOperationException($"item {itemId} not found in '{listName}'");
+                   ?? throw new InvalidOperationException($"在列表“{listName}”中未找到物品 {itemId}");
         foreach (var (k, v) in fields) item.Fields[k] = v;
     }
 }

@@ -14,10 +14,10 @@ namespace MyAceEditor.Tools;
 [McpServerToolType]
 public sealed class MutationTools
 {
-    [McpServerTool, Description("PREVIEW: enfileira a criação de um item novo numa lista. Retorna o id provisório.")]
+    [McpServerTool, Description("预览：将创建物品的操作加入队列，返回临时 ID。")]
     public static object preview_add_item(ModuleStore store,
-        [Description("Nome da lista onde adicionar")] string listName,
-        [Description("Nome do novo item")] string name)
+        [Description("要添加物品的列表名称")] string listName,
+        [Description("新物品名称")] string name)
     {
         store.Require(); // garante módulo carregado
         var item = new Item { Name = name };
@@ -25,11 +25,11 @@ public sealed class MutationTools
         return new { staged = preview.Description, new_item_id = item.Id, preview.PendingCount };
     }
 
-    [McpServerTool, Description("PREVIEW: enfileira a definição/atualização de campos de um item. Tipos: String, Int, Float, Bool, Reference.")]
+    [McpServerTool, Description("预览：将设置或更新物品字段的操作加入队列。类型：String、Int、Float、Bool、Reference。")]
     public static object preview_set_fields(ModuleStore store,
-        [Description("Nome da lista")] string listName,
-        [Description("Id do item")] string itemId,
-        [Description("Campos a definir: nome -> { type, value }")] Dictionary<string, FieldInput> fields)
+        [Description("列表名称")] string listName,
+        [Description("物品 ID")] string itemId,
+        [Description("要设置的字段：名称 -> { type, value }")] Dictionary<string, FieldInput> fields)
     {
         store.Require();
         var converted = fields.ToDictionary(
@@ -39,24 +39,24 @@ public sealed class MutationTools
         return new { staged = preview.Description, preview.PendingCount };
     }
 
-    [McpServerTool, Description("PREVIEW: enfileira a remoção de um item de uma lista.")]
+    [McpServerTool, Description("预览：将删除列表内物品的操作加入队列。")]
     public static object preview_remove_item(ModuleStore store,
-        [Description("Nome da lista")] string listName,
-        [Description("Id do item a remover")] string itemId)
+        [Description("列表名称")] string listName,
+        [Description("要删除的物品 ID")] string itemId)
     {
         store.Require();
         var preview = store.Changes.Stage(new RemoveItemChange(listName, itemId));
         return new { staged = preview.Description, preview.PendingCount };
     }
 
-    [McpServerTool, Description("Aplica TODAS as mudanças pendentes ao módulo (não salva em disco; use save_module depois).")]
+    [McpServerTool, Description("将全部待应用修改写入内存模块；随后使用 save_module 保存到磁盘。")]
     public static object apply_change_set(ModuleStore store)
     {
         var result = store.Changes.Apply(store.Require());
         return new { applied = result.AppliedCount, details = result.Applied };
     }
 
-    [McpServerTool, Description("Descarta todas as mudanças pendentes sem aplicá-las.")]
+    [McpServerTool, Description("丢弃全部尚未应用的修改。")]
     public static object discard_change_set(ModuleStore store)
         => new { discarded = store.Changes.Discard() };
 }
@@ -64,9 +64,9 @@ public sealed class MutationTools
 /// <summary>Formato de entrada de um campo vindo da IA.</summary>
 public sealed class FieldInput
 {
-    [Description("Tipo do campo: String, Int, Float, Bool ou Reference")]
+    [Description("字段类型：String、Int、Float、Bool 或 Reference")]
     public string Type { get; set; } = "String";
 
-    [Description("Valor do campo como texto")]
+    [Description("以文本表示的字段值")]
     public string Value { get; set; } = "";
 }

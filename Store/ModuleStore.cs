@@ -21,13 +21,13 @@ public sealed class ModuleStore
     public ChangeSet Changes { get; } = new();
 
     public Module Require() =>
-        Current ?? throw new InvalidOperationException("Nenhum módulo carregado. Use load_module primeiro.");
+        Current ?? throw new InvalidOperationException("尚未加载模块，请先使用 load_module。");
 
     public Module Load(string path)
     {
         var json = File.ReadAllText(path);
         Current = JsonSerializer.Deserialize<Module>(json, JsonOpts)
-                  ?? throw new InvalidOperationException("Falha ao desserializar o módulo.");
+                  ?? throw new InvalidOperationException("模块反序列化失败。");
         CurrentPath = Path.GetFullPath(path);
         Changes.Discard();
         return Current;
@@ -55,7 +55,7 @@ public sealed class ModuleStore
     {
         var module = Require();
         var target = path ?? CurrentPath
-            ?? throw new InvalidOperationException("Sem caminho de destino. Use save_module_as.");
+            ?? throw new InvalidOperationException("尚未设置目标路径，请使用 save_module_as。");
         var json = JsonSerializer.Serialize(module, JsonOpts);
         File.WriteAllText(target, json);
         CurrentPath = Path.GetFullPath(target);

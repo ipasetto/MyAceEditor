@@ -64,7 +64,7 @@ public sealed class ElementsReader : IDisposable
                 PwType.Float => _r.ReadSingle(),
                 PwType.WStr => ReadWString(f.Count),
                 PwType.Bytes => _r.ReadBytes(f.Count),
-                _ => throw new InvalidOperationException($"Tipo desconhecido: {f.Type}")
+                _ => throw new InvalidOperationException($"未知类型：{f.Type}")
             };
             rec[f.Name] = v;
         }
@@ -195,7 +195,7 @@ public sealed class ElementsReader : IDisposable
                     var list = new Model.ItemList
                     {
                         Name = BlockName(blockIdx, step),
-                        Group = step.Kind == StepKind.InlineBlock ? "Principais" : "Secundários",
+                        Group = step.Kind == StepKind.InlineBlock ? "主要" : "次要",
                         Kind = GuessKind(blockIdx, step.Size),
                     };
                     for (uint i = 0; i < count; i++)
@@ -253,7 +253,7 @@ public sealed class ElementsReader : IDisposable
             var n0 = NameFrom(raw, 0, Math.Min(32, raw.Length / 2));
             if (IsPrintable(n0) && n0.Length > 0) return n0;
         }
-        return IsPrintable(n) ? n : "(sem nome)";
+        return IsPrintable(n) ? n : "（未命名）";
     }
 
     private static bool IsPrintable(string s)
@@ -265,14 +265,14 @@ public sealed class ElementsReader : IDisposable
 
     private static readonly string[] KnownNames =
     {
-        "Propriedades/Efeitos", "Categorias de Equipamento",
+        "属性 / 效果", "装备分类",
     };
 
     private static string BlockName(int idx, Step step)
     {
         if (idx < KnownNames.Length) return KnownNames[idx];
         var tag = step.Tag.StartsWith("FUN_") ? step.Tag : "inline";
-        return $"Bloco {idx:00} ({step.Size}B · {tag})";
+        return $"数据块 {idx:00}（{step.Size}B · {tag}）";
     }
 
     private static string GuessKind(int idx, int size) => size switch

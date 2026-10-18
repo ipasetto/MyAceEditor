@@ -1,0 +1,38 @@
+{
+  "scope": "任务页、任务点击、树展开、搜索及编辑归属修复",
+  "evidence_level": "source analysis only; no actual task UI reproduction",
+  "executed_checks": {
+    "CSharp_lexical_files": 37,
+    "lexical_status": "PASS; not compilation",
+    "linked_regression_sources": "PASS",
+    "source_hot_paths": "PASS manual/source review",
+    "task_schema_source": "unchanged",
+    "task_Build_Save_source": "unchanged",
+    "original_CFG_fingerprints": 170,
+    "localization_fixed_literals": 299,
+    "localization_unhandled": []
+  },
+  "new_CSharp_cases": {
+    "test_file": "Tests/CfgRegression/Program.cs",
+    "status": "added, not executed",
+    "coverage": [
+      "1200 child tasks",
+      "sorted roots",
+      "indexed ID/name lookup without elements",
+      "rename visibility",
+      "duplicate ID first match",
+      "name-only mode",
+      "cancel search/index",
+      "empty v93 unchanged roundtrip"
+    ]
+  },
+  "not_executed": [
+    "C# compilation/regression",
+    "real tasks.data parsing",
+    "WinForms click/render/cancel/edit tests",
+    "performance/GDI measurements"
+  ],
+  "limits": "No tasks.data input, .NET SDK, Windows or Wine. Existing elements reference checks do not validate task UI.",
+  "manual_acceptance": "任务卡顿修复说明.md",
+  "defaults": "startup auto-read remains disabled"
+}

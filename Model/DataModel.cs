@@ -3,12 +3,12 @@ namespace MyAceEditor.Model;
 /// <summary>
 /// Modelo de dados genérico, no mesmo espírito do Angelica Core:
 /// Módulo -> Listas -> Itens -> Campos (tipados).
-/// Em vez de classes fixas (NPC, Quest...), tudo é um "Item" = saco de campos.
+/// Em vez de classes fixas (NPC, Quest...), tudo é um "检查项" = saco de campos.
 /// É isso que permite editar qualquer coisa do jogo com as mesmas ferramentas.
 /// </summary>
 public sealed class Module
 {
-    public string Name { get; set; } = "Untitled";
+    public string Name { get; set; } = "未命名";
     public int Version { get; set; } = 1;
     public List<ItemList> Lists { get; set; } = new();
 

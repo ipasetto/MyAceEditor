@@ -29,80 +29,81 @@ public sealed class AddonText
 {
     public sealed record TypeInfo(string Caption, AddonMode Mode, string? Caption2 = null);
 
-    const string M = "Metal", W = "Madeira", A = "Água", F = "Fogo", T = "Terra";
+    const string M = "金", W = "木", A = "水", F = "火", T = "土";
 
     public static readonly Dictionary<int, TypeInfo> Types = new()
     {
-        [0] = new("Ataque físico", AddonMode.Val), [1] = new("Ataque físico máx.", AddonMode.Range), [2] = new("Ataque físico", AddonMode.Pct),
-        [3] = new("Ataque mágico", AddonMode.Val), [4] = new("Ataque mágico máx.", AddonMode.Range), [5] = new("Ataque mágico", AddonMode.Pct),
-        [6] = new("Defesa física", AddonMode.Pair, "Ataque físico"), [7] = new("Ataque físico", AddonMode.Pair, "Defesa física"),
-        [8] = new("Ataque mágico", AddonMode.Pair, "Defesa mágica"), [9] = new("Velocidade de ataque", AddonMode.Val),
-        [10] = new("Alcance de ataque", AddonMode.Float), [11] = new("Tempo de conjuração", AddonMode.PctNeg),
-        [12] = new("Defesa física", AddonMode.Val), [13] = new("Defesa física", AddonMode.Pct), [14] = new("Defesa mágica (todas)", AddonMode.Val),
-        [15] = new($"Defesa de {M}", AddonMode.Range), [16] = new($"Defesa de {M}", AddonMode.Pct),
-        [17] = new($"Defesa de {W}", AddonMode.Range), [18] = new($"Defesa de {W}", AddonMode.Pct),
-        [19] = new($"Defesa de {A}", AddonMode.Range), [20] = new($"Defesa de {A}", AddonMode.Pct),
-        [21] = new($"Defesa de {F}", AddonMode.Range), [22] = new($"Defesa de {F}", AddonMode.Pct),
-        [23] = new($"Defesa de {T}", AddonMode.Range), [24] = new($"Defesa de {T}", AddonMode.Pct),
-        [25] = new($"Defesa de {M}", AddonMode.PairPct, $"Defesa de {F}"), [26] = new($"Defesa de {W}", AddonMode.PairPct, $"Defesa de {M}"),
-        [27] = new($"Defesa de {A}", AddonMode.PairPct, $"Defesa de {T}"), [28] = new($"Defesa de {F}", AddonMode.PairPct, $"Defesa de {A}"),
-        [29] = new($"Defesa de {T}", AddonMode.PairPct, $"Defesa de {W}"),
-        [30] = new($"Defesa de {M}", AddonMode.Pair, $"Defesa de {F}"), [31] = new($"Defesa de {W}", AddonMode.Pair, $"Defesa de {M}"),
-        [32] = new($"Defesa de {A}", AddonMode.Pair, $"Defesa de {T}"), [33] = new($"Defesa de {F}", AddonMode.Pair, $"Defesa de {A}"),
-        [34] = new($"Defesa de {T}", AddonMode.Pair, $"Defesa de {W}"),
-        [35] = new("HP", AddonMode.Val), [36] = new("MP", AddonMode.Val), [37] = new("HP", AddonMode.Pct), [38] = new("MP", AddonMode.Pct),
-        [39] = new("Recuperação de HP", AddonMode.Val), [40] = new("Recuperação de MP", AddonMode.Val),
-        [41] = new("Força", AddonMode.Range), [42] = new("Destreza", AddonMode.Range), [43] = new("Inteligência", AddonMode.Range), [44] = new("Constituição", AddonMode.Range),
-        [45] = new("Golpe crítico", AddonMode.Pct), [46] = new("Precisão", AddonMode.Range), [47] = new("Precisão", AddonMode.Pct),
-        [48] = new("Velocidade de movimento", AddonMode.Float), [49] = new("Velocidade de movimento", AddonMode.Pct),
-        [50] = new("Esquiva", AddonMode.Val), [51] = new("Esquiva", AddonMode.Pct), [52] = new("Durabilidade", AddonMode.Val), [53] = new("Durabilidade", AddonMode.Pct),
-        [54] = new("Redução de dano físico", AddonMode.Pct), [55] = new("Habilidade adicional", AddonMode.Label),
-        [56] = new("Requisitos do equipamento", AddonMode.PctRange), [57] = new("Atributo aleatório", AddonMode.Label),
-        [58] = new("Bônus de experiência", AddonMode.Pct), [59] = new("Nível de ataque", AddonMode.Val), [60] = new("Nível de defesa", AddonMode.Val),
-        [61] = new("Defesa mágica (todas)", AddonMode.Pct), [62] = new("Olho da Selva", AddonMode.Label), [63] = new("Poder da alma", AddonMode.Val),
-        [64] = new($"Redução de dano de {M}", AddonMode.Pct), [65] = new($"Redução de dano de {W}", AddonMode.Pct), [66] = new($"Redução de dano de {A}", AddonMode.Pct),
-        [67] = new($"Redução de dano de {F}", AddonMode.Pct), [68] = new($"Redução de dano de {T}", AddonMode.Pct), [69] = new("Redução de dano elemental", AddonMode.Pct),
-        [70] = new("Nível de ataque (aleatório)", AddonMode.Range), [71] = new("Nível de defesa (aleatório)", AddonMode.Range),
-        [72] = new("Golpe crítico (aleatório)", AddonMode.PctRange), [73] = new("HP (aleatório)", AddonMode.Range), [74] = new("MP (aleatório)", AddonMode.Range),
-        [75] = new("Precisão (aleatório)", AddonMode.PctRange), [76] = new("Defesa física (aleatório)", AddonMode.Range), [77] = new("Defesa mágica (aleatório)", AddonMode.Range),
-        [78] = new("Redução de dano físico (aleatório)", AddonMode.PctRange), [79] = new("Redução de dano elemental (aleatório)", AddonMode.PctRange),
-        [80] = new("Tempo de conjuração (aleatório)", AddonMode.PctRange), [81] = new("Alcance de ataque (aleatório)", AddonMode.Range),
-        [82] = new("Recuperação de MP (aleatório)", AddonMode.Range), [83] = new("Defesa física % (aleatório)", AddonMode.PctRange),
-        [84] = new("Defesa mágica % (aleatório)", AddonMode.PctRange), [85] = new("Recuperação de HP (aleatório)", AddonMode.Range),
-        [86] = new("Esquiva (aleatório)", AddonMode.Range), [87] = new("Ataque físico máx. (aleatório)", AddonMode.Range), [88] = new("Ataque mágico máx. (aleatório)", AddonMode.Range),
-        [100] = new("Pedra de afiar: ataque físico", AddonMode.Val), [101] = new("Pedra de afiar: ataque físico máx.", AddonMode.Val),
-        [102] = new("Pedra de afiar: ataque mágico", AddonMode.Val), [103] = new("Pedra de afiar: ataque mágico máx.", AddonMode.Val),
-        [104] = new("Pedra de afiar: defesa física", AddonMode.Val), [105] = new("Pedra de afiar: HP", AddonMode.Val),
-        [106] = new("Pedra de afiar: força", AddonMode.Val), [107] = new("Pedra de afiar: destreza", AddonMode.Val), [108] = new("Pedra de afiar: inteligência", AddonMode.Val),
-        [109] = new("Pedra de afiar: precisão", AddonMode.Val), [110] = new("Pedra de afiar: golpe crítico", AddonMode.Pct),
-        [111] = new("Pedra de afiar: nível de ataque", AddonMode.Val), [112] = new("Pedra de afiar: nível de defesa", AddonMode.Val),
-        [113] = new("Pedra de afiar: tempo de conjuração", AddonMode.PctNeg),
-        [120] = new($"Gravação: defesa de {M}", AddonMode.Val), [121] = new($"Gravação: defesa de {W}", AddonMode.Val), [122] = new($"Gravação: defesa de {A}", AddonMode.Val),
-        [123] = new($"Gravação: defesa de {F}", AddonMode.Val), [124] = new($"Gravação: defesa de {T}", AddonMode.Val), [125] = new("Gravação: precisão", AddonMode.Val),
-        [126] = new("Gravação: esquiva", AddonMode.Val), [127] = new("Gravação: chi", AddonMode.Val), [128] = new("Gravação: constituição", AddonMode.Range),
-        [129] = new("Gravação: força", AddonMode.Range), [130] = new("Gravação: destreza", AddonMode.Range), [131] = new("Gravação: inteligência", AddonMode.Range),
-        [132] = new("Gravação: HP", AddonMode.Val), [133] = new("Gravação: defesa física", AddonMode.Val), [134] = new("Gravação: defesa mágica", AddonMode.Val),
-        [135] = new("Gravação: ataque físico", AddonMode.Val), [136] = new("Gravação: ataque mágico", AddonMode.Val),
-        [137] = new($"Gravação: redução de dano de {M}", AddonMode.Pct), [138] = new($"Gravação: redução de dano de {W}", AddonMode.Pct),
-        [139] = new($"Gravação: redução de dano de {A}", AddonMode.Pct), [140] = new($"Gravação: redução de dano de {F}", AddonMode.Pct),
-        [141] = new($"Gravação: redução de dano de {T}", AddonMode.Pct), [142] = new("Gravação: redução de dano elemental", AddonMode.Pct),
-        [143] = new("Gravação: golpe crítico", AddonMode.Pct), [144] = new("Gravação: nível de ataque", AddonMode.Val),
-        [145] = new("Gravação: nível de defesa", AddonMode.Val), [146] = new("Gravação: redução de dano físico", AddonMode.Pct),
-        [150] = new("Golpe crítico +1%", AddonMode.Label), [151] = new("Golpe crítico +2%", AddonMode.Label), [152] = new("Golpe crítico +3%", AddonMode.Label),
-        [153] = new("Golpe crítico +4%", AddonMode.Label), [154] = new("Golpe crítico +5%", AddonMode.Label), [155] = new("Golpe crítico +6%", AddonMode.Label),
-        [156] = new("Poder da alma (conjunto)", AddonMode.Val),
-        [200] = new("Refino: ataque físico", AddonMode.Val), [201] = new("Refino: ataque mágico", AddonMode.Val), [202] = new("Refino: defesa física", AddonMode.Val),
-        [203] = new($"Refino: defesa de {M}", AddonMode.Val), [204] = new($"Refino: defesa de {W}", AddonMode.Val), [205] = new($"Refino: defesa de {A}", AddonMode.Val),
-        [206] = new($"Refino: defesa de {F}", AddonMode.Val), [207] = new($"Refino: defesa de {T}", AddonMode.Val), [208] = new("Refino: HP", AddonMode.Val),
-        [209] = new("Refino: esquiva", AddonMode.Val), [210] = new("Refino: defesa elemental", AddonMode.Val), [211] = new("Refino: ataque físico e mágico", AddonMode.Val),
-        [212] = new("Refino: defesa física e mágica", AddonMode.Val),
+        [0] = new("物理攻击", AddonMode.Val), [1] = new("最大物理攻击", AddonMode.Range), [2] = new("物理攻击", AddonMode.Pct),
+        [3] = new("法术攻击", AddonMode.Val), [4] = new("最大法术攻击", AddonMode.Range), [5] = new("法术攻击", AddonMode.Pct),
+        [6] = new("物理防御", AddonMode.Pair, "物理攻击"), [7] = new("物理攻击", AddonMode.Pair, "物理防御"),
+        [8] = new("法术攻击", AddonMode.Pair, "法术防御"), [9] = new("攻击速度", AddonMode.Val),
+        [10] = new("攻击距离", AddonMode.Float), [11] = new("吟唱时间", AddonMode.PctNeg),
+        [12] = new("物理防御", AddonMode.Val), [13] = new("物理防御", AddonMode.Pct), [14] = new("全部法术防御", AddonMode.Val),
+        [15] = new($"防御：{M}", AddonMode.Range), [16] = new($"防御：{M}", AddonMode.Pct),
+        [17] = new($"防御：{W}", AddonMode.Range), [18] = new($"防御：{W}", AddonMode.Pct),
+        [19] = new($"防御：{A}", AddonMode.Range), [20] = new($"防御：{A}", AddonMode.Pct),
+        [21] = new($"防御：{F}", AddonMode.Range), [22] = new($"防御：{F}", AddonMode.Pct),
+        [23] = new($"防御：{T}", AddonMode.Range), [24] = new($"防御：{T}", AddonMode.Pct),
+        [25] = new($"防御：{M}", AddonMode.PairPct, $"防御：{F}"), [26] = new($"防御：{W}", AddonMode.PairPct, $"防御：{M}"),
+        [27] = new($"防御：{A}", AddonMode.PairPct, $"防御：{T}"), [28] = new($"防御：{F}", AddonMode.PairPct, $"防御：{A}"),
+        [29] = new($"防御：{T}", AddonMode.PairPct, $"防御：{W}"),
+        [30] = new($"防御：{M}", AddonMode.Pair, $"防御：{F}"), [31] = new($"防御：{W}", AddonMode.Pair, $"防御：{M}"),
+        [32] = new($"防御：{A}", AddonMode.Pair, $"防御：{T}"), [33] = new($"防御：{F}", AddonMode.Pair, $"防御：{A}"),
+        [34] = new($"防御：{T}", AddonMode.Pair, $"防御：{W}"),
+        [35] = new("生命", AddonMode.Val), [36] = new("真气", AddonMode.Val), [37] = new("生命", AddonMode.Pct), [38] = new("真气", AddonMode.Pct),
+        [39] = new("生命恢复", AddonMode.Val), [40] = new("真气恢复", AddonMode.Val),
+        [41] = new("力量", AddonMode.Range), [42] = new("敏捷", AddonMode.Range), [43] = new("灵力", AddonMode.Range), [44] = new("体质", AddonMode.Range),
+        [45] = new("暴击率", AddonMode.Pct), [46] = new("命中", AddonMode.Range), [47] = new("命中", AddonMode.Pct),
+        [48] = new("移动速度", AddonMode.Float), [49] = new("移动速度", AddonMode.Pct),
+        [50] = new("闪避", AddonMode.Val), [51] = new("闪避", AddonMode.Pct), [52] = new("耐久度", AddonMode.Val), [53] = new("耐久度", AddonMode.Pct),
+        [54] = new("物理伤害减免", AddonMode.Pct), [55] = new("附加技能", AddonMode.Label),
+        [56] = new("装备需求", AddonMode.PctRange), [57] = new("随机属性", AddonMode.Label),
+        [58] = new("经验加成", AddonMode.Pct), [59] = new("攻击等级", AddonMode.Val), [60] = new("防御等级", AddonMode.Val),
+        [61] = new("全部法术防御", AddonMode.Pct), [62] = new("丛林之眼", AddonMode.Label), [63] = new("魂力", AddonMode.Val),
+        [64] = new($"伤害减免：{M}", AddonMode.Pct), [65] = new($"伤害减免：{W}", AddonMode.Pct), [66] = new($"伤害减免：{A}", AddonMode.Pct),
+        [67] = new($"伤害减免：{F}", AddonMode.Pct), [68] = new($"伤害减免：{T}", AddonMode.Pct), [69] = new("五行伤害减免", AddonMode.Pct),
+        [70] = new("攻击等级（随机）", AddonMode.Range), [71] = new("防御等级（随机）", AddonMode.Range),
+        [72] = new("暴击率（随机）", AddonMode.PctRange), [73] = new("生命（随机）", AddonMode.Range), [74] = new("真气（随机）", AddonMode.Range),
+        [75] = new("命中（随机）", AddonMode.PctRange), [76] = new("物理防御（随机）", AddonMode.Range), [77] = new("法术防御（随机）", AddonMode.Range),
+        [78] = new("物理伤害减免（随机）", AddonMode.PctRange), [79] = new("五行伤害减免（随机）", AddonMode.PctRange),
+        [80] = new("吟唱时间（随机）", AddonMode.PctRange), [81] = new("攻击距离（随机）", AddonMode.Range),
+        [82] = new("真气恢复（随机）", AddonMode.Range), [83] = new("物理防御 %（随机）", AddonMode.PctRange),
+        [84] = new("法术防御 %（随机）", AddonMode.PctRange), [85] = new("生命恢复（随机）", AddonMode.Range),
+        [86] = new("闪避（随机）", AddonMode.Range), [87] = new("最大物理攻击（随机）", AddonMode.Range), [88] = new("最大法术攻击（随机）", AddonMode.Range),
+        [100] = new("磨刀石：物理攻击", AddonMode.Val), [101] = new("磨刀石：最大物理攻击", AddonMode.Val),
+        [102] = new("磨刀石：法术攻击", AddonMode.Val), [103] = new("磨刀石：最大法术攻击", AddonMode.Val),
+        [104] = new("磨刀石：物理防御", AddonMode.Val), [105] = new("磨刀石：生命", AddonMode.Val),
+        [106] = new("磨刀石：力量", AddonMode.Val), [107] = new("磨刀石：敏捷", AddonMode.Val), [108] = new("磨刀石：灵力", AddonMode.Val),
+        [109] = new("磨刀石：命中", AddonMode.Val), [110] = new("磨刀石：暴击率", AddonMode.Pct),
+        [111] = new("磨刀石：攻击等级", AddonMode.Val), [112] = new("磨刀石：防御等级", AddonMode.Val),
+        [113] = new("磨刀石：吟唱时间", AddonMode.PctNeg),
+        [120] = new($"铭刻：防御：{M}", AddonMode.Val), [121] = new($"铭刻：防御：{W}", AddonMode.Val), [122] = new($"铭刻：防御：{A}", AddonMode.Val),
+        [123] = new($"铭刻：防御：{F}", AddonMode.Val), [124] = new($"铭刻：防御：{T}", AddonMode.Val), [125] = new("铭刻：命中", AddonMode.Val),
+        [126] = new("铭刻：闪避", AddonMode.Val), [127] = new("铭刻：元气", AddonMode.Val), [128] = new("铭刻：体质", AddonMode.Range),
+        [129] = new("铭刻：力量", AddonMode.Range), [130] = new("铭刻：敏捷", AddonMode.Range), [131] = new("铭刻：灵力", AddonMode.Range),
+        [132] = new("铭刻：生命", AddonMode.Val), [133] = new("铭刻：物理防御", AddonMode.Val), [134] = new("铭刻：法术防御", AddonMode.Val),
+        [135] = new("铭刻：物理攻击", AddonMode.Val), [136] = new("铭刻：法术攻击", AddonMode.Val),
+        [137] = new($"铭刻：伤害减免：{M}", AddonMode.Pct), [138] = new($"铭刻：伤害减免：{W}", AddonMode.Pct),
+        [139] = new($"铭刻：伤害减免：{A}", AddonMode.Pct), [140] = new($"铭刻：伤害减免：{F}", AddonMode.Pct),
+        [141] = new($"铭刻：伤害减免：{T}", AddonMode.Pct), [142] = new("铭刻：五行伤害减免", AddonMode.Pct),
+        [143] = new("铭刻：暴击率", AddonMode.Pct), [144] = new("铭刻：攻击等级", AddonMode.Val),
+        [145] = new("铭刻：防御等级", AddonMode.Val), [146] = new("铭刻：物理伤害减免", AddonMode.Pct),
+        [150] = new("暴击率 +1%", AddonMode.Label), [151] = new("暴击率 +2%", AddonMode.Label), [152] = new("暴击率 +3%", AddonMode.Label),
+        [153] = new("暴击率 +4%", AddonMode.Label), [154] = new("暴击率 +5%", AddonMode.Label), [155] = new("暴击率 +6%", AddonMode.Label),
+        [156] = new("魂力（套装）", AddonMode.Val),
+        [200] = new("精炼：物理攻击", AddonMode.Val), [201] = new("精炼：法术攻击", AddonMode.Val), [202] = new("精炼：物理防御", AddonMode.Val),
+        [203] = new($"精炼：防御：{M}", AddonMode.Val), [204] = new($"精炼：防御：{W}", AddonMode.Val), [205] = new($"精炼：防御：{A}", AddonMode.Val),
+        [206] = new($"精炼：防御：{F}", AddonMode.Val), [207] = new($"精炼：防御：{T}", AddonMode.Val), [208] = new("精炼：生命", AddonMode.Val),
+        [209] = new("精炼：闪避", AddonMode.Val), [210] = new("精炼：五行防御", AddonMode.Val), [211] = new("精炼：物理与法术攻击", AddonMode.Val),
+        [212] = new("精炼：物理与法术防御", AddonMode.Val),
     };
 
     readonly Dictionary<int, byte> _types = new();
     public int Count => _types.Count;
 
-    public static AddonText? Load(PckArchive configs)
+    public static AddonText? Load(PckArchive configs, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var at = new AddonText();
         if (configs.Find(@"configs\item_ext_prop.txt") is { } p)
         {
@@ -110,10 +111,16 @@ public sealed class AddonText
             txt = Regex.Replace(txt, @"//[^\n]*", " ");
             foreach (Match m in Regex.Matches(txt, @"(\d+)\s*\{([^}]*)\}"))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 byte type = (byte)int.Parse(m.Groups[1].Value);
-                foreach (Match id in Regex.Matches(m.Groups[2].Value, @"\d+")) at._types.TryAdd(int.Parse(id.Value), type);
+                foreach (Match id in Regex.Matches(m.Groups[2].Value, @"\d+"))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    at._types.TryAdd(int.Parse(id.Value), type);
+                }
             }
         }
+        cancellationToken.ThrowIfCancellationRequested();
         return at._types.Count > 0 ? at : null;
     }
 

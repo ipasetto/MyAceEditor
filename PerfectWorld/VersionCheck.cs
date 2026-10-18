@@ -25,11 +25,11 @@ public static class VersionCheck
         // 1) elements.data — versão entra na edition
         var ce = Header(Path.Combine(cData, "elements.data"));
         var se = Header(Path.Combine(sCfg, "elements.data"));
-        rows.Add(Compare("elements.data — versão", ce is null ? null : $"v{ce.Value.A & 0xFFFF}", se is null ? null : $"v{se.Value.A & 0xFFFF}",
-            "Cliente e servidor precisam da mesma versão de elements.data (exporte os dois juntos)."));
+        rows.Add(Compare("elements.data — 版本", ce is null ? null : $"v{ce.Value.A & 0xFFFF}", se is null ? null : $"v{se.Value.A & 0xFFFF}",
+            "客户端和服务端必须使用相同版本的 elements.data，请同步导出两端文件。"));
         if (ce is { } c1 && se is { } s1)
-            rows.Add(new("elements.data — data de exportação", Unix(c1.B), Unix(s1.B), CheckLevel.Info,
-                "Informativo: a data não entra na verificação de login."));
+            rows.Add(new("elements.data — 导出时间", Unix(c1.B), Unix(s1.B), CheckLevel.Info,
+                "提示：导出时间不参与登录校验。"));
 
         // 1b) cópias do elements.data por mapa (gamed/config/aNN/…) devem ser iguais à principal
         if (Directory.Exists(sCfg) && se is not null)
@@ -41,37 +41,37 @@ public static class VersionCheck
                 var h = Header(copy);
                 long size = new FileInfo(copy).Length;
                 bool same = h is { } x && x.A == se.Value.A && size == mainSize;
-                rows.Add(new($"elements.data — cópia {Path.GetRelativePath(sCfg, copy)}", "—",
-                    h is null ? "ilegível" : $"v{h.Value.A & 0xFFFF}, {size:N0} B", same ? CheckLevel.Ok : CheckLevel.Aviso,
-                    same ? "Igual à principal." : "Cópia diferente da principal (versão antiga). Só afeta o jogo se o gs.conf desse mapa apontar para ela; senão, é sobra e pode ser apagada."));
+                rows.Add(new($"elements.data — 副本 {Path.GetRelativePath(sCfg, copy)}", "—",
+                    h is null ? "无法读取" : $"v{h.Value.A & 0xFFFF}, {size:N0} B", same ? CheckLevel.Ok : CheckLevel.Aviso,
+                    same ? "与主文件一致。" : "此副本与主文件不同，可能是旧版。仅当该地图的 gs.conf 指向此副本时才会影响游戏；否则可能是残留文件，删除前请确认引用关系。"));
             }
         }
 
         // 2) tasks.data — versão entra na edition
         var ct = Header(Path.Combine(cData, "tasks.data"));
         var st = Header(Path.Combine(sCfg, "tasks.data"));
-        rows.Add(Compare("tasks.data — versão", ct is null ? null : $"v{ct.Value.B}", st is null ? null : $"v{st.Value.B}",
-            "Versão do tasks.data diferente: o login é recusado."));
-        rows.Add(Compare("tasks.data — nº de quests", ct is null ? null : $"{ct.Value.C:N0}", st is null ? null : $"{st.Value.C:N0}",
-            "Quantidade de quests diferente: cliente e servidor estão com tasks.data de origens diferentes.", CheckLevel.Aviso));
+        rows.Add(Compare("tasks.data — 版本", ct is null ? null : $"v{ct.Value.B}", st is null ? null : $"v{st.Value.B}",
+            "tasks.data 版本不同会导致登录被拒绝。"));
+        rows.Add(Compare("tasks.data — 任务数量", ct is null ? null : $"{ct.Value.C:N0}", st is null ? null : $"{st.Value.C:N0}",
+            "任务数量不同：客户端和服务端的 tasks.data 来源不一致。", CheckLevel.Aviso));
 
         // 3) loja: gshop ↔ gshopsev (timestamps entram na edition)
         foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
         {
             var cg = Header(Path.Combine(cData, cn));
             var sg = Header(Path.Combine(sCfg, sn));
-            rows.Add(Compare($"{cn} × {sn} — timestamp", cg is null ? null : Unix(cg.Value.A), sg is null ? null : Unix(sg.Value.A),
-                "Timestamp da loja diferente: o login é recusado (\"versão errada\"). Exporte a loja para os dois lados de uma vez."));
-            rows.Add(Compare($"{cn} × {sn} — nº de itens", cg is null ? null : $"{cg.Value.B:N0}", sg is null ? null : $"{sg.Value.B:N0}",
-                "Quantidade de itens da loja diferente.", CheckLevel.Aviso));
+            rows.Add(Compare($"{cn} × {sn} — 时间戳", cg is null ? null : Unix(cg.Value.A), sg is null ? null : Unix(sg.Value.A),
+                "商城时间戳不同会导致登录被拒绝（“版本错误”），请同步导出客户端和服务端商城文件。"));
+            rows.Add(Compare($"{cn} × {sn} — 物品数量", cg is null ? null : $"{cg.Value.B:N0}", sg is null ? null : $"{sg.Value.B:N0}",
+                "商城物品数量不同。", CheckLevel.Aviso));
         }
 
         // 4) aipolicy.data
         var ca = Header(Path.Combine(cData, "aipolicy.data"));
         var sa = Header(Path.Combine(sCfg, "aipolicy.data"));
-        rows.Add(Compare("aipolicy.data — versão / nº de políticas",
+        rows.Add(Compare("aipolicy.data — 版本 / 策略数量",
             ca is null ? null : $"v{ca.Value.A} / {ca.Value.B:N0}", sa is null ? null : $"v{sa.Value.A} / {sa.Value.B:N0}",
-            "IA de monstros diferente entre cliente e servidor.", CheckLevel.Aviso));
+            "客户端和服务端的怪物 AI 不一致。", CheckLevel.Aviso));
 
         // 5) rede: versão do glinkd e chaves isec/osec (sem mostrar valores)
         var glinkConf = Path.Combine(serverHome, "glinkd", "gamesys.conf");
@@ -80,15 +80,15 @@ public static class VersionCheck
         {
             var links = ParseIni(glinkConf).Where(kv => kv.Key.StartsWith("GLinkServer", StringComparison.OrdinalIgnoreCase)).ToList();
             var versions = links.Select(l => l.Value.GetValueOrDefault("version")).Where(v => v is not null).Distinct().ToList();
-            rows.Add(new("glinkd — versão do jogo", "—", string.Join(", ", versions.Select(HexVersion)),
+            rows.Add(new("glinkd — 游戏版本", "—", string.Join(", ", versions.Select(HexVersion)),
                 versions.Count == 1 ? CheckLevel.Info : CheckLevel.Aviso,
-                versions.Count == 1 ? "Precisa casar com a versão do elementclient.exe." : "GLinkServers com versões diferentes."));
+                versions.Count == 1 ? "必须与 elementclient.exe 的版本一致。" : "各 GLinkServer 的版本不同。"));
 
             var client = File.Exists(dbConf) ? ParseIni(dbConf).GetValueOrDefault("GameClient") : null;
             foreach (var (name, sect) in links)
             {
                 var (lvl, msg, cDesc, sDesc) = KeysMatch(client, sect);
-                rows.Add(new($"criptografia cliente × {name}", cDesc, sDesc, lvl, msg));
+                rows.Add(new($"客户端加密 × {name}", cDesc, sDesc, lvl, msg));
             }
         }
         return rows;
@@ -111,12 +111,12 @@ public static class VersionCheck
 
     static CheckRow Compare(string item, string? c, string? s, string dica, CheckLevel onDiff = CheckLevel.Erro)
     {
-        if (c is null && s is null) return new(item, "não encontrado", "não encontrado", CheckLevel.Info, "Arquivo ausente nos dois lados.");
-        if (c is null || s is null) return new(item, c ?? "não encontrado", s ?? "não encontrado", CheckLevel.Aviso, "Arquivo ausente em um dos lados.");
-        return c == s ? new(item, c, s, CheckLevel.Ok, "Iguais.") : new(item, c, s, onDiff, dica);
+        if (c is null && s is null) return new(item, "未找到", "未找到", CheckLevel.Info, "两端均缺少此文件。");
+        if (c is null || s is null) return new(item, c ?? "未找到", s ?? "未找到", CheckLevel.Aviso, "其中一端缺少此文件。");
+        return c == s ? new(item, c, s, CheckLevel.Ok, "一致。") : new(item, c, s, onDiff, dica);
     }
 
-    static string Unix(uint t) => t == 0 ? "0" : DateTimeOffset.FromUnixTimeSeconds(t).ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    static string Unix(uint t) => t == 0 ? "0" : DateTimeOffset.FromUnixTimeSeconds(t).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     static string HexVersion(string? v)
     {
@@ -129,15 +129,15 @@ public static class VersionCheck
     {
         bool cOn = c is not null && c.ContainsKey("isec");
         bool sOn = s.ContainsKey("isec");
-        string Desc(bool on) => on ? "ligada" : "desligada";
-        if (!cOn && !sOn) return (CheckLevel.Ok, "Criptografia desligada nos dois lados.", Desc(cOn), Desc(sOn));
-        if (cOn != sOn) return (CheckLevel.Erro, "Criptografia ligada só de um lado: o cliente não conecta.", Desc(cOn), Desc(sOn));
+        string Desc(bool on) => on ? "已启用" : "未启用";
+        if (!cOn && !sOn) return (CheckLevel.Ok, "两端均未启用加密。", Desc(cOn), Desc(sOn));
+        if (cOn != sOn) return (CheckLevel.Erro, "仅有一端启用加密，客户端无法连接。", Desc(cOn), Desc(sOn));
         bool ok = c!.GetValueOrDefault("iseckey") == s.GetValueOrDefault("oseckey")
                && c.GetValueOrDefault("oseckey") == s.GetValueOrDefault("iseckey")
                && c.GetValueOrDefault("isec") == s.GetValueOrDefault("osec")
                && c.GetValueOrDefault("osec") == s.GetValueOrDefault("isec");
-        return ok ? (CheckLevel.Ok, "Chaves cruzadas corretamente.", "ligada", "ligada")
-                  : (CheckLevel.Erro, "Chaves não cruzam (iseckey de um lado deve ser o oseckey do outro).", "ligada", "ligada");
+        return ok ? (CheckLevel.Ok, "双向密钥配置正确。", "已启用", "已启用")
+                  : (CheckLevel.Erro, "双向密钥不匹配：一端的 iseckey 应对应另一端的 oseckey。", "已启用", "已启用");
     }
 
     // .conf/.ini simples: [Seção] chave = valor ; linhas com ';' ou '#' são comentário

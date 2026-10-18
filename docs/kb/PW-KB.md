@@ -414,12 +414,20 @@ nomes mob/NPC: npcdb.txt (UTF-16 id<TAB>nome); posicao do player lida da memoria
 header lido como i16 Version + i16 Signature (= u32 0x3000003C -> versao 60, assinatura 0x3000); bytes fixos antes de cada lista = "listOffset" do .cfg (timestamp entra ai) [I forte]
 .cfg: linha1 = n listas | linha2 = indice da lista de conversa | por lista: nome / tamanho do offset ou AUTO / campos ; / tipos ;. Tipos: int16 int32 int64 float double byte:N string:N(GBK) wstring:N(UTF-16LE). Arquivo: configs\PW_*_v{Version}.cfg
 listas especiais 20 e 100: tag 4B + tamanho N 4B + N bytes (+4B finais so na 20) = blocos de assinatura do exportador (§S17)
-lista de conversa (padrao idx 58, = TALK_PROC): sem count, 1 blob. Dialog{ i32 id, nome[128] UTF-16, i32 nQ } Question{ i32 id, i32 control, i32 textLen(chars), texto, i32 nChoices } Choice{ i32 control, texto[132] UTF-16 }. sELedit acha o fim procurando "facedata\" (heuristica)
+lista de conversa (padrao idx 58, = TALK_PROC): blob com u32 count de dialogos (v344/v386/v531 confirmado por arquivos reais [A]; outros ramos precisam confirmar). Dialog{ i32 id, nome[128] UTF-16, i32 nQ } Question{ i32 id, i32 control, i32 textLen(chars), texto, i32 nChoices } Choice{ i32 control, texto[132] UTF-16 }. sELedit acha o fim procurando "facedata\" (heuristica)
 indices sELedit (0-based) = DATA_TYPE-1 de §S17 [I forte]: 3 armas 6 armaduras 9 adornos 38 monstros(campo 64 = aipolicy) 57 NPCs 79 minas 169 titulos; elements >=191 desloca +1 a partir de 58
 .rules (conversao entre versoes): SETVERSION|n SETSIGNATURE|n REMOVELIST:i REPLACEOFFSET:i|hex REMOVEVALUE:lista:campo
 join de EL: casa por campo 0 (ID): MISSING / novo / DIFFERENT, c/ backups e LOG.TXT
 validacoes sELedit (indices hardcoded 1.3.6): soma de probabilidades=1 (armas/armaduras/adornos), skills invalidas em monstros, task overflow (listas 45/46 [?])
 xref: configs\references.txt (lista;campo,campo)
+
+### 真实 elements 样本补充（2026-10-18）
+[A] v344：type/count/size 列表；385 块，98,307 普通记录和 3,411 对话；参考读取与重建至 EOF，字节一致。
+[A] v386/v531：MPPC 索引列表；398/420 块，105,892/106,019 普通记录和各 3,422 对话；参考逐条解码、索引 ID 和 EOF 均通过。
+[A] 非空压缩列表：count + count×(u32 ID,u16 packedSize) + u32 totalSize + payload；空列表只有 u32 零，不带 totalSize。
+[A] 两份压缩附件中，>8192 字节记录采用独立段：u16 little-endian（高位=压缩，低15位=输入长度）+ payload；每段输出 min(8192,剩余长度)，合计 1,437 条长记录通过参考验证。
+[C][I] 低位未压缩段路径按原始字节保留；这三份附件没有该类段，不能标记为真实样本已验证。
+[A][C] 以上为独立 Python/C++ 参考验证，不是 C# 执行；文件指纹、数量及限制见 ../真实文件验证报告.md；不包含游戏数据内容。
 
 ## §S24 OPERACAO, SEGURANCA, ERROS (PDFs PWDevGroup + Protegendo Servidor + guia andrey.pw; doc analise_arquivos_pw.md §3-6) [W/M]
 classes (mascara, confirmada em sELedit+aipolicy+tasks): BM=1 WIZ=2 PSY=4 VEN=8 BAR=16 AS=32 AR=64 CLE=128 SE=256 MY=512 | modernas: Duskblade 0x400 Stormbringer 0x800 Technician 0x1000 Edgerunner 0x2000 [C]
@@ -442,6 +450,7 @@ gfactiond 1.4.8: bloco contiguo 0x10C3BC-0x10C3EC: custo nivel 1-3 (BC C0 C4) | 
 skillstr.txt (configs.pck): UTF-16; skill_translator gera skillstr.tab "ID<TAB>nome<TAB>descricao" ordenado; formato de entrada exato [?] (parser divide por aspas, 4 tokens por entrada)
 
 ## §Z RESOLVIDOS (use SEMPRE estes; ignore versoes antigas)
+- [A] §S23 对话“无 count”的旧描述已更正：本次真实 v344/v386/v531 有 u32 对话数；压缩空列表无 payload 长度，长记录有 8 KB 封装；不外推到所有客户端。
 - lancamento: jan/2006 (nao 2005)
 - daemons: 9 servicos incl. gacd (=ANTI-CHEAT); authd=Java (nao nativo); clsconfig=TABELA do gamedbd (nao arquivo solto); gamesys.conf existe em quase todos
 - banco: SQL = contas/perm/cash/bans/sessao; gamedbd = personagem. MSSQL era so em guias antigos; authd suporta ambos

@@ -1,92 +1,93 @@
-# MyAceEditor
+# MyAceEditor 简体中文任务点击优化版（源码）
 
-[![Licença: GPL v3](https://img.shields.io/badge/licen%C3%A7a-GPLv3-blue.svg)](LICENSE)
-[![Contribuições bem-vindas](https://img.shields.io/badge/contribui%C3%A7%C3%B5es-bem--vindas-brightgreen.svg)](CONTRIBUTING.md)
+针对用户提供的 **v344、v386、v531** 三个真实 elements.data 修复读取逻辑，保留全部 **170 个 CFG / 164 个版本号（v6～v623）**，补齐 **485 个数据分类中文名称**及常见字段标签。
 
-**Engine de edição do Perfect World (motor Angelica)**: aplicação desktop nativa em C#/WinForms
-(.NET 10) para ler e editar os dados do jogo, cliente e servidor, numa única janela.
-Projeto **aberto e comunitário**: a meta é tornar o Perfect World 100% editável com uma ferramenta livre.
+**需要重新编译。** 本次环境没有 .NET SDK 或 Windows 图形环境，未生成新的 EXE，也未执行 C# 回归。下面的真实文件结果来自随包提供的独立 Python/C++ 参考读取器，不能代替 Windows 程序的编译及运行测试。
 
-> **English:** open-source (GPL-3.0) native editor/engine for Perfect World game data. Docs are in
-> Portuguese, but contributions in English are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+## 本轮任务点击优化
 
-![Editor de elementos](docs/img/editor.png)
+任务引用改为按 ID 索引查询；点击任务后在后台准备字段值与提示，界面每 32 个字段分批显示。任务页未显示时暂不创建详情控件；文本和对话仅在对应页打开时绑定。任务列表、子任务、对话窗口及选项每次创建最多 200 项，点击“加载更多”继续，不再一次展开全部对话。
 
-## Recursos
+任务搜索加入 200ms 合并和旧请求取消；快速切换任务会取消过期详情。修正旧任务对话编辑、清空控件和新任务选择之间的归属问题，并释放页签绘制使用的字体和画刷。前版的默认关闭启动自动读取、进度及取消功能保留。
 
-- Abre a pasta do Perfect World e **recarrega sozinho** na próxima vez.
-- Lê e **grava** o `elements.data` (cerca de 40 mil itens em 95 blocos), com prova de gravação idêntica e backup automático.
-- **Ícones reais do jogo**, lidos direto do `surfaces.pck`, sem extrair nada.
-- Tela no estilo dos editores clássicos (Rody's Angelica Editor): blocos agrupados por categoria, filtro
-  por tipo, busca, sub-abas por grupo de campos, nome na cor oficial do jogo, tooltip com drops.
-- **Duplo clique** abre editores próprios: classes (caixinhas), atributos com a descrição em português,
-  seletor de itens/monstros/receitas com ícone.
-- **Vínculos**: o que cada item usa e quem o usa, "dropado por" com chance, tudo com links.
-- Seleção múltipla e ações em lote (clonar, excluir, alterar um campo em vários itens).
-- **Quests** (`tasks.data` v93): campos, textos, diálogos e subquests.
-- **Verificação do par cliente × servidor**: aponta o que derruba o login com "versão errada".
-- Modo **MCP**: as mesmas operações disponíveis para agentes de IA.
+**本轮没有 tasks.data 样本，也没有 .NET SDK/Windows，未复现实际点击卡顿、未编译或执行新增 C# 回归。** 已完成源码审查、汉化与 CFG 指纹检查。分析证据、修复范围及 Windows 验收步骤见 [任务卡顿修复说明](docs/任务卡顿修复说明.md)。
 
-## Rodar
+## 取消启动自动读取
 
-Requer Windows e o SDK do .NET 10.
+本版启动时默认不再自动读取上次打开的数据。通过 **文件 → 启动时自动读取上次文件** 可开启或取消，选择会保存在本机；取消后下次启动停留在空会话，需要手动打开文件。旧版保存的上次路径不会自动启用此功能。只有设置明确开启时，程序才读取该路径。读取过程中仍可使用进度窗口的“取消读取”。
 
-```bash
-dotnet run
+本次是源码修改与静态审查，尚未编译或实际运行 Windows 窗口。`--snapshot` 诊断也遵循此开关。
+
+## 前轮读取优化
+
+打开元素数据时，文件读取、CFG 匹配、记录解码、无修改写回校验、ID/引用索引和附加资源准备改在后台执行。中文进度窗口显示阶段、百分比、当前块/记录及耗时，支持“取消读取”、Esc 和关闭按钮。新数据准备成功后才替换原会话，取消或准备失败会保留原数据。
+
+修复首次绘制列表时触发全表引用扫描的阻塞点；引用字段按 CFG 预编译，界面只查询缓存。字段、关联引用和任务列表分批显示，搜索输入延迟合并，避免重复刷新。图标和描述资源也在后台准备。未知总量的资源阶段显示滚动进度；百分比按阶段加权，不代表剩余时间。
+
+本轮保留全部读取规则和保存校验，三个真实样本的独立参考读取与 504 项参考回归再次通过；汉化固定文字审查增至 298 项。新增 C# 取消/索引回归随包提供，**当前环境未编译执行，也未验证实际 Windows 响应速度**。详细变化及 Windows 验收步骤见 [读取进度与防卡顿说明](docs/读取进度与防卡顿说明.md)。
+
+## 前轮继续检测
+
+三个真实附件的参考读取复测再次通过；独立参考回归 504 项通过。审查 290 项固定文字与 108,505 个不同字段键后，补齐字段查找、弹窗按钮、文件窗口标题和 679 个词汇，总词汇增至 1,159 个。对含义未确认的原始缩写保留标识，不猜测解释。
+
+详细覆盖、发现的问题、保留项和 Windows 验证步骤见 [继续检测与汉化报告](docs/继续检测与汉化报告.md)。**本轮仍未编译或实际运行 Windows C# 程序。**
+
+## 读取修复
+
+- 压缩空列表只有 `count=0`，没有数据长度字段。修复多读 4 字节后所有后续列表错位的问题。
+- 超过 8 KB 的压缩记录支持独立分段长度头，正确处理 CONSUME_POINTS_CONFIG 等长记录；仍可识别普通 MPPC 位流。
+- 保留完整版本号、同版本分支选择、重复字段、AUTO 偏移、列表尺寸和文件末尾校验等修复。
+- 数据分类、布局名称、读取报告中的“是/否”、常用字段词汇显示中文。原始字段名可在字段提示中查看。
+- 空数据分类也显示在选择器中；符合保存条件的普通格式可向空列表新建首条记录。
+- 压缩数据仍为只读；普通格式通过无修改写回的逐字节比较后才能保存。
+
+## 三个真实样本的参考验证
+
+| 版本 | 数据块 | 普通记录 | NPC 对话 | 文件字节 | 结果 |
+|---|---:|---:|---:|---:|---|
+| v344 | 385/385 | 98,307 | 3,411 | 104,769,330 | 全部对齐到文件末尾 |
+| v386 | 398/398 | 105,892 | 3,422 | 18,379,998 | 全部记录解压、ID 一致、到达文件末尾 |
+| v531 | 420/420 | 106,019 | 3,422 | 18,616,744 | 全部记录解压、ID 一致、到达文件末尾 |
+
+v344 的参考列表重建与原文件字节一致；v386/v531 共检查 211,911 条压缩记录，其中 1,437 条采用长记录分段。输入文件未修改，也未打包进入本项目。
+
+独立参考回归另有 504 项检查通过，覆盖全部 CFG 的模拟列表、长记录和截断拒绝。
+
+具体方法、文件指纹及限制见 [真实文件验证报告](docs/真实文件验证报告.md) 和 [机器可读结果](docs/真实文件验证.json)。只有这三个真实版本经过本次参考验证；不能把 170 个 CFG 的结构审查等同于所有真实版本均已通过。
+
+## 编译与使用
+
+1. 在 Windows 安装 **.NET 10 SDK**。
+2. 完整解压，双击 **build-zh-CN.cmd**。脚本先执行 C# 回归，再发布 Windows x64 自包含程序。
+3. 运行 `dist\MyAceEditor.exe`，选择 **文件 → 打开 elements.data…**。
+4. 观察读取进度；需要中止时点击 **取消读取**，等待当前检查点结束后返回原会话。
+5. 在 **帮助 → 读取报告…** 查看完整块数、文件位置和只读原因。
+
+分发时保留整个 `dist` 文件夹，尤其是 `PerfectWorld\cfg`。首次还原依赖需要 NuGet 网络访问；已有依赖缓存时可复用。
+
+如需用 Windows 上的 C# 实现复测，把仅含元素数据样本的文件夹拖到 **test-real-data.cmd**，结果保存在 `real-data-result.txt`。该脚本不会修改输入。
+
+手动运行 C# 模拟与真实数据回归：
+
+```powershell
+dotnet run --project Tests/CfgRegression/CfgRegression.csproj -c Release -- PerfectWorld/cfg D:\elements-samples
 ```
 
-Depois, **Arquivo → Abrir pasta do Perfect World…** e escolha a pasta que contém `element\`.
+独立参考读取器（Python 3；`--native` 加速另需 g++）：
 
-## Gerar o executável
-
-```bash
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist
+```powershell
+python Tests/RealFiles/verify_real.py D:\elements-samples --report reference-result.json
+python Tests/audit_localization.py
 ```
 
-Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada.
+自动匹配失败时，可通过 **文件 → 打开元素数据（手动选择 CFG）…** 查看。未完整读取的文件会明确标记，并禁用保存。tasks.data 的完整结构编辑仍限原项目已实现的 v93。
 
-## Estado
+## 配置和文档
 
-| Área | Estado |
-|---|---|
-| `elements.data`: leitura | ✅ ~98,6% (falta a cauda de Guerra Territorial) |
-| `elements.data`: gravação | ✅ byte-idêntica, com backup automático |
-| `.pck`/`.pkx` nativo + ícones | ✅ leitura (gravação 🔜) |
-| Editores de campo, vínculos, "dropado por", seleção múltipla | ✅ |
-| Quests (`tasks.data` v93) | ✅ (edição de prêmios 🔜) |
-| Descrição e cor oficial dos itens (`configs.pck`) | ✅ leitura |
-| Verificação do par cliente × servidor | ✅ |
-| GShop, AI Policy, NPCGen | 🔜 formatos já documentados |
+170 个 CFG 原字节均保留。结构审查共 42,866 块，167 个配置无字段数量警告；另 3 个来源配置的字段名/类型数量不一致，保持只读。详见 [CFG 检查表](docs/CFG_audit.tsv) 及 [多版本说明](docs/CFG_多版本说明.md)。
 
-Versão de referência testada: cliente/servidor Perfect World 1.4.4 (`elements.data` v60, `tasks.data` v93).
-O que vem pela frente está no **[roadmap](docs/ROADMAP.md)**.
+- [中文使用说明](docs/使用说明_zh-CN.md)
+- [原版 README](README.pt-BR.md)
+- [开发文档](docs/ARQUITETURA.md)
 
-## Contribuir
-
-Contribuições são muito bem-vindas! Leia o **[guia de contribuição](CONTRIBUTING.md)** e escolha uma
-tarefa no **[roadmap](docs/ROADMAP.md)** — as marcadas com 🟢 são boas para começar.
-
-## Documentação
-
-| Documento | Para quê |
-|---|---|
-| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | Como a engine e o Perfect World funcionam: diagramas, camadas, fluxo, formatos |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Tarefas futuras organizadas em marcos |
-| [docs/PARIDADE-RODY.md](docs/PARIDADE-RODY.md) | Checklist função por função em relação aos editores clássicos |
-| [docs/kb/PW-KB.md](docs/kb/PW-KB.md) | Base de conhecimento do **jogo**: cliente, servidor, protocolo, formatos binários, versões |
-| [docs/kb/ENGINE-KB.md](docs/kb/ENGINE-KB.md) | Base de conhecimento da **engine**: o que está implementado e como |
-| [.claude/skills/pw-engine](.claude/skills/pw-engine/SKILL.md) | Skill do Claude Code que ensina o agente a usar e manter as KBs |
-
-## Licença
-
-[GNU General Public License v3.0](LICENSE). Você pode usar, estudar, modificar e distribuir o
-MyAceEditor; versões modificadas que forem distribuídas também precisam ter o código aberto sob a GPL-3.0.
-
-## Créditos
-
-O conhecimento dos formatos vem do estudo de ferramentas e documentação da comunidade
-(sELedit, sTASKedit, sGSHOPedit, AIPolicyEditor, sNPCedit, sMAPtool, uPCK, UIEdit, Rody's Angelica Editor,
-fóruns mmorpg-devs.ru, RaGEZONE e PWDevGroup), listadas em [PW-KB §R](docs/kb/PW-KB.md).
-O código deste repositório é original.
-Perfect World é marca da Perfect World Co., Ltd. Este projeto não é afiliado a ela e não distribui
-arquivos do jogo.
+保留原项目 [GPL-3.0 许可证](LICENSE)。原开发文档和截图多数保留原文；旧截图不代表本次程序的运行状态。本项目不包含游戏数据，也不是《完美世界》官方产品。

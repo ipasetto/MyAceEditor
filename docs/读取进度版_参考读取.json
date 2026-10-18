@@ -1,0 +1,71 @@
+{
+  "method": "Independent Python/C++ reference; C# application not executed",
+  "files": [
+    {
+      "file": "elements(1).data",
+      "sha256": "4519a9dc7ec47c4f7d384621ae81e8d94a586fafc7010a83a9f5e9f24832190b",
+      "length": 18616744,
+      "version": 531,
+      "blocks": 420,
+      "records": 106019,
+      "dialogs": 3422,
+      "empty_lists": 7,
+      "bytes": 18616744,
+      "eof": true,
+      "reference_span_roundtrip": null,
+      "cfg": "PW_1.8.0-seledit_v531.cfg",
+      "layout": "MPPC",
+      "status": "PASS",
+      "seconds": 0.76,
+      "native_decode": {
+        "records": 106019,
+        "framed_records": 731,
+        "raw_frames": 0
+      }
+    },
+    {
+      "file": "elements(2).data",
+      "sha256": "df30551bbaae89b45b479612a907166a98a91e12ea6d67fe9cd6ad577d52ad9b",
+      "length": 104769330,
+      "version": 344,
+      "blocks": 385,
+      "records": 98307,
+      "dialogs": 3411,
+      "empty_lists": 3,
+      "bytes": 104769330,
+      "eof": true,
+      "reference_span_roundtrip": true,
+      "cfg": "PW_1.7.3_v344.cfg",
+      "layout": "SIZED",
+      "status": "PASS",
+      "seconds": 0.402,
+      "native_decode": {
+        "records": 0,
+        "framed_records": 0,
+        "raw_frames": 0
+      }
+    },
+    {
+      "file": "elements.data",
+      "sha256": "dc43e3389c666c46b855ec27eb9fa2507f8c23cb46efce6f0b421d7e2ce8beb7",
+      "length": 18379998,
+      "version": 386,
+      "blocks": 398,
+      "records": 105892,
+      "dialogs": 3422,
+      "empty_lists": 4,
+      "bytes": 18379998,
+      "eof": true,
+      "reference_span_roundtrip": null,
+      "cfg": "PW_1.7.6_v386.cfg",
+      "layout": "MPPC",
+      "status": "PASS",
+      "seconds": 0.729,
+      "native_decode": {
+        "records": 105892,
+        "framed_records": 706,
+        "raw_frames": 0
+      }
+    }
+  ]
+}

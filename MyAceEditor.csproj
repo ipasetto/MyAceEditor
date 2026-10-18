@@ -19,8 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Tests\**\*.cs" />
     <None Update="sample.data" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="PerfectWorld\cfg\*.cfg" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="PerfectWorld\cfg\**\*.cfg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

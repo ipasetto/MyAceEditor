@@ -1,0 +1,198 @@
+{
+  "method": "Source text and routing audit only; .NET/WinForms not executed",
+  "cfg_files": 170,
+  "block_names": 485,
+  "missing_block_labels": [],
+  "field_keys": 108505,
+  "direct_field_labels": 46,
+  "translated_words": 1159,
+  "fixed_literals_reviewed": 299,
+  "unhandled_fixed_literals": [],
+  "retained_identifiers": [
+    {
+      "identifier": "b",
+      "unique_field_occurrences": 230,
+      "example": "armor_b",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "p",
+      "unique_field_occurrences": 195,
+      "example": "item_10_p",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "f",
+      "unique_field_occurrences": 85,
+      "example": "multiride_action_f_1",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "a",
+      "unique_field_occurrences": 77,
+      "example": "armor_a",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "c",
+      "unique_field_occurrences": 72,
+      "example": "armor_c",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "d",
+      "unique_field_occurrences": 68,
+      "example": "damage_d",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "e",
+      "unique_field_occurrences": 65,
+      "example": "profession_group_E",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "g",
+      "unique_field_occurrences": 65,
+      "example": "profession_group_G",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "r",
+      "unique_field_occurrences": 52,
+      "example": "item_r_10_count",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "hh",
+      "unique_field_occurrences": 32,
+      "example": "features_1_HH_name",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "rein",
+      "unique_field_occurrences": 31,
+      "example": "configs_10_rein",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "m",
+      "unique_field_occurrences": 20,
+      "example": "multiride_action_m_1",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "pro",
+      "unique_field_occurrences": 18,
+      "example": "cfgId_10_proCfgID",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "cc",
+      "unique_field_occurrences": 13,
+      "example": "cc_name",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "dpm",
+      "unique_field_occurrences": 5,
+      "example": "dpm_addon_ratio",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "spm",
+      "unique_field_occurrences": 5,
+      "example": "spm_addon_ratio",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "inscr",
+      "unique_field_occurrences": 3,
+      "example": "Comfor_Inscr",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "gp",
+      "unique_field_occurrences": 3,
+      "example": "gp_add_time",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "ob",
+      "unique_field_occurrences": 3,
+      "example": "ob_pos_x",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "v",
+      "unique_field_occurrences": 3,
+      "example": "v_max",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "clct",
+      "unique_field_occurrences": 2,
+      "example": "clct_price",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "h",
+      "unique_field_occurrences": 2,
+      "example": "h_max",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "s",
+      "unique_field_occurrences": 2,
+      "example": "s_max",
+      "reason": "参数代号，保留原符号"
+    },
+    {
+      "identifier": "footd",
+      "unique_field_occurrences": 1,
+      "example": "Footd_Config_id",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "fw",
+      "unique_field_occurrences": 1,
+      "example": "file_fw",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "dis",
+      "unique_field_occurrences": 1,
+      "example": "forbid_dis",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "rahk",
+      "unique_field_occurrences": 1,
+      "example": "rahk",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "uk",
+      "unique_field_occurrences": 1,
+      "example": "reserved_uk",
+      "reason": "原始缩写，含义未确认，保留标识"
+    },
+    {
+      "identifier": "u",
+      "unique_field_occurrences": 1,
+      "example": "u_scale",
+      "reason": "参数代号，保留原符号"
+    }
+  ],
+  "dynamic_routes": {
+    "find_uses_chinese_label": true,
+    "find_preserves_original_key": true,
+    "status_uses_chinese_field": true,
+    "grid_keeps_original_key_tooltip": true,
+    "app_dialog_buttons_are_owned_chinese": true,
+    "layout_name_uses_chinese": true,
+    "original_cfg_bytes_unchanged": true,
+    "native_dialog_titles_are_explicit": true
+  },
+  "native_dialog_note": "Windows 原生文件选择器的系统按钮由操作系统语言决定；应用自有标题和确认按钮已用中文。"
+}

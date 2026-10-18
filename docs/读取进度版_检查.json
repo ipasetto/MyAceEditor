@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-18",
+  "scope": "后台读取、阶段进度、取消、引用预索引、分批界面显示",
+  "executed_checks": {
+    "cfg_structure": {
+      "files": 170,
+      "versions": 164,
+      "blocks": 42866,
+      "clean": 167,
+      "source_warnings": 3
+    },
+    "original_cfg_fingerprints": "170/170 unchanged",
+    "independent_reference_regression": {
+      "checks": 504,
+      "plaintext_fixtures": 170,
+      "compressed_fixtures": 71,
+      "status": "PASS; not C#"
+    },
+    "real_file_reference_report": "读取进度版_参考读取.json",
+    "real_file_versions": [
+      344,
+      386,
+      531
+    ],
+    "real_file_reference_status": "PASS; not C#",
+    "source_lexical_review": {
+      "files": 36,
+      "status": "PASS; delimiters/strings, not compilation"
+    },
+    "source_path_review": [
+      "modal async worker",
+      "latest progress sampling",
+      "UI cached reverse lookup",
+      "commit after worker completion",
+      "reverse index published after final cancellation check",
+      "headless linked sources exist"
+    ],
+    "localization_report": "汉化审查.json"
+  },
+  "not_executed": [
+    "C# compilation",
+    "C# regression execution",
+    "Windows WinForms operation",
+    "UI timing/performance measurement",
+    "DPI rendering"
+  ],
+  "reason": "No .NET SDK, C# compiler, Windows or Wine in this environment",
+  "new_CSharp_regression_cases": "Tests/CfgRegression/Program.cs; added but not executed",
+  "source_files_reviewed": [
+    "Changes/ChangeSet.cs",
+    "Model/DataModel.cs",
+    "PerfectWorld/AddonText.cs",
+    "PerfectWorld/BlockLabels.cs",
+    "PerfectWorld/CfgCatalog.cs",
+    "PerfectWorld/CfgElementsReader.cs",
+    "PerfectWorld/DdsDecoder.cs",
+    "PerfectWorld/ElementsBlocks.cs",
+    "PerfectWorld/ElementsCfg.cs",
+    "PerfectWorld/ElementsProgram.cs",
+    "PerfectWorld/ElementsReader.cs",
+    "PerfectWorld/ElementsSchema.cs",
+    "PerfectWorld/ElementsWriter.cs",
+    "PerfectWorld/FieldKinds.cs",
+    "PerfectWorld/FieldLabels.cs",
+    "PerfectWorld/FieldLexicon.cs",
+    "PerfectWorld/GameConfigs.cs",
+    "PerfectWorld/IconAtlas.cs",
+    "PerfectWorld/IconLoader.cs",
+    "PerfectWorld/LoadContext.cs",
+    "PerfectWorld/MppcDecoder.cs",
+    "PerfectWorld/PckArchive.cs",
+    "PerfectWorld/TaskSchema.cs",
+    "PerfectWorld/TasksFile.cs",
+    "PerfectWorld/VersionCheck.cs",
+    "Program.cs",
+    "Store/ModuleStore.cs",
+    "Tests/CfgRegression/Program.cs",
+    "Tools/CommonTools.cs",
+    "Tools/MutationTools.cs",
+    "Tools/ReadTools.cs",
+    "UI/ChineseDialogs.cs",
+    "UI/EditorForm.cs",
+    "UI/ElementsLoadBundle.cs",
+    "UI/FieldEditors.cs",
+    "UI/ReadProgressDialog.cs"
+  ]
+}

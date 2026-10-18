@@ -1,0 +1,300 @@
+﻿源码	行	固定文字	判定
+UI/ChineseDialogs.cs	30	确定	中文
+UI/ChineseDialogs.cs	34	取消	中文
+UI/ChineseDialogs.cs	41	原始诊断信息（供核对）	中文
+UI/EditorForm.cs	20	  按名称或 ID 搜索物品…	中文
+UI/EditorForm.cs	82	MyAceEditor 简体中文版	中文
+UI/EditorForm.cs	117	文件(&F)	中文
+UI/EditorForm.cs	118	打开游戏文件夹(&P)…	中文
+UI/EditorForm.cs	119	打开 elements.data(&E)…	中文
+UI/EditorForm.cs	120	打开元素数据（手动选择 CFG）…	中文
+UI/EditorForm.cs	130	另存为(&A)…	中文
+UI/EditorForm.cs	131	退出(&X)	中文
+UI/EditorForm.cs	132	编辑(&E)	中文
+UI/EditorForm.cs	133	新建物品(&N)	中文
+UI/EditorForm.cs	134	删除物品(&D)	中文
+UI/EditorForm.cs	135	帮助(&H)	中文
+UI/EditorForm.cs	136	读取报告…	中文
+UI/EditorForm.cs	137	关于	中文
+UI/EditorForm.cs	147	◀	技术标识/符号
+UI/EditorForm.cs	148	▶	技术标识/符号
+UI/EditorForm.cs	149	返回（上一个物品）	中文
+UI/EditorForm.cs	149	前进	中文
+UI/EditorForm.cs	151	打开游戏文件夹	中文
+UI/EditorForm.cs	152	打开 elements.data	中文
+UI/EditorForm.cs	153	保存	中文
+UI/EditorForm.cs	155	＋ 添加	中文
+UI/EditorForm.cs	156	🗑 删除	中文
+UI/EditorForm.cs	174	元素数据	中文
+UI/EditorForm.cs	177	任务	中文
+UI/EditorForm.cs	186	一致性检查	中文
+UI/EditorForm.cs	189	PCK 解包工具	中文
+UI/EditorForm.cs	223	ID	技术标识/符号
+UI/EditorForm.cs	224	名称	中文
+UI/EditorForm.cs	225	∞	技术标识/符号
+UI/EditorForm.cs	255	＋ 添加	中文
+UI/EditorForm.cs	257	✕ 删除	中文
+UI/EditorForm.cs	281	字段值	中文
+UI/EditorForm.cs	286	查找	中文
+UI/EditorForm.cs	289	查找	中文
+UI/EditorForm.cs	292	字段	中文
+UI/EditorForm.cs	293	ID	技术标识/符号
+UI/EditorForm.cs	293	名称	中文
+UI/EditorForm.cs	293	值	中文
+UI/EditorForm.cs	298	描述与颜色	中文
+UI/EditorForm.cs	301	关联引用	中文
+UI/EditorForm.cs	302	数据块	中文
+UI/EditorForm.cs	302	ID	技术标识/符号
+UI/EditorForm.cs	303	名称	中文
+UI/EditorForm.cs	303	字段	中文
+UI/EditorForm.cs	303	%	技术标识/符号
+UI/EditorForm.cs	365	请选择《完美世界》文件夹（其中包含 element 文件夹）	中文
+UI/EditorForm.cs	414	完美世界元素数据 (*.data)|*.data|所有文件 (*.*)|*.*	中文
+UI/EditorForm.cs	414	打开元素数据（elements.data）	中文
+UI/EditorForm.cs	441	（未选择）	中文
+UI/EditorForm.cs	441		技术标识/符号
+UI/EditorForm.cs	479	选择对应的游戏分支 CFG	中文
+UI/EditorForm.cs	484	使用此 CFG	中文
+UI/EditorForm.cs	532	元素数据 (*.data)|*.data|所有文件 (*.*)|*.*	中文
+UI/EditorForm.cs	532	选择 elements.data	中文
+UI/EditorForm.cs	534	CFG 定义 (*.cfg)|*.cfg	中文
+UI/EditorForm.cs	534	选择与此数据版本对应的 CFG	中文
+UI/EditorForm.cs	541	元素数据读取报告	中文
+UI/EditorForm.cs	567	元素数据 (*.data)|*.data	中文
+UI/EditorForm.cs	567	另存为元素数据	中文
+UI/EditorForm.cs	1311		技术标识/符号
+UI/EditorForm.cs	1567	  按名称或 ID 搜索任务…	中文
+UI/EditorForm.cs	1626	名称	中文
+UI/EditorForm.cs	1628	应用名称	中文
+UI/EditorForm.cs	1629	💾 保存 tasks.data	中文
+UI/EditorForm.cs	1635	数据	中文
+UI/EditorForm.cs	1639	文本	中文
+UI/EditorForm.cs	1651	颜色：在文本前添加 ^RRGGBB（例如 ^ffcc00）。游戏换行符：\\r。离开文本框后修改生效。	中文
+UI/EditorForm.cs	1654	对话	中文
+UI/EditorForm.cs	1717	任务数据 (*.data)|*.data|所有文件 (*.*)|*.*	中文
+UI/EditorForm.cs	1717	打开任务数据（tasks.data）	中文
+UI/EditorForm.cs	1739	任务读取已取消，原任务数据已保留。	中文
+UI/EditorForm.cs	1740	读取 tasks.data 失败：	中文
+UI/EditorForm.cs	1789	任务列表刷新失败：	中文
+UI/EditorForm.cs	1910	请选择任务	中文
+UI/EditorForm.cs	1937	此版本仅支持任务名称编辑。	中文
+UI/EditorForm.cs	1984	任务详情显示失败：	中文
+UI/EditorForm.cs	2132	请先打开 tasks.data。	中文
+UI/EditorForm.cs	2134	没有待保存的修改。	中文
+UI/EditorForm.cs	2167	浏览…	中文
+UI/EditorForm.cs	2169	浏览…	中文
+UI/EditorForm.cs	2170	✔ 开始检查	中文
+UI/EditorForm.cs	2171	比较登录所需的文件版本和时间戳（元素、任务、商城），并检查各地图副本及网络加密配置（不显示密钥）。	中文
+UI/EditorForm.cs	2176		技术标识/符号
+UI/EditorForm.cs	2177	检查项	中文
+UI/EditorForm.cs	2178	客户端	中文
+UI/EditorForm.cs	2179	服务端	中文
+UI/EditorForm.cs	2180	说明	中文
+UI/EditorForm.cs	2236	.pck 资源包	中文
+UI/EditorForm.cs	2237	打开《完美世界》文件夹时，程序会自动从 surfaces.pck 直接读取物品图标，无需解包。如果部分图标未显示，可使用下方的 sPCK 与解包目录作为备用方式。	中文
+UI/EditorForm.cs	2238	1）选择 sPCK-GUI.exe	中文
+UI/EditorForm.cs	2241	2）打开 sPCK 解包	中文
+UI/EditorForm.cs	2242	在 sPCK 中，将图标所在的 .pck 资源包（例如 interfaces.pck）解压到一个文件夹。	中文
+UI/EditorForm.cs	2243	3）设置解包后的图标文件夹	中文
+UI/EditorForm.cs	2246	设置完成后，在“元素数据”页选择物品，即可在名称旁显示图标（支持 PNG/BMP/TGA）。	中文
+UI/EditorForm.cs	2258	sPCK 解包程序 (*.exe)|*.exe	中文
+UI/EditorForm.cs	2258	请选择 sPCK-GUI.exe	中文
+UI/EditorForm.cs	2276	从 .pck 解包得到的图标文件夹	中文
+UI/FieldEditors.cs	20	确定	中文
+UI/FieldEditors.cs	21	取消	中文
+UI/FieldEditors.cs	36	全选	中文
+UI/FieldEditors.cs	36	全不选	中文
+UI/FieldEditors.cs	57	按名称、ID 或描述搜索…	中文
+UI/FieldEditors.cs	68	ID	技术标识/符号
+UI/FieldEditors.cs	68	名称	中文
+UI/FieldEditors.cs	68	描述	中文
+UI/FieldEditors.cs	116	字段	中文
+UI/FieldEditors.cs	117	值	中文
+UI/ReadProgressDialog.cs	16	正在准备读取…	中文
+UI/ReadProgressDialog.cs	20	取消读取	中文
+UI/ReadProgressDialog.cs	55	正在取消读取…	中文
+UI/ReadProgressDialog.cs	56	正在结束当前步骤，原来已打开的数据会保留。	中文
+PerfectWorld/TaskSchema.cs	18		技术标识/符号
+PerfectWorld/TaskSchema.cs	26		技术标识/符号
+PerfectWorld/TaskSchema.cs	33		技术标识/符号
+PerfectWorld/TaskSchema.cs	154	基本	中文
+PerfectWorld/TaskSchema.cs	154	ID	技术标识/符号
+PerfectWorld/TaskSchema.cs	154	含签名	中文
+PerfectWorld/TaskSchema.cs	154	类型	中文
+PerfectWorld/TaskSchema.cs	154	时间限制（秒）	中文
+PerfectWorld/TaskSchema.cs	156	时间	中文
+PerfectWorld/TaskSchema.cs	156	退出游戏时失败	中文
+PerfectWorld/TaskSchema.cs	156	在指定日期失败	中文
+PerfectWorld/TaskSchema.cs	156	物品不从背包移除	中文
+PerfectWorld/TaskSchema.cs	157	绝对时间	中文
+PerfectWorld/TaskSchema.cs	157	时间表数量	中文
+PerfectWorld/TaskSchema.cs	158	可用频率	中文
+PerfectWorld/TaskSchema.cs	158	次数	中文
+PerfectWorld/TaskSchema.cs	160	基本	中文
+PerfectWorld/TaskSchema.cs	160	选择一个子任务	中文
+PerfectWorld/TaskSchema.cs	160	随机子任务	中文
+PerfectWorld/TaskSchema.cs	160	按顺序完成子任务	中文
+PerfectWorld/TaskSchema.cs	160	父任务同时失败	中文
+PerfectWorld/TaskSchema.cs	160	父任务同时完成	中文
+PerfectWorld/TaskSchema.cs	161	允许放弃	中文
+PerfectWorld/TaskSchema.cs	161	允许重复	中文
+PerfectWorld/TaskSchema.cs	161	失败后允许重做	中文
+PerfectWorld/TaskSchema.cs	161	放弃时清除	中文
+PerfectWorld/TaskSchema.cs	161	记录任务历史	中文
+PerfectWorld/TaskSchema.cs	161	死亡时失败	中文
+PerfectWorld/TaskSchema.cs	162	最大玩家数	中文
+PerfectWorld/TaskSchema.cs	162	交付	中文
+PerfectWorld/TaskSchema.cs	162	在指定区域交付	中文
+PerfectWorld/TaskSchema.cs	162	交付地图	中文
+PerfectWorld/TaskSchema.cs	164	交付区域数量	中文
+PerfectWorld/TaskSchema.cs	165	进入区域时失败	中文
+PerfectWorld/TaskSchema.cs	165	进入区域地图	中文
+PerfectWorld/TaskSchema.cs	165	进入区域数量	中文
+PerfectWorld/TaskSchema.cs	166	离开区域时失败	中文
+PerfectWorld/TaskSchema.cs	166	离开区域地图	中文
+PerfectWorld/TaskSchema.cs	166	离开区域数量	中文
+PerfectWorld/TaskSchema.cs	168	接受任务时	中文
+PerfectWorld/TaskSchema.cs	168	传送	中文
+PerfectWorld/TaskSchema.cs	168	传送地图	中文
+PerfectWorld/TaskSchema.cs	168	怪物控制器 ID	中文
+PerfectWorld/TaskSchema.cs	168	启用控制器	中文
+PerfectWorld/TaskSchema.cs	169	基本	中文
+PerfectWorld/TaskSchema.cs	169	自动交付	中文
+PerfectWorld/TaskSchema.cs	169	在专用界面显示	中文
+PerfectWorld/TaskSchema.cs	169	通知服务端	中文
+PerfectWorld/TaskSchema.cs	169	死亡时触发	中文
+PerfectWorld/TaskSchema.cs	169	清除已获得物品	中文
+PerfectWorld/TaskSchema.cs	170	建议等级	中文
+PerfectWorld/TaskSchema.cs	170	显示提示	中文
+PerfectWorld/TaskSchema.cs	170	主线任务	中文
+PerfectWorld/TaskSchema.cs	170	交付	中文
+PerfectWorld/TaskSchema.cs	170	任务交付 NPC	中文
+PerfectWorld/TaskSchema.cs	170	奖励 NPC	中文
+PerfectWorld/TaskSchema.cs	172	基本	中文
+PerfectWorld/TaskSchema.cs	172	技能任务	中文
+PerfectWorld/TaskSchema.cs	172	允许查找	中文
+PerfectWorld/TaskSchema.cs	172	显示方向	中文
+PerfectWorld/TaskSchema.cs	172	结婚	中文
+PerfectWorld/TaskSchema.cs	173	修改变量数量	中文
+PerfectWorld/TaskSchema.cs	174	切换场景时失败	中文
+PerfectWorld/TaskSchema.cs	174	隐藏	中文
+PerfectWorld/TaskSchema.cs	174	授予技能	中文
+PerfectWorld/TaskSchema.cs	174	授予技能 ID	中文
+PerfectWorld/TaskSchema.cs	174	授予技能等级	中文
+PerfectWorld/TaskSchema.cs	175	完成时显示效果	中文
+PerfectWorld/TaskSchema.cs	175	影响公共任务排名	中文
+PerfectWorld/TaskSchema.cs	175	比较物品与背包	中文
+PerfectWorld/TaskSchema.cs	175	背包空位	中文
+PerfectWorld/TaskSchema.cs	177	公共任务 / 贡献	中文
+PerfectWorld/TaskSchema.cs	177	公共任务	中文
+PerfectWorld/TaskSchema.cs	177	公共任务表达式数量	中文
+PerfectWorld/TaskSchema.cs	177	公共子任务	中文
+PerfectWorld/TaskSchema.cs	177	清除贡献	中文
+PerfectWorld/TaskSchema.cs	178	贡献怪物数量	中文
+PerfectWorld/TaskSchema.cs	179	需求条件	中文
+PerfectWorld/TaskSchema.cs	179	所需已记录任务数	中文
+PerfectWorld/TaskSchema.cs	179	按已记录任务显示	中文
+PerfectWorld/TaskSchema.cs	179	帮派贡献	中文
+PerfectWorld/TaskSchema.cs	179	按贡献显示	中文
+PerfectWorld/TaskSchema.cs	180	按账号限制	中文
+PerfectWorld/TaskSchema.cs	180	每个账号次数上限	中文
+PerfectWorld/TaskSchema.cs	182	最低等级	中文
+PerfectWorld/TaskSchema.cs	182	最高等级	中文
+PerfectWorld/TaskSchema.cs	182	按等级显示	中文
+PerfectWorld/TaskSchema.cs	183	所需物品数量	中文
+PerfectWorld/TaskSchema.cs	183	按物品显示	中文
+PerfectWorld/TaskSchema.cs	184	给予物品	中文
+PerfectWorld/TaskSchema.cs	184	给予物品数量	中文
+PerfectWorld/TaskSchema.cs	184	给予普通物品数	中文
+PerfectWorld/TaskSchema.cs	184	给予任务物品数	中文
+PerfectWorld/TaskSchema.cs	185	需求条件	中文
+PerfectWorld/TaskSchema.cs	185	押金	中文
+PerfectWorld/TaskSchema.cs	185	按押金显示	中文
+PerfectWorld/TaskSchema.cs	185	最低声望	中文
+PerfectWorld/TaskSchema.cs	185	最高声望	中文
+PerfectWorld/TaskSchema.cs	185	按声望显示	中文
+PerfectWorld/TaskSchema.cs	186	前置任务数量	中文
+PerfectWorld/TaskSchema.cs	187	按前置任务显示	中文
+PerfectWorld/TaskSchema.cs	187	最少前置任务数	中文
+PerfectWorld/TaskSchema.cs	187	修真阶段	中文
+PerfectWorld/TaskSchema.cs	187	按修真阶段显示	中文
+PerfectWorld/TaskSchema.cs	188	帮派	中文
+PerfectWorld/TaskSchema.cs	188	帮派职位	中文
+PerfectWorld/TaskSchema.cs	188	按帮派显示	中文
+PerfectWorld/TaskSchema.cs	188	性别	中文
+PerfectWorld/TaskSchema.cs	188	按性别显示	中文
+PerfectWorld/TaskSchema.cs	189	职业数量	中文
+PerfectWorld/TaskSchema.cs	189	按职业显示	中文
+PerfectWorld/TaskSchema.cs	189	需要配偶	中文
+PerfectWorld/TaskSchema.cs	189	按配偶显示	中文
+PerfectWorld/TaskSchema.cs	190	仅限 GM	中文
+PerfectWorld/TaskSchema.cs	190	限制用户	中文
+PerfectWorld/TaskSchema.cs	190	按元宝条件显示	中文
+PerfectWorld/TaskSchema.cs	190	最低元宝数	中文
+PerfectWorld/TaskSchema.cs	190	最高元宝数	中文
+PerfectWorld/TaskSchema.cs	190	角色时间条件	中文
+PerfectWorld/TaskSchema.cs	190	按角色时间显示	中文
+PerfectWorld/TaskSchema.cs	191	角色时间起点	中文
+PerfectWorld/TaskSchema.cs	191	角色时间终点	中文
+PerfectWorld/TaskSchema.cs	191	角色时间大于	中文
+PerfectWorld/TaskSchema.cs	192	关联任务	中文
+PerfectWorld/TaskSchema.cs	192	关联任务条件	中文
+PerfectWorld/TaskSchema.cs	192	互斥任务数量	中文
+PerfectWorld/TaskSchema.cs	194	特殊奖励	中文
+PerfectWorld/TaskSchema.cs	196	队伍	中文
+PerfectWorld/TaskSchema.cs	196	需要组队	中文
+PerfectWorld/TaskSchema.cs	196	由队伍接受	中文
+PerfectWorld/TaskSchema.cs	196	共享任务	中文
+PerfectWorld/TaskSchema.cs	196	共享完成状态	中文
+PerfectWorld/TaskSchema.cs	196	检查队友	中文
+PerfectWorld/TaskSchema.cs	196	队友距离	中文
+PerfectWorld/TaskSchema.cs	197	全员失败	中文
+PerfectWorld/TaskSchema.cs	197	队长失败时失败	中文
+PerfectWorld/TaskSchema.cs	197	队长完成时完成	中文
+PerfectWorld/TaskSchema.cs	197	完成判定距离	中文
+PerfectWorld/TaskSchema.cs	197	离队时失败	中文
+PerfectWorld/TaskSchema.cs	197	接受时检查队员	中文
+PerfectWorld/TaskSchema.cs	198	接受时队员距离	中文
+PerfectWorld/TaskSchema.cs	198	按队员位置计数	中文
+PerfectWorld/TaskSchema.cs	198	计数距离	中文
+PerfectWorld/TaskSchema.cs	198	全员完成	中文
+PerfectWorld/TaskSchema.cs	198	仅限夫妻	中文
+PerfectWorld/TaskSchema.cs	198	要求职业不同	中文
+PerfectWorld/TaskSchema.cs	199	队员条件数量	中文
+PerfectWorld/TaskSchema.cs	199	按队伍显示	中文
+PerfectWorld/TaskSchema.cs	200	需求条件	中文
+PerfectWorld/TaskSchema.cs	200	比较变量（条件）	中文
+PerfectWorld/TaskSchema.cs	200	与 / 或（条件）	中文
+PerfectWorld/TaskSchema.cs	202	完成条件	中文
+PerfectWorld/TaskSchema.cs	202	完成方法	中文
+PerfectWorld/TaskSchema.cs	202	完成类型	中文
+PerfectWorld/TaskSchema.cs	202	击杀怪物数量	中文
+PerfectWorld/TaskSchema.cs	203	收集物品数量	中文
+PerfectWorld/TaskSchema.cs	203	所需金币	中文
+PerfectWorld/TaskSchema.cs	203	所需帮派贡献	中文
+PerfectWorld/TaskSchema.cs	203	所需帮派经验	中文
+PerfectWorld/TaskSchema.cs	204	保护目标 NPC	中文
+PerfectWorld/TaskSchema.cs	204	保护时长	中文
+PerfectWorld/TaskSchema.cs	204	移动 NPC	中文
+PerfectWorld/TaskSchema.cs	204	NPC 目的地	中文
+PerfectWorld/TaskSchema.cs	205	需到达地点数量	中文
+PerfectWorld/TaskSchema.cs	205	到达地图	中文
+PerfectWorld/TaskSchema.cs	205	等待时间	中文
+PerfectWorld/TaskSchema.cs	206	需离开地点数量	中文
+PerfectWorld/TaskSchema.cs	206	离开地点地图	中文
+PerfectWorld/TaskSchema.cs	207	比较变量（完成）	中文
+PerfectWorld/TaskSchema.cs	207	与 / 或（完成）	中文
+PerfectWorld/TaskSchema.cs	208	表达式数量	中文
+PerfectWorld/TaskSchema.cs	209	任务文本数量	中文
+PerfectWorld/TaskSchema.cs	211	奖励	中文
+PerfectWorld/TaskSchema.cs	211	成功奖励类型	中文
+PerfectWorld/TaskSchema.cs	211	失败奖励类型	中文
+PerfectWorld/TaskSchema.cs	212	任务树	中文
+PerfectWorld/TaskSchema.cs	212	父任务	中文
+PerfectWorld/TaskSchema.cs	212	上一个同级任务	中文
+PerfectWorld/TaskSchema.cs	212	下一个同级任务	中文
+PerfectWorld/TaskSchema.cs	212	首个子任务	中文
+PerfectWorld/TaskSchema.cs	212	基本	中文
+PerfectWorld/TaskSchema.cs	212	任务库任务	中文
+PerfectWorld/TaskSchema.cs	212	任务库概率	中文
+PerfectWorld/TaskSchema.cs	214		技术标识/符号

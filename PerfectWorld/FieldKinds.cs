@@ -70,28 +70,30 @@ public static class FieldKinds
     /// </summary>
     public static string? ProbabilityFor(string refField, IReadOnlyDictionary<string, Field> fields)
     {
-        foreach (var cand in new[]
+        foreach (var cand in ProbabilityCandidates(refField))
+            if (fields.ContainsKey(cand)) return cand;
+        return null;
+    }
+
+    internal static string[] ProbabilityCandidates(string refField) => new[]
         {
             Regex.Replace(refField, @"id_?(\w*)$", "probability_$1").TrimEnd('_'),
             Regex.Replace(refField, @"_id$", "_probability"),
             Regex.Replace(refField, @"_id_(\w+)$", "_probability_$1"),
             refField.Replace("id_", "probability_"),
-        })
-            if (cand != refField && fields.ContainsKey(cand)) return cand;
-        return null;
-    }
+        }.Where(cand => cand != refField).Distinct(StringComparer.Ordinal).ToArray();
 
     // Classes na ordem dos bits (PW-KB §S24).
     // bit i: BM=1 WIZ=2 PSY=4 VEN=8 BAR=16 AS=32 AR=64 CLE=128 SE=256 MY=512 (PW-KB §S24), nomes da versão BR
-    static readonly string[] Classes = { "Guerreiro", "Mago", "Espiritualista", "Feiticeira", "Bárbaro", "Mercenário", "Arqueiro", "Sacerdote", "Arcano", "Místico", "Lâmina Sombria", "Tempestade" };
+    static readonly string[] Classes = { "武侠", "法师", "巫师", "妖精", "妖兽", "刺客", "羽芒", "羽灵", "剑灵", "魅灵", "夜影", "月仙" };
 
-    public static string ClassName(int bit) => bit < Classes.Length ? Classes[bit] : $"Classe {bit + 1}";
+    public static string ClassName(int bit) => bit >= 0 && bit < Classes.Length ? Classes[bit] : $"职业 {bit + 1}";
 
     public static string ClassNames(string value)
     {
         if (!long.TryParse(value, out var m) || m <= 0) return "";
-        var names = Classes.Where((_, i) => (m & (1L << i)) != 0).ToList();
-        return names.Count == 0 ? "" : names.Count >= 10 ? "Todas as classes" : string.Join(", ", names);
+        var names = Enumerable.Range(0, 64).Where(i => (m & (1L << i)) != 0).Select(ClassName).ToList();
+        return string.Join("、", names);
     }
 }
 
@@ -106,11 +108,13 @@ public sealed class RefIndex
     Dictionary<string, List<Ref>>? _usedBy;
     readonly Module _module;
 
-    public RefIndex(Module module)
+    public RefIndex(Module module, LoadContext? context = null)
     {
         _module = module;
+        long done = 0, total = module.Lists.Sum(l => (long)l.Items.Count);
         foreach (var l in module.Lists)
         {
+            context?.Check();
             var target = l.Name switch
             {
                 "EQUIPMENT_ADDON" => _addon,
@@ -118,12 +122,20 @@ public sealed class RefIndex
                 "MONSTER_ESSENCE" => _monster,
                 _ => l.Name.EndsWith("_MAJOR_TYPE") || l.Name.EndsWith("_SUB_TYPE") || l.Name == "TALK_PROC" ? null : _essence,
             };
-            if (target is null) continue;
+            if (target is null) { done += l.Items.Count; continue; }
             foreach (var it in l.Items)
+            {
+                if ((done++ & 255) == 0)
+                {
+                    context?.Check();
+                    context?.Report(done / (double)Math.Max(1, total), "建立 ID 索引", $"{done:N0}/{total:N0} 条记录");
+                }
                 if (it.Id.Length > 0 && it.Id != "0") target.TryAdd(it.Id, (l, it));
+            }
             if (l.Name == "MONSTER_ESSENCE")
                 foreach (var it in l.Items) _essence.TryAdd(it.Id, (l, it));
         }
+        context?.Report(1, "建立 ID 索引", $"{total:N0} 条记录", force: true);
     }
 
     public (ItemList Block, Item Item)? Resolve(FieldKind kind, string id)
@@ -143,21 +155,51 @@ public sealed class RefIndex
     /// <summary>Itens que referenciam o ID (índice reverso construído na 1ª chamada).</summary>
     public IReadOnlyList<Ref> UsedBy(string id)
     {
-        if (_usedBy is null)
+        if (_usedBy is null) Prepare();
+        return CachedUsedBy(id);
+    }
+
+    public bool IsPrepared => _usedBy is not null;
+    public IReadOnlyList<Ref> CachedUsedBy(string id) =>
+        _usedBy is not null && _usedBy.TryGetValue(id, out var found) ? found : Array.Empty<Ref>();
+
+    /// <summary>按 CFG 预编译引用字段及概率候选名；完整建立后一次发布，取消时不暴露部分索引。</summary>
+    public void Prepare(LoadContext? context = null)
+    {
+        context?.Check();
+        if (_usedBy is not null) return;
+        var d = new Dictionary<string, List<Ref>>();
+        long done = 0, total = _module.Lists.Sum(l => (long)l.Items.Count);
+        foreach (var list in _module.Lists)
         {
-            var d = new Dictionary<string, List<Ref>>();
-            foreach (var l in _module.Lists)
-                foreach (var it in l.Items)
-                    foreach (var (name, f) in it.Fields)
-                    {
-                        if (f.Value is "" or "0" or "-1" || !FieldKinds.IsReference(FieldKinds.Of(name))) continue;
-                        var prob = FieldKinds.ProbabilityFor(name, it.Fields);
-                        if (!d.TryGetValue(f.Value, out var list)) d[f.Value] = list = new();
-                        list.Add(new Ref(l, it, name, prob is null ? null : it.Fields[prob].Value));
-                    }
-            _usedBy = d;
+            context?.Check();
+            var schema = (_module.Source as ElementsLayout)?.Blocks.FirstOrDefault(b => ReferenceEquals(b.List, list))?.Block;
+            IEnumerable<string> names = schema is not null ? schema.Fields.Select(f => f.Name)
+                : list.Items.SelectMany(it => it.Fields.Keys).Distinct(StringComparer.Ordinal);
+            var plans = names.Where(n => { context?.Check(); return FieldKinds.IsReference(FieldKinds.Of(n)); })
+                .Select(n => (Name: n, Probabilities: FieldKinds.ProbabilityCandidates(n))).ToArray();
+            foreach (var item in list.Items)
+            {
+                if ((done++ & 127) == 0)
+                {
+                    context?.Check();
+                    context?.Report(done / (double)Math.Max(1, total), "建立引用索引", $"{done:N0}/{total:N0} 条记录 · {list.Name}");
+                }
+                foreach (var plan in plans)
+                {
+                    if (!item.Fields.TryGetValue(plan.Name, out var field) || field.Value is "" or "0" or "-1") continue;
+                    string? probability = null;
+                    foreach (var name in plan.Probabilities)
+                        if (item.Fields.TryGetValue(name, out var candidate)) { probability = candidate.Value; break; }
+                    if (!d.TryGetValue(field.Value, out var uses)) d[field.Value] = uses = new();
+                    uses.Add(new Ref(list, item, plan.Name, probability));
+                }
+            }
         }
-        return _usedBy.TryGetValue(id, out var r) ? r : Array.Empty<Ref>();
+        context?.Check();
+        context?.Report(1, "建立引用索引", $"{total:N0} 条记录", force: true);
+        context?.Check();
+        _usedBy = d;
     }
 
     public void Invalidate() => _usedBy = null;
