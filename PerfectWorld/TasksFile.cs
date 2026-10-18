@@ -30,22 +30,30 @@ public sealed class TasksFile
     public List<QuestNode>? Roots { get; }
     public string? SchemaError { get; }
     public bool FullSchema => Roots is not null;
+    public TaskIndex Index { get; }
 
-    public TasksFile(string path) : this(File.ReadAllBytes(path)) { }
+    public TasksFile(string path, LoadContext? context = null)
+        : this(context is null ? File.ReadAllBytes(path) : context.Slice(0, .10).ReadFile(path), context?.Slice(.10, 1)) { }
 
-    public TasksFile(byte[] data)
+    public TasksFile(byte[] data, LoadContext? context = null)
     {
+        context?.Check();
         Data = data;
         if (data.Length < 12 || BitConverter.ToUInt32(data, 0) is not (Magic or 0))
             throw new InvalidDataException("Não é um tasks.data (assinatura inválida).");
         Version = BitConverter.ToInt32(data, 4);
         int n = BitConverter.ToInt32(data, 8);
-        if (n < 0 || 12 + n * 4 > data.Length) throw new InvalidDataException($"Contagem de quests inválida ({n}).");
+        if (n < 0 || n > (data.Length - 12) / 4) throw new InvalidDataException($"Contagem de quests inválida ({n}).");
         var offsets = new int[n];
-        for (int i = 0; i < n; i++) offsets[i] = BitConverter.ToInt32(data, 12 + i * 4);
+        for (int i = 0; i < n; i++)
+        {
+            if ((i & 255) == 0) context?.Check();
+            offsets[i] = BitConverter.ToInt32(data, 12 + i * 4);
+        }
 
         for (int i = 0; i < n; i++)
         {
+            if ((i & 127) == 0) context?.Report(.1 * i / Math.Max(1, n), "Lendo nomes das quests", $"{i:N0}/{n:N0} quests");
             int off = offsets[i];
             if (off < 0 || off + 4 + NameChars * 2 > data.Length) continue;
             int id = BitConverter.ToInt32(data, off);
@@ -60,7 +68,8 @@ public sealed class TasksFile
                 var roots = new List<QuestNode>(n);
                 for (int i = 0; i < n; i++)
                 {
-                    var schema = new TaskSchema93(data);
+                    context?.Report(.1 + .82 * i / Math.Max(1, n), "Analisando quests", $"{i:N0}/{n:N0} quests principais");
+                    var schema = new TaskSchema93(data, context?.Token ?? default);
                     var q = schema.Read(offsets[i]);
                     int end = schema.Position, expected = i + 1 < n ? offsets[i + 1] : data.Length;
                     if (end != expected)
@@ -69,11 +78,15 @@ public sealed class TasksFile
                 }
                 Roots = roots;
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex) { SchemaError = ex.Message; }
         }
+        context?.Check();
+        Index = new TaskIndex(Roots, Quests, context?.Slice(.92, 1));
+        context?.Report(1, "Quests lidas", $"{Quests.Count:N0} quests principais", force: true);
     }
 
-    public IEnumerable<QuestNode> AllNodes() => Roots is null ? Enumerable.Empty<QuestNode>() : Roots.SelectMany(r => new[] { r }.Concat(r.Descendants()));
+    public IEnumerable<QuestNode> AllNodes() => Index.Nodes;
 
     /// <summary>Bytes do arquivo com as alterações aplicadas.</summary>
     public byte[] Build()

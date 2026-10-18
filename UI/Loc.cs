@@ -33,7 +33,10 @@ public static class Loc
         if (code == "pt") return;
         try
         {
+            // <código>.json; senão a primeira variante regional (ex.: zh → zh-CN.json)
             var file = Path.Combine(LangDir, code + ".json");
+            if (!File.Exists(file) && Directory.Exists(LangDir))
+                file = Directory.GetFiles(LangDir, code + "-*.json").OrderBy(f => f, StringComparer.Ordinal).FirstOrDefault() ?? file;
             if (File.Exists(file))
             {
                 var d = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(file));

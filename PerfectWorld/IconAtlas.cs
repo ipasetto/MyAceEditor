@@ -23,17 +23,21 @@ public sealed class IconAtlas
     /// Carrega os atlas de itens do surfaces.pck: ivtrm (masculino) primeiro, ivtrf (feminino) completa
     /// o que faltar. Retorna null se nenhum existir.
     /// </summary>
-    public static IconAtlas? Load(string surfacesPck, params string[] sets)
+    public static IconAtlas? Load(string surfacesPck, params string[] sets) => Load(surfacesPck, null, sets);
+
+    public static IconAtlas? Load(string surfacesPck, LoadContext? context, params string[] sets)
     {
+        context?.Check();
         if (sets.Length == 0) sets = new[] { "iconlist_ivtrm", "iconlist_ivtrf" };
-        using var pck = new PckArchive(surfacesPck);
+        using var pck = new PckArchive(surfacesPck, context?.Token ?? default);
         var atlas = new IconAtlas();
         foreach (var set in sets)
         {
+            context?.Check();
             var dds = pck.Find($@"surfaces\iconset\{set}.dds");
             var txt = pck.Find($@"surfaces\iconset\{set}.txt");
             if (dds is null || txt is null) continue;
-            var img = DdsDecoder.Decode(pck.Read(dds));
+            var img = DdsDecoder.Decode(pck.Read(dds), context?.Token ?? default);
             if (img is null) continue;
 
             var lines = Encoding.GetEncoding(936).GetString(pck.Read(txt))
@@ -41,7 +45,10 @@ public sealed class IconAtlas
             var sheet = new Sheet(img.Value.Pixels, img.Value.Width, int.Parse(lines[0]), int.Parse(lines[1]), int.Parse(lines[3]));
             atlas._sheets.Add(sheet);
             for (int i = 4; i < lines.Length; i++)
+            {
+                if ((i & 255) == 0) context?.Check();
                 if (lines[i].Length > 0) atlas._index.TryAdd(lines[i], (sheet, i - 4));
+            }
         }
         return atlas._sheets.Count > 0 ? atlas : null;
     }

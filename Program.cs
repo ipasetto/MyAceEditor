@@ -18,6 +18,7 @@ internal static class Program
     private static void Main(string[] args)
     {
         if (args.Contains("--mcp")) { RunMcpMode(args).GetAwaiter().GetResult(); return; }
+        if (args.Length >= 2 && args[0] is "--cfg-audit" or "--cfg-match" or "--cfg-batch") { CfgDiagnostic(args); return; }
         if (args.Length >= 2 && args[0] == "--inspect") { InspectElements(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--testcfg") { TestCfg(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--pck") { ListPck(args[1], args.Length >= 3 ? args[2] : ""); return; }
@@ -170,9 +171,7 @@ internal static class Program
     // --addons <elements.data>: descrição dos addons como no jogo (addons-report.txt).
     private static void TestAddons(string dataPath)
     {
-        var r = new CfgElementsReader(dataPath);
-        var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{r.Version & 0xFF}.cfg")[0];
-        var module = r.Parse(ElementsCfg.Load(cfg));
+        var module = CfgCatalog.Load(dataPath).Module;
         using var pck = new PckArchive(GameConfigs.FindConfigsPck(dataPath)!);
         var at = AddonText.Load(pck)!;
         var addons = module.FindListByName("EQUIPMENT_ADDON")!.Items;
@@ -196,9 +195,7 @@ internal static class Program
     // --refs <elements.data> <bloco> <id>: vínculos resolvidos de um item + quem usa o 1o item referenciado (refs.txt).
     private static void DumpRefs(string dataPath, string block, string id)
     {
-        var r = new CfgElementsReader(dataPath);
-        var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{r.Version & 0xFF}.cfg")[0];
-        var module = r.Parse(ElementsCfg.Load(cfg));
+        var module = CfgCatalog.Load(dataPath).Module;
         var refs = new RefIndex(module);
         var item = module.FindListByName(block)!.FindById(id)!;
         var sb = new StringBuilder($"{block} {id} {item.Name}\n");
@@ -237,9 +234,7 @@ internal static class Program
     {
         static Model.Module Load(string path)
         {
-            var r = new CfgElementsReader(path);
-            var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{r.Version & 0xFF}.cfg")[0];
-            return r.Parse(ElementsCfg.Load(cfg));
+            return CfgCatalog.Load(path).Module;
         }
         var sb = new StringBuilder();
         var original = File.ReadAllBytes(dataPath);
@@ -283,9 +278,7 @@ internal static class Program
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var atlas = IconAtlas.Load(pckPath) ?? throw new InvalidDataException("atlas não encontrado");
         long tAtlas = sw.ElapsedMilliseconds;
-        var reader = new CfgElementsReader(dataPath);
-        var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{reader.Version & 0xFF}.cfg")[0];
-        var module = reader.Parse(ElementsCfg.Load(cfg));
+        var module = CfgCatalog.Load(dataPath).Module;
         int with = 0, found = 0, saved = 0;
         var missing = new List<string>();
         foreach (var it in module.Lists.SelectMany(l => l.Items))
@@ -357,5 +350,42 @@ internal static class Program
         Log($"\npassos: {steps.Count}  ·  blocos com dados: {comDados}  ·  posição {r.Position:N0}/{r.Length:N0}");
 
         File.WriteAllText(Path.Combine(Directory.GetCurrentDirectory(), "inspect-report.txt"), sb.ToString());
+    }
+
+    // --cfg-audit <pasta cfg> | --cfg-match <elements.data> [pasta cfg] | --cfg-batch <pasta com .data> [pasta cfg]
+    // Diagnóstico só-leitura dos .cfg e do casamento de versão (contribuição LAOCHEN).
+    private static void CfgDiagnostic(string[] args)
+    {
+        string output = args[0] == "--cfg-audit" ? "cfg-audit.tsv" : args[0] == "--cfg-batch" ? "cfg-batch-report.txt" : "cfg-match-report.txt";
+        string report;
+        try
+        {
+            if (args[0] == "--cfg-audit")
+            {
+                report = CfgCatalog.Audit(args[1]);
+                if (report.Contains("\tCFG_ERROR\t", StringComparison.Ordinal)) Environment.ExitCode = 2;
+            }
+            else if (args[0] == "--cfg-match")
+                report = CfgCatalog.Load(args[1], cfgDirectory: args.Length >= 3 ? args[2] : null).Report;
+            else
+            {
+                var sb = new StringBuilder("Teste em lote de dados reais (só leitura, não altera os arquivos)\n");
+                var files = Directory.EnumerateFiles(args[1], "*.data", SearchOption.AllDirectories).OrderBy(x => x, StringComparer.Ordinal).ToList();
+                int passed = 0;
+                foreach (var file in files)
+                {
+                    sb.AppendLine($"\n===== {file} =====");
+                    try { sb.AppendLine(CfgCatalog.Load(file, cfgDirectory: args.Length >= 3 ? args[2] : null).Report); passed++; }
+                    catch (Exception ex) when (ex is InvalidDataException or CfgChoiceRequiredException) { sb.AppendLine("Falha: " + ex.Message); }
+                }
+                sb.AppendLine($"\nLeitura completa: {passed}/{files.Count} arquivos.");
+                if (files.Count == 0 || passed != files.Count) Environment.ExitCode = 2;
+                report = sb.ToString();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or CfgChoiceRequiredException)
+        { report = ex.Message; Environment.ExitCode = 2; }
+        File.WriteAllText(output, report, new UTF8Encoding(false));
+        Console.WriteLine(report);
     }
 }

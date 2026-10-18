@@ -22,6 +22,7 @@ public sealed class PckArchive : IDisposable
         Gbk = Encoding.GetEncoding(936);
     }
 
+    readonly CancellationToken _token;
     readonly FileStream _pck;
     readonly FileStream? _pkx;
     readonly Dictionary<string, PckEntry> _byPath = new(StringComparer.OrdinalIgnoreCase);
@@ -32,43 +33,49 @@ public sealed class PckArchive : IDisposable
 
     long Length => _pck.Length + (_pkx?.Length ?? 0);
 
-    public PckArchive(string pckPath)
+    public PckArchive(string pckPath, CancellationToken cancellationToken = default)
     {
+        _token = cancellationToken; _token.ThrowIfCancellationRequested();
         FilePath = pckPath;
         _pck = new FileStream(pckPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var pkxPath = System.IO.Path.ChangeExtension(pckPath, ".pkx");
-        if (File.Exists(pkxPath))
-            _pkx = new FileStream(pkxPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-
-        var head = ReadAt(0, 4);
-        if (BitConverter.ToInt32(head) != FSig1)
-            throw new InvalidDataException($"Não é um pacote Angelica: {pckPath}");
-
-        var tail = ReadAt(Length - 8, 8);
-        int count = BitConverter.ToInt32(tail, 0);
-        Version = BitConverter.ToInt16(tail, 4) == 3 ? 3 : 2;
-
-        int footer = Version == 3 ? 288 : 280;
-        int entrySize = Version == 3 ? 288 : 276;
-        long tableOffset = Version == 3
-            ? BitConverter.ToInt64(ReadAt(Length - 280, 8)) ^ Key1
-            : (uint)(BitConverter.ToUInt32(ReadAt(Length - 272, 4)) ^ Key1);
-
-        var table = ReadAt(tableOffset, checked((int)(Length - tableOffset - footer)));
-        var entries = new List<PckEntry>(count);
-        int pos = 0;
-        for (int i = 0; i < count; i++)
+        try
         {
-            int size = BitConverter.ToInt32(table, pos) ^ Key1;
-            pos += 8; // tamanho ^ KEY_1, tamanho ^ KEY_2 (ignorado)
-            var raw = table.AsSpan(pos, size).ToArray();
-            pos += size;
-            if (size < entrySize) raw = Inflate(raw, entrySize);
-            var e = ParseEntry(raw, Version);
-            entries.Add(e);
-            _byPath[e.Path] = e;
+            var pkxPath = System.IO.Path.ChangeExtension(pckPath, ".pkx");
+            if (File.Exists(pkxPath))
+                _pkx = new FileStream(pkxPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            var head = ReadAt(0, 4);
+            if (BitConverter.ToInt32(head) != FSig1)
+                throw new InvalidDataException($"Não é um pacote Angelica válido: {pckPath}");
+
+            var tail = ReadAt(Length - 8, 8);
+            int count = BitConverter.ToInt32(tail, 0);
+            Version = BitConverter.ToInt16(tail, 4) == 3 ? 3 : 2;
+
+            int footer = Version == 3 ? 288 : 280;
+            int entrySize = Version == 3 ? 288 : 276;
+            long tableOffset = Version == 3
+                ? BitConverter.ToInt64(ReadAt(Length - 280, 8)) ^ Key1
+                : (uint)(BitConverter.ToUInt32(ReadAt(Length - 272, 4)) ^ Key1);
+
+            var table = ReadAt(tableOffset, checked((int)(Length - tableOffset - footer)));
+            var entries = new List<PckEntry>(count);
+            int pos = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if ((i & 63) == 0) _token.ThrowIfCancellationRequested();
+                int size = BitConverter.ToInt32(table, pos) ^ Key1;
+                pos += 8; // tamanho ^ KEY_1, tamanho ^ KEY_2 (ignorado)
+                var raw = table.AsSpan(pos, size).ToArray();
+                pos += size;
+                if (size < entrySize) raw = Inflate(raw, entrySize, _token);
+                var e = ParseEntry(raw, Version);
+                entries.Add(e);
+                _byPath[e.Path] = e;
+            }
+            Entries = entries;
         }
-        Entries = entries;
+        catch { _pkx?.Dispose(); _pck.Dispose(); throw; }
     }
 
     static PckEntry ParseEntry(byte[] b, int version)
@@ -87,15 +94,21 @@ public sealed class PckArchive : IDisposable
     public byte[] Read(PckEntry e)
     {
         var data = ReadAt(e.Offset, e.CSize);
-        return e.CSize < e.Size ? Inflate(data, e.Size) : data;
+        return e.CSize < e.Size ? Inflate(data, e.Size, _token) : data;
     }
 
-    static byte[] Inflate(byte[] data, int size)
+    static byte[] Inflate(byte[] data, int size, CancellationToken token = default)
     {
         var outBuf = new byte[size];
         using var z = new ZLibStream(new MemoryStream(data), CompressionMode.Decompress);
         int read = 0, n;
-        while (read < size && (n = z.Read(outBuf, read, size - read)) > 0) read += n;
+        while (read < size)
+        {
+            token.ThrowIfCancellationRequested();
+            n = z.Read(outBuf, read, Math.Min(128 * 1024, size - read));
+            if (n == 0) break;
+            read += n;
+        }
         return outBuf;
     }
 
@@ -106,10 +119,11 @@ public sealed class PckArchive : IDisposable
         int done = 0;
         while (done < count)
         {
+            _token.ThrowIfCancellationRequested();
             long p = pos + done;
             var (s, local) = p < _pck.Length ? (_pck, p) : (_pkx ?? throw new EndOfStreamException(), p - _pck.Length);
             s.Position = local;
-            int n = s.Read(buf, done, (int)Math.Min(count - done, s.Length - local));
+            int n = s.Read(buf, done, (int)Math.Min(1024 * 1024, Math.Min(count - done, s.Length - local)));
             if (n <= 0) throw new EndOfStreamException();
             done += n;
         }

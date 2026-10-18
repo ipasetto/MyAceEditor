@@ -401,56 +401,62 @@ public sealed class EditorForm : Form
         if (dlg.ShowDialog(this) == DialogResult.OK) LoadElements(dlg.FileName);
     }
 
-    // Carregamento em segundo plano: a leitura pesada (elements, ícones, configs, quests) roda fora da tela;
-    // a tela só recebe o resultado pronto. Assim a janela não congela ao abrir a pasta do jogo.
-    private int _loadSeq;
+    // Carregamento em segundo plano com janela de progresso e cancelamento (contribuição LAOCHEN):
+    // a leitura pesada (elements, ícones, configs, quests) roda fora da tela; a tela só recebe o resultado pronto.
     private sealed record Loaded(Module Module, string? AtlasPck, IconAtlas? Atlas, GameConfigs? Cfgs,
-        TasksFile? Tasks, string? TasksPath, int Position, int Length, long Ms, string? Error);
+        TasksFile? Tasks, string? TasksPath, int Position, int Length, long Ms, string Cfg, IReadOnlyList<string> Warnings);
 
-    private void LoadElements(string path)
-    {
-        var seq = ++_loadSeq;
-        UseWaitCursor = true;
-        Status(Loc.T("status.loading", "Carregando…") + " " + Path.GetFileName(path));
-        _ = LoadElementsAsync(path, seq);
-    }
-
-    private async Task LoadElementsAsync(string path, int seq)
+    private void LoadElements(string path, string? cfgOverride = null)
     {
         try
         {
-            var r = await Task.Run(() => ReadAll(path));
-            if (seq != _loadSeq) return;                 // outra abertura começou depois: descarta esta
-            if (r.Error is not null) { Status(r.Error); return; }
+            var r = ReadProgressDialog.Run(this, Loc.T("progress.title", "Lendo elements.data"), ctx => ReadAll(path, cfgOverride, ctx));
             ApplyLoaded(path, r);
         }
+        catch (OperationCanceledException) { Status(Loc.T("status.loadCancelled", "Leitura cancelada; os dados anteriores foram mantidos.")); }
+        catch (CfgChoiceRequiredException ex)
+        {
+            // mesma versão com mais de um ramo de .cfg compatível: o usuário escolhe
+            using var dlg = new OpenFileDialog
+            {
+                Title = ex.Message,
+                InitialDirectory = Path.GetDirectoryName(ex.Paths[0]),
+                Filter = "CFG (*.cfg)|" + string.Join(";", ex.Paths.Select(Path.GetFileName)),
+            };
+            if (dlg.ShowDialog(this) == DialogResult.OK) LoadElements(path, dlg.FileName);
+        }
         catch (Exception ex) { Error("Falha ao ler elements.data", ex); }
-        finally { if (seq == _loadSeq) UseWaitCursor = false; }
     }
 
     // Só leitura de arquivos: não toca em nenhum controle (roda em outra thread).
-    private static Loaded ReadAll(string path)
+    private static Loaded ReadAll(string path, string? cfgOverride, LoadContext ctx)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var reader = new CfgElementsReader(path);
-        if (!reader.SignatureValid) return new Loaded(null!, null, null, null, null, null, 0, 0, 0, $"Assinatura inválida (0x{reader.Signature:X8}).");
-        var cfg = FindCfg(reader.Version);
-        if (cfg is null) return new Loaded(null!, null, null, null, null, null, 0, 0, 0, $"Sem definição .cfg para a versão v{reader.Version & 0xFF}.");
-        var module = reader.Parse(ElementsCfg.Load(cfg));
+        var match = CfgCatalog.Load(path, cfgOverride, context: ctx.Slice(0, .70));
+        var module = match.Module;
         module.Name = Path.GetFileName(path);
+        var warnings = new List<string>();
 
         var pck = IconAtlas.FindSurfacesPck(path);
         IconAtlas? atlas = null;
-        if (pck is not null) try { atlas = IconAtlas.Load(pck); } catch { atlas = null; }
+        ctx.Report(.70, "Lendo ícones", indeterminate: true, force: true);
+        if (pck is not null)
+            try { atlas = IconAtlas.Load(pck, ctx.Slice(.70, .85)); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { warnings.Add("Ícones: " + ex.Message); }
 
         GameConfigs? cfgs = null;
-        try { cfgs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp) : null; } catch { cfgs = null; }
+        ctx.Report(.85, "Lendo descrições", indeterminate: true, force: true);
+        try { cfgs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp, ctx.Slice(.85, .92)) : null; }
+        catch (Exception ex) when (ex is not OperationCanceledException) { warnings.Add("configs.pck: " + ex.Message); }
 
         TasksFile? tasks = null; string? tasksPath = null;
         var tp = Path.Combine(Path.GetDirectoryName(path) ?? "", "tasks.data");
-        if (File.Exists(tp)) { try { tasks = new TasksFile(tp); tasksPath = tp; } catch { tasks = null; } }
+        if (File.Exists(tp))
+            try { tasks = new TasksFile(tp, ctx.Slice(.92, 1)); tasksPath = tp; }
+            catch (Exception ex) when (ex is not OperationCanceledException) { warnings.Add("tasks.data: " + ex.Message); }
 
-        return new Loaded(module, pck, atlas, cfgs, tasks, tasksPath, reader.Position, reader.Length, sw.ElapsedMilliseconds, null);
+        return new Loaded(module, pck, atlas, cfgs, tasks, tasksPath, match.Result.Position, match.Result.Length,
+            sw.ElapsedMilliseconds, Path.GetFileName(match.ConfigPath), warnings);
     }
 
     // Aplicação na tela (thread da interface).
@@ -477,7 +483,10 @@ public sealed class EditorForm : Form
         _dataPath = path;
         int items = module.Lists.Sum(l => l.Items.Count);
         Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
-            + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo"));
+            + $" · {r.Cfg}"
+            + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo")
+            + (module.Source is ElementsLayout { CanWrite: false } lay ? " · " + Loc.T("status.readOnly", "somente leitura") + ": " + lay.ReadOnlyReason : "")
+            + (r.Warnings.Count > 0 ? " · " + string.Join(" · ", r.Warnings) : ""));
         UseWaitCursor = false;
     }
 
@@ -492,12 +501,6 @@ public sealed class EditorForm : Form
         return img;
     }
 
-    private static string? FindCfg(uint version)
-    {
-        int v = (int)(version & 0xFF);
-        var dir = Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg");
-        return Directory.Exists(dir) ? (Directory.GetFiles(dir, $"*_v{v}.cfg").FirstOrDefault() ?? Directory.GetFiles(dir, $"*v{v}.cfg").FirstOrDefault()) : null;
-    }
 
     // Salvar: grava o elements.data no próprio arquivo (backup com data/hora + escrita atômica).
     private void SaveAs() => SaveElements(saveAs: false);

@@ -101,8 +101,9 @@ public sealed class AddonText
     readonly Dictionary<int, byte> _types = new();
     public int Count => _types.Count;
 
-    public static AddonText? Load(PckArchive configs)
+    public static AddonText? Load(PckArchive configs, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var at = new AddonText();
         if (configs.Find(@"configs\item_ext_prop.txt") is { } p)
         {
@@ -110,6 +111,7 @@ public sealed class AddonText
             txt = Regex.Replace(txt, @"//[^\n]*", " ");
             foreach (Match m in Regex.Matches(txt, @"(\d+)\s*\{([^}]*)\}"))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 byte type = (byte)int.Parse(m.Groups[1].Value);
                 foreach (Match id in Regex.Matches(m.Groups[2].Value, @"\d+")) at._types.TryAdd(int.Parse(id.Value), type);
             }

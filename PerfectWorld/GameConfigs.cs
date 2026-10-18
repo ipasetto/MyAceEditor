@@ -25,23 +25,27 @@ public sealed class GameConfigs
     public Dictionary<int, string> ItemDescs { get; } = new();
     public AddonText? Addons { get; private set; }
 
-    public static GameConfigs? Load(string configsPck)
+    public static GameConfigs? Load(string configsPck, LoadContext? context = null)
     {
-        using var pck = new PckArchive(configsPck);
+        using var pck = new PckArchive(configsPck, context?.Token ?? default);
         var gc = new GameConfigs();
         if (pck.Find(@"configs\item_color.txt") is { } c)
             foreach (var line in Decode(pck.Read(c)).Split('\n'))
             {
+                context?.Check();
                 var p = line.Trim().Split('\t', ' ');
                 if (p.Length >= 2 && int.TryParse(p[0], out var id) && int.TryParse(p[^1], out var idx)) gc.ItemColors[id] = idx;
             }
         if (pck.Find(@"configs\item_ext_desc.txt") is { } d)
             foreach (var line in Decode(pck.Read(d)).Split('\n'))
             {
+                context?.Check();
                 var m = Regex.Match(line, "^(\\d+)\\s+\"(.*)\"\\s*$");
                 if (m.Success) gc.ItemDescs[int.Parse(m.Groups[1].Value)] = m.Groups[2].Value;
             }
-        gc.Addons = AddonText.Load(pck);
+        context?.Check();
+        gc.Addons = AddonText.Load(pck, context?.Token ?? default);
+        context?.Check();
         return gc.ItemColors.Count + gc.ItemDescs.Count > 0 || gc.Addons is not null ? gc : null;
     }
 

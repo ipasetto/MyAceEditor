@@ -6,8 +6,9 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public static class DdsDecoder
 {
-    public static (int[] Pixels, int Width, int Height)? Decode(byte[] d)
+    public static (int[] Pixels, int Width, int Height)? Decode(byte[] d, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (d.Length < 128 || BitConverter.ToUInt32(d, 0) != 0x20534444) return null; // "DDS "
         int h = BitConverter.ToInt32(d, 12), w = BitConverter.ToInt32(d, 16);
         uint pfFlags = BitConverter.ToUInt32(d, 80), fourCC = BitConverter.ToUInt32(d, 84);
@@ -19,9 +20,9 @@ public static class DdsDecoder
         {
             switch (fourCC)
             {
-                case 0x31545844: Blocks(d, data, w, h, px, 8, alphaMode: 0); break;  // DXT1
-                case 0x33545844: Blocks(d, data, w, h, px, 16, alphaMode: 3); break; // DXT3
-                case 0x35545844: Blocks(d, data, w, h, px, 16, alphaMode: 5); break; // DXT5
+                case 0x31545844: Blocks(d, data, w, h, px, 8, alphaMode: 0, cancellationToken); break;  // DXT1
+                case 0x33545844: Blocks(d, data, w, h, px, 16, alphaMode: 3, cancellationToken); break; // DXT3
+                case 0x35545844: Blocks(d, data, w, h, px, 16, alphaMode: 5, cancellationToken); break; // DXT5
                 default: return null;
             }
             return (px, w, h);
@@ -33,6 +34,7 @@ public static class DdsDecoder
         int step = bpp / 8;
         for (int i = 0, p = data; i < px.Length && p + step <= d.Length; i++, p += step)
         {
+            if ((i & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
             uint v = step == 4 ? BitConverter.ToUInt32(d, p) : (uint)(d[p] | d[p + 1] << 8 | d[p + 2] << 16);
             px[i] = (int)((hasAlpha ? Chan(v, aM) : 255u) << 24 | Chan(v, rM) << 16 | Chan(v, gM) << 8 | Chan(v, bM));
         }
@@ -47,13 +49,14 @@ public static class DdsDecoder
         return ((v & mask) >> shift) * 255 / max;
     }
 
-    static void Blocks(byte[] d, int off, int w, int h, int[] px, int blockSize, int alphaMode)
+    static void Blocks(byte[] d, int off, int w, int h, int[] px, int blockSize, int alphaMode, CancellationToken cancellationToken)
     {
         Span<int> colors = stackalloc int[4];
         Span<byte> alphas = stackalloc byte[8];
         for (int by = 0; by < (h + 3) / 4; by++)
         for (int bx = 0; bx < (w + 3) / 4; bx++, off += blockSize)
         {
+            if ((bx & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
             if (off + blockSize > d.Length) return;
             int c = alphaMode == 0 ? off : off + 8;
             ushort c0 = BitConverter.ToUInt16(d, c), c1 = BitConverter.ToUInt16(d, c + 2);

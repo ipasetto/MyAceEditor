@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Model/DataModel.cs" Link="Model/DataModel.cs" />
+    <Compile Include="../../PerfectWorld/ElementsCfg.cs" Link="Core/ElementsCfg.cs" />
+    <Compile Include="../../PerfectWorld/CfgElementsReader.cs" Link="Core/CfgElementsReader.cs" />
+    <Compile Include="../../PerfectWorld/ElementsWriter.cs" Link="Core/ElementsWriter.cs" />
+    <Compile Include="../../PerfectWorld/CfgCatalog.cs" Link="Core/CfgCatalog.cs" />
+    <Compile Include="../../PerfectWorld/MppcDecoder.cs" Link="Core/MppcDecoder.cs" />
+    <Compile Include="../../PerfectWorld/LoadContext.cs" Link="Core/LoadContext.cs" />
+    <Compile Include="../../PerfectWorld/FieldKinds.cs" Link="Core/FieldKinds.cs" />
+    <Compile Include="../../PerfectWorld/TasksFile.cs" Link="Core/TasksFile.cs" />
+    <Compile Include="../../PerfectWorld/TaskIndex.cs" Link="Core/TaskIndex.cs" />
+    <Compile Include="../../PerfectWorld/TaskSchema.cs" Link="Core/TaskSchema.cs" />
+    <Compile Include="../../PerfectWorld/PckArchive.cs" Link="Core/PckArchive.cs" />
+    <Compile Include="../../PerfectWorld/DdsDecoder.cs" Link="Core/DdsDecoder.cs" />
+  </ItemGroup>
+</Project>

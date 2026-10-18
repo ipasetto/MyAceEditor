@@ -88,5 +88,10 @@ O conhecimento dos formatos vem do estudo de ferramentas e documentação da com
 (sELedit, sTASKedit, sGSHOPedit, AIPolicyEditor, sNPCedit, sMAPtool, uPCK, UIEdit, Rody's Angelica Editor,
 fóruns mmorpg-devs.ru, RaGEZONE e PWDevGroup), listadas em [PW-KB §R](docs/kb/PW-KB.md).
 O código deste repositório é original.
+
+**Contribuidores:** LAOCHEN (RaGEZONE) — leitor multi-versão do elements.data (170 .cfg, v6–v623),
+decodificador MPPC, janela de progresso/cancelamento, testes de regressão e tradução para chinês
+simplificado (`lang/zh-CN.json`, documentação em [docs/zh-CN](docs/zh-CN)). A versão completa em chinês
+está no branch `contrib/laochen-zh-CN`.
 Perfect World é marca da Perfect World Co., Ltd. Este projeto não é afiliado a ela e não distribui
 arquivos do jogo.
