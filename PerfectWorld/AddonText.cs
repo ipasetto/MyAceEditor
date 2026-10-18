@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using MyAceEditor.Model;
+using MyAceEditor.UI;
 
 namespace MyAceEditor.PerfectWorld;
 
@@ -28,6 +29,11 @@ public enum AddonMode
 public sealed class AddonText
 {
     public sealed record TypeInfo(string Caption, AddonMode Mode, string? Caption2 = null);
+
+    // Legenda no idioma atual: chave addon.t<tipo> (e addon.t<tipo>b para a 2ª legenda dos pares);
+    // o texto em português da tabela abaixo é o padrão e o que aparece se faltar tradução.
+    static string CaptionOf(int type, TypeInfo ti) => Loc.T("addon.t" + type, ti.Caption);
+    static string Caption2Of(int type, TypeInfo ti) => Loc.T("addon.t" + type + "b", ti.Caption2 ?? "");
 
     const string M = "Metal", W = "Madeira", A = "Água", F = "Fogo", T = "Terra";
 
@@ -130,23 +136,24 @@ public sealed class AddonText
         if (TypeOf(addon.Id) is not { } type || !Types.TryGetValue(type, out var ti)) return null;
         int P(string k) => int.TryParse(addon.Fields.GetValueOrDefault(k)?.Value, out var v) ? v : 0;
         int p0 = P("param1"), p1 = P("param2");
+        string cap = CaptionOf(type, ti);
         static string S(int v) => v >= 0 ? $"+{v}" : v.ToString();
         static int Pc(int bits) => (int)MathF.Round(BitConverter.Int32BitsToSingle(bits) * 100f);
         static string Fl(int bits) { var f = BitConverter.Int32BitsToSingle(bits); return (f >= 0 ? "+" : "") + f.ToString("0.##", CultureInfo.InvariantCulture); }
         return ti.Mode switch
         {
-            AddonMode.Val => $"{ti.Caption} {S(p0)}",
-            AddonMode.Range => p1 == 0 || p0 == p1 ? $"{ti.Caption} {S(p0)}" : $"{ti.Caption} {S(p0)}~{p1}",
-            AddonMode.Pct => $"{ti.Caption} {S(Pc(p0))}%",
-            AddonMode.PctRange => p1 == 0 || Pc(p0) == Pc(p1) ? $"{ti.Caption} {S(Pc(p0))}%" : $"{ti.Caption} {S(Pc(p0))}%~{Pc(p1)}%",
-            AddonMode.PctNeg => $"{ti.Caption} -{Math.Abs(Pc(p0))}%",
-            AddonMode.Float => $"{ti.Caption} {Fl(p0)}",
-            AddonMode.Pair => $"{ti.Caption} {S(p0)}, {ti.Caption2} {S(p1)}",
-            AddonMode.PairPct => $"{ti.Caption} {S(Pc(p0))}%, {ti.Caption2} {S(Pc(p1))}%",
-            _ => p0 != 0 && type is 55 ? $"{ti.Caption} (ID {p0})" : ti.Caption,
+            AddonMode.Val => $"{cap} {S(p0)}",
+            AddonMode.Range => p1 == 0 || p0 == p1 ? $"{cap} {S(p0)}" : $"{cap} {S(p0)}~{p1}",
+            AddonMode.Pct => $"{cap} {S(Pc(p0))}%",
+            AddonMode.PctRange => p1 == 0 || Pc(p0) == Pc(p1) ? $"{cap} {S(Pc(p0))}%" : $"{cap} {S(Pc(p0))}%~{Pc(p1)}%",
+            AddonMode.PctNeg => $"{cap} -{Math.Abs(Pc(p0))}%",
+            AddonMode.Float => $"{cap} {Fl(p0)}",
+            AddonMode.Pair => $"{cap} {S(p0)}, {Caption2Of(type, ti)} {S(p1)}",
+            AddonMode.PairPct => $"{cap} {S(Pc(p0))}%, {Caption2Of(type, ti)} {S(Pc(p1))}%",
+            _ => p0 != 0 && type is 55 ? $"{cap} (ID {p0})" : cap,
         };
     }
 
     /// <summary>Legenda do tipo (para agrupar no seletor de addons).</summary>
-    public string? TypeCaption(string id) => TypeOf(id) is { } t && Types.TryGetValue(t, out var ti) ? ti.Caption + (ti.Mode is AddonMode.Pct or AddonMode.PairPct ? " (%)" : "") : null;
+    public string? TypeCaption(string id) => TypeOf(id) is { } t && Types.TryGetValue(t, out var ti) ? CaptionOf(t, ti) + (ti.Mode is AddonMode.Pct or AddonMode.PairPct ? " (%)" : "") : null;
 }

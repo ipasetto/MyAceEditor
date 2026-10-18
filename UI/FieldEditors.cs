@@ -18,7 +18,7 @@ internal static class FieldEditors
     {
         var p = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 44, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
         ok = new Button { Text = "OK", Width = 100, Height = 28, DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = Color.White };
-        var cancel = new Button { Text = "Cancelar", Width = 100, Height = 28, DialogResult = DialogResult.Cancel, FlatStyle = FlatStyle.Flat };
+        var cancel = new Button { Text = Loc.T("dlg.cancel", "Cancelar"), Width = 100, Height = 28, DialogResult = DialogResult.Cancel, FlatStyle = FlatStyle.Flat };
         p.Controls.Add(ok); p.Controls.Add(cancel);
         f.AcceptButton = ok; f.CancelButton = cancel;
         return p;
@@ -27,15 +27,15 @@ internal static class FieldEditors
     /// <summary>Máscara de classes: uma caixinha por classe (PW-KB §S24). Retorna null se cancelar.</summary>
     public static long? ClassMask(IWin32Window owner, long mask, int classCount = 10)
     {
-        using var f = NewDialog("Classes que podem usar", 360, 420);
+        using var f = NewDialog(Loc.T("dlg.classesTitle", "Classes que podem usar"), 360, 420);
         var list = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10.5f) };
         for (int i = 0; i < classCount; i++) list.Items.Add(FieldKinds.ClassName(i), (mask & (1L << i)) != 0);
         var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(6, 4, 6, 0) };
         Button B(string t, bool v) { var b = new Button { Text = t, AutoSize = true, FlatStyle = FlatStyle.Flat }; b.Click += (_, _) => { for (int i = 0; i < list.Items.Count; i++) list.SetItemChecked(i, v); }; return b; }
-        top.Controls.Add(B("Todas", true)); top.Controls.Add(B("Nenhuma", false));
+        top.Controls.Add(B(Loc.T("dlg.all", "Todas"), true)); top.Controls.Add(B(Loc.T("dlg.none", "Nenhuma"), false));
         var bottom = Buttons(f, out _);
         var maskLbl = new Label { Dock = DockStyle.Bottom, Height = 22, ForeColor = Color.Gray, Padding = new Padding(8, 0, 0, 0) };
-        void Upd() { long m = 0; for (int i = 0; i < list.Items.Count; i++) if (list.GetItemChecked(i)) m |= 1L << i; maskLbl.Text = $"máscara = {m}"; }
+        void Upd() { long m = 0; for (int i = 0; i < list.Items.Count; i++) if (list.GetItemChecked(i)) m |= 1L << i; maskLbl.Text = $"{Loc.T("dlg.mask", "máscara")} = {m}"; }
         list.ItemCheck += (_, _) => f.BeginInvoke(Upd);
         Upd();
         f.Controls.Add(list); f.Controls.Add(top); f.Controls.Add(maskLbl); f.Controls.Add(bottom);
@@ -52,18 +52,18 @@ internal static class FieldEditors
         Func<Item, int> icon, ImageList images, Func<Item, string> describe, Func<Item, string?>? group, bool multi)
     {
         using var f = NewDialog(title, 860, 620);
-        var search = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "Pesquisar por nome, ID ou descrição…", BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f) };
+        var search = new TextBox { Dock = DockStyle.Fill, PlaceholderText = Loc.T("dlg.pickSearch", "Pesquisar por nome, ID ou descrição…"), BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f) };
         var groupBox = new ComboBox { Dock = DockStyle.Right, Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Visible = group is not null };
         var top = new Panel { Dock = DockStyle.Top, Height = 34, Padding = new Padding(6, 4, 6, 2) };
         top.Controls.Add(search); top.Controls.Add(groupBox);
         if (group is not null)
         {
-            groupBox.Items.Add("(todos os tipos)");
+            groupBox.Items.Add(Loc.T("dlg.allTypes", "(todos os tipos)"));
             foreach (var g in source.Select(group).Where(g => g is not null).Distinct().OrderBy(g => g)) groupBox.Items.Add(g!);
             groupBox.SelectedIndex = 0;
         }
         var lv = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, VirtualMode = true, MultiSelect = multi, HideSelection = false, SmallImageList = images, BorderStyle = BorderStyle.None };
-        lv.Columns.Add("ID", 80, HorizontalAlignment.Right); lv.Columns.Add("Nome", 300); lv.Columns.Add("Descrição", 420);
+        lv.Columns.Add(Loc.T("list.id", "ID"), 80, HorizontalAlignment.Right); lv.Columns.Add(Loc.T("list.name", "Nome"), 300); lv.Columns.Add(Loc.T("list.description", "Descrição"), 420);
         List<Item> view = new();
         void Refresh()
         {
@@ -87,7 +87,8 @@ internal static class FieldEditors
         groupBox.SelectedIndexChanged += (_, _) => Refresh();
         var bottom = Buttons(f, out var ok);
         var hint = new Label { Dock = DockStyle.Bottom, Height = 22, ForeColor = Color.Gray, Padding = new Padding(8, 0, 0, 0),
-            Text = multi ? "Ctrl/Shift para escolher vários: preenchem este campo e os seguintes do mesmo tipo." : "Duplo clique ou OK para escolher. Escolha \"0\" no campo para limpar." };
+            Text = multi ? Loc.T("dlg.hintMulti", "Ctrl/Shift para escolher vários: preenchem este campo e os seguintes do mesmo tipo.")
+                         : Loc.T("dlg.hintSingle", "Duplo clique ou OK para escolher. Escolha \"0\" no campo para limpar.") };
         lv.DoubleClick += (_, _) => { if (lv.SelectedIndices.Count > 0) { f.DialogResult = DialogResult.OK; f.Close(); } };
         f.Controls.Add(lv); f.Controls.Add(top); f.Controls.Add(hint); f.Controls.Add(bottom);
         f.Shown += (_, _) =>
@@ -104,15 +105,15 @@ internal static class FieldEditors
     /// <summary>Alterar o mesmo campo em vários itens. Retorna (campo, valor) ou null.</summary>
     public static (string Field, string Value)? BulkValue(IWin32Window owner, IReadOnlyList<string> fields, int count, Func<string, string> label)
     {
-        using var f = NewDialog($"Alterar campo em {count} itens", 520, 200);
+        using var f = NewDialog(string.Format(Loc.T("dlg.bulkTitle", "Alterar campo em {0} itens"), count), 520, 200);
         var tl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(10) };
         tl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80)); tl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var cb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
         foreach (var k in fields) cb.Items.Add(new KeyValuePair<string, string>(k, $"{label(k)}  ({k})"));
         cb.DisplayMember = "Value"; if (cb.Items.Count > 0) cb.SelectedIndex = 0;
         var tb = new TextBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
-        tl.Controls.Add(new Label { Text = "Campo", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0); tl.Controls.Add(cb, 1, 0);
-        tl.Controls.Add(new Label { Text = "Valor", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1); tl.Controls.Add(tb, 1, 1);
+        tl.Controls.Add(new Label { Text = Loc.T("list.field", "Campo"), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0); tl.Controls.Add(cb, 1, 0);
+        tl.Controls.Add(new Label { Text = Loc.T("list.value", "Valor"), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1); tl.Controls.Add(tb, 1, 1);
         var bottom = Buttons(f, out _);
         f.Controls.Add(tl); f.Controls.Add(bottom);
         if (f.ShowDialog(owner) != DialogResult.OK || cb.SelectedItem is not KeyValuePair<string, string> kv) return null;

@@ -78,7 +78,22 @@ public sealed class EditorForm : Form
     // cada entrada reaplica um texto no idioma atual (ver Loc.T); chamada ao criar e ao trocar o idioma
     private readonly List<Action> _texts = new();
     private void Bind(Action apply) { apply(); _texts.Add(apply); }
-    private void ApplyLanguage() { foreach (var a in _texts) a(); }
+    private void ApplyLanguage() { foreach (var a in _texts) a(); RefreshDetailLanguage(); }
+
+    // Reaplica o idioma no que já está na tela (abas de grupo, grade de atributos, vínculos): esses textos
+    // são montados a cada item, então não passam pelo Bind.
+    private void RefreshDetailLanguage()
+    {
+        _blockCombo.Invalidate(); _typeCombo.Invalidate(); _list.Invalidate();   // textos calculados na hora de desenhar
+        UpdateCounters();
+        if (_current is not { } item) return;
+        var uses = _refs?.UsedBy(item.Id).Count ?? 0;
+        _tabLinks.Text = uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos");
+        _stSel.Text = string.Format(Loc.T("status.selected", "Selecionado: {0}"), item.Id);
+        RebuildGroupTabs(item);
+        FillGrid(item);
+        if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
+    }
     private AiPolicyView? _aiView;
 
     public EditorForm()
@@ -239,6 +254,7 @@ public sealed class EditorForm : Form
         _list.Columns.Add("ID", 70, HorizontalAlignment.Right);
         _list.Columns.Add("Nome", 240);
         _list.Columns.Add("∞", 58, HorizontalAlignment.Right);
+        Bind(UpdateCounters);
         _list.RetrieveVirtualItem += OnRetrieveItem;
         _list.DrawColumnHeader += OnDrawHeader;
         _list.DrawSubItem += OnDrawSubItem;
@@ -267,7 +283,7 @@ public sealed class EditorForm : Form
         Button FootBtn(string t, Action a) { var b = new Button { Text = t, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CTreeInput, ForeColor = CTreeFg, Margin = new Padding(0, 0, 4, 0) }; b.FlatAppearance.BorderColor = Color.FromArgb(60, 64, 72); b.Click += (_, _) => a(); return b; }
         _gotoId.BackColor = CTreeInput; _gotoId.ForeColor = CTreeFg; _gotoId.Dock = DockStyle.Fill; _gotoId.Margin = new Padding(0, 2, 4, 0);
         _gotoId.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; GoToId(); } };
-        _tip.SetToolTip(_gotoId, "Ir para o ID (Enter)");
+        Bind(() => _tip.SetToolTip(_gotoId, Loc.T("footer.goto", "Ir para o ID (Enter)")));
         var footAdd = FootBtn("＋ Adicionar", AddItem); foot.Controls.Add(footAdd, 0, 0);
         Bind(() => footAdd.Text = Loc.T("footer.add", "＋ Adicionar"));
         foot.Controls.Add(_gotoId, 1, 0);
@@ -309,8 +325,11 @@ public sealed class EditorForm : Form
         var findBtn = new Button { Text = "Buscar", Height = 26, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
         findBtn.Click += (_, _) => RunFind();
         _findValue.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; RunFind(); } };
-        findBar.Controls.AddRange(new Control[] { new Label { Text = "Campo", AutoSize = true, Padding = new Padding(0, 6, 0, 0), ForeColor = CMuted }, _findField, _findOp, _findValue, findBtn });
+        var findLbl = new Label { AutoSize = true, Padding = new Padding(0, 6, 0, 0), ForeColor = CMuted };
+        Bind(() => { findLbl.Text = Loc.T("list.field", "Campo"); findBtn.Text = Loc.T("detail.search", "Buscar"); });
+        findBar.Controls.AddRange(new Control[] { findLbl, _findField, _findOp, _findValue, findBtn });
         _findList.Columns.Add("ID", 70, HorizontalAlignment.Right); _findList.Columns.Add("Nome", 300); _findList.Columns.Add("Valor", 200);
+        Bind(() => { _findList.Columns[0].Text = Loc.T("list.id", "ID"); _findList.Columns[1].Text = Loc.T("list.name", "Nome"); _findList.Columns[2].Text = Loc.T("list.value", "Valor"); });
         _findList.SmallImageList = _treeIcons; _findList.BackColor = CSurface; _findList.ForeColor = CFg;
         _findList.DoubleClick += (_, _) => { if (_findList.SelectedItems.Count > 0 && _findList.SelectedItems[0].Tag is Item it) GoToItem(it); };
         tFind.Controls.Add(_findList); tFind.Controls.Add(findBar);
@@ -323,6 +342,11 @@ public sealed class EditorForm : Form
         Bind(() => _tabLinks.Text = Loc.T("detail.links", "Vínculos"));
         _links.Columns.Add("Bloco", 170); _links.Columns.Add("ID", 70, HorizontalAlignment.Right);
         _links.Columns.Add("Nome", 280); _links.Columns.Add("Campo", 220); _links.Columns.Add("%", 70, HorizontalAlignment.Right);
+        Bind(() =>
+        {
+            _links.Columns[0].Text = Loc.T("list.block", "Bloco"); _links.Columns[1].Text = Loc.T("list.id", "ID");
+            _links.Columns[2].Text = Loc.T("list.name", "Nome"); _links.Columns[3].Text = Loc.T("list.field", "Campo");
+        });
         _links.BackColor = CSurface; _links.ForeColor = CFg; _links.SmallImageList = _treeIcons;
         _links.DoubleClick += (_, _) => { if (_links.SelectedItems.Count > 0 && _links.SelectedItems[0].Tag is Item it) GoToItem(it); };
         _tabLinks.Controls.Add(_links);
@@ -540,9 +564,10 @@ public sealed class EditorForm : Form
 
     // ---------- lista de itens (estilo Rody: seletor de bloco + lista plana) ----------
     // Entrada do seletor de bloco. Block == null => Favoritos.
-    private sealed record BlockEntry(ItemList? Block, string Label, bool Header = false)
+    // Dyn calcula o texto na hora de desenhar, então acompanha o idioma sem recriar o combo.
+    private sealed record BlockEntry(ItemList? Block, string Label, bool Header = false, Func<string>? Dyn = null)
     {
-        public override string ToString() => Label;
+        public override string ToString() => Dyn?.Invoke() ?? Label;
     }
 
     // Categoria do bloco para organizar o seletor (como os grupos do Rody).
@@ -556,11 +581,24 @@ public sealed class EditorForm : Form
         : n.EndsWith("_ESSENCE") ? "Itens, consumíveis e materiais"
         : "Outros";
 
+    // O nome em português é o ID da categoria (BlockCategory/CategoryOrder); só a exibição é traduzida.
+    private static string CategoryName(string cat) => cat switch
+    {
+        "Equipamentos" => Loc.T("cat.equipment", cat),
+        "Itens, consumíveis e materiais" => Loc.T("cat.items", cat),
+        "Monstros, NPCs e minas" => Loc.T("cat.mobs", cat),
+        "Pets" => Loc.T("cat.pets", cat),
+        "Receitas e produção" => Loc.T("cat.recipes", cat),
+        "Personagem e configurações" => Loc.T("cat.character", cat),
+        "Outros" => Loc.T("cat.other", cat),
+        _ => cat,
+    };
+
     static readonly string[] CategoryOrder = { "Equipamentos", "Itens, consumíveis e materiais", "Monstros, NPCs e minas", "Pets", "Receitas e produção", "Personagem e configurações", "Outros" };
     // Entrada do filtro de tipo (Major/Sub null => todos).
-    private sealed record TypeEntry(string? Major, string? Sub, string Label)
+    private sealed record TypeEntry(string? Major, string? Sub, string Label, Func<string>? Dyn = null)
     {
-        public override string ToString() => Label;
+        public override string ToString() => Dyn?.Invoke() ?? Label;
     }
 
     private List<Item> _view = new();
@@ -577,14 +615,16 @@ public sealed class EditorForm : Form
         {
             var lists = _store.Current.Lists;
             foreach (var l in lists) foreach (var it in l.Items) _owner[it] = l;
-            _blockCombo.Items.Add(new BlockEntry(null, $"★ Favoritos ({_favorites.Count})"));
+            _blockCombo.Items.Add(new BlockEntry(null, $"★ Favoritos ({_favorites.Count})",
+                Dyn: () => $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})"));
             var entries = lists.Select((b, i) => (b, i)).Where(x => x.b.Items.Count > 0).ToList();
             foreach (var cat in CategoryOrder)
             {
                 var inCat = entries.Where(x => BlockCategory(x.b.Name) == cat).ToList();
                 if (inCat.Count == 0) continue;
-                _blockCombo.Items.Add(new BlockEntry(null, $"── {cat} ──", Header: true));
-                foreach (var (b, i) in inCat) _blockCombo.Items.Add(new BlockEntry(b, $"   [{i:000}] {Pretty(b.Name)} ({b.Items.Count:N0})"));
+                _blockCombo.Items.Add(new BlockEntry(null, $"── {cat} ──", Header: true, Dyn: () => $"── {CategoryName(cat)} ──"));
+                foreach (var (b, i) in inCat) _blockCombo.Items.Add(new BlockEntry(b, $"   [{i:000}] {Pretty(b.Name)} ({b.Items.Count:N0})",
+                Dyn: () => $"   [{i:000}] {Pretty(b.Name)} ({b.Items.Count:N0})"));
             }
             var last = LoadSetting("block") ?? "WEAPON_ESSENCE";
             int sel = 1;
@@ -622,14 +662,16 @@ public sealed class EditorForm : Form
             string prefix = b!.Name[..^"_ESSENCE".Length];
             var majors = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_MAJOR_TYPE"));
             var subs = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_SUB_TYPE"));
-            _typeCombo.Items.Add(new TypeEntry(null, null, $"Todos os tipos ({b.Items.Count:N0})"));
+            int nAll = b.Items.Count;
+            _typeCombo.Items.Add(new TypeEntry(null, null, $"Todos os tipos ({nAll:N0})",
+                () => string.Format(Loc.T("filter.allTypes", "Todos os tipos ({0:N0})"), nAll)));
             foreach (var byMajor in b.Items.GroupBy(i => Fv(i, "id_major_type")))
             {
-                var mName = majors.GetValueOrDefault(byMajor.Key, "Tipo " + byMajor.Key);
+                var mName = majors.GetValueOrDefault(byMajor.Key, Loc.T("filter.type", "Tipo") + " " + byMajor.Key);
                 _typeCombo.Items.Add(new TypeEntry(byMajor.Key, null, $"{mName} ({byMajor.Count()})"));
                 foreach (var bySub in byMajor.GroupBy(i => Fv(i, "id_sub_type")))
                     _typeCombo.Items.Add(new TypeEntry(byMajor.Key, bySub.Key,
-                        $"     {mName} › {subs.GetValueOrDefault(bySub.Key, "Subtipo " + bySub.Key)} ({bySub.Count()})"));
+                        $"     {mName} › {subs.GetValueOrDefault(bySub.Key, Loc.T("filter.subtype", "Subtipo") + " " + bySub.Key)} ({bySub.Count()})"));
             }
             _typeCombo.SelectedIndex = 0;
         }
@@ -674,10 +716,7 @@ public sealed class EditorForm : Form
             src = src.Where(it => it.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || it.Id.Contains(q));
         _view = Sorted(src).ToList();
 
-        int total = _curBlock?.Items.Count ?? _view.Count;
-        _stTotal.Text = $"Total de elementos: {_store.Current.Lists.Sum(l => l.Items.Count):N0}";
-        _stBlock.Text = $"No bloco: {total:N0} · visíveis: {_view.Count:N0}";
-        _list.Columns[1].Text = $"Nome ({_view.Count:N0} de {total:N0})";
+        UpdateCounters();
         _list.VirtualListSize = _view.Count;
         _list.SelectedIndices.Clear();
         _list.Invalidate();
@@ -689,7 +728,7 @@ public sealed class EditorForm : Form
     {
         var it = _view[e.ItemIndex];
         e.Item = new ListViewItem(it.Id, IconIndexFor(it)) { Tag = it };
-        e.Item.SubItems.Add(string.IsNullOrEmpty(it.Name) ? "(sem nome)" : it.Name);
+        e.Item.SubItems.Add(string.IsNullOrEmpty(it.Name) ? Loc.T("block.noName", "(sem nome)") : it.Name);
         e.Item.SubItems.Add("");
     }
 
@@ -751,6 +790,16 @@ public sealed class EditorForm : Form
     {
         _sortMode = col == 0 ? SortMode.Codigo : SortMode.Nome;
         RefreshView();
+    }
+
+    // Rodapé e cabeçalho da lista (total, no bloco, visíveis); também reaplicado ao trocar o idioma.
+    private void UpdateCounters()
+    {
+        if (_store.Current is null) { _list.Columns[1].Text = Loc.T("list.name", "Nome"); return; }
+        int total = _curBlock?.Items.Count ?? _view.Count;
+        _stTotal.Text = string.Format(Loc.T("status.total", "Total de elementos: {0:N0}"), _store.Current.Lists.Sum(l => l.Items.Count));
+        _stBlock.Text = string.Format(Loc.T("status.inBlock", "No bloco: {0:N0} · visíveis: {1:N0}"), total, _view.Count);
+        _list.Columns[1].Text = string.Format(Loc.T("list.nameCount", "Nome ({0:N0} de {1:N0})"), _view.Count, total);
     }
 
     private IEnumerable<Item> Sorted(IEnumerable<Item> items) =>
@@ -892,17 +941,17 @@ public sealed class EditorForm : Form
         ["FACE_TEXTURE_ESSENCE"] = "Texturas de Face", ["FACE_HAIR_ESSENCE"] = "Cabelos",
         ["FIREWORKS_ESSENCE"] = "Fogos", ["SUITE_ESSENCE"] = "Conjuntos", ["REFINE_TICKET_ESSENCE"] = "Tíquetes de Refino",
         ["ELEMENT_ESSENCE"] = "Elementos", ["TOWNSCROLL_ESSENCE"] = "Pergaminhos de Cidade",
-        ["EQUIPMENT_ADDON"] = "Addons de Equipamento", ["MINE_ESSENCE"] = "Minas", ["SKILLTOME_ESSENCE"] = "Livros de Habilidade",
+        ["EQUIPMENT_ADDON"] = "Atributos de Equipamento", ["MINE_ESSENCE"] = "Minas", ["SKILLTOME_ESSENCE"] = "Livros de Habilidade",
         ["FLYSWORD_ESSENCE"] = "Montarias Voadoras", ["TASKMATTER_ESSENCE"] = "Itens de Missão", ["TALK_PROC"] = "Diálogos de NPC",
     };
     private static string Pretty(string block) =>
-        BlockPt.TryGetValue(block, out var p) ? p
+        BlockPt.TryGetValue(block, out var p) ? Loc.T("block." + block, p)
         : System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(block.Replace("_ESSENCE", "").Replace("_", " ").ToLowerInvariant());
 
     // ---------- detalhes ----------
     private void ShowItem(Item item)
     {
-        _header.Text = string.IsNullOrEmpty(item.Name) ? "(sem nome)" : TasksFile.SplitColor(item.Name).Text;
+        _header.Text = string.IsNullOrEmpty(item.Name) ? Loc.T("block.noName", "(sem nome)") : TasksFile.SplitColor(item.Name).Text;
         _header.ForeColor = NameColor(item);
         _idLabel.Text = item.Id;
         LoadItemIcon(item);
@@ -911,15 +960,7 @@ public sealed class EditorForm : Form
         if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
 
         // sub-abas por grupo (Básico, Habilidades, Queda, Modelo…), mantendo a aba escolhida se existir
-        var groups = GroupsOf(item);
-        var keep = _groupTabs.SelectedTab?.Text;
-        if (!groups.SequenceEqual(_groupTabs.TabPages.Cast<TabPage>().Select(t => t.Text)))
-        {
-            _groupTabs.TabPages.Clear();
-            foreach (var g in groups) _groupTabs.TabPages.Add(new TabPage(g));
-            var again = _groupTabs.TabPages.Cast<TabPage>().FirstOrDefault(t => t.Text == keep);
-            if (again is not null) _groupTabs.SelectedTab = again;
-        }
+        RebuildGroupTabs(item);
         FillGrid(item);
         FillDescription(item);
         FillFindFields(item);
@@ -930,7 +971,25 @@ public sealed class EditorForm : Form
             if (_history.Count == 0 || _history[^1] != item) { _history.Add(item); if (_history.Count > 200) _history.RemoveAt(0); }
             _histPos = _history.Count - 1;
         }
-        _stSel.Text = $"Selecionado: {item.Id}";
+        _stSel.Text = string.Format(Loc.T("status.selected", "Selecionado: {0}"), item.Id);
+    }
+
+    // O ID do grupo ("Todos", "Básico"…) fica em TabPage.Tag e nunca muda; só o Text (exibição) segue o idioma.
+    private string SelectedGroupId => _groupTabs.SelectedTab?.Tag as string ?? "Todos";
+
+    private void RebuildGroupTabs(Item item)
+    {
+        var groups = GroupsOf(item);
+        var keep = SelectedGroupId;
+        if (!groups.SequenceEqual(_groupTabs.TabPages.Cast<TabPage>().Select(t => t.Tag as string ?? t.Text)))
+        {
+            _groupTabs.TabPages.Clear();
+            foreach (var g in groups) _groupTabs.TabPages.Add(new TabPage(FieldLabels.GroupName(g)) { Tag = g });
+            var again = _groupTabs.TabPages.Cast<TabPage>().FirstOrDefault(t => (string?)t.Tag == keep);
+            if (again is not null) _groupTabs.SelectedTab = again;
+        }
+        foreach (TabPage t in _groupTabs.TabPages)
+            if (t.Tag is string id && FieldLabels.GroupName(id) is var txt && t.Text != txt) t.Text = txt;
     }
 
     // Grupo de exibição: drops → Queda, habilidades → Habilidades, arquivos → Modelo; resto pelo FieldLabels.
@@ -956,7 +1015,7 @@ public sealed class EditorForm : Form
 
     private void FillGrid(Item item)
     {
-        var sel = _groupTabs.SelectedTab?.Text ?? "Todos";
+        var sel = SelectedGroupId;
         _grid.Rows.Clear();
         var byGroup = item.Fields.GroupBy(f => DisplayGroup(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
         foreach (var gname in GroupsOf(item).Skip(1))
@@ -967,7 +1026,7 @@ public sealed class EditorForm : Form
             if (vis.Count == 0) continue;
             if (sel == "Todos")
             {
-                int hr = _grid.Rows.Add("  " + gname.ToUpperInvariant(), "", "");
+                int hr = _grid.Rows.Add("  " + FieldLabels.GroupName(gname).ToUpperInvariant(), "", "");
                 var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
                 hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
                 hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
@@ -978,13 +1037,13 @@ public sealed class EditorForm : Form
                 int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, desc);
                 _grid.Rows[r].Tag = k;
                 if (desc.StartsWith("→")) _grid.Rows[r].Cells[2] = LinkCell(desc);
-                if (IsSpecialEditor(k)) _grid.Rows[r].Cells[0].ToolTipText = "Duplo clique para escolher";
+                if (IsSpecialEditor(k)) _grid.Rows[r].Cells[0].ToolTipText = Loc.T("grid.dblClick", "Duplo clique para escolher");
             }
         }
         // efeito do addon (bloco EQUIPMENT_ADDON) e "dropado por" (monstros que dropam o item)
         if (sel is "Todos" or "Básico" && CurrentItemBlock?.Name == "EQUIPMENT_ADDON" && _cfgs?.Addons?.Describe(item) is { } eff)
         {
-            _grid.Rows.Insert(0, "  Efeito no jogo", eff, _cfgs.Addons.TypeCaption(item.Id) ?? "");
+            _grid.Rows.Insert(0, "  " + Loc.T("grid.effect", "Efeito no jogo"), eff, _cfgs.Addons.TypeCaption(item.Id) ?? "");
             _grid.Rows[0].ReadOnly = true;
             _grid.Rows[0].DefaultCellStyle.ForeColor = Color.FromArgb(22, 128, 61);
             _grid.Rows[0].DefaultCellStyle.Font = new Font("Segoe UI Semibold", 10);
@@ -995,7 +1054,7 @@ public sealed class EditorForm : Form
                 .Where(u => u.Field.Contains("drop", StringComparison.OrdinalIgnoreCase) && u.Block.Name == "MONSTER_ESSENCE").ToList();
             if (drops.Count > 0)
             {
-                int hr = _grid.Rows.Add($"  DROPADO POR ({drops.Count} monstros)", "", "");
+                int hr = _grid.Rows.Add("  " + string.Format(Loc.T("grid.droppedBy", "DROPADO POR ({0} monstros)"), drops.Count), "", "");
                 var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
                 hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
                 hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
@@ -1003,7 +1062,7 @@ public sealed class EditorForm : Form
                 {
                     int r = _grid.Rows.Add("", ParsePct(d.Probability) is var p && p > 0 ? $"{p * 100:0.###}%" : "", "");
                     _grid.Rows[r].Cells[0] = LinkCell($"  {d.Item.Name}  (ID {d.Item.Id})");
-                    _grid.Rows[r].Cells[2].Value = $"nível {d.Item.Fields.GetValueOrDefault("level")?.Value} · {FieldLabels.Label(d.Field)}";
+                    _grid.Rows[r].Cells[2].Value = $"{Loc.T("grid.levelShort", "nível")} {d.Item.Fields.GetValueOrDefault("level")?.Value} · {FieldLabels.Label(d.Field)}";
                     _grid.Rows[r].Tag = d.Item; _grid.Rows[r].ReadOnly = true;
                 }
             }
@@ -1040,8 +1099,8 @@ public sealed class EditorForm : Form
                 var addons = _cfgs?.Addons;
                 var picked = FieldEditors.Pick(this, kind switch
                     {
-                        FieldKind.AddonRef => "Escolher atributo (addon)", FieldKind.MonsterRef => "Escolher monstro",
-                        FieldKind.RecipeRef => "Escolher receita", _ => "Escolher item",
+                        FieldKind.AddonRef => Loc.T("pick.addon", "Escolher atributo"), FieldKind.MonsterRef => Loc.T("pick.monster", "Escolher monstro"),
+                        FieldKind.RecipeRef => Loc.T("pick.recipe", "Escolher receita"), _ => Loc.T("pick.item", "Escolher item"),
                     }, src, cur, IconIndexFor, _treeIcons,
                     it => kind == FieldKind.AddonRef ? addons?.Describe(it) ?? "" : _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "",
                     kind == FieldKind.AddonRef && addons is not null ? it => addons.TypeCaption(it.Id) : it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null,
@@ -1099,7 +1158,7 @@ public sealed class EditorForm : Form
             _descBox.SelectionFont = new Font("Segoe UI", bold ? 12 : 10.5f, bold ? FontStyle.Bold : FontStyle.Regular);
             _descBox.AppendText(t);
         }
-        Put((string.IsNullOrEmpty(item.Name) ? "(sem nome)" : TasksFile.SplitColor(item.Name).Text) + "\n", NameColor(item), bold: true);
+        Put((string.IsNullOrEmpty(item.Name) ? Loc.T("block.noName", "(sem nome)") : TasksFile.SplitColor(item.Name).Text) + "\n", NameColor(item), bold: true);
         Put($"ID {item.Id}\n\n", CMuted);
         if (_cfgs is not null && int.TryParse(item.Id, out var id) && _cfgs.ItemDescs.TryGetValue(id, out var desc))
             foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg)) Put(t, c);
@@ -1440,7 +1499,7 @@ public sealed class EditorForm : Form
                 lines.Add($"{FieldLabels.Label(k)}: {f.Value}");
             }
         if (FieldKinds.ClassNames(it.Fields.GetValueOrDefault("character_combo_id")?.Value ?? "") is { Length: > 0 } cls)
-            lines.Add($"Classes: {cls}");
+            lines.Add($"{Loc.T("tip.classes", "Classes")}: {cls}");
 
         // drops/itens referenciados com probabilidade (como o tooltip do Rody)
         _tipDrops.Clear();

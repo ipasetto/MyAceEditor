@@ -21,6 +21,7 @@ public static class Loc
 
     static Loc()
     {
+        FieldKinds.Translate = T;   // nomes de classe etc. (FieldKinds não conhece o Loc)
         AppLang.Changed += () => { Load(AppLang.Current); Changed?.Invoke(); };
         Load(AppLang.Current);
     }

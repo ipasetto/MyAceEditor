@@ -1,8 +1,12 @@
+using MyAceEditor.UI;
+
 namespace MyAceEditor.PerfectWorld;
 
 /// <summary>
 /// Traduz os nomes técnicos dos campos do elements.data (do .cfg) para rótulos
-/// amigáveis em português e agrupa em seções, para a UI ficar legível.
+/// amigáveis e agrupa em seções, para a UI ficar legível. Os textos em português são o padrão do código;
+/// os outros idiomas vêm de lang/*.json (chaves field.*, tok.*, group.*) via <see cref="Loc.T"/>.
+/// Os IDs de grupo ("Básico", "Ataque"…) são identificadores estáveis — para exibir use <see cref="GroupName"/>.
 /// </summary>
 public static class FieldLabels
 {
@@ -34,13 +38,18 @@ public static class FieldLabels
 
     public static string Label(string field)
     {
-        if (Map.TryGetValue(field, out var l)) return l;
+        if (Map.TryGetValue(field, out var l)) return Loc.T("field." + field.ToLowerInvariant(), l);
         // addons/rands/uniques: "addons_3_id_addon" -> "Atributo 3 (id)" / "..._probability..." -> "Atributo 3 (chance)"
         var m = System.Text.RegularExpressions.Regex.Match(field, @"^(addons|rands|uniques)_(\d+)_(id|probability)");
         if (m.Success)
         {
-            string kind = m.Groups[1].Value switch { "addons" => "Addon", "rands" => "Aleatório", _ => "Único" };
-            string what = m.Groups[3].Value == "id" ? "id" : "chance";
+            string kind = m.Groups[1].Value switch
+            {
+                "addons" => Loc.T("field.kind.addon", "Atributo"),
+                "rands" => Loc.T("field.kind.rand", "Aleatório"),
+                _ => Loc.T("field.kind.unique", "Único"),
+            };
+            string what = m.Groups[3].Value == "id" ? Loc.T("field.what.id", "id") : Loc.T("field.what.chance", "chance");
             return $"{kind} {m.Groups[2].Value} ({what})";
         }
         return Prettify(field);
@@ -63,6 +72,25 @@ public static class FieldLabels
     public static readonly string[] GroupOrder =
         { "Básico", "Requisitos", "Ataque", "Defesa", "Durabilidade", "Economia", "Atributos / Addons", "Modelo / Arquivos", "Outros" };
 
+    /// <summary>Nome de exibição (traduzido) de um ID de grupo. O ID em si nunca muda com o idioma.</summary>
+    public static string GroupName(string id) => id switch
+    {
+        "Todos" => Loc.T("group.all", "Todos"),
+        "Básico" => Loc.T("group.basic", "Básico"),
+        "Requisitos" => Loc.T("group.requirements", "Requisitos"),
+        "Ataque" => Loc.T("group.attack", "Ataque"),
+        "Defesa" => Loc.T("group.defense", "Defesa"),
+        "Durabilidade" => Loc.T("group.durability", "Durabilidade"),
+        "Economia" => Loc.T("group.economy", "Economia"),
+        "Atributos / Addons" => Loc.T("group.addons", "Atributos"),   // o ID continua "Atributos / Addons"; só a exibição mudou
+        "Modelo / Arquivos" => Loc.T("group.files", "Modelo / Arquivos"),
+        "Outros" => Loc.T("group.other", "Outros"),
+        "Habilidades" => Loc.T("group.skills", "Habilidades"),
+        "Queda" => Loc.T("group.drops", "Queda"),
+        "Modelo" => Loc.T("group.model", "Modelo"),
+        _ => id,
+    };
+
     private static readonly Dictionary<string, string> Tokens = new()
     {
         ["require"] = "Requer", ["strength"] = "Força", ["agility"] = "Destreza", ["energy"] = "Magia",
@@ -76,8 +104,12 @@ public static class FieldLabels
     private static string Prettify(string field)
     {
         var parts = field.Split('_', StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => Tokens.TryGetValue(p.ToLowerInvariant(), out var t) ? t : p);
-        var s = string.Join(" ", parts);
+            .Select(p =>
+            {
+                var lo = p.ToLowerInvariant();
+                return Tokens.TryGetValue(lo, out var t) ? Loc.T("tok." + lo, t) : p;
+            });
+        var s = string.Join(AppLang.Current == "zh" ? "" : " ", parts);
         return s.Length == 0 ? field : char.ToUpper(s[0]) + s[1..];
     }
 }

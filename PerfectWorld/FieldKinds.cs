@@ -87,13 +87,21 @@ public static class FieldKinds
     // bit i: BM=1 WIZ=2 PSY=4 VEN=8 BAR=16 AS=32 AR=64 CLE=128 SE=256 MY=512 (PW-KB §S24), nomes da versão BR
     static readonly string[] Classes = { "Guerreiro", "Mago", "Espiritualista", "Feiticeira", "Bárbaro", "Mercenário", "Arqueiro", "Sacerdote", "Arcano", "Místico", "Lâmina Sombria", "Tempestade" };
 
-    public static string ClassName(int bit) => bit >= 0 && bit < Classes.Length ? Classes[bit] : $"Classe {bit + 1}";
+    /// <summary>
+    /// Tradutor de textos de interface. A UI liga isto ao Loc.T (ver Loc); o padrão devolve o português.
+    /// Gancho em vez de chamar o Loc direto porque este arquivo também compila no projeto de testes.
+    /// </summary>
+    public static Func<string, string, string> Translate { get; set; } = static (_, pt) => pt;
+
+    public static string ClassName(int bit) => bit >= 0 && bit < Classes.Length
+        ? Translate("class." + bit, Classes[bit])
+        : $"{Translate("class.generic", "Classe")} {bit + 1}";
 
     public static string ClassNames(string value)
     {
         if (!long.TryParse(value, out var m) || m <= 0) return "";
         var names = Enumerable.Range(0, 64).Where(i => (m & (1L << i)) != 0).Select(ClassName).ToList();
-        return names.Count == 0 ? "" : names.Count >= 10 ? "Todas as classes" : string.Join(", ", names);
+        return names.Count == 0 ? "" : names.Count >= 10 ? Translate("class.all", "Todas as classes") : string.Join(", ", names);
     }
 }
 
