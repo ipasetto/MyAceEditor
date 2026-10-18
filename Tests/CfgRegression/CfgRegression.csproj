@@ -11,6 +11,7 @@
     <Compile Include="../../PerfectWorld/ElementsCfg.cs" Link="Core/ElementsCfg.cs" />
     <Compile Include="../../PerfectWorld/CfgElementsReader.cs" Link="Core/CfgElementsReader.cs" />
     <Compile Include="../../PerfectWorld/ElementsWriter.cs" Link="Core/ElementsWriter.cs" />
+    <Compile Include="../../PerfectWorld/AtomicFileSave.cs" Link="Core/AtomicFileSave.cs" />
     <Compile Include="../../PerfectWorld/CfgCatalog.cs" Link="Core/CfgCatalog.cs" />
     <Compile Include="../../PerfectWorld/MppcDecoder.cs" Link="Core/MppcDecoder.cs" />
     <Compile Include="../../PerfectWorld/LoadContext.cs" Link="Core/LoadContext.cs" />

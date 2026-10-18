@@ -62,6 +62,11 @@ ESCRITA (ElementsWriter.cs) [T]: cada Item guarda Raw (bytes originais do regist
 [C] ElementsCfg：固定/AUTO offset、conversation 索引、文件顺序、293_2、UTF-8、uint/byte:N；重复字段生成独立键；缺失类型不猜补。
 [C] CfgElementsReader：count / type-count-size / 逐记录 MPPC 索引；计数与边界、解码 ID、EOF 检查；未完整读取不标成功。第二个 u32 不再作为固定签名校验。
 [C] 写回：普通完整且无警告格式通过无修改字节比较后可编辑；压缩、部分读取、有警告的格式只读；保留新版 type/size 头。
+[C; 当前保存修复未执行] AtomicFileSave 统一元素/任务磁盘写入：同目录GUID临时文件、1MiB分块、Flush(true)、逐块回读比较、毫秒+GUID备份、不覆盖已有备份、替换；仅NotSupportedException降级同目录Move(overwrite)，不绕过占用/权限错误；失败清理自身临时文件，不掩盖主错误。
+[C] FileSaveException 显示阶段/目标/备份位置/底层原因；元素字段编码错误附块名/ID/字段；新元素按CFG零记录初始化完整字段，定长byte:N不会留空。
+[C] 全局保存/Ctrl+S及另存为按当前任务页路由；保存先提交编辑；后台生成/写入进度不可取消，重读可取消；已完成磁盘保存与后续界面更新分开报告。
+[C] 保存后的元素重读复用资源和任务会话，避免另存为到新目录时清空未保存任务；任务保存自动应用正在编辑的名称；超长任务名拒绝，未修改原始名字仍原样保存。
+[?] 未收到现场报错或tasks.data，当前无.NET/Windows；新增文件I/O回归未运行，未进行真实游戏文件保存；MPPC压缩写回仍不支持。docs/保存失败修复说明.md。
 [C] UI：文件菜单手选 CFG；帮助菜单读取报告；诊断 --cfg-audit/--cfg-match/--cfg-batch。
 [C] 新代码：PerfectWorld/CfgCatalog.cs、MppcDecoder.cs；回归入口 Tests/CfgRegression/CfgRegression.csproj；Python 实际配置审查 Tests/audit_cfg.py。
 [A][C] 新附件 v344/v386/v531 经独立 Python/C++ 参考读取器逐条验证：385/398/420 块，98,307/105,892/106,019 普通记录，3,411/3,422/3,422 对话，全部 EOF；v344 参考重建字节相同。不是 C# 执行结果，不标 [T]。
@@ -110,6 +115,11 @@ UI aba Quests: arvore (subquests ao expandir, cores ^RRGGBB), Dados (grade agrup
 [C] ShowQuest 后台准备字段/引用/显示文本，字段32项分批；任务页隐藏时不建详情；文本和5组对话仅在对应页打开时绑定；窗口/选项延迟展开，不使用 ExpandAll。
 [C] 文本/对话/字段编辑记录各自归属；切换前提交，清空时屏蔽事件；异步结果用修订号、TasksFile和QuestNode引用确认；对话更新原节点而非刚选中的新节点；未编辑的显示文本不规范化写回。
 [C] 任务分组标题共用Font并随窗口关闭释放；主标签绘制及时释放Font/Brush；对话预览只取前50字符再替换换行；深层任务绘制保护空/负宽度。
+[C; 保存复核新增，未执行C#] TasksFile 在读取末尾比较 BuildCore 与原文件，CanWrite 需 RoundTripVerified 且无只读原因；越界/重叠任务头、无修改丢尾等只读；后台索引92..95%、往返95..100%。
+[C] TaskField.PreservedValue 记录18个ID/变长结构字段原值；Set拒绝编辑，UI单元格只读，Write再次比较防止直接改Fixed；并检查模型ID与Fixed头一致。
+[C] 名称模式原先 Save 只更新Data，OriginalName滞后；取消重读后恢复最初名称会错误跳过。现在仅磁盘提交成功后更新OriginalName；失败保持原基线。
+[C] TF.F32.Get改R往返格式；Set与网格结束编辑跳过未改显示值，保留NaN等原始位。布尔仅明确真/假输入可接受；CellValidating无效值阻止EndEdit和保存；固定对话超63 UTF-16单元拒绝，不静默截断。
+[?] 新增非空v93合成任务、连续改名恢复、失败基线、结构篡改、无修改丢尾、浮点位/非法布尔/对话重读的C#回归未执行；docs/保存功能复核.md。
 [?] 当前没有tasks.data、.NET SDK或Windows；上述为源码修复与审查，不是任务真实文件或界面测试结果。新增C#索引回归未执行；docs/任务卡顿修复说明.md。
 pendente: editar premios/listas (hoje preservados), criar/clonar quest, outras versoes (so nomes)
 
@@ -145,6 +155,7 @@ UI/ReadProgressDialog.cs UI/ElementsLoadBundle.cs | 后台读取进度窗口、�
 PerfectWorld/LoadContext.cs | 阶段进度、限频、取消和分块读取 [C]
 PerfectWorld/CfgElementsReader.cs | parser elements.data guiado por .cfg (blobs, TALK_PROC, Id/Name, Raw + layout)
 PerfectWorld/ElementsWriter.cs | gravacao byte-identica + ElementsLayout + salvar c/ backup atomico
+PerfectWorld/AtomicFileSave.cs | 唯一临时文件/备份、分块回读及统一磁盘提交和错误阶段 [C]
 PerfectWorld/FieldKinds.cs | tipos de campo + RefIndex (vinculos)
 PerfectWorld/VersionCheck.cs | verificacao do par cliente x servidor
 PerfectWorld/TasksFile.cs | tasks.data (arvore, gravacao c/ tabela de offsets)
@@ -166,6 +177,7 @@ Store/ModuleStore.cs Changes/ChangeSet.cs | estado, load/save, mudancas
 fluxo: EditorForm -> ModuleStore/CfgElementsReader -> elements.data(+.cfg)
 
 ## §E7 UI/FEATURES PRONTAS [T]
+[C; nao executado] 活动任务页保存/另存为路由、后台保存、阶段错误、保存成功与重读未完成分别显示；当前新增，Windows验收待完成。
 [C; nao executado] 任务点击详情后台准备、树节点分页与对话按需展开、搜索合并/取消及编辑归属保护；新增实现，Windows验收待完成。
 [C; nao executado] 后台读取/校验/引用索引/资源准备、中文进度与取消、分批列表和刷新去重；本次新增，Windows 验收待完成，详见 §E3f。
 layout = modelo do Rody's Angelica Editor (decisao do usuario; arvore em cascata abandonada). Rody: exe nativo x86 sem metadados .NET (protegido/empacotado) -> layout copiado do print, sem RE

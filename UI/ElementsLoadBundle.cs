@@ -9,7 +9,8 @@ internal sealed record ElementsLoadBundle(CfgMatch Match, RefIndex References, D
     int TaskCount, IReadOnlyList<string> Warnings)
 {
     public static ElementsLoadBundle Read(string path, string? cfgOverride, LoadContext context,
-        IconAtlas? previousAtlas, string? previousAtlasPath, TasksFile? previousTasks, string? previousTasksPath, string? preferredBlock)
+        IconAtlas? previousAtlas, string? previousAtlasPath, TasksFile? previousTasks, string? previousTasksPath, string? preferredBlock,
+        bool preserveSession = false, GameConfigs? previousConfigs = null)
     {
         var match = CfgCatalog.Load(path, cfgOverride, context: context.Slice(0, .60));
         var module = match.Module;
@@ -37,18 +38,19 @@ internal sealed record ElementsLoadBundle(CfgMatch Match, RefIndex References, D
         }
         var warnings = new List<string>();
         IconAtlas? atlas = null; GameConfigs? configs = null; TasksFile? tasks = null;
-        string? atlasPath = IconAtlas.FindSurfacesPck(path), taskPath = null;
+        string? atlasPath = preserveSession ? previousAtlasPath : IconAtlas.FindSurfacesPck(path), taskPath = null;
         context.Report(.86, "读取图标资源", "大资源包处理期间窗口仍可取消", indeterminate: true, force: true);
-        try { atlas = atlasPath == previousAtlasPath && previousAtlas is not null ? previousAtlas : atlasPath is null ? null : IconAtlas.Load(atlasPath, context.Slice(.86, .91)); }
+        try { atlas = preserveSession ? previousAtlas : atlasPath == previousAtlasPath && previousAtlas is not null ? previousAtlas : atlasPath is null ? null : IconAtlas.Load(atlasPath, context.Slice(.86, .91)); }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException)) { warnings.Add("图标资源未加载：" + ex.Message); }
         context.Check();
         context.Report(.91, "读取物品描述", "正在加载游戏资源中的颜色、描述和附加属性", indeterminate: true, force: true);
-        try { configs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp, context.Slice(.91, .95)) : null; }
+        try { configs = preserveSession ? previousConfigs : GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp, context.Slice(.91, .95)) : null; }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException)) { warnings.Add("描述资源未加载：" + ex.Message); }
         context.Check();
         context.Report(.95, "读取同目录任务", force: true);
         string near = Path.Combine(Path.GetDirectoryName(path) ?? "", "tasks.data");
-        if (File.Exists(near))
+        if (preserveSession) { tasks = previousTasks; taskPath = previousTasksPath; }
+        else if (File.Exists(near))
         {
             try
             {

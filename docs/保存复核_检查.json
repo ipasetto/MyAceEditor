@@ -1,0 +1,60 @@
+{
+  "scope": "保存功能复核与已确认源码路径修补",
+  "conclusion": "NOT FULLY VERIFIED: source issues fixed; C# and Windows save tests not executed",
+  "executed_checks": {
+    "csharp_lexical_files": 38,
+    "lexical_status": "PASS (not compilation)",
+    "linked_regression_sources": 14,
+    "links_status": "PASS",
+    "cfg_files": 170,
+    "cfg_versions": 164,
+    "cfg_blocks": 42866,
+    "cfg_clean": 167,
+    "cfg_original_warning": 3,
+    "cfg_original_hashes": "PASS",
+    "fixed_localization_literals": 301,
+    "unhandled_fixed_literals": []
+  },
+  "source_findings_fixed": [
+    "Name-only save updates Data but left OriginalName stale; reverting to initial name without reload could write previous name",
+    "ID and 17 layout controls could be edited as ordinary scalars; now protected in UI, Set and Write",
+    "Task editing lacked per-file byte-identical no-op reconstruction gate; now CanWrite requires it",
+    "Name-only task offsets could overlap headers or overflow; now such files are read-only",
+    "Invalid bool strings silently encoded as 0; now rejected and grid validation blocks save",
+    "F32 six-decimal display could lose value on edit exit; now R-format and no-op raw-bit preservation",
+    "Fixed dialog serializer silently truncated long input; now rejects overflow before file write"
+  ],
+  "csharp_regression_status": "ADDED / NOT EXECUTED",
+  "new_cases": [
+    "same name-only model save changed name then original name without reload",
+    "failed task save keeps Data, OriginalName and pending edit",
+    "out-of-range task offset cannot save",
+    "empty v93 with trailing bytes fails no-op gate",
+    "nonempty synthetic v93 byte-identical rebuild",
+    "ID/layout count editing rejected; raw tampering preserves target on failure",
+    "invalid bool preserves previous value",
+    "small float display round-trips and no-op NaN keeps original bits",
+    "full v93 rename/scalar save and reread",
+    "fixed dialog overflow preserves target; edited talk tree saves and reparses"
+  ],
+  "environment": {
+    "dotnet": false,
+    "csharp_compiler": false,
+    "windows_or_wine": false,
+    "real_tasks_data": false
+  },
+  "not_executed": [
+    "C# compilation",
+    "C# regression execution",
+    "Windows UI save/SaveAs/reload",
+    "real tasks.data saves",
+    "file lock/permission/disk-full runtime handling",
+    "original game data overwrite"
+  ],
+  "retained_limits": [
+    "MPPC elements remains read-only",
+    "three original CFG warnings remain read-only",
+    "full tasks schema supports v93; other versions name-only when validated"
+  ],
+  "report": "保存功能复核.md"
+}

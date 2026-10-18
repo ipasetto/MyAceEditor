@@ -23,14 +23,18 @@ internal sealed class ReadProgressDialog : Form
     private readonly LatestProgress _latest = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private bool _finished;
+    private readonly bool _allowCancel;
 
-    private ReadProgressDialog(string title)
+    private ReadProgressDialog(string title, bool allowCancel)
     {
+        _allowCancel = allowCancel;
+        _stage.Text = $"正在{title}…";
         Text = title; Width = 720; Height = 240; MinimumSize = new Size(500, 220);
         StartPosition = FormStartPosition.CenterParent; MinimizeBox = false; MaximizeBox = false;
         ShowInTaskbar = false; Font = new Font("Microsoft YaHei UI", 10); Padding = new Padding(18);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 42, FlowDirection = FlowDirection.RightToLeft };
         buttons.Controls.Add(_cancel);
+        _cancel.Visible = allowCancel; ControlBox = allowCancel;
         Controls.Add(_detail); Controls.Add(_bar); Controls.Add(_stage); Controls.Add(_elapsed); Controls.Add(buttons);
         _cancel.Click += (_, _) => RequestCancel();
         KeyPreview = true;
@@ -51,15 +55,16 @@ internal sealed class ReadProgressDialog : Form
 
     private void RequestCancel()
     {
-        if (_finished || _cancellation.IsCancellationRequested) return;
+        if (!_allowCancel || _finished || _cancellation.IsCancellationRequested) return;
         _cancel.Enabled = false; _stage.Text = "正在取消读取…";
         _detail.Text = "正在结束当前步骤，原来已打开的数据会保留。";
         _cancellation.Cancel();
     }
 
-    public static T Run<T>(IWin32Window owner, string title, Func<LoadContext, T> work) where T : class
+    public static T Run<T>(IWin32Window owner, string title, Func<LoadContext, T> work,
+        bool allowCancel = true, string completedStage = "读取完成") where T : class
     {
-        using var dialog = new ReadProgressDialog(title);
+        using var dialog = new ReadProgressDialog(title, allowCancel);
         T? result = null; Exception? failure = null; bool cancelled = false;
         dialog.Shown += async (_, _) =>
         {
@@ -70,7 +75,7 @@ internal sealed class ReadProgressDialog : Form
                 {
                     var context = new LoadContext(dialog._latest, dialog._cancellation.Token);
                     var loaded = work(context);
-                    context.Report(1, "读取完成", "正在显示数据…", force: true);
+                    context.Report(1, completedStage, "正在更新界面…", force: true);
                     return loaded;
                 }, dialog._cancellation.Token);
                 dialog._cancellation.Token.ThrowIfCancellationRequested();
@@ -87,7 +92,7 @@ internal sealed class ReadProgressDialog : Form
         dialog.ShowDialog(owner);
         if (cancelled) throw new OperationCanceledException("读取已取消。", dialog._cancellation.Token);
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
-        return result ?? throw new InvalidOperationException("读取未返回数据。");
+        return result ?? throw new InvalidOperationException("操作未返回结果。");
     }
 
     protected override void Dispose(bool disposing)

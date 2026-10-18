@@ -1,0 +1,55 @@
+{
+  "scope": "元素/任务保存失败源码修复",
+  "evidence_level": "source analysis; actual user error not reproduced",
+  "fixed_source_paths": [
+    "task backup second-level collision",
+    "fixed task temp filename and cleanup",
+    "active task page Save/Ctrl+S/SaveAs routing",
+    "pending edit commit",
+    "full CFG-based new element initialization",
+    "stage/path/field diagnostics",
+    "disk commit vs UI reload result",
+    "preserve resources and unsaved task context on element save reload",
+    "modified task name length validation"
+  ],
+  "executed_checks": {
+    "CSharp_lexical_files": 38,
+    "lexical_status": "PASS; not compilation",
+    "linked_regression_sources": "PASS",
+    "save_path_source_review": "PASS",
+    "original_CFG_fingerprints": 170,
+    "fixed_localization_literals": 301,
+    "unhandled_fixed_literals": []
+  },
+  "CSharp_regression": {
+    "status": "added, not executed",
+    "project": "Tests/CfgRegression/CfgRegression.csproj",
+    "cases": [
+      "new file save/readback",
+      "repeated unique backup and prior contents",
+      "fixed temp file preservation",
+      "precommit cancellation and temp cleanup",
+      "directory target failure",
+      "Windows exclusive target lock",
+      "repeated task save/reload",
+      "name-only task editing",
+      "task name overflow rejection",
+      "field encoding error preserves original",
+      "new CFG zero record save/reread"
+    ]
+  },
+  "not_executed": [
+    "C# compilation",
+    "C# regression execution",
+    "actual Windows save/reload/cancel",
+    "real tasks.data save",
+    "real game file overwrite"
+  ],
+  "environment_limits": "No .NET/C# compiler, Windows/Wine or tasks.data",
+  "retained_limits": [
+    "MPPC elements remains read-only",
+    "partial or warned CFG remains read-only",
+    "permissions, locks, disk space and filesystem errors remain possible"
+  ],
+  "manual_acceptance": "保存失败修复说明.md"
+}

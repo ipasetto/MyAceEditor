@@ -8,7 +8,7 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo 正在执行全部 CFG 的 C# 模拟回归检查...
+echo 正在执行 CFG、读取及保存的 C# 回归检查...
 dotnet run --project "%~dp0Tests\CfgRegression\CfgRegression.csproj" -c Release -- "%~dp0PerfectWorld\cfg" > "%~dp0cfg-regression-result.txt" 2>&1
 if errorlevel 1 (
     type "%~dp0cfg-regression-result.txt"

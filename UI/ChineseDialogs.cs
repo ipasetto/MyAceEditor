@@ -53,6 +53,7 @@ internal static class ChineseDialogs
     public static string Explain(Exception error) => error switch
     {
         InvalidDataException => error.Message,
+        MyAceEditor.PerfectWorld.FileSaveException => error.Message,
         InvalidOperationException when error.Message.Any(c => c >= '\u4e00' && c <= '\u9fff') => error.Message,
         FileNotFoundException => "未找到所需文件，请检查文件路径。",
         DirectoryNotFoundException => "未找到指定文件夹，请检查目录。",

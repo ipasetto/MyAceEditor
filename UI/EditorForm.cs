@@ -15,6 +15,9 @@ public sealed class EditorForm : Form
     private bool _loadingElements, _bindingElements, _buildingTypes, _updatingView, _updatingDetails, _updatingReferences;
     private readonly System.Windows.Forms.Timer _searchDelay = new() { Interval = 180 };
     private readonly ToolStripMenuItem _autoLoadLast = new("启动时自动读取上次文件") { CheckOnClick = true };
+    private TabControl _mainTabs = null!;
+    private TabPage _questPage = null!;
+    private bool _saving;
 
     private readonly ModuleStore _store = new();
     private readonly TextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "  按名称或 ID 搜索物品…", BorderStyle = BorderStyle.FixedSingle };
@@ -160,6 +163,7 @@ public sealed class EditorForm : Form
     private TabControl BuildTabs()
     {
         var tabs = new TabControl { Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(130, 30) };
+        _mainTabs = tabs;
         tabs.DrawItem += (s, e) =>
         {
             var tp = tabs.TabPages[e.Index]; bool sel = e.Index == tabs.SelectedIndex;
@@ -175,6 +179,7 @@ public sealed class EditorForm : Form
         tEl.Controls.Add(BuildElements());
         tabs.TabPages.Add(tEl);
         var tQ = new TabPage("任务") { BackColor = CBg };
+        _questPage = tQ;
         tQ.Controls.Add(BuildQuestView());
         tabs.TabPages.Add(tQ);
         foreach (var (n, h) in new[] { ("商城", "商城编辑器"), ("AI 策略", "AI 编辑器") })
@@ -415,11 +420,11 @@ public sealed class EditorForm : Form
         if (dlg.ShowDialog(this) == DialogResult.OK) LoadElements(dlg.FileName);
     }
 
-    private void LoadElements(string path, string? cfgOverride = null)
+    private bool LoadElements(string path, string? cfgOverride = null, bool preserveSession = false)
     {
-        if (_loadingElements) { Status("正在读取，请先完成或取消当前操作。"); return; }
+        if (_loadingElements) { Status("正在读取，请先完成或取消当前操作。"); return false; }
         _grid.EndEdit();
-        bool resumeSearch = _searchDelay.Enabled, adopted = false;
+        bool resumeSearch = _searchDelay.Enabled, adopted = false, succeeded = false;
         _loadingElements = true; _searchDelay.Stop();
         string? retryCfg = null;
         try
@@ -427,9 +432,10 @@ public sealed class EditorForm : Form
             // 捕获旧会话供只读复用；工作线程不读取或修改任何控件。
             var oldAtlas = _atlas; var oldAtlasPath = _atlasPck;
             var oldTasks = _tasks; var oldTasksPath = _tasksPath;
+            var oldConfigs = _cfgs;
             string? preferredBlock = LoadSetting("block");
             var loaded = ReadProgressDialog.Run(this, "读取元素数据", context =>
-                ElementsLoadBundle.Read(path, cfgOverride, context, oldAtlas, oldAtlasPath, oldTasks, oldTasksPath, preferredBlock));
+                ElementsLoadBundle.Read(path, cfgOverride, context, oldAtlas, oldAtlasPath, oldTasks, oldTasksPath, preferredBlock, preserveSession, oldConfigs));
             var match = loaded.Match;
             var reader = match.Reader;
             var module = match.Module;
@@ -472,6 +478,7 @@ public sealed class EditorForm : Form
                 (result.Complete ? "完整读取" : $"未完整读取（{result.Position}/{result.Length} 字节）") +
                 (_grid.ReadOnly ? " · 只读（详见帮助→读取报告）" : " · 写回校验通过"));
             _status.ToolTipText = _elementsReport;
+            succeeded = true;
         }
         catch (OperationCanceledException) { Status(_store.Current is null ? "读取已取消。" : "读取已取消，原来已打开的数据已保留。"); }
         catch (CfgChoiceRequiredException ex)
@@ -496,7 +503,7 @@ public sealed class EditorForm : Form
             _loadingElements = false; UseWaitCursor = false;
             if (!adopted && resumeSearch) _searchDelay.Start();
         }
-        if (retryCfg is not null) LoadElements(path, retryCfg);
+        return retryCfg is not null ? LoadElements(path, retryCfg, preserveSession) : succeeded;
     }
 
     private bool EnsureReferenceIndex()
@@ -554,13 +561,20 @@ public sealed class EditorForm : Form
     }
 
     // Salvar: grava o elements.data no próprio arquivo (backup com data/hora + escrita atômica).
-    private void SaveAs() => SaveElements(saveAs: false);
-    private void SaveElementsAs() => SaveElements(saveAs: true);
+    private void SaveAs() { if (_mainTabs.SelectedTab == _questPage) SaveTasks(); else SaveElements(saveAs: false); }
+    private void SaveElementsAs() { if (_mainTabs.SelectedTab == _questPage) SaveTaskData(saveAs: true); else SaveElements(saveAs: true); }
+    private sealed record SaveReceipt(string Path, string? Backup);
 
     private void SaveElements(bool saveAs)
     {
+        if (_saving) return;
         if (_store.Current?.Source is not ElementsLayout || _dataPath is null) { Status("请先打开 elements.data"); return; }
-        if (!CanEditElements()) return;
+        if (!CanEditElements())
+        {
+            ChineseDialogs.Show(this, (_store.Current.Source as ElementsLayout)?.ReadOnlyReason ?? "当前数据不可编辑。", "当前元素数据不能保存");
+            return;
+        }
+        if (!_grid.EndEdit()) { Status("请先修正当前单元格的值，再保存。"); return; }
         var target = _dataPath;
         if (saveAs)
         {
@@ -570,18 +584,27 @@ public sealed class EditorForm : Form
         }
         else if (!ChineseDialogs.Confirm(this, $"将修改保存到：\n{target}\n\n将在同一目录中为当前文件创建备份。",
                      "保存 elements.data")) return;
+        SaveReceipt? saved = null;
         try
         {
-            UseWaitCursor = true;
-            (string? Block, string Id)? keep = _current is null ? null : (BlockContaining(_current)?.Name, _current.Id);
-            var backup = ElementsWriter.Save(_store.Current, target);
-            LoadElements(target, (_store.Current.Source as ElementsLayout)?.ConfigPath);
-            if (keep is { } k && _store.Current?.FindListByName(k.Block ?? "")?.FindById(k.Id) is { } again)
+            _saving = true;
+            string? editedId = _current?.Fields.FirstOrDefault(pair => pair.Key.Equals("ID", StringComparison.OrdinalIgnoreCase)).Value?.Value;
+            string selectedId = editedId is not null && long.TryParse(editedId, out var numericId)
+                ? numericId.ToString(System.Globalization.CultureInfo.InvariantCulture) : editedId ?? _current?.Id ?? "";
+            (string? Block, string Id)? keep = _current is null ? null : (BlockContaining(_current)?.Name, selectedId);
+            var module = _store.Current;
+            string? configPath = (module.Source as ElementsLayout)?.ConfigPath;
+            saved = ReadProgressDialog.Run(this, "保存元素数据", context =>
+                new SaveReceipt(Path.GetFullPath(target), ElementsWriter.Save(module, target, context)), allowCancel: false, completedStage: "保存完成");
+            _dataPath = saved.Path; SaveLast(saved.Path);
+            bool refreshed = LoadElements(saved.Path, configPath, preserveSession: true);
+            if (refreshed && keep is { } k && _store.Current?.FindListByName(k.Block ?? "")?.FindById(k.Id) is { } again)
             { _current = again; SelectItem(again); ShowItem(again); }
-            Status($"已保存到 {Path.GetFileName(target)}" + (backup is null ? "" : $" · 备份：{Path.GetFileName(backup)}"));
+            Status($"磁盘已保存：{saved.Path}" + (saved.Backup is null ? "" : $" · 备份：{Path.GetFileName(saved.Backup)}") +
+                (refreshed ? "" : " · 界面重读未完成，可手动重新打开；内存修改仍保留。"));
         }
-        catch (Exception ex) { Error("保存失败", ex); }
-        finally { UseWaitCursor = false; }
+        catch (Exception ex) { Error(saved is null ? "保存失败，内存修改仍保留" : "磁盘已保存，界面更新未完成", ex); }
+        finally { _saving = false; UseWaitCursor = false; }
     }
 
     // ---------- lista de itens (estilo Rody: seletor de bloco + lista plana) ----------
@@ -1390,11 +1413,10 @@ public sealed class EditorForm : Form
         var block = _curBlock ?? CurrentItemBlock;
         if (block is null) { Status("请先选择一个数据块"); return; }
         long code = NextCode(block);
-        var ni = new Item { Id = code.ToString(), Name = "新建物品" };
-        var template = block.Items.FirstOrDefault();
-        if (template is not null)
-            foreach (var (k, f) in template.Fields)
-                ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
+        var schema = (_store.Current?.Source as ElementsLayout)?.Blocks.FirstOrDefault(span => ReferenceEquals(span.List, block))?.Block;
+        if (schema is null) { Status("此数据块缺少字段布局，无法新建。"); return; }
+        var ni = CfgElementsReader.ReadRecord(schema, new byte[schema.RecordSize]);
+        ni.Id = code.ToString(); ni.Name = "新建物品";
         SetIdName(ni);
         InsertNewItem(block, ni);
         Status($"已在 {Pretty(block.Name)} 中创建物品 {code}，请填写右侧字段。");
@@ -1589,6 +1611,7 @@ public sealed class EditorForm : Form
         _qTree.BackColor = CTreeBg; _qTree.ForeColor = CTreeFg; _qTree.Font = new Font("Microsoft YaHei UI", 10);
         _qTree.DrawNode += DrawQuestNode;
         _qTree.BeforeExpand += (_, e) => ExpandQuestNode(e.Node!);
+        _qTree.BeforeSelect += (_, e) => { if (!_bindingQuestTree && !_qGrid.EndEdit()) e.Cancel = true; };
         _qTree.AfterSelect += (_, e) =>
         {
             if (_bindingQuestTree) return;
@@ -1687,12 +1710,28 @@ public sealed class EditorForm : Form
         _qGrid.Columns[0].ReadOnly = true; _qGrid.Columns[0].Width = 300; _qGrid.Columns[0].DefaultCellStyle.ForeColor = CMuted;
         _qGrid.Columns[1].Width = 180; _qGrid.Columns[1].DefaultCellStyle.Font = new Font("Microsoft YaHei UI", 9.5f);
         _qGrid.Columns[2].ReadOnly = true; _qGrid.Columns[2].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; _qGrid.Columns[2].DefaultCellStyle.ForeColor = CAccent;
+        _qGrid.CellValidating += (_, e) =>
+        {
+            if (_bindingQuestDetails || _qCur is null || !ReferenceEquals(_questGridOwner, _qCur)
+                || e.ColumnIndex != 1 || e.RowIndex < 0 || e.RowIndex >= _qGrid.Rows.Count
+                || _qGrid.Rows[e.RowIndex].Tag is not TaskField { Editable: true } f) return;
+            var row = _qGrid.Rows[e.RowIndex];
+            if (!_qCur.CanSet(f, e.FormattedValue?.ToString() ?? ""))
+            {
+                e.Cancel = true;
+                row.ErrorText = $"“{f.Name}”的值无效，请修正后保存。";
+                _qStatus.Text = row.ErrorText;
+            }
+            else row.ErrorText = "";
+        };
         _qGrid.CellEndEdit += (_, e) =>
         {
             if (_bindingQuestDetails || _qCur is null || !ReferenceEquals(_questGridOwner, _qCur)
                 || e.RowIndex < 0 || e.RowIndex >= _qGrid.Rows.Count || _qGrid.Rows[e.RowIndex].Tag is not TaskField f) return;
             var v = _qGrid.Rows[e.RowIndex].Cells[1].Value?.ToString() ?? "";
+            if (v == _qCur.Get(f)) { _qGrid.Rows[e.RowIndex].ErrorText = ""; return; }
             if (!_qCur.Set(f, v)) { _qStatus.Text = $"“{f.Name}”的值无效"; _qGrid.Rows[e.RowIndex].Cells[1].Value = _qCur.Get(f); return; }
+            _qGrid.Rows[e.RowIndex].ErrorText = "";
             _qGrid.Rows[e.RowIndex].Cells[2].Value = QuestFieldHint(f, _qCur.Get(f));
             MarkTasksDirty($"已修改“{f.Name}”");
         };
@@ -1721,12 +1760,13 @@ public sealed class EditorForm : Form
     private bool _tasksDirty;
     private void MarkTasksDirty(string msg) { _tasksDirty = true; _qStatus.Text = msg + " — 点击“保存 tasks.data”写入文件。"; }
 
-    private static string TaskLoadSummary(TasksFile tasks, int count) => tasks.FullSchema
-        ? $"版本 {tasks.Version} · {tasks.Roots!.Count:N0} 个主任务（含子任务共 {count:N0} 个）· 完整编辑模式"
-        : $"版本 {tasks.Version} · {tasks.Quests.Count:N0} 个任务 · 仅支持名称编辑" +
-            (tasks.SchemaError is null ? "（尚不支持此版本的完整结构）" : "（完整结构校验未通过：" + tasks.SchemaError + "）");
+    private static string TaskLoadSummary(TasksFile tasks, int count) => (tasks.FullSchema
+        ? $"版本 {tasks.Version} · {tasks.Roots!.Count:N0} 个主任务（含子任务共 {count:N0} 个）· 完整任务结构"
+        : $"版本 {tasks.Version} · {tasks.Quests.Count:N0} 个任务 · 名称模式" +
+            (tasks.SchemaError is null ? "（尚不支持此版本的完整结构）" : "（完整结构校验未通过：" + tasks.SchemaError + "）")) +
+        (tasks.CanWrite ? "" : " · 只读：" + tasks.ReadOnlyReason);
 
-    private void LoadTasks(string path)
+    private bool LoadTasks(string path)
     {
         try
         {
@@ -1735,9 +1775,11 @@ public sealed class EditorForm : Form
             _tasks = tasks; _tasksPath = path; _tasksDirty = false;
             RefreshQuests();
             _qStatus.Text = TaskLoadSummary(tasks, tasks.Index.Count);
+            return true;
         }
         catch (OperationCanceledException) { _qStatus.Text = "任务读取已取消，原任务数据已保留。"; }
         catch (Exception ex) { _qStatus.Text = "读取 tasks.data 失败：" + ChineseDialogs.Explain(ex); }
+        return false;
     }
 
     private int _questViewRevision;
@@ -1748,6 +1790,7 @@ public sealed class EditorForm : Form
         int revision = ++_questViewRevision;
         var tasks = _tasks;
         if (tasks is null) { ResetQuestSession(); return; }
+        if (!CommitQuestEditors()) return;
         var cancellation = new CancellationTokenSource();
         _questSearchCts = cancellation;
         string query = _qSearch.Text.Trim();
@@ -1783,7 +1826,8 @@ public sealed class EditorForm : Form
                 _qTree.SelectedNode = _qTree.Nodes[0];
             else if (rows.Length == 0) ResetQuestDetails();
             if (_qTree.SelectedNode?.Tag is QuestNode or QuestEntry) ShowQuest(_qTree.SelectedNode.Tag);
-            if (!_tasksDirty) _qStatus.Text = $"找到 {rows.Length:N0} 个任务 · 每次显示 {QuestPageSize} 个，点击列表末尾继续加载。";
+            if (!_tasksDirty) _qStatus.Text = $"找到 {rows.Length:N0} 个任务 · 每次显示 {QuestPageSize} 个，点击列表末尾继续加载。" +
+                (tasks.CanWrite ? "" : " · 只读：" + tasks.ReadOnlyReason);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception ex) { if (!IsDisposed && revision == _questViewRevision) _qStatus.Text = "任务列表刷新失败：" + ChineseDialogs.Explain(ex); }
@@ -1890,16 +1934,18 @@ public sealed class EditorForm : Form
         return new QuestDetail(quest, fields, texts);
     }
 
-    private void CommitQuestEditors()
+    private bool CommitQuestEditors()
     {
-        _qGrid.EndEdit();
+        bool committed = _qGrid.EndEdit();
         for (int i = 0; i < 4; i++) ApplyQuestText(i);
         ApplyTalkText();
+        return committed;
     }
 
     private void ResetQuestDetails()
     {
-        CommitQuestEditors();
+        // 显式重置会话时取消未通过校验的单元格，不能让它阻止清空控件。
+        if (!CommitQuestEditors()) _qGrid.CancelEdit();
         _questDetailCts?.Cancel(); _questDetailCts = null; _questDetailRevision++;
         _questDetail = null; _selectedQuest = null; _qCur = null;
         _bindingQuestDetails = true; _bindingTalk = true;
@@ -1933,8 +1979,8 @@ public sealed class EditorForm : Form
         var (text, col) = TasksFile.SplitColor(name);
         _qInfo.Text = $"{(text.Length == 0 ? "（未命名）" : text)}     (ID {id})" + (_qCur?.Children.Count > 0 ? $"   ·   {_qCur.Children.Count} 个子任务" : "");
         _qInfo.ForeColor = col is { } c && c.GetBrightness() < 0.85f ? c : CFg;
-        _qName.Text = name; _qName.ReadOnly = false;
-        if (_qCur is null) { _qStatus.Text = "此版本仅支持任务名称编辑。"; return; }
+        _qName.Text = name; _qName.ReadOnly = _tasks?.CanWrite != true;
+        if (_qCur is null) { _qStatus.Text = _tasks?.CanWrite == true ? "此版本仅支持任务名称编辑。" : "只读：" + _tasks?.ReadOnlyReason; return; }
         // 未切到任务页时，不创建字段控件，也不创建对话节点。
         if (!_qTree.Visible || _tasks is null) return;
         var quest = _qCur; var tasks = _tasks; var refs = _refs;
@@ -1970,6 +2016,13 @@ public sealed class EditorForm : Form
                         }
                         int at = _qGrid.Rows.Add("  " + field.Name, row.Value, row.Hint);
                         _qGrid.Rows[at].Tag = field;
+                        _qGrid.Rows[at].Cells[1].ReadOnly = !field.Editable || !tasks.CanWrite;
+                        if (!field.Editable || !tasks.CanWrite)
+                        {
+                            _qGrid.Rows[at].Cells[1].Style.ForeColor = CMuted;
+                            _qGrid.Rows[at].Cells[1].ToolTipText = tasks.CanWrite
+                                ? "此字段控制任务结构，当前只允许查看。" : tasks.ReadOnlyReason;
+                        }
                     }
                 }
                 finally { _bindingQuestDetails = false; }
@@ -1978,7 +2031,8 @@ public sealed class EditorForm : Form
             }
             if (!Current()) return;
             complete = true;
-            _qStatus.Text = $"任务 {id} · {detail.Fields.Length:N0} 个字段 · 对话按需展开" + (_tasksDirty ? " · 有未保存的修改" : "");
+            _qStatus.Text = $"任务 {id} · {detail.Fields.Length:N0} 个字段 · 对话按需展开" + (_tasksDirty ? " · 有未保存的修改" : "") +
+                (tasks.CanWrite ? "" : " · 只读：" + tasks.ReadOnlyReason);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception ex) { if (Current()) _qStatus.Text = "任务详情显示失败：" + ChineseDialogs.Explain(ex); }
@@ -2002,7 +2056,7 @@ public sealed class EditorForm : Form
                 for (int i = 0; i < 4; i++)
                 {
                     _qTexts[i].Text = detail.Texts[i]; _questTextDisplay[i] = detail.Texts[i];
-                    _qTexts[i].ReadOnly = false;
+                    _qTexts[i].ReadOnly = _tasks?.CanWrite != true;
                 }
                 _questTextOwner = detail.Owner;
             }
@@ -2061,6 +2115,7 @@ public sealed class EditorForm : Form
 
     private void ApplyQuestName()
     {
+        if (_qName.ReadOnly || _tasks?.CanWrite != true) return;
         switch (_qTree.SelectedNode?.Tag)
         {
             case QuestNode q: q.Name = _qName.Text; break;
@@ -2075,7 +2130,7 @@ public sealed class EditorForm : Form
 
     private void ApplyQuestText(int i)
     {
-        if (_bindingQuestDetails || _questTextOwner is not { } owner || !ReferenceEquals(owner, _qCur)) return;
+        if (_bindingQuestDetails || _tasks?.CanWrite != true || _questTextOwner is not { } owner || !ReferenceEquals(owner, _qCur)) return;
         if (_qTexts[i].Text == _questTextDisplay[i]) return;
         var v = _qTexts[i].Text.Replace("\r\n", "\r");
         _questTextDisplay[i] = _qTexts[i].Text;
@@ -2095,7 +2150,7 @@ public sealed class EditorForm : Form
         {
             _qTalkSel = tag;
             _questTalkNode = _qTalkTree.SelectedNode;
-            _qTalkText.ReadOnly = tag is null;
+            _qTalkText.ReadOnly = tag is null || _tasks?.CanWrite != true;
             _qTalkText.MaxLength = tag is TalkWindow ? 32767 : 63;
             _talkDisplay = DisplayQuestText(tag switch
             {
@@ -2108,7 +2163,7 @@ public sealed class EditorForm : Form
 
     private void ApplyTalkText()
     {
-        if (_bindingTalk || _questTalkOwner is not { } owner || !ReferenceEquals(owner, _qCur) || _qTalkSel is null) return;
+        if (_bindingTalk || _tasks?.CanWrite != true || _questTalkOwner is not { } owner || !ReferenceEquals(owner, _qCur) || _qTalkSel is null) return;
         if (_qTalkText.Text == _talkDisplay) return;
         var v = _qTalkText.Text.Replace("\r\n", "\r");
         _talkDisplay = _qTalkText.Text;
@@ -2127,22 +2182,48 @@ public sealed class EditorForm : Form
         MarkTasksDirty("已修改对话");
     }
 
-    private void SaveTasks()
+    private void SaveTasks() => SaveTaskData(saveAs: false);
+
+    private void SaveTaskData(bool saveAs)
     {
+        if (_saving) return;
         if (_tasks is null || _tasksPath is null) { _qStatus.Text = "请先打开 tasks.data。"; return; }
-        CommitQuestEditors();
-        if (!_tasksDirty) { _qStatus.Text = "没有待保存的修改。"; return; }
-        if (!ChineseDialogs.Confirm(this, $"将修改保存到：\n{_tasksPath}\n\n将在同一目录中创建备份。\n请确保服务端使用相同的 tasks.data（可在“一致性检查”页检查）。",
+        if (!_tasks.CanWrite) { ChineseDialogs.Show(this, _tasks.ReadOnlyReason ?? "任务写回校验未通过。", "当前任务数据不能保存"); return; }
+        if (!CommitQuestEditors()) { _qStatus.Text = "请先修正当前任务字段的值，再保存。"; return; }
+        if (!_qName.ReadOnly && _selectedQuest is { } selected && _qName.Text != TaskIndex.NameOf(selected))
+        {
+            if (selected is QuestNode node) node.Name = _qName.Text;
+            else if (selected is QuestEntry entry) entry.Name = _qName.Text;
+            if (_qTree.SelectedNode is { } treeNode) treeNode.Text = _qName.Text;
+            MarkTasksDirty("已修改名称");
+        }
+        if (!_tasksDirty && !saveAs) { _qStatus.Text = "没有待保存的修改。"; return; }
+        string target = _tasksPath;
+        if (saveAs)
+        {
+            using var dialog = new SaveFileDialog { Filter = "任务数据 (*.data)|*.data", Title = "另存为任务数据", FileName = Path.GetFileName(_tasksPath), InitialDirectory = Path.GetDirectoryName(_tasksPath) };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            target = dialog.FileName;
+        }
+        else if (!ChineseDialogs.Confirm(this, $"将修改保存到：\n{target}\n\n将在同一目录中创建备份。\n请确保服务端使用相同的 tasks.data（可在“一致性检查”页检查）。",
                 "保存 tasks.data")) return;
+        SaveReceipt? saved = null;
         try
         {
-            var keep = _qCur?.Id;
-            var backup = _tasks.Save(_tasksPath);
+            _saving = true;
+            int? keep = _selectedQuest is QuestNode or QuestEntry ? TaskIndex.IdOf(_selectedQuest) : null;
+            var tasks = _tasks;
+            saved = ReadProgressDialog.Run(this, "保存任务数据", context =>
+                new SaveReceipt(Path.GetFullPath(target), tasks.Save(target, context)), allowCancel: false, completedStage: "保存完成");
+            _tasksPath = saved.Path;
             _questSelectionAfterLoad = keep;
-            LoadTasks(_tasksPath);
-            _qStatus.Text = $"已保存 · 备份：{Path.GetFileName(backup)}";
+            bool refreshed = LoadTasks(saved.Path);
+            _qStatus.Text = $"磁盘已保存：{saved.Path}" + (saved.Backup is null ? "" : $" · 备份：{Path.GetFileName(saved.Backup)}") +
+                (refreshed ? "" : " · 界面重读未完成，可手动重新打开；内存修改仍保留。");
+            Status(_qStatus.Text);
         }
-        catch (Exception ex) { Error("保存 tasks.data 失败", ex); }
+        catch (Exception ex) { Error(saved is null ? "保存 tasks.data 失败，内存修改仍保留" : "任务文件已保存，界面更新未完成", ex); }
+        finally { _saving = false; }
     }
 
     // ---------- aba Verificação (par cliente × servidor) ----------

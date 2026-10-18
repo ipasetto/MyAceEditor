@@ -9,7 +9,7 @@ public sealed class QuestEntry
     public int Offset { get; init; }
     public int Id { get; init; }
     public string Name { get; set; } = "";
-    public string OriginalName { get; init; } = "";
+    public string OriginalName { get; internal set; } = "";
     public bool Changed => Name != OriginalName;
 }
 
@@ -31,6 +31,9 @@ public sealed class TasksFile
     public string? SchemaError { get; }
     public bool FullSchema => Roots is not null;
     public TaskIndex Index { get; }
+    public bool RoundTripVerified { get; }
+    public string? ReadOnlyReason { get; private set; }
+    public bool CanWrite => RoundTripVerified && ReadOnlyReason is null;
 
     public TasksFile(string path, LoadContext? context = null)
         : this(context is null ? File.ReadAllBytes(path) : context.Slice(0, .10).ReadFile(path), context?.Slice(.10, 1)) { }
@@ -51,11 +54,22 @@ public sealed class TasksFile
             offsets[i] = BitConverter.ToInt32(data, 12 + i * 4);
         }
 
+        // 名称模式也不能让任务头覆盖偏移表或其他任务头。
+        int headerEnd = 12 + n * 4;
+        int[] sortedOffsets = offsets.Order().ToArray();
+        for (int i = 0; i < sortedOffsets.Length; i++)
+        {
+            int off = sortedOffsets[i];
+            if (off < headerEnd || off > data.Length - (4 + NameChars * 2)
+                || i > 0 && (long)off < (long)sortedOffsets[i - 1] + 4 + NameChars * 2)
+                ReadOnlyReason = "任务偏移表包含越界、重复或重叠的任务头，当前只允许查看。";
+        }
+
         for (int i = 0; i < n; i++)
         {
             if ((i & 127) == 0) context?.Report(.1 * i / Math.Max(1, n), "读取任务名称", $"{i:N0}/{n:N0} 个任务");
             int off = offsets[i];
-            if (off < 0 || off + 4 + NameChars * 2 > data.Length) continue;
+            if (off < headerEnd || off > data.Length - (4 + NameChars * 2)) continue;
             int id = BitConverter.ToInt32(data, off);
             var name = TaskSchema93.Xor(data, off + 4, NameChars, id);
             Quests.Add(new QuestEntry { Offset = off, Id = id, Name = name, OriginalName = name });
@@ -82,21 +96,44 @@ public sealed class TasksFile
             catch (Exception ex) { SchemaError = ex.Message; }
         }
         context?.Check();
-        Index = new TaskIndex(Roots, Quests, context?.Slice(.92, 1));
+        Index = new TaskIndex(Roots, Quests, context?.Slice(.92, .95));
+        if (ReadOnlyReason is null)
+        {
+            try
+            {
+                RoundTripVerified = BuildCore(context?.Slice(.95, 1)).AsSpan().SequenceEqual(Data);
+                if (!RoundTripVerified) ReadOnlyReason = "任务无修改重建与原始文件不一致，当前只允许查看。";
+            }
+            catch (Exception ex) when (ex is InvalidDataException or ArgumentException or OverflowException)
+            { ReadOnlyReason = "任务写回校验未通过：" + ex.Message; }
+        }
+        context?.Check();
         context?.Report(1, "任务读取完成", $"{Quests.Count:N0} 个主任务", force: true);
     }
 
     public IEnumerable<QuestNode> AllNodes() => Index.Nodes;
 
     /// <summary>Bytes do arquivo com as alterações aplicadas.</summary>
-    public byte[] Build()
+    public byte[] Build(LoadContext? context = null)
     {
+        context?.Check();
+        if (!CanWrite) throw new InvalidOperationException("当前任务数据为只读，不能保存。" + ReadOnlyReason);
+        return BuildCore(context);
+    }
+
+    private byte[] BuildCore(LoadContext? context = null)
+    {
+        context?.Check();
         if (Roots is null)
         {
             var outBytes = (byte[])Data.Clone();
             foreach (var q in Quests.Where(q => q.Changed))
+            {
+                context?.Check();
+                if (q.Name.Length > MaxNameLength) throw new InvalidDataException($"任务 {q.Id} 的名称超过 {MaxNameLength} 个字符。");
                 for (int i = 0; i < NameChars; i++)
                     BitConverter.GetBytes((ushort)((i < q.Name.Length && i < NameChars - 1 ? q.Name[i] : '\0') ^ (ushort)q.Id)).CopyTo(outBytes, q.Offset + 4 + i * 2);
+            }
             return outBytes;
         }
         using var ms = new MemoryStream(Data.Length + 4096);
@@ -105,26 +142,25 @@ public sealed class TasksFile
         long table = ms.Position;
         for (int i = 0; i < Roots.Count; i++) w.Write(0);
         var offs = new int[Roots.Count];
-        for (int i = 0; i < Roots.Count; i++) { offs[i] = (int)ms.Position; TaskSchema93.Write(w, Roots[i]); }
+        for (int i = 0; i < Roots.Count; i++)
+        {
+            context?.Check();
+            context?.Report(i / (double)Math.Max(1, Roots.Count), "生成任务数据", $"{i:N0}/{Roots.Count:N0} 个主任务");
+            offs[i] = (int)ms.Position; TaskSchema93.Write(w, Roots[i]);
+        }
         ms.Position = table;
         foreach (var o in offs) w.Write(o);
         return ms.ToArray();
     }
 
     /// <summary>Backup com data/hora + escrita atômica (mesma regra do elements.data).</summary>
-    public string? Save(string path)
+    public string? Save(string path, LoadContext? context = null)
     {
-        var bytes = Build();
-        string? backup = null;
-        if (File.Exists(path))
-        {
-            backup = $"{path}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
-            File.Copy(path, backup, overwrite: false);
-        }
-        var tmp = path + ".tmp";
-        File.WriteAllBytes(tmp, bytes);
-        if (File.Exists(path)) File.Replace(tmp, path, null); else File.Move(tmp, path);
+        var bytes = Build(context?.Slice(0, .75));
+        string? backup = AtomicFileSave.Write(path, bytes, context?.Slice(.75, 1));
         Data = bytes;
+        if (Roots is null)
+            foreach (var q in Quests) q.OriginalName = q.Name;
         return backup;
     }
 
