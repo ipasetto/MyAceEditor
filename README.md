@@ -1,14 +1,16 @@
 # MyAceEditor
 
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/Portugu%C3%AAs-selecionado-2ea44f?style=for-the-badge" alt="Português"></a>
+  <a href="README.en.md"><img src="https://img.shields.io/badge/English-read-555?style=for-the-badge" alt="English"></a>
+</p>
+
 [![Licença: GPL v3](https://img.shields.io/badge/licen%C3%A7a-GPLv3-blue.svg)](LICENSE)
 [![Contribuições bem-vindas](https://img.shields.io/badge/contribui%C3%A7%C3%B5es-bem--vindas-brightgreen.svg)](CONTRIBUTING.md)
 
 **Engine de edição do Perfect World (motor Angelica)**: aplicação desktop nativa em C#/WinForms
 (.NET 10) para ler e editar os dados do jogo, cliente e servidor, numa única janela.
 Projeto **aberto e comunitário**: a meta é tornar o Perfect World 100% editável com uma ferramenta livre.
-
-> **English:** open-source (GPL-3.0) native editor/engine for Perfect World game data. Docs are in
-> Portuguese, but contributions in English are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ![Editor de elementos](docs/img/editor.png)
 
@@ -93,5 +95,6 @@ O código deste repositório é original.
 decodificador MPPC, janela de progresso/cancelamento, testes de regressão e tradução para chinês
 simplificado (`lang/zh-CN.json`, documentação em [docs/zh-CN](docs/zh-CN)). A versão completa em chinês
 está no branch `contrib/laochen-zh-CN`.
+
 Perfect World é marca da Perfect World Co., Ltd. Este projeto não é afiliado a ela e não distribui
 arquivos do jogo.
