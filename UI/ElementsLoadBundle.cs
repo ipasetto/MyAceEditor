@@ -9,7 +9,8 @@ internal sealed record ElementsLoadBundle(CfgMatch Match, RefIndex References, D
     int TaskCount, IReadOnlyList<string> Warnings)
 {
     public static ElementsLoadBundle Read(string path, string? cfgOverride, LoadContext context,
-        IconAtlas? previousAtlas, string? previousAtlasPath, TasksFile? previousTasks, string? previousTasksPath, string? preferredBlock)
+        IconAtlas? previousAtlas, string? previousAtlasPath, TasksFile? previousTasks, string? previousTasksPath, string? preferredBlock,
+        bool preserveSession = false, GameConfigs? previousConfigs = null)
     {
         var match = CfgCatalog.Load(path, cfgOverride, context: context.Slice(0, .60));
         var module = match.Module;
@@ -37,18 +38,19 @@ internal sealed record ElementsLoadBundle(CfgMatch Match, RefIndex References, D
         }
         var warnings = new List<string>();
         IconAtlas? atlas = null; GameConfigs? configs = null; TasksFile? tasks = null;
-        string? atlasPath = IconAtlas.FindSurfacesPck(path), taskPath = null;
+        string? atlasPath = preserveSession ? previousAtlasPath : IconAtlas.FindSurfacesPck(path), taskPath = null;
         context.Report(.86, "Lendo ícones", "pacotes grandes; ainda dá para cancelar", indeterminate: true, force: true);
-        try { atlas = atlasPath == previousAtlasPath && previousAtlas is not null ? previousAtlas : atlasPath is null ? null : IconAtlas.Load(atlasPath, context.Slice(.86, .91)); }
+        try { atlas = preserveSession ? previousAtlas : atlasPath == previousAtlasPath && previousAtlas is not null ? previousAtlas : atlasPath is null ? null : IconAtlas.Load(atlasPath, context.Slice(.86, .91)); }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException)) { warnings.Add("Ícones não carregados: " + ex.Message); }
         context.Check();
         context.Report(.91, "Lendo descrições", "cores, descrições e atributos adicionais do jogo", indeterminate: true, force: true);
-        try { configs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp, context.Slice(.91, .95)) : null; }
+        try { configs = preserveSession ? previousConfigs : GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp, context.Slice(.91, .95)) : null; }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException)) { warnings.Add("Descrições não carregadas: " + ex.Message); }
         context.Check();
         context.Report(.95, "Lendo tasks.data da mesma pasta", force: true);
         string near = Path.Combine(Path.GetDirectoryName(path) ?? "", "tasks.data");
-        if (File.Exists(near))
+        if (preserveSession) { tasks = previousTasks; taskPath = previousTasksPath; }
+        else if (File.Exists(near))
         {
             try
             {

@@ -244,7 +244,7 @@ public sealed class CfgElementsReader
     }
     private void Skip(long count) { Need(count); _pos += checked((int)count); }
 
-    private static Item ReadRecord(CfgBlock block, byte[] raw, LoadContext? context)
+    internal static Item ReadRecord(CfgBlock block, byte[] raw, LoadContext? context = null)
     {
         var item = new Item { Raw = raw, Id = "", Fields = new Dictionary<string, Field>(block.Fields.Count) };
         int p = 0, ordinal = 0; bool gotName = false;

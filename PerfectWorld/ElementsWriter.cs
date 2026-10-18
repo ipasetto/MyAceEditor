@@ -52,11 +52,11 @@ public static class ElementsWriter
         }
         catch (Exception ex) when (ex is InvalidDataException or FormatException or OverflowException or EncoderFallbackException) { return false; }
     }
-    public static byte[] Build(Module module)
+    public static byte[] Build(Module module, LoadContext? context = null)
     {
         if (module.Source is not ElementsLayout layout) throw new InvalidOperationException("Este módulo não tem o layout original do elements.data.");
         if (!layout.CanWrite) throw new InvalidOperationException("Os dados estão em somente leitura e não podem ser salvos. " + layout.ReadOnlyReason);
-        return BuildCore(layout);
+        return BuildCore(layout, context);
     }
     private static byte[] BuildCore(ElementsLayout layout, LoadContext? context = null)
     {
@@ -90,25 +90,10 @@ public static class ElementsWriter
         ms.Write(src, copied, src.Length - copied);
         return ms.ToArray();
     }
-    public static string? Save(Module module, string path)
+    public static string? Save(Module module, string path, LoadContext? context = null)
     {
-        byte[] bytes = Build(module);
-        string full = Path.GetFullPath(path), tmp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        string? backup = null;
-        try
-        {
-            using (var stream = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            { stream.Write(bytes); stream.Flush(flushToDisk: true); }
-            if (File.Exists(full))
-            {
-                backup = $"{full}.{DateTime.Now:yyyyMMdd-HHmmss-fff}.{Guid.NewGuid().ToString("N")[..6]}.bak";
-                File.Copy(full, backup, overwrite: false);
-                File.Replace(tmp, full, null);
-            }
-            else File.Move(tmp, full);
-            return backup;
-        }
-        finally { if (File.Exists(tmp)) File.Delete(tmp); }
+        byte[] bytes = Build(module, context?.Slice(0, .75));
+        return AtomicFileSave.Write(path, bytes, context?.Slice(.75, 1));
     }
     private static byte[] EncodeRecord(CfgBlock block, Item item, int recordSize, LoadContext? context = null)
     {
@@ -118,9 +103,14 @@ public static class ElementsWriter
         foreach (var field in block.Fields)
         {
             if ((ordinal++ & 255) == 0) context?.Check();
-            if (item.Fields.TryGetValue(field.Name, out var value)
-                && (item.Raw is null || CfgElementsReader.DecodeField(field, raw, at) != value.Value))
-                EncodeField(field, value.Value, raw, at);
+            try
+            {
+                if (item.Fields.TryGetValue(field.Name, out var value)
+                    && (item.Raw is null || CfgElementsReader.DecodeField(field, raw, at) != value.Value))
+                    EncodeField(field, value.Value, raw, at);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or FormatException or OverflowException or EncoderFallbackException)
+            { throw new InvalidDataException($"{block.Name} · ID {item.Id} · campo {field.Name}: {ex.Message}", ex); }
             at += field.Size;
         }
         return raw;

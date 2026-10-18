@@ -50,6 +50,8 @@ public sealed class EditorForm : Form
     private readonly ListView _links = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None, HideSelection = false };
     private readonly TabControl _detailTabs = new() { Dock = DockStyle.Fill };
     private TabPage _tabLinks = null!;
+    private TabControl? _tabs;
+    private TabPage? _tabQuests;
     private readonly ContextMenuStrip _ctx = new();
     private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
@@ -112,7 +114,7 @@ public sealed class EditorForm : Form
         var arq = M(); var ed = M(); var aj = M(); var lg = M();
         var openPw = new ToolStripMenuItem { ForeColor = CFg }; openPw.Click += (_, _) => OpenPwFolder();
         var openEl = new ToolStripMenuItem { ForeColor = CFg }; openEl.Click += (_, _) => OpenElements();
-        var save = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.S }; save.Click += (_, _) => SaveAs();
+        var save = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.S }; save.Click += (_, _) => SaveCurrent();
         var saveAs = new ToolStripMenuItem { ForeColor = CFg }; saveAs.Click += (_, _) => SaveElementsAs();
         var exit = new ToolStripMenuItem { ForeColor = CFg }; exit.Click += (_, _) => Close();
         arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, exit });
@@ -159,7 +161,7 @@ public sealed class EditorForm : Form
         tb.Items.Add(new ToolStripSeparator());
         tb.Items.Add(B(OpenPwFolder, b => b.Text = Loc.T("tb.openPw", "Abrir pasta do PW")));
         tb.Items.Add(B(OpenElements, b => b.Text = Loc.T("tb.openElements", "Abrir elements.data")));
-        tb.Items.Add(B(SaveAs, b => b.Text = Loc.T("tb.save", "Salvar")));
+        tb.Items.Add(B(SaveCurrent, b => b.Text = Loc.T("tb.save", "Salvar")));
         tb.Items.Add(new ToolStripSeparator());
         tb.Items.Add(B(AddItem, b => b.Text = Loc.T("tb.add", "＋ Adicionar")));
         tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
@@ -182,6 +184,7 @@ public sealed class EditorForm : Form
         tEl.Controls.Add(BuildElements());
         tabs.TabPages.Add(tEl);
         var tQ = new TabPage() { BackColor = CBg };
+        _tabs = tabs; _tabQuests = tQ;
         Bind(() => tQ.Text = Loc.T("tab.quests", "Quests"));
         tQ.Controls.Add(BuildQuestView());
         tabs.TabPages.Add(tQ);
@@ -504,10 +507,13 @@ public sealed class EditorForm : Form
 
     // Salvar: grava o elements.data no próprio arquivo (backup com data/hora + escrita atômica).
     private void SaveAs() => SaveElements(saveAs: false);
+    // Salvar do menu/Ctrl+S/barra: grava o arquivo da aba aberta (Quests → tasks.data, senão elements.data).
+    private void SaveCurrent() { if (_tabs?.SelectedTab == _tabQuests) SaveTasks(); else SaveAs(); }
     private void SaveElementsAs() => SaveElements(saveAs: true);
 
     private void SaveElements(bool saveAs)
     {
+        _grid.EndEdit();                                // célula em edição entra no item antes de gravar
         if (_store.Current?.Source is not ElementsLayout || _dataPath is null) { Status("Abra um elements.data primeiro"); return; }
         var target = _dataPath;
         if (saveAs)
@@ -1301,11 +1307,20 @@ public sealed class EditorForm : Form
         var block = _curBlock ?? CurrentItemBlock;
         if (block is null) { Status("Escolha um bloco primeiro"); return; }
         long code = NextCode(block);
-        var ni = new Item { Id = code.ToString(), Name = "Novo item" };
-        var template = block.Items.FirstOrDefault();
-        if (template is not null)
-            foreach (var (k, f) in template.Fields)
-                ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
+        Item ni;
+        if ((_store.Current?.Source as ElementsLayout)?.Blocks.FirstOrDefault(b => ReferenceEquals(b.List, block)) is { } span)
+        {
+            ni = CfgElementsReader.ReadRecord(span.Block, new byte[span.RecordSize]);
+            ni.Raw = null;                              // registro novo: gravado inteiro a partir dos campos
+            ni.Id = code.ToString(); ni.Name = "Novo item";
+        }
+        else
+        {
+            ni = new Item { Id = code.ToString(), Name = "Novo item" };
+            if (block.Items.FirstOrDefault() is { } template)
+                foreach (var (k, f) in template.Fields)
+                    ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
+        }
         SetIdName(ni);
         InsertNewItem(block, ni);
         Status($"Novo item {code} criado em {Pretty(block.Name)} — preencha os campos à direita.");
@@ -1694,6 +1709,7 @@ public sealed class EditorForm : Form
             var v = _qCur.Get(f);
             int r = _qGrid.Rows.Add("  " + f.Name, v, QuestFieldHint(f, v));
             _qGrid.Rows[r].Tag = f;
+            if (!f.Editable) { _qGrid.Rows[r].ReadOnly = true; _qGrid.Rows[r].Cells[1].Style.ForeColor = CMuted; }
         }
         // Textos
         for (int i = 0; i < 4; i++) _qTexts[i].Text = _qCur.Texts[i].Replace("\r", "\r\n");
@@ -1773,7 +1789,9 @@ public sealed class EditorForm : Form
 
     private void SaveTasks()
     {
+        _qGrid.EndEdit();
         if (_tasks is null || _tasksPath is null) { _qStatus.Text = "Abra um tasks.data primeiro."; return; }
+        if (!_tasks.CanWrite) { _qStatus.Text = "Somente leitura: " + _tasks.ReadOnlyReason; return; }
         ApplyTalkText();
         for (int i = 0; i < 4; i++) ApplyQuestText(i);
         if (!_tasksDirty) { _qStatus.Text = "Nada alterado."; return; }
