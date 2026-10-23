@@ -394,6 +394,8 @@ public sealed class EditorForm : Form
         };
         _grid.Columns[1].DefaultCellStyle.Font = new Font("Segoe UI Semibold", 9.5f);
         _grid.CellEndEdit += (_, e) => OnFieldEdited(e.RowIndex);
+        // caixa de seleção: confirma o clique na hora (senão só grava ao sair da célula)
+        _grid.CurrentCellDirtyStateChanged += (_, _) => { if (_grid.IsCurrentCellDirty) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
     }
 
     private StatusStrip BuildStatus()
@@ -1036,6 +1038,12 @@ public sealed class EditorForm : Form
                 var desc = Describe(item, k, f.Value);
                 int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, desc);
                 _grid.Rows[r].Tag = k;
+                if (FieldKinds.IsFlag(k, f.Value))
+                {
+                    // sim/não: caixa de seleção (grava 1/0)
+                    _grid.Rows[r].Cells[1] = new DataGridViewCheckBoxCell { Value = f.Value == "1", TrueValue = true, FalseValue = false };
+                    _grid.Rows[r].Cells[2].Value = Loc.T("grid.flag", "sim / não");
+                }
                 if (desc.StartsWith("→")) _grid.Rows[r].Cells[2] = LinkCell(desc);
                 if (IsSpecialEditor(k)) _grid.Rows[r].Cells[0].ToolTipText = Loc.T("grid.dblClick", "Duplo clique para escolher");
             }
@@ -1273,7 +1281,8 @@ public sealed class EditorForm : Form
     private void OnFieldEdited(int row)
     {
         if (_current is null || row < 0 || _grid.Rows[row].Tag is not string key || !_current.Fields.ContainsKey(key)) return;
-        var val = _grid.Rows[row].Cells[1].Value?.ToString() ?? "";
+        var cell = _grid.Rows[row].Cells[1];
+        var val = cell is DataGridViewCheckBoxCell ? (cell.Value is true ? "1" : "0") : cell.Value?.ToString() ?? "";
         _current.Fields[key] = Field.Of(_current.Fields[key].Type, val);
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase))
         {

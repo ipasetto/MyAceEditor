@@ -30,6 +30,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
         if (args.Length >= 1 && args[0] == "--translate-selftest") { TranslateSelfTest().GetAwaiter().GetResult(); return; }
         if (args.Length >= 2 && args[0] == "--addons") { TestAddons(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--bools") { TestBools(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--configs")
         {
             var gc = GameConfigs.Load(args[1])!;
@@ -166,6 +167,31 @@ internal static class Program
         var again = new TasksFile(edited);
         sb.AppendLine($"editar descrição: {(again.FullSchema && again.Roots![1].Texts[0] == "Descrição de teste ✓" ? "OK" : "FALHOU " + again.SchemaError)} ({edited.Length - original.Length:+#;-#;0} bytes)");
         File.WriteAllText("tasks-report.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --bools <elements.data>: campos cujos valores são só 0/1 em todos os itens do bloco (bools.tsv).
+    private static void TestBools(string dataPath)
+    {
+        var r = new CfgElementsReader(dataPath);
+        var cfg = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg"), $"*_v{r.Version & 0xFF}.cfg")[0];
+        var module = r.Parse(ElementsCfg.Load(cfg));
+        var sb = new StringBuilder();
+        foreach (var l in module.Lists)
+        {
+            if (l.Items.Count == 0) continue;
+            foreach (var key in l.Items[0].Fields.Keys)
+            {
+                bool allBin = true, anyOne = false;
+                foreach (var it in l.Items)
+                {
+                    if (!it.Fields.TryGetValue(key, out var f)) { allBin = false; break; }
+                    if (f.Value == "1") anyOne = true;
+                    else if (f.Value != "0") { allBin = false; break; }
+                }
+                if (allBin && anyOne) sb.Append(l.Name).Append('\t').Append(key).Append('\n');
+            }
+        }
+        File.WriteAllText("bools.tsv", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --addons <elements.data>: descrição dos addons como no jogo (addons-report.txt).

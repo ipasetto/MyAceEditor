@@ -61,6 +61,17 @@ public static class FieldKinds
         return FieldKind.Plain;
     }
 
+    /// <summary>
+    /// Sim/não (flag) pelo nome do campo: prefixos/sufixos típicos de flag (has_, no_, is_, can_, enable_...).
+    /// Usado junto com o valor 0/1 do item. Precisão alta; cobertura parcial (ver issue #7).
+    /// </summary>
+    static readonly System.Text.RegularExpressions.Regex FlagName = new(
+        @"^(has_|no_|is_|can_|enable|allow|show_|use_|bind_|need_|disable|forbid|ignore|auto_|display_|record_|hide_)|(_flag|_bool|_enable|_show|_can|_use)$|^b_",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public static bool IsFlag(string field, string value) =>
+        (value == "0" || value == "1") && FlagName.IsMatch(field);
+
     public static bool IsReference(FieldKind k) =>
         k is FieldKind.ItemRef or FieldKind.AddonRef or FieldKind.RecipeRef or FieldKind.MonsterRef;
 

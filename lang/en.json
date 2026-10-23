@@ -408,5 +408,6 @@
   "class.11": "Stormbringer",
   "class.generic": "Class",
   "class.all": "All classes",
-  "tip.classes": "Classes"
+  "tip.classes": "Classes",
+  "grid.flag": "yes / no"
 }
