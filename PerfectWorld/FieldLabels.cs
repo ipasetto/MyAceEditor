@@ -32,6 +32,7 @@ public static class FieldLabels
         ["material_need"] = "Material necessário", ["pile_num_max"] = "Empilhar (máx)",
         ["element_id"] = "Elemento", ["element_num"] = "Qtd. elemento",
         ["equip_location"] = "Local do equipamento", ["equip_mask"] = "Máscara de equipamento",
+        ["proc_type"] = "Regras do item", ["immune_type"] = "Imunidades do monstro", ["has_guid"] = "Tem GUID",
         ["file_model"] = "Modelo", ["file_model_right"] = "Modelo (direita)", ["file_model_left"] = "Modelo (esquerda)",
         ["file_matter"] = "Textura", ["file_icon"] = "Ícone", ["gender_id"] = "Gênero",
     };
@@ -91,24 +92,16 @@ public static class FieldLabels
         _ => id,
     };
 
-    private static readonly Dictionary<string, string> Tokens = new()
-    {
-        ["require"] = "Requer", ["strength"] = "Força", ["agility"] = "Destreza", ["energy"] = "Magia",
-        ["level"] = "Nível", ["damage"] = "Dano", ["magic"] = "Mágico", ["low"] = "mín", ["high"] = "máx",
-        ["min"] = "mín", ["max"] = "máx", ["defence"] = "Defesa", ["defense"] = "Defesa", ["price"] = "Preço",
-        ["shop"] = "Loja", ["durability"] = "Durabilidade", ["probability"] = "Chance", ["num"] = "Qtd",
-        ["file"] = "Arquivo", ["icon"] = "Ícone", ["model"] = "Modelo", ["enhance"] = "Extra",
-        ["id"] = "ID", ["hp"] = "HP", ["mp"] = "MP", ["reputation"] = "Reputação",
-    };
 
     private static string Prettify(string field)
     {
-        var parts = field.Split('_', StringSplitOptions.RemoveEmptyEntries)
-            .Select(p =>
-            {
-                var lo = p.ToLowerInvariant();
-                return Tokens.TryGetValue(lo, out var t) ? Loc.T("tok." + lo, t) : p;
-            });
+        var parts = field.Split('_', StringSplitOptions.RemoveEmptyEntries).Select(p =>
+        {
+            var lo = p.ToLowerInvariant();
+            var pt = FieldTokens.Lookup(lo);
+            // palavra do dicionário em português; se for a língua da interface e houver tradução própria, usa-a
+            return pt is null ? p : Loc.T("tok." + lo, pt);
+        });
         var s = string.Join(AppLang.Current == "zh" ? "" : " ", parts);
         return s.Length == 0 ? field : char.ToUpper(s[0]) + s[1..];
     }

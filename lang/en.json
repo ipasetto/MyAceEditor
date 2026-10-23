@@ -413,5 +413,7 @@
   "menu.exportCsv": "&Export current block (CSV spreadsheet)…",
   "status.exportNoBlock": "Choose a block with items to export.",
   "status.exported": "Exported",
-  "status.items": "items"
+  "status.items": "items",
+  "dialog.procTitle": "Item rules",
+  "dialog.immuneTitle": "Monster immunities"
 }

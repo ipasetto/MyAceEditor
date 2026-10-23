@@ -15,6 +15,8 @@ public enum FieldKind
     TaskRef,     // ID de quest (tasks.data)
     Probability, // float 0..1 exibido em %
     ClassMask,   // máscara de classes (PW-KB §S24)
+    ProcMask,    // regras do item (proc_type): cair, vender, trocar… (BitMasks.Proc)
+    ImmuneMask,  // imunidades do monstro (immune_type) (BitMasks.Immune)
     File,        // caminho de arquivo do cliente
     Color,       // cor ARGB
 }
@@ -42,6 +44,8 @@ public static class FieldKinds
         if (n.StartsWith("file_") || n.StartsWith("pllfiles")) return FieldKind.File;
         if (n.Contains("color")) return FieldKind.Color;
         if (n is "character_combo_id" || n.Contains("occupation") || n.EndsWith("class_mask")) return FieldKind.ClassMask;
+        if (n == "proc_type") return FieldKind.ProcMask;
+        if (n == "immune_type") return FieldKind.ImmuneMask;
         if (n.Contains("probability") || Regex.IsMatch(n, @"(^|_)prob(_|\d|$)")) return FieldKind.Probability;
 
         bool idLike = n.StartsWith("id_") || n.EndsWith("_id") || Regex.IsMatch(n, @"(^|_)id(_|\d|$)") || n.Contains("_id_");

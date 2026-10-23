@@ -1107,7 +1107,7 @@ public sealed class EditorForm : Form
 
     // ---------- editores por duplo clique (estilo Rody) ----------
     private static bool IsSpecialEditor(string key) =>
-        FieldKinds.Of(key) is FieldKind.ClassMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef;
+        FieldKinds.Of(key) is FieldKind.ClassMask or FieldKind.ProcMask or FieldKind.ImmuneMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef;
 
     private bool EditFieldSpecial(Item item, string key)
     {
@@ -1117,6 +1117,12 @@ public sealed class EditorForm : Form
         {
             case FieldKind.ClassMask:
                 if (FieldEditors.ClassMask(this, long.TryParse(cur, out var m) ? m : 0) is { } nm) SetField(item, key, nm.ToString());
+                return true;
+            case FieldKind.ProcMask:
+                if (FieldEditors.BitMask(this, Loc.T("dialog.procTitle", "Regras do item"), long.TryParse(cur, out var pm) ? pm : 0, BitMasks.Proc) is { } np) SetField(item, key, np.ToString());
+                return true;
+            case FieldKind.ImmuneMask:
+                if (FieldEditors.BitMask(this, Loc.T("dialog.immuneTitle", "Imunidades do monstro"), long.TryParse(cur, out var im) ? im : 0, BitMasks.Immune) is { } ni) SetField(item, key, ni.ToString());
                 return true;
             case FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef:
             {
@@ -1250,6 +1256,8 @@ public sealed class EditorForm : Form
                 return float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pr) && pr > 0 && pr <= 1
                     ? $"{pr * 100:0.###}%" : "";
             case FieldKind.ClassMask: return FieldKinds.ClassNames(value);
+            case FieldKind.ProcMask: return BitMasks.Describe(BitMasks.Proc, long.TryParse(value, out var pv) ? pv : 0);
+            case FieldKind.ImmuneMask: return BitMasks.Describe(BitMasks.Immune, long.TryParse(value, out var iv) ? iv : 0);
             case FieldKind.SkillRef: return IsEmpty(value) ? "" : "habilidade";
             case FieldKind.TaskRef: return IsEmpty(value) ? "" : "quest";
             default:

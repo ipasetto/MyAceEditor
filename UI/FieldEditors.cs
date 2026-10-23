@@ -44,6 +44,39 @@ internal static class FieldEditors
         return r;
     }
 
+    /// <summary>Máscara de bits com nomes (regras do item, imunidades): uma caixinha por bit. Null se cancelar.</summary>
+    public static long? BitMask(IWin32Window owner, string title, long mask, (int Bit, string Name)[] table, string unknownPrefix = "Bit")
+    {
+        using var f = NewDialog(title, 420, 480);
+        var list = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10) };
+        // opções: as conhecidas + qualquer bit ligado no valor que não tem nome (aparece como "Bit N")
+        var bits = table.Select(t => t.Bit).ToList();
+        for (int b = 0; b < 32; b++) if ((mask & (1L << b)) != 0 && !bits.Contains(b)) bits.Add(b);
+        bits.Sort();
+        foreach (var b in bits)
+        {
+            var name = table.FirstOrDefault(t => t.Bit == b).Name ?? $"{unknownPrefix} {b}";
+            list.Items.Add(new BitItem(b, name), (mask & (1L << b)) != 0);
+        }
+        var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(6, 4, 6, 0) };
+        Button B(string t, bool v) { var bt = new Button { Text = t, AutoSize = true, FlatStyle = FlatStyle.Flat }; bt.Click += (_, _) => { for (int i = 0; i < list.Items.Count; i++) list.SetItemChecked(i, v); }; return bt; }
+        top.Controls.Add(B("Todas", true)); top.Controls.Add(B("Nenhuma", false));
+        var bottom = Buttons(f, out _);
+        var maskLbl = new Label { Dock = DockStyle.Bottom, Height = 22, ForeColor = Color.Gray, Padding = new Padding(8, 0, 0, 0) };
+        void Upd() { long m = 0; for (int i = 0; i < list.Items.Count; i++) if (list.GetItemChecked(i)) m |= 1L << ((BitItem)list.Items[i]).Bit; maskLbl.Text = $"valor = {m}"; }
+        list.ItemCheck += (_, _) => f.BeginInvoke(Upd);
+        Upd();
+        f.Controls.Add(list); f.Controls.Add(top); f.Controls.Add(maskLbl); f.Controls.Add(bottom);
+        if (f.ShowDialog(owner) != DialogResult.OK) return null;
+        long r = 0; for (int i = 0; i < list.Items.Count; i++) if (list.GetItemChecked(i)) r |= 1L << ((BitItem)list.Items[i]).Bit;
+        return r;
+    }
+
+    private sealed record BitItem(int Bit, string Name)
+    {
+        public override string ToString() => $"{Name}  (bit {Bit})";
+    }
+
     /// <summary>
     /// Seletor de itens com busca, ícone e descrição (addons, itens, monstros, receitas).
     /// group != null mostra um filtro por grupo (ex.: tipo de addon). multi permite escolher vários.
