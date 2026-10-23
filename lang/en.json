@@ -858,5 +858,7 @@
   "tok.towerbuild": "Tower build",
   "tok.domain": "Domain",
   "tok.related": "Related",
-  "tok.src": "Source"
+  "tok.src": "Source",
+  "tok.fixed2": "Fixed",
+  "tok.materials": "Materials"
 }
