@@ -409,5 +409,9 @@
   "class.generic": "Class",
   "class.all": "All classes",
   "tip.classes": "Classes",
-  "grid.flag": "yes / no"
+  "grid.flag": "yes / no",
+  "menu.exportCsv": "&Export current block (CSV spreadsheet)…",
+  "status.exportNoBlock": "Choose a block with items to export.",
+  "status.exported": "Exported",
+  "status.items": "items"
 }

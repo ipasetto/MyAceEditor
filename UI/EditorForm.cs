@@ -132,7 +132,9 @@ public sealed class EditorForm : Form
         var save = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.S }; save.Click += (_, _) => SaveCurrent();
         var saveAs = new ToolStripMenuItem { ForeColor = CFg }; saveAs.Click += (_, _) => SaveElementsAs();
         var exit = new ToolStripMenuItem { ForeColor = CFg }; exit.Click += (_, _) => Close();
-        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, exit });
+        var exportCsv = new ToolStripMenuItem { ForeColor = CFg }; exportCsv.Click += (_, _) => ExportBlockCsv();
+        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, new ToolStripSeparator(), exportCsv, exit });
+        Bind(() => exportCsv.Text = Loc.T("menu.exportCsv", "&Exportar bloco atual (planilha CSV)…"));
         var newItem = new ToolStripMenuItem { ForeColor = CFg }; newItem.Click += (_, _) => AddItem();
         var removeItem = new ToolStripMenuItem { ForeColor = CFg }; removeItem.Click += (_, _) => RemoveItem();
         ed.DropDownItems.AddRange(new ToolStripItem[] { newItem, removeItem });
@@ -536,6 +538,23 @@ public sealed class EditorForm : Form
     // Salvar do menu/Ctrl+S/barra: grava o arquivo da aba aberta (Quests → tasks.data, senão elements.data).
     private void SaveCurrent() { if (_tabs?.SelectedTab == _tabQuests) SaveTasks(); else SaveAs(); }
     private void SaveElementsAs() => SaveElements(saveAs: true);
+
+    // Exporta o bloco aberto (ou o bloco do item selecionado) como planilha CSV: ID, nome e todos os campos.
+    private void ExportBlockCsv()
+    {
+        var block = _curBlock ?? CurrentItemBlock;
+        if (block is null || block.Items.Count == 0) { Status(Loc.T("status.exportNoBlock", "Escolha um bloco com itens para exportar.")); return; }
+        using var dlg = new SaveFileDialog { Filter = "Planilha CSV (*.csv)|*.csv", FileName = block.Name + ".csv" };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var keys = block.Items.SelectMany(i => i.Fields.Keys).Distinct().ToList();
+        string Q(string v) => v.Contains(';') || v.Contains('"') || v.Contains('\n') ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(string.Join(";", new[] { "ID", "Nome" }.Concat(keys).Select(Q)));
+        foreach (var it in block.Items)
+            sb.AppendLine(string.Join(";", new[] { it.Id, it.Name }.Concat(keys.Select(k => it.Fields.TryGetValue(k, out var f) ? f.Value : "")).Select(Q)));
+        File.WriteAllText(dlg.FileName, sb.ToString(), new System.Text.UTF8Encoding(true));   // BOM: abre certo no Excel
+        Status(Loc.T("status.exported", "Exportado") + $": {block.Items.Count:N0} " + Loc.T("status.items", "itens") + $" → {Path.GetFileName(dlg.FileName)}");
+    }
 
     private void SaveElements(bool saveAs)
     {
