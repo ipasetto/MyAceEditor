@@ -52,11 +52,13 @@ public sealed class GameDialog
             int N(string k) => a.TryGetValue(k, out var v) && int.TryParse(v, out var n) ? n : 0;
             var textTag = Regex.Match(body, @"<Text\b([^>]*)/?>");
             var ta = textTag.Success ? Attr.Matches(textTag.Groups[1].Value).ToDictionary(x => x.Groups[1].Value, x => x.Groups[2].Value, StringComparer.OrdinalIgnoreCase) : new();
-            Color? col = ta.TryGetValue("Color", out var cs) && cs.Split(',') is { Length: >= 3 } c
-                ? System.Drawing.Color.FromArgb(c.Length >= 4 ? int.Parse(c[3]) : 255, int.Parse(c[0]), int.Parse(c[1]), int.Parse(c[2])) : null;
+            // cor "R,G,B,A"; há arquivos do jogo com valor malformado (ex.: "25color") — vira "sem cor"
+            static int? C(string s) => int.TryParse(s.Trim(), out var v) ? Math.Clamp(v, 0, 255) : null;
+            Color? col = ta.TryGetValue("Color", out var cs) && cs.Split(',') is { Length: >= 3 } c && C(c[0]) is { } cr && C(c[1]) is { } cg && C(c[2]) is { } cb
+                ? System.Drawing.Color.FromArgb(c.Length >= 4 ? C(c[3]) ?? 255 : 255, cr, cg, cb) : null;
             float size = ta.TryGetValue("FontSize", out var fs) && float.TryParse(fs, NumberStyles.Float, CultureInfo.InvariantCulture, out var f) ? f : 10;
             dlg.Controls[m.Groups[2].Value] = new Control(m.Groups[1].Value, m.Groups[2].Value, new Rectangle(N("x"), N("y"), N("Width"), N("Height")),
-                ta.GetValueOrDefault("String"), size, col, N("Align"), File.Matches(body).Select(x => x.Groups[1].Value).ToList());
+                System.Net.WebUtility.HtmlDecode(ta.GetValueOrDefault("String")), size, col, N("Align"), File.Matches(body).Select(x => x.Groups[1].Value).ToList());
         }
         return dlg;
     }

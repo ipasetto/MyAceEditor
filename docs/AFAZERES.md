@@ -36,7 +36,7 @@
 ## FASE 4 — engine
 [ ] corrigir automaticamente o par (exportar loja/elements/tasks p/ os 2 lados)
 [ ] racas iniciais (exe + createrace.xml + mascara; PW-KB §S12) | jogadores na TW (§S25)
-[ ] janelas do jogo dentro da engine (interfaces.pck XML; PW-KB §S20)
+[x] janelas do jogo dentro da engine: aba Interface (ver/editar posicao, tamanho, texto; salva em interfaces.pck.files) | [ ] gravar no .pck
 [ ] deploy de servidor | editor de mapa (PW-KB §S22) | skills
 
 ## ESTADO GIT
