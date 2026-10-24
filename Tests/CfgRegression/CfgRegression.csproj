@@ -16,6 +16,8 @@
     <Compile Include="../../PerfectWorld/MppcDecoder.cs" Link="Core/MppcDecoder.cs" />
     <Compile Include="../../PerfectWorld/LoadContext.cs" Link="Core/LoadContext.cs" />
     <Compile Include="../../PerfectWorld/FieldKinds.cs" Link="Core/FieldKinds.cs" />
+    <Compile Include="../../PerfectWorld/IdSpaces.cs" Link="Core/IdSpaces.cs" />
+    <Compile Include="../../PerfectWorld/FlagFields.cs" Link="Core/FlagFields.cs" />
     <Compile Include="../../PerfectWorld/TasksFile.cs" Link="Core/TasksFile.cs" />
     <Compile Include="../../PerfectWorld/TaskIndex.cs" Link="Core/TaskIndex.cs" />
     <Compile Include="../../PerfectWorld/TaskSchema.cs" Link="Core/TaskSchema.cs" />

@@ -25,7 +25,8 @@ public sealed class EditorForm : Form
     private readonly DataGridView _grid = new() { Dock = DockStyle.Fill, AllowUserToAddRows = false, AllowUserToResizeRows = false, RowHeadersVisible = false, BorderStyle = BorderStyle.None, ColumnHeadersVisible = false };
     private readonly ToolStripStatusLabel _status = new();
     private readonly ToolTip _tip = new() { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 100 };
-    private string[] _tipLines = Array.Empty<string>();
+    // tooltip da lista: linhas de trechos coloridos (como o tooltip do jogo), drops com ícone e vínculos
+    private readonly List<List<(string Text, Color Color, bool Bold)>> _tipRuns = new();
     private readonly List<(Image? Icon, string Text, string Pct, Color Color)> _tipDrops = new();
     private readonly PictureBox _iconBox = new() { Dock = DockStyle.Left, Width = 44, SizeMode = PictureBoxSizeMode.Zoom, Padding = new Padding(6) };
     private readonly ImageList _treeIcons = new() { ImageSize = new Size(24, 24), ColorDepth = ColorDepth.Depth32Bit };
@@ -93,7 +94,7 @@ public sealed class EditorForm : Form
         _blockCombo.Invalidate(); _typeCombo.Invalidate(); _list.Invalidate();   // textos calculados na hora de desenhar
         UpdateCounters();
         if (_current is not { } item) return;
-        var uses = _refs?.UsedBy(item.Id).Count ?? 0;
+        var uses = _refs?.UsedBy(item).Count ?? 0;
         _tabLinks.Text = uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos");
         _stSel.Text = string.Format(Loc.T("status.selected", "Selecionado: {0}"), item.Id);
         RebuildGroupTabs(item);
@@ -912,7 +913,7 @@ public sealed class EditorForm : Form
         }
         if (e.ColumnIndex == 2)
         {
-            int uses = _refs?.UsedBy(it.Id).Count ?? 0;
+            int uses = _refs?.UsedBy(it).Count ?? 0;
             TextRenderer.DrawText(g, uses.ToString(), _list.Font, Rectangle.Inflate(e.Bounds, -6, 0), sel ? Color.White : uses > 0 ? GGold : Color.FromArgb(90, 96, 106), flags | TextFormatFlags.Right);
             return;
         }
@@ -1288,7 +1289,7 @@ public sealed class EditorForm : Form
         _header.ForeColor = NameColor(item);
         _idLabel.Text = item.Id;
         LoadItemIcon(item);
-        var uses = _refs?.UsedBy(item.Id).Count ?? 0;
+        var uses = _refs?.UsedBy(item).Count ?? 0;
         _tabLinks.Text = (uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos"));
         if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
 
@@ -1425,7 +1426,7 @@ public sealed class EditorForm : Form
         }
         if (sel is "Todos" or "Queda")
         {
-            var drops = (_refs?.UsedBy(item.Id) ?? Array.Empty<RefIndex.Ref>())
+            var drops = (_refs?.UsedBy(item) ?? Array.Empty<RefIndex.Ref>())
                 .Where(u => u.Field.Contains("drop", StringComparison.OrdinalIgnoreCase) && u.Block.Name == "MONSTER_ESSENCE").ToList();
             if (drops.Count > 0)
             {
@@ -1589,7 +1590,7 @@ public sealed class EditorForm : Form
     }
 
     // Resumo no estilo do tooltip do jogo (como o preview do VAE): faixas min-max numa linha, requisitos, preço e atributos possíveis.
-    private void PutTooltipSummary(Item item, Action<string, Color, bool> put)
+    private void PutTooltipSummary(Item item, Action<string, Color, bool> put, int maxPerGroup = 64)
     {
         string? V(string k) => item.Fields.TryGetValue(k, out var f) && !IsEmpty(f.Value) ? f.Value : null;
         var stat = Color.FromArgb(255, 203, 74); var val = CTreeFg; var blue = Color.FromArgb(108, 180, 255);
@@ -1610,6 +1611,25 @@ public sealed class EditorForm : Form
         foreach (var k in new[] { "require_level", "require_strength", "require_agility", "require_energy", "require_tili", "require_reputation" })
             Line(FieldLabels.Label(k), V(k));
         Line(FieldLabels.Label("price"), V("price") is { } p && long.TryParse(p, out var pv) ? pv.ToString("N0") : null);
+        // monstro (como o tooltip do RAE): vida, dano, defesas por elemento, imunidades, recompensas, precisão/esquiva
+        if (item.Fields.ContainsKey("life") && item.Fields.ContainsKey("money_average"))
+        {
+            string? N(string k) => V(k) is { } x && long.TryParse(x, out var n) ? n.ToString("N0") : V(k);
+            Line(FieldLabels.Label("life"), N("life"));
+            Line(Loc.T("tip.physAttack", "Ataque físico"), Range("damage_min", "damage_max"));
+            Line(Loc.T("tip.magicAttack", "Ataque mágico"), Range("magic_damage_min", "magic_damage_max"));
+            Line(FieldLabels.Label("defence"), N("defence"));
+            for (int e = 1; e <= 5; e++) Line(FieldLabels.Label($"magic_defences_{e}"), N($"magic_defences_{e}"));
+            if (V("immune_type") is { } im && long.TryParse(im, out var imv)) Line(FieldLabels.Label("immune_type"), BitMasks.Describe(BitMasks.Immune, imv));
+            foreach (var k in new[] { "exp", "skillpoint", "money_average", "attack", "armor" }) Line(FieldLabels.Label(k), N(k));
+            if (_cfgs?.SkillNames is { Count: > 0 } sn)
+            {
+                var skills = item.Fields.Where(kv => FieldKinds.Of(kv.Key) == FieldKind.SkillRef && !IsEmpty(kv.Value.Value))
+                    .Select(kv => int.TryParse(kv.Value.Value, out var sid) && sn.TryGetValue(sid, out var nm) ? nm : null)
+                    .Where(x => x is not null).Distinct().Take(4).ToList();
+                foreach (var sk in skills) Line(Loc.T("tip.skill", "Habilidade"), sk);
+            }
+        }
         // atributos possíveis: addons/aleatórios/únicos com o efeito do configs.pck e a chance
         var addons = _cfgs?.Addons;
         var groups = new Dictionary<string, List<string>>();   // título -> linhas, na ordem em que aparecem
@@ -1631,7 +1651,8 @@ public sealed class EditorForm : Form
         foreach (var (title, list) in groups)
         {
             put($"\n{title} ({list.Count})\n", stat, true);
-            foreach (var p2 in list.Take(64)) put("  " + p2 + "\n", blue, false);
+            foreach (var p2 in list.Take(maxPerGroup)) put("  " + p2 + "\n", blue, false);
+            if (list.Count > maxPerGroup) put("  …\n", blue, false);
             lines++;
         }
         if (lines > 0) put("\n", val, false);
@@ -1721,7 +1742,7 @@ public sealed class EditorForm : Form
     {
         _links.BeginUpdate();
         _links.Items.Clear();
-        foreach (var r in _refs?.UsedBy(item.Id) ?? Array.Empty<RefIndex.Ref>())
+        foreach (var r in _refs?.UsedBy(item) ?? Array.Empty<RefIndex.Ref>())
         {
             string pct = r.Probability is not null && float.TryParse(r.Probability, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) && p > 0 ? $"{p * 100:0.###}%" : "";
             var li = new ListViewItem(new[] { Pretty(r.Block.Name), r.Item.Id, r.Item.Name, FieldLabels.Label(r.Field), pct }, IconIndexFor(r.Item)) { Tag = r.Item };
@@ -1920,7 +1941,6 @@ public sealed class EditorForm : Form
     { try { return File.Exists(FavFile) ? File.ReadAllLines(FavFile) : Array.Empty<string>(); } catch { return Array.Empty<string>(); } }
 
     // ---------- tooltip estilo jogo ----------
-    private Color _tipColor = Color.White;
     private void OnListHover(object? s, MouseEventArgs e)
     {
         var hit = _list.HitTest(e.Location).Item;
@@ -1928,64 +1948,102 @@ public sealed class EditorForm : Form
         if (idx == _hoverIdx) return;
         _hoverIdx = idx;
         if (idx < 0 || idx >= _view.Count) { _tip.Hide(_list); return; }
-        var it = _view[idx];
-        _tipLines = BuildTipLines(it);
-        _tipColor = NameColor(it);
+        BuildTip(_view[idx]);
         _tip.Show(" ", _list, e.X + 22, e.Y + 16, 15000);
     }
 
+    static readonly Font TipFont = new("Segoe UI", 9), TipBold = new("Segoe UI Semibold", 9.5f);
+    const TextFormatFlags TipFlags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+    static readonly Color TipText = Color.FromArgb(206, 211, 219), TipGold = Color.FromArgb(232, 182, 78), TipLink = Color.FromArgb(150, 120, 230);
+
     private void SizeTip(object? s, PopupEventArgs e)
     {
-        using var f = new Font("Segoe UI", 9);
-        int w = 120;
-        foreach (var l in _tipLines) w = Math.Max(w, TextRenderer.MeasureText(l, f).Width);
-        foreach (var d in _tipDrops) w = Math.Max(w, TextRenderer.MeasureText($"Item: {d.Text}  {d.Pct}", f).Width + 22);
-        e.ToolTipSize = new Size(w + 22, _tipLines.Length * 18 + (_tipDrops.Count > 0 ? _tipDrops.Count * 20 + 8 : 0) + 16);
+        if (e.AssociatedControl != _list) return;   // os outros controles usam o tooltip comum
+        int w = 160, h = 16;
+        foreach (var line in _tipRuns)
+        {
+            int lw = line.Sum(r => TextRenderer.MeasureText(r.Text, r.Bold ? TipBold : TipFont, Size.Empty, TipFlags).Width);
+            w = Math.Max(w, lw); h += 18;
+        }
+        foreach (var d in _tipDrops) w = Math.Max(w, TextRenderer.MeasureText($"Item: {d.Text}  {d.Pct}", TipFont, Size.Empty, TipFlags).Width + 26);
+        if (_tipDrops.Count > 0) h += _tipDrops.Count * 20 + 6;
+        e.ToolTipSize = new Size(Math.Min(w + 22, 560), h);
     }
 
     private void DrawTip(object? s, DrawToolTipEventArgs e)
     {
+        if (e.AssociatedControl != _list) { e.DrawBackground(); e.DrawBorder(); e.DrawText(); return; }
         e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(16, 17, 20)), e.Bounds);
         using (var pen = new Pen(Color.FromArgb(70, 74, 82))) e.Graphics.DrawRectangle(pen, 0, 0, e.Bounds.Width - 1, e.Bounds.Height - 1);
-        using var fName = new Font("Segoe UI Semibold", 9.5f);
-        using var f = new Font("Segoe UI", 9);
         int y = 8;
-        for (int i = 0; i < _tipLines.Length; i++)
+        void Line(List<(string Text, Color Color, bool Bold)> line)
         {
-            var col = i == 0 ? _tipColor : Color.FromArgb(206, 211, 219);
-            TextRenderer.DrawText(e.Graphics, _tipLines[i], i == 0 ? fName : f, new Point(10, y), col);
+            int x = 10;
+            foreach (var (t, c, bold) in line)
+            {
+                var f = bold ? TipBold : TipFont;
+                TextRenderer.DrawText(e.Graphics, t, f, new Point(x, y), c, TipFlags);
+                x += TextRenderer.MeasureText(t, f, Size.Empty, TipFlags).Width;
+            }
             y += 18;
         }
-        if (_tipDrops.Count > 0) y += 6;
-        foreach (var d in _tipDrops)
+        // drops entram depois do resumo e antes dos vínculos
+        int dropsAt = _tipRuns.FindIndex(l => l.Count > 0 && l[0].Text == "\u0001");
+        for (int i = 0; i < _tipRuns.Count; i++)
         {
-            TextRenderer.DrawText(e.Graphics, "Item:", f, new Point(10, y + 1), Color.FromArgb(206, 211, 219));
-            int x = 50;
-            if (d.Icon is not null) e.Graphics.DrawImage(d.Icon, x, y, 18, 18);
-            x += 22;
-            var sz = TextRenderer.MeasureText(d.Text, f);
-            TextRenderer.DrawText(e.Graphics, d.Text, f, new Point(x, y + 1), d.Color);
-            TextRenderer.DrawText(e.Graphics, d.Pct, f, new Point(x + sz.Width + 4, y + 1), Color.FromArgb(232, 182, 78));
-            y += 20;
+            if (i == dropsAt)
+            {
+                y += 3;
+                foreach (var d in _tipDrops)
+                {
+                    TextRenderer.DrawText(e.Graphics, "Item:", TipFont, new Point(10, y + 1), TipText, TipFlags);
+                    int x = 46;
+                    if (d.Icon is not null) e.Graphics.DrawImage(d.Icon, x, y, 18, 18);
+                    x += 22;
+                    TextRenderer.DrawText(e.Graphics, d.Text, TipFont, new Point(x, y + 1), d.Color, TipFlags);
+                    x += TextRenderer.MeasureText(d.Text, TipFont, Size.Empty, TipFlags).Width + 6;
+                    TextRenderer.DrawText(e.Graphics, d.Pct, TipFont, new Point(x, y + 1), TipGold, TipFlags);
+                    y += 20;
+                }
+                y += 3;
+                continue;
+            }
+            Line(_tipRuns[i]);
         }
     }
 
-    private static readonly string[] TipGroups = { "Básico", "Requisitos", "Ataque", "Defesa", "Durabilidade", "Economia" };
-    private string[] BuildTipLines(Item it)
+    /// <summary>Diagnóstico (--snapshot ... tip): desenha o tooltip da lista do item atual num bitmap.</summary>
+    internal Bitmap? RenderListTip()
     {
-        var lines = new List<string> { string.IsNullOrEmpty(it.Name) ? $"#{it.Id}" : it.Name, $"ID: {it.Id}" };
-        foreach (var g in TipGroups)
-            foreach (var (k, f) in it.Fields)
-            {
-                if (lines.Count >= 16) break;
-                if (FieldLabels.Group(k) != g) continue;
-                if (k is "ID" or "Name" || k.StartsWith("id_") || IsEmpty(f.Value) || FieldKinds.Of(k) != FieldKind.Plain) continue;
-                lines.Add($"{FieldLabels.Label(k)}: {f.Value}");
-            }
-        if (FieldKinds.ClassNames(it.Fields.GetValueOrDefault("character_combo_id")?.Value ?? "") is { Length: > 0 } cls)
-            lines.Add($"{Loc.T("tip.classes", "Classes")}: {cls}");
+        if (_current is null) return null;
+        BuildTip(_current);
+        var pe = new PopupEventArgs(_list, _list, false, Size.Empty);
+        SizeTip(_tip, pe);
+        var bmp = new Bitmap(pe.ToolTipSize.Width, pe.ToolTipSize.Height);
+        using var g = Graphics.FromImage(bmp);
+        DrawTip(_tip, new DrawToolTipEventArgs(g, _list, _list, new Rectangle(Point.Empty, pe.ToolTipSize), " ", Color.Black, Color.White, TipFont));
+        return bmp;
+    }
 
-        // drops/itens referenciados com probabilidade (como o tooltip do Rody)
+    // Nome, resumo do jogo (o mesmo da aba Descrição), drops com ícone e "Vínculos" (quem usa o item), como no RAE/sELedit.
+    private void BuildTip(Item it)
+    {
+        _tipRuns.Clear();
+        var cur = new List<(string, Color, bool)>();
+        void Put(string text, Color c, bool bold)
+        {
+            var parts = text.Split('\n');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (i > 0) { if (cur.Count > 0) _tipRuns.Add(cur); cur = new(); }
+                if (parts[i].Length > 0) cur.Add((parts[i], c, bold));
+            }
+        }
+        Put((string.IsNullOrEmpty(it.Name) ? $"#{it.Id}" : TasksFile.SplitColor(it.Name).Text) + "  ", NameColor(it), true);
+        Put($"ID {it.Id}\n", CMuted, false);
+        PutTooltipSummary(it, Put, maxPerGroup: 3);
+        if (cur.Count > 0) { _tipRuns.Add(cur); cur = new(); }
+
         _tipDrops.Clear();
         foreach (var (k, f) in it.Fields)
         {
@@ -1995,9 +2053,30 @@ public sealed class EditorForm : Form
             if (prob is null || _refs?.Resolve(FieldKind.ItemRef, f.Value) is not { } hit) continue;
             if (!float.TryParse(it.Fields[prob].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) || p <= 0) continue;
             var ico = IconIndexFor(hit.Item);
-            _tipDrops.Add((ico >= 0 ? _treeIcons.Images[ico] : null, hit.Item.Name, $"{p * 100:0.##}%", NameColor(hit.Item)));
+            _tipDrops.Add((ico >= 0 ? _treeIcons.Images[ico] : null, TasksFile.SplitColor(hit.Item.Name).Text, $"{p * 100:0.##}%", NameColor(hit.Item)));
         }
-        return lines.ToArray();
+        if (_tipDrops.Count > 0) _tipRuns.Add(new() { ("\u0001", Color.Empty, false) });   // marcador: os drops entram aqui
+
+        // vínculos: quem aponta para este ID (drop de monstro, loja, receita...)
+        var used = _refs?.UsedBy(it) ?? Array.Empty<RefIndex.Ref>();
+        if (used.Count > 0)
+        {
+            Put(string.Format(Loc.T("tip.links", "Vínculos ({0}):"), used.Count) + "\n", TipLink, true);
+            foreach (var g in used.GroupBy(r => r.Block).Take(4))
+            {
+                Put("  " + Pretty(g.Key.Name) + $" ({g.Count()})\n", TipGold, false);
+                foreach (var r in g.Take(3))
+                {
+                    var pct = r.Probability is { } pk && r.Item.Fields.TryGetValue(pk, out var pf)
+                        && float.TryParse(pf.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pv) && pv > 0 ? $"  {pv * 100:0.##}%" : "";
+                    Put($"    {r.Item.Id}  ", CMuted, false);
+                    Put(TasksFile.SplitColor(r.Item.Name).Text, NameColor(r.Item), false);
+                    Put(pct + "\n", TipGold, false);
+                }
+                if (g.Count() > 3) Put("    …\n", CMuted, false);
+            }
+            if (cur.Count > 0) _tipRuns.Add(cur);
+        }
     }
 
     // ---------- memória da última pasta ----------

@@ -183,6 +183,14 @@ public sealed class RefIndex
         return CachedUsedBy(id);
     }
 
+    /// <summary>
+    /// Quem referencia este registro. O índice é por número, e o mesmo número pode existir em espaços de ID
+    /// diferentes (PW-KB §S28: o item 503 e o addon de monstro 503); aqui só ficam as referências cujo campo
+    /// aponta mesmo para este registro.
+    /// </summary>
+    public IReadOnlyList<Ref> UsedBy(Item target) =>
+        UsedBy(target.Id).Where(r => Resolve(FieldKinds.Of(r.Field), target.Id)?.Item == target).ToList();
+
     public bool IsPrepared => _usedBy is not null;
     public IReadOnlyList<Ref> CachedUsedBy(string id) =>
         _usedBy is not null && _usedBy.TryGetValue(id, out var found) ? found : Array.Empty<Ref>();

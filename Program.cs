@@ -58,6 +58,7 @@ internal static class Program
         var until = DateTime.Now.AddSeconds(12);
         if (item is { } x) { var t0 = DateTime.Now.AddSeconds(8); while (DateTime.Now < t0) { Application.DoEvents(); Thread.Sleep(30); } f.GoToId(x.Block, x.Id); if (group is not null) f.SelectGroup(group); }
         while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
+        if (group == "tip" && f.RenderListTip() is { } tip) { tip.Save(outPng, System.Drawing.Imaging.ImageFormat.Png); return; }   // tooltip da lista
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
         bmp.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
