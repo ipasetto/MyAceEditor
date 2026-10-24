@@ -41,6 +41,13 @@ public static class FieldKinds
         }
     }
 
+    /// <summary>
+    /// Tipo do campo levando o bloco em conta, quando o nome sozinho engana: no NPC_MAKE_SERVICE os
+    /// pages_N_id_goods_M são IDs de RECEITA (em 22 versões antigas o NPC_SELL_SERVICE usa o mesmo nome para itens).
+    /// </summary>
+    public static FieldKind Of(string? block, string field) =>
+        block == "NPC_MAKE_SERVICE" && Regex.IsMatch(field, @"^pages_\d+_id_goods_\d+$") ? FieldKind.RecipeRef : Of(field);
+
     static FieldKind Classify(string field)
     {
         var n = field.ToLowerInvariant();
@@ -195,7 +202,7 @@ public sealed class RefIndex
     /// aponta mesmo para este registro.
     /// </summary>
     public IReadOnlyList<Ref> UsedBy(Item target) =>
-        UsedBy(target.Id).Where(r => Resolve(FieldKinds.Of(r.Field), target.Id)?.Item == target).ToList();
+        UsedBy(target.Id).Where(r => Resolve(FieldKinds.Of(r.Block.Name, r.Field), target.Id)?.Item == target).ToList();
 
     public bool IsPrepared => _usedBy is not null;
     public IReadOnlyList<Ref> CachedUsedBy(string id) =>
@@ -214,7 +221,7 @@ public sealed class RefIndex
             var schema = (_module.Source as ElementsLayout)?.Blocks.FirstOrDefault(b => ReferenceEquals(b.List, list))?.Block;
             IEnumerable<string> names = schema is not null ? schema.Fields.Select(f => f.Name)
                 : list.Items.SelectMany(it => it.Fields.Keys).Distinct(StringComparer.Ordinal);
-            var plans = names.Where(n => { context?.Check(); return FieldKinds.IsReference(FieldKinds.Of(n)); })
+            var plans = names.Where(n => { context?.Check(); return FieldKinds.IsReference(FieldKinds.Of(list.Name, n)); })
                 .Select(n => (Name: n, Probabilities: FieldKinds.ProbabilityCandidates(n))).ToArray();
             foreach (var item in list.Items)
             {

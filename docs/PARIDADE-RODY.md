@@ -49,7 +49,7 @@
 [ ] B barra de valor sob a grade: numero + botoes rapidos (0.1 0.2 0.25 0.33 0.5 … / 0 1 2 5 10 100 1000 …) + slider + Σ
 [ ] B menu de contexto do campo: alterar valor (Ctrl+E), mover campos, selecionar campos similares, pesquisar iguais/nao iguais/originais/itens nao encontrados, substituir nos selecionados, copiar/colar/recortar, limpar campos/pagina
 [ ] B definir tipo do campo / lista vinculada (custom pelo usuario, manual ou automatica)
-[ ] B preview de modelo 3D (janela separada) | [ ] A preview do servico de criar do NPC como a janela do jogo (abas Amuleto/Pingente/Anel/Mats) — ver myaceeditor-game-like-ui
+[ ] B preview de modelo 3D (janela separada) | [x] A preview do servico de criar do NPC como a janela do jogo (produce_icon.xml: paginas, receitas, materiais, item, ouro, habilidade)
 [ ] B editar descricao (item_ext_desc) com botoes de cor nomeados (Azul, Dourado, Roxo, Laranja, Branco, Cinza, Verde) e previa
 [ ] C curva de evolucao de mascote (lista de niveis)
 [x] tooltip como no jogo | [ ] B tooltip fixavel (F2) + "Ctrl+Shift+G: ir para este item" + barras de chance nas referencias

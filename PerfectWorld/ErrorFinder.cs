@@ -43,7 +43,7 @@ public static class ErrorFinder
             var probKeys = sample.Where(k => FieldKinds.Of(k) == FieldKind.Probability).ToList();
             var groups = probKeys.GroupBy(GroupOf).Where(g => g.Key is not null && g.Count() > 1)
                 .ToDictionary(g => g.Key!, g => g.ToList());
-            var refKeys = sample.Where(k => FieldKinds.IsReference(FieldKinds.Of(k))).ToList();
+            var refKeys = sample.Where(k => FieldKinds.IsReference(FieldKinds.Of(block.Name, k))).ToList();
 
             // grupo é distribuição se soma ~1 em >= 90% dos itens em que tem algum valor
             var distribution = new HashSet<string>();

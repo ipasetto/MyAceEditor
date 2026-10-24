@@ -53,16 +53,10 @@ public static class IdRefactor
         };
     }
 
-    // Campos cujo espaço de ID depende do bloco, não só do nome: no NPC_MAKE_SERVICE os "goods" são receitas (PW-KB §S28)
-    static IdSpaces.Space? SpaceOverride(ItemList refBlock, string field) =>
-        refBlock.Name == "NPC_MAKE_SERVICE" && field.Contains("goods") ? IdSpaces.Space.Recipe : null;
-
     public static IdChangePlan Plan(RefIndex refs, ItemList block, Item item, string newId, TasksFile? tasks, IEnumerable<GShopFile> shops)
     {
-        var space = IdSpaces.Of(block.Name);
-        var elements = refs.UsedBy(item.Id).Where(r => SpaceOverride(r.Block, r.Field) is { } sp
-            ? sp == space
-            : refs.Resolve(FieldKinds.Of(r.Field), item.Id)?.Item == item).ToList();
+        // o tipo do campo depende do bloco (NPC_MAKE_SERVICE goods = receita): FieldKinds.Of(bloco, campo)
+        var elements = refs.UsedBy(item).ToList();
         var quests = new List<(QuestNode, TaskField)>();
         if (tasks is { FullSchema: true } && IdSpaces.Of(block.Name) == IdSpaces.Space.Essence)
             foreach (var q in tasks.AllNodes())

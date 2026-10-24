@@ -68,6 +68,8 @@ public sealed class EditorForm : Form
     private TabPage _tabLinks = null!;
     private readonly TabPage _tabShop = new();   // só aparece em NPC_SELL_SERVICE
     private ShopPreview _shop = null!;
+    private readonly TabPage _tabMake = new();   // só aparece em NPC_MAKE_SERVICE
+    private MakePreview _make = null!;
     private TabControl? _tabs;
     private TabPage? _tabQuests;
     private readonly ContextMenuStrip _ctx = new();
@@ -479,6 +481,11 @@ public sealed class EditorForm : Form
         _shop = new ShopPreview(id => _refs?.Resolve(FieldKind.ItemRef, id)?.Item, IconFor, GoToItem) { Dock = DockStyle.Fill };
         _tabShop.Controls.Add(_shop);
         Bind(() => _tabShop.Text = Loc.T("detail.shop", "Loja (como no jogo)"));
+        _make = new MakePreview(() => _dataPath is null ? null : FindClientPck(_dataPath, "interfaces.pck") is { } ip ? Path.GetDirectoryName(ip) : null,
+            id => _refs?.Resolve(FieldKind.RecipeRef, id)?.Item, id => _refs?.Resolve(FieldKind.ItemRef, id)?.Item, IconFor,
+            sid => _cfgs?.SkillNames.TryGetValue(sid, out var sn) == true ? TasksFile.SplitColor(sn!).Text : null, GoToItem) { Dock = DockStyle.Fill };
+        _tabMake.Controls.Add(_make);
+        Bind(() => _tabMake.Text = Loc.T("detail.make", "Fabricação (como no jogo)"));
         _detailTabs.SelectedIndexChanged += (_, _) => { if (_detailTabs.SelectedTab == _tabLinks && _current is not null) FillLinks(_current); };
         right.Controls.Add(_detailTabs);
         right.Controls.Add(headPanel);
@@ -514,7 +521,7 @@ public sealed class EditorForm : Form
             switch (_grid.Rows[e.RowIndex].Tag)
             {
                 case string k when _current is not null && FieldKinds.Of(k) == FieldKind.TaskRef && int.TryParse(_current.Fields[k].Value, out var qid): GoToQuest(qid); break;
-                case string k when _current is not null && _refs?.Resolve(FieldKinds.Of(k), _current.Fields[k].Value) is { } hit: GoToItem(hit.Item); break;
+                case string k when _current is not null && _refs?.Resolve(KindOf(_current, k), _current.Fields[k].Value) is { } hit: GoToItem(hit.Item); break;
                 case Item it: GoToItem(it); break;
             }
         };
@@ -1671,6 +1678,10 @@ public sealed class EditorForm : Form
         if (isShop && !_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.TabPages.Insert(1, _tabShop);
         else if (!isShop && _detailTabs.TabPages.Contains(_tabShop)) _detailTabs.TabPages.Remove(_tabShop);
         if (isShop) _shop.ShowShop(item);
+        bool isMake = _owner.TryGetValue(item, out var mb) && mb.Name == "NPC_MAKE_SERVICE";
+        if (isMake && !_detailTabs.TabPages.Contains(_tabMake)) _detailTabs.TabPages.Insert(1, _tabMake);
+        else if (!isMake && _detailTabs.TabPages.Contains(_tabMake)) _detailTabs.TabPages.Remove(_tabMake);
+        if (isMake) _make.ShowService(item);
 
         // sub-abas por grupo (Básico, Habilidades, Queda, Modelo…), mantendo a aba escolhida se existir
         RebuildGroupTabs(item);
@@ -1695,6 +1706,7 @@ public sealed class EditorForm : Form
     internal void SelectGroup(string id)
     {
         if (id.Equals("shop", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.SelectedTab = _tabShop; return; }
+        if (id.Equals("make", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabMake)) _detailTabs.SelectedTab = _tabMake; return; }
         if (id.Equals("desc", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedIndex = _detailTabs.TabCount - 1; return; }
         if (id.StartsWith("ui:", StringComparison.OrdinalIgnoreCase)) { if (_tabs is not null && _tabPck is not null) _tabs.SelectedTab = _tabPck; _pckView?.OpenUiForSnapshot(id[3..]); return; }
         if (id.Equals("links", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedTab = _tabLinks; if (_current is not null) FillLinks(_current); return; }
@@ -1866,8 +1878,11 @@ public sealed class EditorForm : Form
     };
 
     // ---------- editores por duplo clique (estilo Rody) ----------
+    // Tipo do campo no bloco do item (ver FieldKinds.Of(bloco, campo))
+    private FieldKind KindOf(Item? item, string key) => FieldKinds.Of(item is not null && _owner.TryGetValue(item, out var b) ? b.Name : null, key);
+
     private bool IsSpecialEditor(string key) =>
-        FieldKinds.Of(key) is FieldKind.ClassMask or FieldKind.ProcMask or FieldKind.ImmuneMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef or FieldKind.ServiceRef
+        KindOf(_current, key) is FieldKind.ClassMask or FieldKind.ProcMask or FieldKind.ImmuneMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef or FieldKind.ServiceRef
             or FieldKind.FoodMask or FieldKind.ServiceMask
         || (FieldKinds.Of(key) == FieldKind.Waypoint && Waypoints().Count > 0)
         || (FieldKinds.Of(key) == FieldKind.SkillRef && _cfgs?.SkillNames.Count > 0)
@@ -1926,7 +1941,7 @@ public sealed class EditorForm : Form
 
     private bool EditFieldSpecial(Item item, string key)
     {
-        var kind = FieldKinds.Of(key);
+        var kind = KindOf(item, key);
         var cur = item.Fields[key].Value;
         if (key.Equals("file_icon", StringComparison.OrdinalIgnoreCase) && _atlas is not null)
         {
@@ -2212,7 +2227,7 @@ public sealed class EditorForm : Form
     // Texto da coluna "Vínculo": nome do item/addon/receita apontado, % e classes por extenso.
     private string Describe(Item item, string field, string value)
     {
-        var kind = FieldKinds.Of(field);
+        var kind = KindOf(item, field);
         switch (kind)
         {
             case FieldKind.Probability:

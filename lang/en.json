@@ -1470,5 +1470,11 @@
   "chid.ok": "Change ID",
   "chid.preview": "Will change:\n  • the item ID ({0} → {1})\n  • {2} field(s) in elements.data pointing to it\n  • {3} field(s) in quests (tasks.data)\n  • {4} reference(s) in the shop (gshop)\n\nNot updated yet: npcgen.data (where monsters and NPCs spawn on the map) and the name description/color in configs.pck (they stay on the old ID). Ctrl+Z undoes everything at once.",
   "hist.changeId": "Change ID {0} → {1}",
-  "status.changeId": "ID {0} → {1}: {2} reference(s) updated (elements {3}, quests {4}, shop {5}). Save the files to write them."
+  "status.changeId": "ID {0} → {1}: {2} reference(s) updated (elements {3}, quests {4}, shop {5}). Save the files to write them.",
+  "detail.make": "Crafting (as in game)",
+  "make.noUi": "Game window not found (interfaces.pck / surfaces.pck next to elements.data).",
+  "make.missing": "Recipe {0} not found",
+  "make.recipe": "Recipe",
+  "make.hint": "Click: show materials · double-click: open the recipe",
+  "make.page": "Page {0}: {1} ({2} recipes)"
 }
