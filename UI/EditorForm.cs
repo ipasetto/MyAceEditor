@@ -94,7 +94,7 @@ public sealed class EditorForm : Form
         _blockCombo.Invalidate(); _typeCombo.Invalidate(); _list.Invalidate();   // textos calculados na hora de desenhar
         UpdateCounters();
         if (_current is not { } item) return;
-        var uses = _refs?.UsedBy(item).Count ?? 0;
+        var uses = LinkCount(item);
         _tabLinks.Text = uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos");
         _stSel.Text = string.Format(Loc.T("status.selected", "Selecionado: {0}"), item.Id);
         RebuildGroupTabs(item);
@@ -166,6 +166,7 @@ public sealed class EditorForm : Form
             history.Text = Loc.T("menu.history", "&Histórico de ações…");
         }
         _edits.Changed += UpdateUndoMenu;
+        _edits.Changed += () => _typeCache.Clear();   // tipo/subtipo de um item pode ter mudado
         var about = new ToolStripMenuItem { ForeColor = CFg };
         about.Click += (_, _) => MessageBox.Show(Loc.T("menu.aboutText", "MyAceEditor — editor dos dados do Perfect World."), Loc.T("menu.about", "Sobre"));
         aj.DropDownItems.Add(about);
@@ -301,6 +302,7 @@ public sealed class EditorForm : Form
         _list.DrawSubItem += OnDrawSubItem;
         _list.ColumnClick += (_, e) => OnColumnClick(e.Column);
         _list.SelectedIndexChanged += (_, _) => OnListSelect();
+        _list.ItemActivate += (_, _) => { if (_current is not null && TypeMembers(_current) is not null) OpenTypeFilter(_current); };
         _list.VirtualItemsSelectionRangeChanged += (_, _) => OnListSelect();
         _list.KeyDown += (_, e) =>
         {
@@ -610,6 +612,7 @@ public sealed class EditorForm : Form
         var module = r.Module;
         _store.Adopt(module);
         _unusedCache.Clear();
+        _typeCache.Clear();
         _edits.Clear();
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
@@ -913,7 +916,7 @@ public sealed class EditorForm : Form
         }
         if (e.ColumnIndex == 2)
         {
-            int uses = _refs?.UsedBy(it).Count ?? 0;
+            int uses = LinkCount(it);
             TextRenderer.DrawText(g, uses.ToString(), _list.Font, Rectangle.Inflate(e.Bounds, -6, 0), sel ? Color.White : uses > 0 ? GGold : Color.FromArgb(90, 96, 106), flags | TextFormatFlags.Right);
             return;
         }
@@ -1289,7 +1292,7 @@ public sealed class EditorForm : Form
         _header.ForeColor = NameColor(item);
         _idLabel.Text = item.Id;
         LoadItemIcon(item);
-        var uses = _refs?.UsedBy(item).Count ?? 0;
+        var uses = LinkCount(item);
         _tabLinks.Text = (uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos"));
         if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
 
@@ -1323,6 +1326,7 @@ public sealed class EditorForm : Form
     {
         if (id.Equals("shop", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.SelectedTab = _tabShop; return; }
         if (id.Equals("desc", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedIndex = _detailTabs.TabCount - 1; return; }
+        if (id.Equals("links", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedTab = _tabLinks; if (_current is not null) FillLinks(_current); return; }
         foreach (TabPage t in _groupTabs.TabPages)
             if (string.Equals(t.Tag as string, id, StringComparison.OrdinalIgnoreCase)) { _groupTabs.SelectedTab = t; return; }
     }
@@ -1744,6 +1748,14 @@ public sealed class EditorForm : Form
     {
         _links.BeginUpdate();
         _links.Items.Clear();
+        if (TypeMembers(item) is { } tm)
+        {
+            // tipo/subtipo: subtipos que aparecem nos itens do tipo e os itens dele (como abrir a pasta)
+            foreach (var (sub, n) in tm.Subs)
+                _links.Items.Add(new ListViewItem(new[] { Pretty(tm.SubBlock!.Name), sub.Id, sub.Name, Loc.T("links.subtype", "Subtipo"), string.Format(Loc.T("links.items", "{0} itens"), n) }, IconIndexFor(sub)) { Tag = sub });
+            foreach (var it in tm.Items.Take(3000))
+                _links.Items.Add(new ListViewItem(new[] { Pretty(tm.Essence.Name), it.Id, it.Name, FieldLabels.Label(tm.Field), "" }, IconIndexFor(it)) { Tag = it });
+        }
         foreach (var r in _refs?.UsedBy(item) ?? Array.Empty<RefIndex.Ref>())
         {
             string pct = r.Probability is not null && float.TryParse(r.Probability, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) && p > 0 ? $"{p * 100:0.###}%" : "";
@@ -1751,6 +1763,56 @@ public sealed class EditorForm : Form
             _links.Items.Add(li);
         }
         _links.EndUpdate();
+    }
+
+    // ---------- tipos e subtipos (WEAPON_MAJOR_TYPE, WEAPON_SUB_TYPE...) ----------
+    // O elements.data não liga o subtipo ao tipo: a ligação vem dos itens (id_major_type + id_sub_type).
+    private sealed record TypeInfo(ItemList Essence, string Field, List<Item> Items, ItemList? SubBlock, List<(Item Sub, int Count)> Subs);
+    private readonly Dictionary<Item, TypeInfo?> _typeCache = new(ReferenceEqualityComparer.Instance);
+
+    private TypeInfo? TypeMembers(Item item)
+    {
+        if (_typeCache.TryGetValue(item, out var cached)) return cached;
+        TypeInfo? info = null;
+        if (_owner.TryGetValue(item, out var block) && _store.Current is { } mod
+            && (block.Name.EndsWith("_MAJOR_TYPE") || block.Name.EndsWith("_SUB_TYPE")))
+        {
+            bool major = block.Name.EndsWith("_MAJOR_TYPE");
+            var prefix = block.Name[..^(major ? "_MAJOR_TYPE".Length : "_SUB_TYPE".Length)];
+            var field = major ? "id_major_type" : "id_sub_type";
+            // bloco dos itens: PREFIX_ESSENCE ou, se não houver, o bloco da família que tem o campo
+            var essence = mod.FindListByName(prefix + "_ESSENCE")
+                ?? mod.Lists.FirstOrDefault(l => l.Name.StartsWith(prefix + "_") && l != block && !l.Name.EndsWith("_TYPE")
+                    && l.Items.FirstOrDefault()?.Fields.ContainsKey(field) == true);
+            if (essence is not null)
+            {
+                var items = essence.Items.Where(i => Fv(i, field) == item.Id).ToList();
+                var subBlock = major ? mod.FindListByName(prefix + "_SUB_TYPE") : null;
+                var subs = new List<(Item, int)>();
+                if (subBlock is not null)
+                    foreach (var g in items.GroupBy(i => Fv(i, "id_sub_type")))
+                        if (subBlock.FindById(g.Key) is { } sub) subs.Add((sub, g.Count()));
+                info = new TypeInfo(essence, field, items, subBlock, subs);
+            }
+        }
+        _typeCache[item] = info;
+        return info;
+    }
+
+    private int LinkCount(Item item) => (_refs?.UsedBy(item).Count ?? 0) + (TypeMembers(item) is { } t ? t.Items.Count + t.Subs.Count : 0);
+
+    // Duplo clique num tipo/subtipo na lista: abre o bloco dos itens já filtrado por ele.
+    private void OpenTypeFilter(Item typeItem)
+    {
+        if (TypeMembers(typeItem) is not { } tm) return;
+        foreach (var o in _blockCombo.Items)
+            if (o is BlockEntry be && be.Block == tm.Essence) { _search.Text = ""; _blockCombo.SelectedItem = be; break; }
+        if (!_typeCombo.Visible) return;
+        bool major = tm.Field == "id_major_type";
+        for (int i = 0; i < _typeCombo.Items.Count; i++)
+            if (_typeCombo.Items[i] is TypeEntry te && (major ? te.Major == typeItem.Id && te.Sub is null : te.Sub == typeItem.Id))
+            { _typeCombo.SelectedIndex = i; break; }
+        Status(string.Format(Loc.T("status.typeOpened", "{0}: {1} itens"), TasksFile.SplitColor(typeItem.Name).Text, tm.Items.Count));
     }
 
     // Navega até um item de qualquer bloco (troca o seletor de bloco se precisar).
