@@ -16,18 +16,54 @@ Projeto **aberto e comunitário**: a meta é tornar o Perfect World 100% editáv
 
 ## Recursos
 
-- Abre a pasta do Perfect World e **recarrega sozinho** na próxima vez.
-- Lê e **grava** o `elements.data` (cerca de 40 mil itens em 95 blocos), com prova de gravação idêntica e backup automático.
-- **Ícones reais do jogo**, lidos direto do `surfaces.pck`, sem extrair nada.
-- Tela no estilo dos editores clássicos (Rody's Angelica Editor): blocos agrupados por categoria, filtro
-  por tipo, busca, sub-abas por grupo de campos, nome na cor oficial do jogo, tooltip com drops.
-- **Duplo clique** abre editores próprios: classes (caixinhas), atributos com a descrição em português,
-  seletor de itens/monstros/receitas com ícone.
-- **Vínculos**: o que cada item usa e quem o usa, "dropado por" com chance, tudo com links.
-- Seleção múltipla e ações em lote (clonar, excluir, alterar um campo em vários itens).
-- **Quests** (`tasks.data` v93): campos, textos, diálogos e subquests.
-- **Verificação do par cliente × servidor**: aponta o que derruba o login com "versão errada".
+**Atualizado em 24/10/2026.**
+
+### Elements (`elements.data`)
+- Abre a pasta do Perfect World e **recarrega sozinho** na próxima vez; lê e **grava** o `elements.data` com prova de gravação idêntica e backup automático.
+- **Ícones reais do jogo**, lidos direto do `surfaces.pck`.
+- Tela no estilo dos editores clássicos: blocos por categoria, filtro por tipo, busca, sub-abas por grupo, nome na cor oficial do jogo.
+- **Tooltip como no jogo**: atributos, defesas por elemento, imunidades, drops com ícone e chance, e quem usa o item.
+- **Vínculos**: o que cada item usa e quem o usa; **tipos e subtipos** listam os subtipos e os itens deles (duplo clique filtra a lista).
+- Códigos explicados na própria grade (tipo de combate, agressivo, terra/água/ar, segundos por golpe).
+- **Desfazer/refazer** (Ctrl+Z/Ctrl+Y) com histórico de ações.
+- **Alterar em lote**: definir, somar, multiplicar, sequência, aleatório e substituir texto, com prévia antes/depois.
+- **Procurar erros** (Ctrl+E): IDs que não existem, probabilidades fora de 0–100% ou que não somam 100%, IDs repetidos; corrige as probabilidades com um clique.
+- **Salvar em outra versão**: converte o `elements.data` para cima ou para baixo (qualquer versão com `.cfg`), casando blocos e campos pelo nome.
+- **Traduzir com outro elements.data**: copia nomes e textos pelo ID de um arquivo já traduzido, escolhendo os blocos e só o que falta traduzir.
+
+### Loja de cash (GShop)
+- **A mesma tela do jogo**: desenhada com o `qshop.xml` do `interfaces.pck` e as texturas do `surfaces.pck`, com as fontes do próprio cliente.
+- Duplo clique no nome, no preço ou numa categoria edita ali mesmo; painel ao lado para item, quantidade, figura, descrição colorida, 4 opções de venda e presente.
+- Salva o `gshop.data` (cliente) e o `gshopsev.data` (servidor) juntos, com o mesmo timestamp; desfazer/refazer.
+
+### Quests (`tasks.data` v93)
+- Campos, textos, diálogos e subquests; **itens exigidos/dados, monstros a matar e prêmios** (ouro, exp, SP, reputação, itens) editáveis.
+- **Clonar** quest (IDs novos, textos recodificados) e **excluir** quest; nome da quest vira link a partir dos NPCs.
+
+### AI Policy (`aipolicy.data`)
+- Árvore de políticas e triggers com explicação em português, adicionar/excluir operações, **clonar política ou trigger**, busca e tradução.
+
+### Interface do jogo e pacotes
+- **Extrator de PCK nativo** (sem sPCK): prévia de imagens e textos, extrai para `<pacote>.files` como o sPCK.
+- **Editor de interfaces** dentro do extrator: as janelas do `interfaces.pck` desenhadas como no jogo; clicar, arrastar, redimensionar e mudar o texto (salva na pasta do sPCK).
+
+### Cliente × servidor
+- **Verificação do par**: aponta o que derruba o login com "versão errada" e **corrige** refazendo o lado do servidor a partir do cliente, com backup.
 - Modo **MCP**: as mesmas operações disponíveis para agentes de IA.
+- Interface em português, inglês e chinês simplificado (`lang/*.json`).
+
+### Galeria
+
+| | |
+|---|---|
+| ![Loja como no jogo](docs/img/gshop.png) | ![Editor de interfaces](docs/img/interface.png) |
+| **Loja de cash com a tela do jogo** | **Janelas do jogo editáveis** |
+| ![Tipos e subtipos](docs/img/types.png) | ![Quests](docs/img/quests.png) |
+| **Tipos de arma: subtipos e itens** | **Quests** |
+| ![Traduzir com outro elements.data](docs/img/translate.png) | ![Procurar erros](docs/img/find-errors.png) |
+| **Traduzir com outro arquivo** | **Procurar erros** |
+| ![Tooltip de monstro](docs/img/tooltip-monster.png) | ![Tooltip de arma](docs/img/tooltip-weapon.png) |
+| **Tooltip de monstro** | **Tooltip de arma** |
 
 ## Rodar
 
@@ -51,14 +87,16 @@ Gera `dist\MyAceEditor.exe`, um arquivo único que roda sem instalar nada. Copie
 
 | Área | Estado |
 |---|---|
-| `elements.data`: leitura | ✅ ~98,6% (falta a cauda de Guerra Territorial) |
-| `elements.data`: gravação | ✅ byte-idêntica, com backup automático |
-| `.pck`/`.pkx` nativo + ícones | ✅ leitura (gravação 🔜) |
-| Editores de campo, vínculos, "dropado por", seleção múltipla | ✅ |
-| Quests (`tasks.data` v93) | ✅ (edição de prêmios 🔜) |
-| Descrição e cor oficial dos itens (`configs.pck`) | ✅ leitura |
-| Verificação do par cliente × servidor | ✅ |
-| GShop, AI Policy, NPCGen | 🔜 formatos já documentados |
+| `elements.data`: leitura / gravação | ✅ ~98,6% / byte-idêntica com backup |
+| Converter `elements.data` entre versões | ✅ (formato comum; v191+ 🔜) |
+| `.pck`/`.pkx` nativo + ícones + extrator | ✅ leitura (gravação 🔜) |
+| Editores de campo, vínculos, lote, desfazer, procurar erros, tradutor | ✅ |
+| Quests (`tasks.data` v93) | ✅ campos, textos, listas e prêmios; clonar/excluir (mudar quantidade de entradas 🔜) |
+| GShop (cliente + servidor) | ✅ com a tela do jogo |
+| AI Policy | ✅ leitura, edição de operações, clonar, busca |
+| Editor de interfaces (`interfaces.pck`) | ✅ salva na pasta do sPCK (gravar `.pck` 🔜) |
+| Verificação e correção do par cliente × servidor | ✅ |
+| NPCGen, mapas, servidor de teste automático | 🔜 formatos documentados |
 
 Versão de referência testada: cliente/servidor Perfect World 1.4.4 (`elements.data` v60, `tasks.data` v93).
 O que vem pela frente está no **[roadmap](docs/ROADMAP.md)**.

@@ -16,19 +16,54 @@ An **open, community project**: the goal is to make Perfect World 100% editable 
 
 ## Features
 
-- Opens the Perfect World folder and **reloads it automatically** next time.
-- Reads and **writes** `elements.data` (about 40k items in 95 blocks), with byte-identical save verification and automatic backup.
-- **Real game icons**, read straight from `surfaces.pck`, with nothing to extract.
-- Layout in the style of the classic editors (Rody's Angelica Editor): blocks grouped by category, type
-  filter, search, sub-tabs per field group, names in the official game color, drop tooltips.
-- **Double-click** opens dedicated editors: classes (checkboxes), addons with their description,
-  item/monster/recipe picker with icons.
-- **Links**: what each item uses and who uses it, "dropped by" with chance, all clickable.
-- Multi-select and bulk actions (clone, delete, change a field on many items).
-- **Quests** (`tasks.data` v93): fields, texts, dialogs and subquests.
-- **Client × server check**: points out what makes login fail with "wrong version".
+**Updated on October 24, 2026.**
+
+### Elements (`elements.data`)
+- Opens the Perfect World folder and **reloads it automatically** next time; reads and **writes** `elements.data` with byte-identical save verification and automatic backup.
+- **Real game icons**, read straight from `surfaces.pck`.
+- Layout in the style of the classic editors: blocks by category, type filter, search, sub-tabs per field group, names in the official game color.
+- **Game-like tooltips**: stats, per-element defenses, immunities, drops with icon and chance, and who uses the item.
+- **Links**: what each item uses and who uses it; **types and subtypes** list their subtypes and items (double-click filters the list).
+- Codes explained right in the grid (combat type, aggressive, land/water/air, seconds per hit).
+- **Undo/redo** (Ctrl+Z/Ctrl+Y) with action history.
+- **Bulk change**: set, add, multiply, sequence, random and replace text, with a before/after preview.
+- **Find errors** (Ctrl+E): IDs that don't exist, probabilities outside 0–100% or not adding up to 100%, duplicate IDs; probabilities fixed in one click.
+- **Save as another version**: converts `elements.data` up or down (any version with a `.cfg`), matching blocks and fields by name.
+- **Translate from another elements.data**: copies names and texts by ID from an already translated file, choosing the blocks and only what is still untranslated.
+
+### Cash shop (GShop)
+- **The same screen as the game**: drawn from `qshop.xml` in `interfaces.pck` and the textures in `surfaces.pck`, with the client's own fonts.
+- Double-click a name, a price or a category to edit it right there; side panel for item, amount, picture, colored description, 4 sale options and gift.
+- Saves `gshop.data` (client) and `gshopsev.data` (server) together with the same timestamp; undo/redo.
+
+### Quests (`tasks.data` v93)
+- Fields, texts, dialogs and subquests; **required/given items, monsters to kill and rewards** (gold, exp, SP, reputation, items) are editable.
+- **Clone** a quest (new IDs, texts re-encoded) and **delete** a quest; quest names become links from NPCs.
+
+### AI Policy (`aipolicy.data`)
+- Policy and trigger tree with plain-language explanation, add/delete operations, **clone policy or trigger**, search and translation.
+
+### Game interface and packages
+- **Native PCK extractor** (no sPCK needed): image and text preview, extracts to `<pack>.files` like sPCK.
+- **Interface editor** inside the extractor: the windows of `interfaces.pck` drawn like in the game; click, drag, resize and change text (saved to the sPCK folder).
+
+### Client × server
+- **Pair check**: points out what makes login fail with "wrong version" and **fixes** it by rebuilding the server side from the client, with backups.
 - **MCP** mode: the same operations available to AI agents.
 - Interface in Portuguese, English and Simplified Chinese (`lang/*.json`).
+
+### Gallery
+
+| | |
+|---|---|
+| ![Game-like shop](docs/img/gshop.png) | ![Interface editor](docs/img/interface.png) |
+| **Cash shop with the game screen** | **Editable game windows** |
+| ![Types and subtypes](docs/img/types.png) | ![Quests](docs/img/quests.png) |
+| **Weapon types: subtypes and items** | **Quests** |
+| ![Translate from another elements.data](docs/img/translate.png) | ![Find errors](docs/img/find-errors.png) |
+| **Translate from another file** | **Find errors** |
+| ![Monster tooltip](docs/img/tooltip-monster.png) | ![Weapon tooltip](docs/img/tooltip-weapon.png) |
+| **Monster tooltip** | **Weapon tooltip** |
 
 ## Run
 
@@ -52,14 +87,16 @@ Produces `dist\MyAceEditor.exe`, a single file that runs without installing anyt
 
 | Area | Status |
 |---|---|
-| `elements.data`: reading | ✅ ~98.6% (Territory War tail missing) |
-| `elements.data`: writing | ✅ byte-identical, with automatic backup |
-| Native `.pck`/`.pkx` + icons | ✅ reading (writing 🔜) |
-| Field editors, links, "dropped by", multi-select | ✅ |
-| Quests (`tasks.data` v93) | ✅ (reward editing 🔜) |
-| Official item description and color (`configs.pck`) | ✅ reading |
-| Client × server check | ✅ |
-| GShop, AI Policy, NPCGen | 🔜 formats already documented |
+| `elements.data`: read / write | ✅ ~98.6% / byte-identical with backup |
+| Convert `elements.data` between versions | ✅ (common format; v191+ 🔜) |
+| Native `.pck`/`.pkx` + icons + extractor | ✅ read (write 🔜) |
+| Field editors, links, bulk, undo, find errors, translator | ✅ |
+| Quests (`tasks.data` v93) | ✅ fields, texts, lists and rewards; clone/delete (changing entry counts 🔜) |
+| GShop (client + server) | ✅ with the game screen |
+| AI Policy | ✅ read, operation editing, clone, search |
+| Interface editor (`interfaces.pck`) | ✅ saves to the sPCK folder (writing `.pck` 🔜) |
+| Client × server check and fix | ✅ |
+| NPCGen, maps, automatic test server | 🔜 formats documented |
 
 Reference version tested: Perfect World 1.4.4 client/server (`elements.data` v60, `tasks.data` v93).
 What's coming next is in the **[roadmap](docs/ROADMAP.md)**.
