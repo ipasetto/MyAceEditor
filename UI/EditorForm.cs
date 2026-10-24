@@ -637,17 +637,15 @@ public sealed class EditorForm : Form
         {
             _tasks = t; _tasksPath = r.TasksPath; _tasksDirty = false;
             RefreshQuests();
-            _qStatus.Text = t.FullSchema
-                ? $"{Path.GetFileName(r.TasksPath)} · versão {t.Version} · {t.Roots!.Count:N0} quests ({t.AllNodes().Count():N0} com subquests) · edição completa"
-                : $"{Path.GetFileName(r.TasksPath)} · versão {t.Version} · {t.Quests.Count:N0} quests · só nomes";
+            _qStatus.Text = TasksStatus(r.TasksPath!);
         }
         BuildTree();
         SaveLast(path);
         _dataPath = path;
         int items = module.Lists.Sum(l => l.Items.Count);
-        Status($"{module.Name} · {module.Lists.Count} blocos · {items:N0} itens · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
+        Status($"{module.Name} · {module.Lists.Count} {Loc.T("status.blocks", "blocos")} · {items:N0} {Loc.T("status.items", "itens")} · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
             + $" · {r.Cfg}"
-            + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo")
+            + (_atlas is null ? Loc.T("status.noIcons", " · ícones: surfaces.pck não encontrado") : " · " + string.Format(Loc.T("status.icons", "{0:N0} ícones do jogo"), _atlas.Count))
             + (module.Source is ElementsLayout { CanWrite: false } lay ? " · " + Loc.T("status.readOnly", "somente leitura") + ": " + lay.ReadOnlyReason : "")
             + (r.Warnings.Count > 0 ? " · " + string.Join(" · ", r.Warnings) : ""));
         Text = $"MyAceEditor — {module.Name}{HeaderInfo(path)}";
@@ -2315,35 +2313,55 @@ public sealed class EditorForm : Form
         }
         _qName.MaxLength = TasksFile.MaxNameLength;
         _qName.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; ApplyQuestName(); } };
-        editRow.Controls.Add(new Label { Text = "Nome", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CMuted }, 0, 0);
+        var nameLbl = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CMuted };
+        var applyName = Btn("", ApplyQuestName, accent: true);
+        var save = Btn("", SaveTasks);
+        var clone = Btn("", CloneQuest);
+        var delete = Btn("", DeleteQuest);
+        Bind(() =>
+        {
+            nameLbl.Text = Loc.T("quest.nameLbl", "Nome"); applyName.Text = Loc.T("quest.applyName", "Aplicar nome");
+            save.Text = Loc.T("quest.save", "💾 Salvar tasks.data");
+            clone.Text = Loc.T("quest.clone", "Clonar quest"); delete.Text = Loc.T("quest.delete", "Excluir quest");
+        });
+        editRow.Controls.Add(nameLbl, 0, 0);
         editRow.Controls.Add(_qName, 1, 0);
-        editRow.Controls.Add(Btn("Aplicar nome", ApplyQuestName, accent: true), 2, 0);
-        editRow.Controls.Add(Btn("💾 Salvar tasks.data", SaveTasks), 3, 0);
-        editRow.Controls.Add(Btn(Loc.T("quest.clone", "Clonar quest"), CloneQuest), 4, 0);
-        editRow.Controls.Add(Btn(Loc.T("quest.delete", "Excluir quest"), DeleteQuest), 5, 0);
+        editRow.Controls.Add(applyName, 2, 0);
+        editRow.Controls.Add(save, 3, 0);
+        editRow.Controls.Add(clone, 4, 0);
+        editRow.Controls.Add(delete, 5, 0);
 
         var tabs = new TabControl { Dock = DockStyle.Fill };
         // Dados
-        var tData = new TabPage("Dados") { BackColor = CSurface };
+        var tData = new TabPage { BackColor = CSurface };
         StyleQuestGrid();
         tData.Controls.Add(_qGrid);
         // Textos
-        var tText = new TabPage("Textos") { BackColor = CSurface, Padding = new Padding(8) };
+        var tText = new TabPage { BackColor = CSurface, Padding = new Padding(8) };
         var textLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 9, BackColor = CSurface };
         for (int i = 0; i < 4; i++)
         {
             textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
             textLayout.RowStyles.Add(new RowStyle(SizeType.Percent, i == 0 ? 40 : 20));
-            textLayout.Controls.Add(new Label { Text = QuestNode.TextNames[i], Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.BottomLeft });
+            var lbl = new Label { Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.BottomLeft };
             int k = i;
+            Bind(() => lbl.Text = QuestLabels.Show(QuestNode.TextNames[k]));
+            textLayout.Controls.Add(lbl);
             _qTexts[i].Leave += (_, _) => ApplyQuestText(k);
             textLayout.Controls.Add(_qTexts[i]);
         }
         textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
-        textLayout.Controls.Add(new Label { Text = "Cores: ^RRGGBB antes do texto (ex.: ^ffcc00). Quebra de linha do jogo: \\r. As alterações valem ao sair do campo.", Dock = DockStyle.Fill, ForeColor = CMuted });
+        var colorsHint = new Label { Dock = DockStyle.Fill, ForeColor = CMuted };
+        Bind(() => colorsHint.Text = Loc.T("quest.colorsHint", "Cores: ^RRGGBB antes do texto (ex.: ^ffcc00). Quebra de linha do jogo: \\r. As alterações valem ao sair do campo."));
+        textLayout.Controls.Add(colorsHint);
         tText.Controls.Add(textLayout);
         // Diálogos
-        var tTalk = new TabPage("Diálogos") { BackColor = CSurface };
+        var tTalk = new TabPage { BackColor = CSurface };
+        Bind(() =>
+        {
+            tData.Text = Loc.T("quest.tabData", "Dados"); tText.Text = Loc.T("quest.tabTexts", "Textos"); tTalk.Text = Loc.T("quest.tabTalks", "Diálogos");
+            if (_qCur is not null) { ApplyTalkText(); ShowQuest(_qTree.SelectedNode?.Tag); }   // nomes de campo no idioma novo
+        });
         var talkSplit = new SplitContainer { Dock = DockStyle.Fill, SplitterWidth = 5, BackColor = CLine };
         _qTalkTree.BackColor = CSurface; _qTalkTree.ForeColor = CFg; _qTalkTree.Font = new Font("Segoe UI", 9.5f);
         _qTalkTree.AfterSelect += (_, e) => SelectTalk(e.Node?.Tag);
@@ -2377,9 +2395,9 @@ public sealed class EditorForm : Form
         {
             if (_qCur is null || e.RowIndex < 0 || _qGrid.Rows[e.RowIndex].Tag is not TaskField f) return;
             var v = _qGrid.Rows[e.RowIndex].Cells[1].Value?.ToString() ?? "";
-            if (!_qCur.Set(f, v)) { _qStatus.Text = $"Valor inválido para '{f.Name}'"; _qGrid.Rows[e.RowIndex].Cells[1].Value = _qCur.Get(f); return; }
+            if (!_qCur.Set(f, v)) { _qStatus.Text = string.Format(Loc.T("quest.invalid", "Valor inválido para '{0}'"), QuestLabels.Show(f.Name)); _qGrid.Rows[e.RowIndex].Cells[1].Value = _qCur.Get(f); return; }
             _qGrid.Rows[e.RowIndex].Cells[2].Value = QuestFieldHint(f, _qCur.Get(f));
-            MarkTasksDirty($"'{f.Name}' alterado");
+            MarkTasksDirty(string.Format(Loc.T("quest.fieldChanged", "'{0}' alterado"), QuestLabels.Show(f.Name)));
         };
     }
 
@@ -2438,7 +2456,7 @@ public sealed class EditorForm : Form
         if (_tasks.DeleteRoot(q)) { RefreshQuests(); MarkTasksDirty(string.Format(Loc.T("quest.deleted", "Quest {0} excluída"), q.Id)); }
     }
 
-    private void MarkTasksDirty(string msg) { _tasksDirty = true; _qStatus.Text = msg + " — clique em Salvar tasks.data para gravar."; }
+    private void MarkTasksDirty(string msg) { _tasksDirty = true; _qStatus.Text = msg + Loc.T("quest.dirty", " — clique em Salvar tasks.data para gravar."); }
 
     private void LoadTasks(string path)
     {
@@ -2447,12 +2465,16 @@ public sealed class EditorForm : Form
             _tasks = new TasksFile(path);
             _tasksPath = path; _tasksDirty = false;
             RefreshQuests();
-            _qStatus.Text = _tasks.FullSchema
-                ? $"{Path.GetFileName(path)} · versão {_tasks.Version} · {_tasks.Roots!.Count:N0} quests ({_tasks.AllNodes().Count():N0} com subquests) · edição completa"
-                : $"{Path.GetFileName(path)} · versão {_tasks.Version} · {_tasks.Quests.Count:N0} quests · só nomes (esquema desta versão ainda não suportado{(_tasks.SchemaError is null ? "" : ": " + _tasks.SchemaError)})";
+            _qStatus.Text = TasksStatus(path);
         }
-        catch (Exception ex) { _tasks = null; _qStatus.Text = "Falha ao ler tasks.data: " + ex.Message; }
+        catch (Exception ex) { _tasks = null; _qStatus.Text = Loc.T("quest.readFail", "Falha ao ler tasks.data: ") + ex.Message; }
     }
+
+    private string TasksStatus(string path) => _tasks is not { } t ? "" : t.FullSchema
+        ? string.Format(Loc.T("quest.statusFull", "{0} · versão {1} · {2:N0} quests ({3:N0} com subquests) · edição completa"),
+            Path.GetFileName(path), t.Version, t.Roots!.Count, t.AllNodes().Count())
+        : string.Format(Loc.T("quest.statusNames", "{0} · versão {1} · {2:N0} quests · só nomes (esquema desta versão ainda não suportado{3})"),
+            Path.GetFileName(path), t.Version, t.Quests.Count, t.SchemaError is null ? "" : ": " + t.SchemaError);
 
     // Link de quest (coluna Vínculo): abre a aba Quests já filtrada e selecionada no ID.
     private void GoToQuest(int id)
@@ -2517,7 +2539,7 @@ public sealed class EditorForm : Form
         var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis;
         TextRenderer.DrawText(e.Graphics, id.ToString(), _qTree.Font, new Rectangle(r.X + 2, r.Y, 60, r.Height), sel ? Color.White : CListId, flags);
         var fg = sel ? Color.White : changed ? GGold : col is { } c && c.GetBrightness() > 0.25f ? c : CTreeFg;
-        TextRenderer.DrawText(e.Graphics, (changed ? "● " : "") + (text.Length == 0 ? "(sem nome)" : text), _qTree.Font, new Rectangle(r.X + 64, r.Y, r.Width - 66, r.Height), fg, flags);
+        TextRenderer.DrawText(e.Graphics, (changed ? "● " : "") + (text.Length == 0 ? Loc.T("quest.noName", "(sem nome)") : text), _qTree.Font, new Rectangle(r.X + 64, r.Y, r.Width - 66, r.Height), fg, flags);
     }
 
     private void ShowQuest(object? tag)
@@ -2526,7 +2548,7 @@ public sealed class EditorForm : Form
         string name = tag switch { QuestNode q => q.Name, QuestEntry qe => qe.Name, _ => "" };
         int id = tag switch { QuestNode q => q.Id, QuestEntry qe => qe.Id, _ => 0 };
         var (text, col) = TasksFile.SplitColor(name);
-        _qInfo.Text = $"{(text.Length == 0 ? "(sem nome)" : text)}     (ID {id})" + (_qCur?.Children.Count > 0 ? $"   ·   {_qCur.Children.Count} subquest(s)" : "");
+        _qInfo.Text = $"{(text.Length == 0 ? Loc.T("quest.noName", "(sem nome)") : text)}     (ID {id})" + (_qCur?.Children.Count > 0 ? "   ·   " + string.Format(Loc.T("quest.subquests", "{0} subquest(s)"), _qCur.Children.Count) : "");
         _qInfo.ForeColor = col is { } c && c.GetBrightness() < 0.85f ? c : CFg;
         _qName.Text = name;
 
@@ -2542,13 +2564,13 @@ public sealed class EditorForm : Form
             if (f.Group != group)
             {
                 group = f.Group;
-                int hr = _qGrid.Rows.Add("  " + group.ToUpperInvariant(), "", "");
+                int hr = _qGrid.Rows.Add("  " + QuestLabels.Show(group).ToUpperInvariant(), "", "");
                 var hrow = _qGrid.Rows[hr]; hrow.ReadOnly = true;
                 hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
                 hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
             var v = _qCur.Get(f);
-            int r = _qGrid.Rows.Add("  " + f.Name, v, QuestFieldHint(f, v));
+            int r = _qGrid.Rows.Add("  " + QuestLabels.Show(f.Name), v, QuestFieldHint(f, v));
             _qGrid.Rows[r].Tag = f;
             if (!f.Editable) { _qGrid.Rows[r].ReadOnly = true; _qGrid.Rows[r].Cells[1].Style.ForeColor = CMuted; }
         }
@@ -2558,11 +2580,11 @@ public sealed class EditorForm : Form
         for (int i = 0; i < 5; i++)
         {
             var tp = _qCur.Talks[i];
-            var tn = new TreeNode($"{QuestNode.TalkNames[i]}  ({tp.Windows.Count})") { Tag = tp };
+            var tn = new TreeNode($"{QuestLabels.Show(QuestNode.TalkNames[i])}  ({tp.Windows.Count})") { Tag = tp };
             foreach (var w in tp.Windows)
             {
-                var wn = new TreeNode($"Janela {w.Id}: {Trunc(w.Text, 50)}") { Tag = w };
-                foreach (var o in w.Options) wn.Nodes.Add(new TreeNode($"→ {Trunc(o.Text, 50)}  (vai p/ {o.Id})") { Tag = o });
+                var wn = new TreeNode(TalkWindowText(w)) { Tag = w };
+                foreach (var o in w.Options) wn.Nodes.Add(new TreeNode(TalkOptionText(o)) { Tag = o });
                 tn.Nodes.Add(wn);
             }
             _qTalkTree.Nodes.Add(tn);
@@ -2570,6 +2592,9 @@ public sealed class EditorForm : Form
         _qTalkTree.ExpandAll();
         if (_qTalkTree.Nodes.Count > 0) _qTalkTree.Nodes[0].EnsureVisible();
     }
+
+    private static string TalkWindowText(TalkWindow w) => string.Format(Loc.T("quest.window", "Janela {0}: {1}"), w.Id, Trunc(w.Text, 50));
+    private static string TalkOptionText(TalkOption o) => string.Format(Loc.T("quest.option", "→ {0}  (vai p/ {1})"), Trunc(o.Text, 50), o.Id);
 
     private static string Trunc(string s, int n) { s = s.Replace("\r", " ").Replace("\n", " "); return s.Length <= n ? s : s[..n] + "…"; }
 
@@ -2583,7 +2608,7 @@ public sealed class EditorForm : Form
         }
         _qTree.Invalidate();
         ShowQuest(_qTree.SelectedNode.Tag);
-        MarkTasksDirty("Nome alterado");
+        MarkTasksDirty(Loc.T("quest.nameChanged", "Nome alterado"));
     }
 
     private void ApplyQuestText(int i)
@@ -2593,7 +2618,7 @@ public sealed class EditorForm : Form
         if (v == _qCur.Texts[i]) return;
         _qCur.Texts[i] = v; _qCur.TextsChanged = true;
         _qTree.Invalidate();
-        MarkTasksDirty($"{QuestNode.TextNames[i]} alterado");
+        MarkTasksDirty(string.Format(Loc.T("quest.textChanged", "{0} alterado"), QuestLabels.Show(QuestNode.TextNames[i])));
     }
 
     private void SelectTalk(object? tag)
@@ -2623,30 +2648,30 @@ public sealed class EditorForm : Form
         if (!changed) return;
         _qCur.TextsChanged = true;
         if (_qTalkTree.SelectedNode is { } sn)
-            sn.Text = _qTalkSel switch { TalkWindow w => $"Janela {w.Id}: {Trunc(w.Text, 50)}", TalkOption o => $"→ {Trunc(o.Text, 50)}  (vai p/ {o.Id})", _ => sn.Text };
+            sn.Text = _qTalkSel switch { TalkWindow w => TalkWindowText(w), TalkOption o => TalkOptionText(o), _ => sn.Text };
         _qTree.Invalidate();
-        MarkTasksDirty("Diálogo alterado");
+        MarkTasksDirty(Loc.T("quest.talkChanged", "Diálogo alterado"));
     }
 
     private void SaveTasks()
     {
         _qGrid.EndEdit();
-        if (_tasks is null || _tasksPath is null) { _qStatus.Text = "Abra um tasks.data primeiro."; return; }
-        if (!_tasks.CanWrite) { _qStatus.Text = "Somente leitura: " + _tasks.ReadOnlyReason; return; }
+        if (_tasks is null || _tasksPath is null) { _qStatus.Text = Loc.T("quest.openFirst", "Abra um tasks.data primeiro."); return; }
+        if (!_tasks.CanWrite) { _qStatus.Text = Loc.T("quest.readOnly", "Somente leitura: ") + _tasks.ReadOnlyReason; return; }
         ApplyTalkText();
         for (int i = 0; i < 4; i++) ApplyQuestText(i);
-        if (!_tasksDirty) { _qStatus.Text = "Nada alterado."; return; }
-        if (MessageBox.Show($"Gravar as alterações em:\n{_tasksPath}\n\nUma cópia de segurança será criada ao lado.\nLembre: o servidor precisa do MESMO tasks.data (aba Verificação).",
-                "Salvar tasks.data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        if (!_tasksDirty) { _qStatus.Text = Loc.T("quest.nothing", "Nada alterado."); return; }
+        if (MessageBox.Show(string.Format(Loc.T("quest.confirmSave", "Gravar as alterações em:\n{0}\n\nUma cópia de segurança será criada ao lado.\nLembre: o servidor precisa do MESMO tasks.data (aba Verificação)."), _tasksPath),
+                "tasks.data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
         try
         {
             var keep = _qCur?.Id;
             var backup = _tasks.Save(_tasksPath);
             LoadTasks(_tasksPath);
-            _qStatus.Text = $"Salvo · backup: {Path.GetFileName(backup)}";
+            _qStatus.Text = string.Format(Loc.T("quest.saved", "Salvo · backup: {0}"), Path.GetFileName(backup));
             if (keep is { } id) foreach (TreeNode n in _qTree.Nodes) if (n.Tag is QuestNode qn && qn.Id == id) { _qTree.SelectedNode = n; break; }
         }
-        catch (Exception ex) { Error("Falha ao salvar tasks.data", ex); }
+        catch (Exception ex) { Error(Loc.T("quest.saveFail", "Falha ao salvar tasks.data"), ex); }
     }
 
     // ---------- aba Verificação (par cliente × servidor) ----------

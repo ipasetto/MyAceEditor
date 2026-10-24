@@ -21,6 +21,8 @@ public static class AppLang
 
     static AppLang()
     {
+        // MYACE_LANG=en: idioma só para esta execução, sem gravar a preferência (usado para gerar os prints do README em inglês)
+        if (Environment.GetEnvironmentVariable("MYACE_LANG") is { } env && All.Any(a => a.Code == env)) { _current = env; return; }
         try
         {
             if (File.Exists(SettingsFile))

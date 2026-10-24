@@ -12,7 +12,7 @@
 and edit the game data, client and server, in a single window.
 An **open, community project**: the goal is to make Perfect World 100% editable with a free tool.
 
-![Elements editor](docs/img/editor.png)
+![Elements editor](docs/img/en/editor.png)
 
 ## Features
 
@@ -54,15 +54,17 @@ An **open, community project**: the goal is to make Perfect World 100% editable 
 
 ### Gallery
 
+Screenshots taken with a Brazilian client: game content (item, monster and quest names) is in Portuguese; the editor itself is in English.
+
 | | |
 |---|---|
-| ![Game-like shop](docs/img/gshop.png) | ![Interface editor](docs/img/interface.png) |
+| ![Game-like shop](docs/img/en/gshop.png) | ![Interface editor](docs/img/en/interface.png) |
 | **Cash shop with the game screen** | **Editable game windows** |
-| ![Types and subtypes](docs/img/types.png) | ![Quests](docs/img/quests.png) |
+| ![Types and subtypes](docs/img/en/types.png) | ![Quests](docs/img/en/quests.png) |
 | **Weapon types: subtypes and items** | **Quests** |
-| ![Translate from another elements.data](docs/img/translate.png) | ![Find errors](docs/img/find-errors.png) |
+| ![Translate from another elements.data](docs/img/en/translate.png) | ![Find errors](docs/img/en/find-errors.png) |
 | **Translate from another file** | **Find errors** |
-| ![Monster tooltip](docs/img/tooltip-monster.png) | ![Weapon tooltip](docs/img/tooltip-weapon.png) |
+| ![Monster tooltip](docs/img/en/tooltip-monster.png) | ![Weapon tooltip](docs/img/en/tooltip-weapon.png) |
 | **Monster tooltip** | **Weapon tooltip** |
 
 ## Run
