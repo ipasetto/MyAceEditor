@@ -4,19 +4,19 @@ using MyAceEditor.PerfectWorld;
 namespace MyAceEditor.UI;
 
 /// <summary>
-/// Editor das janelas do jogo (interfaces.pck, version01\*.xml) com a tela desenhada como no jogo (texturas do
-/// surfaces.pck). Clique seleciona um controle; arrastar move; o quadradinho do canto redimensiona; setas movem
-/// 1 px (Shift = 10); duplo clique edita o texto ali mesmo. Grava em &lt;element&gt;\interfaces.pck.files\version01\
-/// (a pasta que o sPCK usa); gravar direto no .pck ainda não existe (issue #13).
+/// Editor das janelas do jogo, aberto pelo Extrator PCK em qualquer pacote que tenha janelas XML (interfaces.pck...),
+/// com a tela desenhada como no jogo (texturas do surfaces.pck e fontes do cliente). Clique seleciona um controle;
+/// arrastar move; o quadradinho do canto redimensiona; setas movem 1 px (Shift = 10); duplo clique edita o texto.
+/// Grava na pasta do sPCK (&lt;pacote&gt;.files\&lt;caminho no pacote&gt;); gravar direto no .pck ainda não existe (issue #13).
 /// </summary>
 internal sealed class InterfaceView : UserControl
 {
     static readonly Color Bg = Color.FromArgb(231, 236, 242), Fg = Color.FromArgb(30, 39, 51), Muted = Color.FromArgb(100, 112, 128), Accent = Color.FromArgb(37, 99, 235);
 
-    readonly Func<string?> _elementDir;
-    PckArchive? _interfaces, _surfaces;
+    readonly Action _back;
+    PckArchive? _pck, _surfaces;
     GameTextures? _tex;
-    string? _element;
+    string? _pckPath;
 
     readonly TextBox _filter = new() { Dock = DockStyle.Top };
     readonly ListBox _files = new() { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.None };
@@ -32,23 +32,22 @@ internal sealed class InterfaceView : UserControl
     static NumericUpDown N() => new() { Minimum = -3000, Maximum = 5000, Width = 90 };
 
     UiDocument? _doc;
-    string? _file;          // ex.: version01\qshop.xml
+    string? _file;          // caminho dentro do pacote, ex.: interfaces\version01\qshop.xml
     bool _fromFolder, _dirty, _binding;
     string? _sel;
     readonly List<string> _undo = new(), _redo = new();
 
-    public InterfaceView(Func<string?> elementDir)
+    public InterfaceView(Action back)
     {
-        _elementDir = elementDir;
+        _back = back;
         BackColor = Bg; Dock = DockStyle.Fill;
         _canvas = new Canvas(this) { Dock = DockStyle.Fill };
-        var left = new Panel { Dock = DockStyle.Left, Width = 260, BackColor = Color.White };
+        var left = new Panel { Dock = DockStyle.Left, Width = 280, BackColor = Color.White };
         left.Controls.Add(_files); left.Controls.Add(_filter);
         BuildBar(); BuildProps();
         Controls.Add(_canvas); Controls.Add(_props); Controls.Add(left); Controls.Add(_info); Controls.Add(_bar);
         _filter.TextChanged += (_, _) => FillList();
-        _files.SelectedIndexChanged += (_, _) => { if (_files.SelectedItem is string f) OpenDialog(f); };
-        VisibleChanged += (_, _) => { if (Visible && _interfaces is null) GameFolderChanged(); };
+        _files.SelectedIndexChanged += (_, _) => { if (_files.SelectedItem is DialogItem f) OpenDialog(f.Path); };
         AppLang.Changed += Texts; Texts();
     }
 
@@ -68,11 +67,12 @@ internal sealed class InterfaceView : UserControl
             _bar.Controls.Add(b);
             return b;
         }
+        B("ui.back", "◀ Voltar ao extrator", () => { if (!_dirty || MessageBox.Show(this, Loc.T("ui.discard", "A janela atual tem mudanças não salvas. Descartar?"), "Interface", MessageBoxButtons.YesNo) == DialogResult.Yes) { _dirty = false; _back(); } }, 150);
         var save = B("ui.save", "Salvar janela", Save);
         save.BackColor = Accent; save.ForeColor = Color.White;
         B("ui.undo", "↶ Desfazer", () => Undo(), 100);
         B("ui.redo", "↷ Refazer", () => Redo(), 100);
-        B("ui.openFolder", "Abrir pasta .files", () => { if (_element is not null) { var d = Path.Combine(_element, "interfaces.pck.files"); Directory.CreateDirectory(d); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(d) { UseShellExecute = true }); } }, 140);
+        B("ui.openFolder", "Abrir pasta .files", () => { if (_pckPath is not null) { var d = _pckPath + ".files"; Directory.CreateDirectory(d); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(d) { UseShellExecute = true }); } }, 140);
         _bar.Controls.Add(_outlines);
         _outlines.CheckedChanged += (_, _) => _canvas.Invalidate();
     }
@@ -93,46 +93,61 @@ internal sealed class InterfaceView : UserControl
     }
 
     // ---------- arquivos ----------
-    public void GameFolderChanged()
+    /// <summary>Quantas janelas XML o pacote tem (o extrator mostra o botão só quando há).</summary>
+    public static int CountDialogs(PckArchive pck) => pck.Entries.Count(e => e.Path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Abre um pacote com janelas. As texturas vêm do surfaces.pck e as fontes da pasta do jogo (mesma pasta do pacote).</summary>
+    public void LoadPack(string pckPath)
     {
-        if (_dirty) return;
-        var dir = _elementDir();
-        if (dir is null) { _info.Text = Loc.T("ui.noGame", "Abra a pasta do Perfect World (aba Elements) para listar as janelas do interfaces.pck."); return; }
-        _interfaces?.Dispose(); _surfaces?.Dispose(); _tex?.Dispose();
-        _element = dir;
+        if (_pckPath == pckPath && _pck is not null) return;
+        _pck?.Dispose(); _surfaces?.Dispose(); _tex?.Dispose();
+        _pckPath = pckPath; _doc = null; _file = null; _sel = null; _dirty = false;
+        var dir = Path.GetDirectoryName(pckPath)!;
         try
         {
-            _interfaces = File.Exists(Path.Combine(dir, "interfaces.pck")) ? new PckArchive(Path.Combine(dir, "interfaces.pck")) : null;
-            _surfaces = File.Exists(Path.Combine(dir, "surfaces.pck")) ? new PckArchive(Path.Combine(dir, "surfaces.pck")) : null;
+            _pck = new PckArchive(pckPath);   // leitura própria (o extrator pode estar lendo o dele)
+            var sp = Path.Combine(dir, "surfaces.pck");
+            _surfaces = File.Exists(sp) ? new PckArchive(sp) : null;
             _tex = _surfaces is null ? null : new GameTextures(_surfaces);
+            GameFonts.Load(dir);
         }
         catch (Exception ex) { _info.Text = ex.Message; return; }
-        FillList();
+        FillList(); ShowProps(); _canvas.Invalidate();
     }
 
     IEnumerable<string> AllDialogs()
     {
         var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (_interfaces is not null)
-            foreach (var e in _interfaces.Entries)
-                if (e.Path.StartsWith(@"interfaces\version01\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-                    set.Add(e.Path[@"interfaces\".Length..]);
-        if (_element is not null && Directory.Exists(Path.Combine(_element, "interfaces.pck.files", "version01")))
-            foreach (var f in Directory.EnumerateFiles(Path.Combine(_element, "interfaces.pck.files", "version01"), "*.xml"))
-                set.Add(@"version01\" + Path.GetFileName(f));
+        if (_pck is not null)
+            foreach (var e in _pck.Entries)
+                if (e.Path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)) set.Add(e.Path);
+        // cópias de trabalho que só existem na pasta .files (janelas novas)
+        if (_pckPath is not null && Directory.Exists(_pckPath + ".files"))
+            foreach (var f in Directory.EnumerateFiles(_pckPath + ".files", "*.xml", SearchOption.AllDirectories))
+                set.Add(Path.GetRelativePath(_pckPath + ".files", f));
         return set;
     }
+
+    // Item da lista: as janelas de version01 (as que o jogo usa desde a 1.4.4) primeiro; as da raiz do
+    // interfaces.pck são a interface antiga e aparecem marcadas (o jogo não lê, por isso parecem "quebradas").
+    sealed record DialogItem(string Path, string Label) { public override string ToString() => Label; }
+
+    static bool IsLegacy(string path) => path.StartsWith(@"interfaces\", StringComparison.OrdinalIgnoreCase)
+        && !path.Contains(@"\version", StringComparison.OrdinalIgnoreCase);
 
     void FillList()
     {
         var q = _filter.Text.Trim();
         _files.BeginUpdate(); _files.Items.Clear();
-        foreach (var f in AllDialogs().Where(f => q.Length == 0 || f.Contains(q, StringComparison.OrdinalIgnoreCase))) _files.Items.Add(f);
+        foreach (var f in AllDialogs().Where(f => q.Length == 0 || f.Contains(q, StringComparison.OrdinalIgnoreCase)).OrderBy(IsLegacy).ThenBy(f => f, StringComparer.OrdinalIgnoreCase))
+            _files.Items.Add(new DialogItem(f, IsLegacy(f) ? f + "   " + Loc.T("ui.legacy", "(antiga, o jogo não usa)") : f));
         _files.EndUpdate();
-        _info.Text = string.Format(Loc.T("ui.count", "{0} janelas · edite na tela; \"Salvar janela\" grava em interfaces.pck.files (empacote com o sPCK para o jogo usar)."), _files.Items.Count);
+        _info.Text = string.Format(Loc.T("ui.count", "{0} janelas · edite na tela; \"Salvar janela\" grava em {1} (empacote com o sPCK para o jogo usar)."),
+            _files.Items.Count, Path.GetFileName(_pckPath) + ".files");
     }
 
-    string FolderPath(string file) => Path.Combine(_element!, "interfaces.pck.files", file);
+    // convenção do sPCK: <pacote>.files\<caminho completo dentro do pacote>
+    string FolderPath(string file) => Path.Combine(_pckPath! + ".files", file);
 
     void OpenDialog(string file)
     {
@@ -141,11 +156,14 @@ internal sealed class InterfaceView : UserControl
         {
             byte[]? bytes = null;
             // a cópia de trabalho (pasta .files) vale mais que o pacote
-            _fromFolder = _element is not null && File.Exists(FolderPath(file));
+            _fromFolder = _pckPath is not null && File.Exists(FolderPath(file));
             if (_fromFolder) bytes = File.ReadAllBytes(FolderPath(file));
-            else if (_interfaces?.Find(@"interfaces\" + file) is { } e) bytes = _interfaces.Read(e);
+            else if (_pck?.Find(file) is { } e) bytes = _pck.Read(e);
             if (bytes is null) return;
-            _doc = new UiDocument(bytes); _file = file; _sel = null; _dirty = false;
+            var doc = new UiDocument(bytes);
+            if (doc.Dialog.Controls.Count == 0 && doc.Dialog.Size.Width == 0)
+            { _info.Text = string.Format(Loc.T("ui.notDialog", "{0} não é uma janela do jogo (sem <DIALOG>)."), file); return; }
+            _doc = doc; _file = file; _sel = null; _dirty = false;
             _undo.Clear(); _redo.Clear();
             ShowProps(); _canvas.Invalidate(); UpdateInfo();
         }
@@ -155,8 +173,10 @@ internal sealed class InterfaceView : UserControl
     /// <summary>Diagnóstico (--snapshot ... ui:qshop.xml): abre a janela e seleciona o 1º botão.</summary>
     internal void OpenForSnapshot(string file)
     {
-        if (_interfaces is null) GameFolderChanged();
-        OpenDialog(file.Contains('\\') ? file : @"version01\" + file);
+        var hit = AllDialogs().Where(f => f.EndsWith("\\" + file, StringComparison.OrdinalIgnoreCase) || f.Equals(file, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(IsLegacy).FirstOrDefault();
+        if (hit is null) return;
+        OpenDialog(hit);
         _sel = _doc?.Dialog.Controls.Values.FirstOrDefault(c => c.Tag == "STILLIMAGEBUTTON")?.Name;
         ShowProps(); _canvas.Invalidate();
     }
@@ -165,20 +185,21 @@ internal sealed class InterfaceView : UserControl
     {
         if (_doc is null || _file is null) return;
         _info.Text = $"{_file} · {_doc.Dialog.Size.Width}×{_doc.Dialog.Size.Height} · {_doc.Dialog.Controls.Count} " + Loc.T("ui.controls", "controles") + " · "
-            + (_fromFolder ? Loc.T("ui.fromFolder", "cópia de trabalho (interfaces.pck.files)") : Loc.T("ui.fromPck", "lido do interfaces.pck"))
+            + (IsLegacy(_file) ? Loc.T("ui.legacyInfo", "INTERFACE ANTIGA: o jogo usa a cópia em version01") + " · " : "")
+            + (_fromFolder ? Loc.T("ui.fromFolder", "cópia de trabalho (pasta .files)") : string.Format(Loc.T("ui.fromPck", "lido do {0}"), Path.GetFileName(_pckPath)))
             + (_dirty ? " · " + Loc.T("ui.unsaved", "não salvo") : "");
     }
 
     void Save()
     {
-        if (_doc is null || _file is null || _element is null) return;
+        if (_doc is null || _file is null || _pckPath is null) return;
         try
         {
             var path = FolderPath(_file);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             AtomicFileSave.Write(path, _doc.ToBytes());
             _dirty = false; _fromFolder = true; UpdateInfo();
-            MessageBox.Show(this, string.Format(Loc.T("ui.saved", "Janela salva em:\n{0}\n\nPara o jogo usar, empacote a pasta interfaces.pck.files de volta no interfaces.pck (sPCK). Gravar o .pck direto ainda não existe no MyAceEditor."), path), "Interface");
+            MessageBox.Show(this, string.Format(Loc.T("ui.saved", "Janela salva em:\n{0}\n\nPara o jogo usar, empacote a pasta {1}.files de volta no {1} (sPCK). Gravar o .pck direto ainda não existe no MyAceEditor."), path, Path.GetFileName(_pckPath)), "Interface");
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ui.saveFail", "Falha ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
@@ -249,8 +270,7 @@ internal sealed class InterfaceView : UserControl
         Point ToGame(Point p) => new((int)Math.Floor((p.X - _o.X) / _s), (int)Math.Floor((p.Y - _o.Y) / _s));
         Rectangle ToScreen(Rectangle r) => Rectangle.Round(new RectangleF(_o.X + r.X * _s, _o.Y + r.Y * _s, r.Width * _s, r.Height * _s));
 
-        // controle sem largura/altura no XML (rótulo só com âncora): caixa mínima para clicar
-        static Rectangle Box(GameDialog.Control c) => new(c.Rect.X - (c.Rect.Width == 0 && c.Align == 1 ? 40 : 0), c.Rect.Y, Math.Max(c.Rect.Width, c.Rect.Width == 0 ? 80 : 4), Math.Max(c.Rect.Height, 16));
+        static Rectangle Box(GameDialog.Control c) => GameDraw.Box(c);
 
         Rectangle RectOf(GameDialog.Control c) => _drag != Drag.None && c.Name == _v._sel ? _live : Box(c);
 
@@ -267,34 +287,7 @@ internal sealed class InterfaceView : UserControl
             g.TranslateTransform(_o.X, _o.Y); g.ScaleTransform(_s, _s);
             g.InterpolationMode = InterpolationMode.HighQualityBilinear; g.PixelOffsetMode = PixelOffsetMode.Half;
 
-            GameDraw.Frame(g, _v._tex?.Get(d.Frame), new Rectangle(Point.Empty, size));
-            foreach (var c in d.Controls.Values)
-            {
-                var r = RectOf(c);
-                var img = c.Images.Count > 0 ? _v._tex?.Get(c.Images[0]) : null;
-                switch (c.Tag)
-                {
-                    case "LABEL" or "TEXT" or "VERTICALTEXT":
-                        if (c.Text is { Length: > 0 } t) GameDraw.Text(g, t, c.Rect.Width == 0 ? r : c.Rect with { X = r.X, Y = r.Y }, c.Color ?? Color.White, c.FontSize, false,
-                            c.Align == 1 ? ContentAlignment.MiddleCenter : c.Align == 2 ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft);
-                        break;
-                    case "CHECK" or "RADIO":
-                        var box = new Rectangle(r.X, r.Y + (r.Height - Math.Min(r.Height, 16)) / 2, Math.Min(r.Height, 16), Math.Min(r.Height, 16));
-                        if (img is not null) GameDraw.Frame(g, img, c.Tag == "RADIO" ? r : box);
-                        if (c.Text is { Length: > 0 } ct) GameDraw.Text(g, ct, new Rectangle(r.X + (c.Tag == "RADIO" ? 0 : 18), r.Y, r.Width - (c.Tag == "RADIO" ? 0 : 18), r.Height), c.Color ?? Color.White, c.FontSize, false,
-                            c.Tag == "RADIO" ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft);
-                        break;
-                    case "EDIT" or "LIST" or "TREE" or "COMBO" or "CONSOLE":
-                        if (img is not null) GameDraw.Frame(g, img, r);
-                        else using (var b = new SolidBrush(Color.FromArgb(70, 0, 0, 0))) g.FillRectangle(b, r);
-                        if (c.Text is { Length: > 0 } et) GameDraw.Text(g, et, Rectangle.Inflate(r, -3, 0), c.Color ?? Color.White, c.FontSize, false, ContentAlignment.MiddleLeft);
-                        break;
-                    default:   // IMAGEPICTURE, STILLIMAGEBUTTON, PROGRESS, SLIDER, SCROLL, WINDOWPICTURE, SUBDIALOG
-                        if (img is not null && r.X > -1000) GameDraw.Frame(g, img, r);
-                        if (c.Text is { Length: > 0 } bt) GameDraw.Text(g, bt, r, c.Color ?? Color.White, c.FontSize, false);
-                        break;
-                }
-            }
+            GameDraw.Dialog(g, d, _v._tex, RectOf);
             // contornos e seleção
             using var pen = new Pen(Color.FromArgb(90, 120, 200, 255), 1 / _s);
             using var selPen = new Pen(Color.FromArgb(255, 255, 196, 0), 2 / _s) { DashStyle = DashStyle.Dash };
@@ -410,6 +403,73 @@ internal sealed class InterfaceView : UserControl
 /// <summary>Desenho no estilo do jogo, em coordenadas da janela (respeita a escala da tela).</summary>
 internal static class GameDraw
 {
+    /// <summary>Caixa clicável de um controle. Rótulo sem largura no XML: x é a âncora (Align 0 esquerda, 1 centro, 2 direita).</summary>
+    public static Rectangle Box(GameDialog.Control c)
+    {
+        if (c.Rect.Width > 0) return c.Rect with { Height = Math.Max(c.Rect.Height, 16) };
+        int w = 80;
+        int x = c.Align switch { 1 => c.Rect.X - w / 2, 2 => c.Rect.X - w, _ => c.Rect.X };
+        return new Rectangle(x, c.Rect.Y, w, Math.Max(c.Rect.Height, 16));
+    }
+
+    /// <summary>Janela inteira como no jogo (moldura + controles na ordem do XML).</summary>
+    public static void Dialog(Graphics g, GameDialog d, GameTextures? tex, Func<GameDialog.Control, Rectangle> rectOf)
+    {
+        Frame(g, tex?.Get(d.Frame), new Rectangle(Point.Empty, d.Size));
+        foreach (var c in d.Controls.Values)
+        {
+            var r = rectOf(c);
+            if (r.X < -1000) continue;   // escondido fora da tela pelo próprio jogo
+            var img = c.Images.Count > 0 ? tex?.Get(c.Images[0], c.Frames) : null;
+            var col = c.Color is { A: > 0 } cc ? cc : Color.White;
+            void T(string t, Rectangle area, ContentAlignment al) => Text(g, t, area, col, c.FontSize, c.Bold, al, c.FontName, noClip: true);
+            var align = c.Align == 1 ? ContentAlignment.MiddleCenter : c.Align == 2 ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft;
+            switch (c.Tag)
+            {
+                case "LABEL" or "TEXT" or "VERTICALTEXT":
+                    // o jogo não corta o texto do rótulo: se a tradução é maior que a caixa, passa por cima (igual aqui)
+                    if (c.Text is { Length: > 0 } t) T(t, c.Rect.Width == 0 ? r : r with { Height = Math.Max(c.Rect.Height, 14) }, align);
+                    break;
+                case "CHECK" or "RADIO":
+                    var box = new Rectangle(r.X, r.Y + (r.Height - Math.Min(r.Height, 16)) / 2, Math.Min(r.Height, 16), Math.Min(r.Height, 16));
+                    if (img is not null) Frame(g, img, c.Tag == "RADIO" ? r : box);
+                    if (c.Text is { Length: > 0 } ct)
+                        T(ct, c.Tag == "RADIO" ? Shift(r, c.TextOffset) : new Rectangle(r.X + 18 + c.TextOffset.X, r.Y + c.TextOffset.Y, Math.Max(10, r.Width - 18), r.Height),
+                            c.Tag == "RADIO" ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft);
+                    break;
+                case "EDIT" or "LIST" or "TREE" or "COMBO" or "CONSOLE":
+                    if (img is not null) Frame(g, img, r);
+                    else using (var b = new SolidBrush(Color.FromArgb(70, 0, 0, 0))) g.FillRectangle(b, r);
+                    if (c.Text is { Length: > 0 } et) T(et, Rectangle.Inflate(r, -3, 0), ContentAlignment.MiddleLeft);
+                    break;
+                default:   // IMAGEPICTURE, STILLIMAGEBUTTON, PROGRESS, SLIDER, SCROLL, WINDOWPICTURE, SUBDIALOG
+                    if (img is not null) Frame(g, img, r);
+                    // botão: texto centrado e deslocado por TextOffsetX/Y (ícone à esquerda, como nas abas da loja)
+                    if (c.Text is { Length: > 0 } bt) T(bt, Shift(r, c.TextOffset), ContentAlignment.MiddleCenter);
+                    break;
+            }
+        }
+    }
+
+    static Rectangle Shift(Rectangle r, Point o) => new(r.X + o.X, r.Y + o.Y, r.Width, r.Height);
+
+    /// <summary>Diagnóstico: janela num bitmap (com ou sem contornos).</summary>
+    public static Bitmap Render(GameDialog d, GameTextures? tex, bool outlines)
+    {
+        var size = d.Size.Width > 0 ? d.Size : new Size(400, 300);
+        var bmp = new Bitmap(size.Width, size.Height);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.FromArgb(24, 26, 32));
+        g.InterpolationMode = InterpolationMode.HighQualityBilinear; g.PixelOffsetMode = PixelOffsetMode.Half;
+        Dialog(g, d, tex, Box);
+        if (outlines)
+        {
+            using var pen = new Pen(Color.FromArgb(120, 120, 200, 255));
+            foreach (var c in d.Controls.Values) if (c.Rect.X > -1000) g.DrawRectangle(pen, Box(c));
+        }
+        return bmp;
+    }
+
     static readonly Color Outline = Color.FromArgb(10, 20, 30);
     static Font GameFont(float size, bool bold) => new("Microsoft YaHei UI", Math.Max(8, size * 1.05f), bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
 
@@ -429,15 +489,31 @@ internal static class GameDraw
         P(r.X, r.Bottom - ch, cw, ch, 0, img.Height - ch, cw, ch); P(r.X + cw, r.Bottom - ch, mw, ch, cw, img.Height - ch, sx, ch); P(r.Right - cw, r.Bottom - ch, cw, ch, img.Width - cw, img.Height - ch, cw, ch);
     }
 
-    public static void Text(Graphics g, string t, Rectangle r, Color c, float size, bool bold = false, ContentAlignment align = ContentAlignment.MiddleCenter)
+    // tamanho do XML ~ altura da fonte em pixels: o cliente BR abreviou "C. Tudo" para caber em 48 px e manteve "Consertar"
+    // (FontSize 10) no mesmo botão, o que só cabe com ~10 px. Texto com acento: as fontes chinesas do cliente não têm
+    // á/í/ó/ú e o Windows completaria letra a letra com outra fonte (buracos); usa uma fonte só para a palavra toda.
+    static Font GameFontFor(string? fontName, float size, bool bold, string? text = null)
     {
-        var f = GameFont(size, bold);
-        if (r.Width > 0)
-            for (float k = 0.95f; k >= 0.7f && g.MeasureString(t, f).Width > r.Width + 2; k -= 0.05f) { f.Dispose(); f = GameFont(size * k, bold); }
+        float px = Math.Max(8, size * 1.05f);
+        var fam = text is not null && text.Any(ch => ch is >= 'À' and <= 'ÿ') ? null : GameFonts.For(fontName);
+        if (fam is null && text is not null && text.Any(ch => ch is >= 'À' and <= 'ÿ'))
+            return new Font("Arial", px * 0.95f, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
+        if (fam is not null)
+            try { return new Font(fam, px, bold && fam.IsStyleAvailable(FontStyle.Bold) ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel); } catch { }
+        return GameFont(size, bold);
+    }
+
+    public static void Text(Graphics g, string t, Rectangle r, Color c, float size, bool bold = false, ContentAlignment align = ContentAlignment.MiddleCenter,
+        string? fontName = null, bool noClip = false)
+    {
+        var f = GameFontFor(fontName, size, bold, t);
+        // sem noClip (telas montadas pelo editor, ex. loja com nomes do arquivo): diminui até caber
+        if (!noClip && r.Width > 0)
+            for (float k = 0.95f; k >= 0.7f && g.MeasureString(t, f).Width > r.Width + 2; k -= 0.05f) { f.Dispose(); f = GameFontFor(fontName, size * k, bold, t); }
         using var fontScope = f;
-        using var sf = new StringFormat(StringFormatFlags.NoWrap)
+        using var sf = new StringFormat(StringFormatFlags.NoWrap | (noClip ? StringFormatFlags.NoClip : 0))
         {
-            Trimming = StringTrimming.EllipsisCharacter, LineAlignment = StringAlignment.Center,
+            Trimming = noClip ? StringTrimming.None : StringTrimming.EllipsisCharacter, LineAlignment = StringAlignment.Center,
             Alignment = align switch { ContentAlignment.MiddleLeft => StringAlignment.Near, ContentAlignment.MiddleRight => StringAlignment.Far, _ => StringAlignment.Center },
         };
         var rf = r.Width > 0 ? (RectangleF)r : new RectangleF(r.X - 150, r.Y, 300, Math.Max(r.Height, 18));

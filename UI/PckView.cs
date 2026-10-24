@@ -27,6 +27,12 @@ internal sealed class PckView : Panel
     string? _dest;   // pasta de destino; padrão = <pacote>.files ao lado do .pck (como o sPCK)
     readonly Label _destLabel = new() { AutoSize = true, ForeColor = Muted, Padding = new Padding(10, 7, 0, 0), MaximumSize = new Size(420, 0) };
     readonly Button _destChange = new();
+    readonly Button _editUi = new();
+    InterfaceView? _editor;
+    Control[] _listMode = Array.Empty<Control>();
+
+    /// <summary>Editor de janelas aberto (para o Ctrl+Z da janela principal ir para ele).</summary>
+    public InterfaceView? Editor => _editor is { Visible: true } ? _editor : null;
     List<PckEntry> _view = new();
     CancellationTokenSource? _work;
 
@@ -44,6 +50,8 @@ internal sealed class PckView : Panel
         top.Controls.Add(B(_extractSel, () => Extract(selectedOnly: true), 190));
         top.Controls.Add(B(_extractAll, () => Extract(selectedOnly: false), 150));
         top.Controls.Add(B(_cancel, () => _work?.Cancel(), 90));
+        top.Controls.Add(B(_editUi, OpenEditor, 170));
+        _editUi.BackColor = Color.FromArgb(255, 244, 214);
         top.Controls.Add(_destLabel);
         top.Controls.Add(B(_destChange, ChangeDest, 110));
         _cancel.Visible = false;
@@ -64,6 +72,7 @@ internal sealed class PckView : Panel
         split.Panel1.Controls.Add(_lv);
         split.Panel2.Controls.Add(_pic); split.Panel2.Controls.Add(_text);
         Controls.Add(split); Controls.Add(_bar); Controls.Add(_info); Controls.Add(top);
+        _listMode = new Control[] { split, _bar, _info, top };
         _info.Dock = DockStyle.Bottom;
 
         _known.SelectedIndexChanged += (_, _) => { if (_known.SelectedItem is string f && f.Contains(':')) Open(Path.Combine(_elementDir() ?? "", f.Split(':')[0].Trim())); };
@@ -115,6 +124,7 @@ internal sealed class PckView : Panel
             _view = new(); _lv.VirtualListSize = 0;
             _pck = new PckArchive(path);
             _dest = path + ".files";
+            _dialogCount = InterfaceView.CountDialogs(_pck);
             ApplyFilter();
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("pck.openFail", "Não consegui abrir o pacote"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -136,6 +146,38 @@ internal sealed class PckView : Panel
         : string.Format(Loc.T("pck.info", "{0} · versão {1} · {2:N0} arquivos ({3:N0} no filtro) · {4}"),
             Path.GetFileName(_pck.FilePath), _pck.Version, _pck.Entries.Count, _view.Count, Human(_view.Sum(e => (long)e.Size)));
 
+    // ---------- editor de janelas (pacotes com XML de interface) ----------
+    int _dialogCount;
+
+    void OpenEditor()
+    {
+        if (_pck is null || _dialogCount == 0) return;
+        if (_editor is null)
+        {
+            _editor = new InterfaceView(CloseEditor) { Dock = DockStyle.Fill, Visible = false };
+            Controls.Add(_editor);
+        }
+        foreach (var c in _listMode) c.Visible = false;
+        _editor.Visible = true; _editor.BringToFront();
+        _editor.LoadPack(_pck.FilePath);
+    }
+
+    void CloseEditor()
+    {
+        if (_editor is not null) _editor.Visible = false;
+        foreach (var c in _listMode) c.Visible = true;
+    }
+
+    /// <summary>Diagnóstico (--snapshot ... ui:arquivo.xml): abre o interfaces.pck do jogo no editor e a janela pedida.</summary>
+    internal void OpenUiForSnapshot(string file)
+    {
+        var dir = _elementDir();
+        if (dir is null) return;
+        Open(Path.Combine(dir, "interfaces.pck"));
+        OpenEditor();
+        _editor?.OpenForSnapshot(file);
+    }
+
     void ChangeDest()
     {
         using var dlg = new FolderBrowserDialog { Description = Loc.T("pck.dest", "Pasta de destino (as subpastas do pacote são mantidas)"), SelectedPath = _dest ?? "" };
@@ -147,6 +189,8 @@ internal sealed class PckView : Panel
         int n = _lv.SelectedIndices.Count;
         _destLabel.Text = _dest is null ? "" : Loc.T("pck.to", "Destino: ") + _dest;
         _destChange.Visible = _pck is not null;
+        _editUi.Visible = _dialogCount > 0;
+        _editUi.Text = string.Format(Loc.T("pck.editUi", "✎ Editar interfaces ({0})"), _dialogCount);
         _extractSel.Text = string.Format(Loc.T("pck.extractSel", "Extrair selecionados ({0})"), n);
         _extractSel.Enabled = n > 0 && _work is null;
         _extractAll.Enabled = _view.Count > 0 && _work is null;
@@ -197,9 +241,8 @@ internal sealed class PckView : Panel
         if (list.Count == 0) return;
         if (_dest is null) return;
         var root = Path.GetFullPath(_dest);   // criada se não existir
-        // como o sPCK: interfaces.pck guarda "interfaces\..." e vai para interfaces.pck.files\...
-        var strip = Path.GetFileNameWithoutExtension(_pck.FilePath) + "\\";
-        if (!_pck.Entries.All(e => e.Path.StartsWith(strip, StringComparison.OrdinalIgnoreCase))) strip = "";
+        // como o sPCK: o caminho inteiro do pacote vai para dentro de <pacote>.files (interfaces.pck.files\interfaces\version01\...)
+        var strip = "";
         var pck = _pck;
         _work = new CancellationTokenSource();
         var token = _work.Token;

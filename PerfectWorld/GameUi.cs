@@ -13,7 +13,8 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public sealed class GameDialog
 {
-    public sealed record Control(string Tag, string Name, Rectangle Rect, string? Text, float FontSize, Color? Color, int Align, IReadOnlyList<string> Images);
+    public sealed record Control(string Tag, string Name, Rectangle Rect, string? Text, float FontSize, Color? Color, int Align, IReadOnlyList<string> Images,
+        string? FontName = null, bool Bold = false, Point TextOffset = default, int Frames = 1);
 
     public string Name { get; init; } = "";
     public Size Size { get; init; }
@@ -58,9 +59,59 @@ public sealed class GameDialog
                 ? System.Drawing.Color.FromArgb(c.Length >= 4 ? C(c[3]) ?? 255 : 255, cr, cg, cb) : null;
             float size = ta.TryGetValue("FontSize", out var fs) && float.TryParse(fs, NumberStyles.Float, CultureInfo.InvariantCulture, out var f) ? f : 10;
             dlg.Controls[m.Groups[2].Value] = new Control(m.Groups[1].Value, m.Groups[2].Value, new Rectangle(N("x"), N("y"), N("Width"), N("Height")),
-                System.Net.WebUtility.HtmlDecode(ta.GetValueOrDefault("String")), size, col, N("Align"), File.Matches(body).Select(x => x.Groups[1].Value).ToList());
+                System.Net.WebUtility.HtmlDecode(ta.GetValueOrDefault("String")), size, col, N("Align"), File.Matches(body).Select(x => x.Groups[1].Value).ToList(),
+                ta.GetValueOrDefault("FontName"), ta.TryGetValue("Bold", out var bo) && bo.Equals("true", StringComparison.OrdinalIgnoreCase),
+                new Point(N("TextOffsetX"), N("TextOffsetY")),
+                Regex.Match(body, @"FileName=""[^""]*""\s+Frames=""(\d+)""") is { Success: true } fr ? int.Parse(fr.Groups[1].Value) : 1);
         }
         return dlg;
+    }
+}
+
+/// <summary>
+/// Fontes do próprio cliente (element\font, element\fonts ou element\data: fzxh1jw.ttf = 方正细黑一简体, fzl2jw.ttf = 方正隶二简体,
+/// fzlbjw.ttf = 方正隶变简体), para o texto sair com a mesma largura do jogo.
+/// </summary>
+public static class GameFonts
+{
+    static readonly System.Drawing.Text.PrivateFontCollection Pfc = new();
+    static readonly Dictionary<string, FontFamily> ByFile = new(StringComparer.OrdinalIgnoreCase);
+    static string? _loadedFrom;
+
+    public static void Load(string elementDir)
+    {
+        if (_loadedFrom == elementDir) return;
+        _loadedFrom = elementDir;
+        foreach (var sub in new[] { "font", "fonts", "data" })
+        {
+            var d = Path.Combine(elementDir, sub);
+            if (!Directory.Exists(d)) continue;
+            foreach (var f in Directory.EnumerateFiles(d, "*.ttf"))
+            {
+                var key = Path.GetFileNameWithoutExtension(f);
+                if (ByFile.ContainsKey(key)) continue;
+                try
+                {
+                    int before = Pfc.Families.Length;
+                    Pfc.AddFontFile(f);
+                    if (Pfc.Families.Length > before) ByFile[key] = Pfc.Families[^1];
+                }
+                catch { }
+            }
+        }
+    }
+
+    /// <summary>Família para o FontName do XML; null = usar a fonte padrão do editor.</summary>
+    public static FontFamily? For(string? fontName)
+    {
+        if (ByFile.Count == 0) return null;
+        string file = fontName switch
+        {
+            { } n when n.Contains("隶二") => "fzl2jw",
+            { } n when n.Contains("隶变") => "fzlbjw",
+            _ => "fzxh1jw",
+        };
+        return ByFile.GetValueOrDefault(file) ?? ByFile.Values.FirstOrDefault();
     }
 }
 
@@ -93,6 +144,13 @@ public sealed class GameTextures : IDisposable
                     ".dds" => FromDds(data),
                     _ => Image.FromStream(new MemoryStream(data)),
                 };
+                // .bmp da interface usa magenta (255,0,255) como transparente (o "?" de ajuda aparecia rosa)
+                if (img is Bitmap bm && ext == ".bmp")
+                {
+                    var copy = new Bitmap(bm);
+                    copy.MakeTransparent(Color.FromArgb(255, 0, 255));
+                    img.Dispose(); img = copy;
+                }
                 if (img is not null && frames > 1)
                 {
                     // tiras animadas: quadros empilhados na vertical (new/hot/gift) ou na horizontal

@@ -49,6 +49,19 @@ internal static class Program
             return;
         }
         if (args.Length >= 2 && args[0] == "--errors") { FindErrors(args[1]); return; }
+        if (args.Length >= 4 && args[0] == "--ui-render")   // --ui-render <pasta element> <filtro> <pasta de saída>: janelas em PNG
+        {
+            var el = args[1];
+            using var ip = new PckArchive(Path.Combine(el, "interfaces.pck"));
+            using var sp = new PckArchive(Path.Combine(el, "surfaces.pck"));
+            using var tex = new GameTextures(sp);
+            GameFonts.Load(el);
+            Directory.CreateDirectory(args[3]);
+            foreach (var e in ip.Entries.Where(x => x.Path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) && x.Path.Contains(args[2], StringComparison.OrdinalIgnoreCase)).Take(60))
+                if (GameDialog.Load(ip, e.Path) is { } d)
+                    using (var b = MyAceEditor.UI.GameDraw.Render(d, tex, outlines: true)) b.Save(Path.Combine(args[3], Path.GetFileNameWithoutExtension(e.Path) + ".png"));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--gshop") { TestGShop(args[1], args[2]); return; }
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 

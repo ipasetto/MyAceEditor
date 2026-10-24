@@ -248,11 +248,6 @@ public sealed class EditorForm : Form
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
             PickShopItem));
         tabs.TabPages.Add(tG);
-        var tUi = new TabPage() { BackColor = CBg };
-        _tabUi = tUi;
-        Bind(() => tUi.Text = Loc.T("tab.interface", "Interface"));
-        tUi.Controls.Add(_uiView = new InterfaceView(() => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath))));
-        tabs.TabPages.Add(tUi);
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));
         _aiView = new AiPolicyView(CBg, CFg, CTreeBg, CTreeFg, CAccent);
@@ -263,6 +258,7 @@ public sealed class EditorForm : Form
         tChk.Controls.Add(BuildCheckView());
         tabs.TabPages.Add(tChk);
         var tPck = new TabPage() { BackColor = CBg };
+        _tabPck = tPck;
         Bind(() => tPck.Text = Loc.T("tab.pck", "Extrator PCK"));
         tPck.Controls.Add(BuildPckView());
         tabs.TabPages.Add(tPck);
@@ -625,7 +621,7 @@ public sealed class EditorForm : Form
         _unusedCache.Clear();
         _typeCache.Clear();
         _edits.Clear();
-        BeginInvoke(() => { _gshop?.GameFolderChanged(); _uiView?.GameFolderChanged(); });   // loja e janelas da mesma pasta do jogo
+        BeginInvoke(() => _gshop?.GameFolderChanged());   // loja da mesma pasta do jogo
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _aiView?.LoadRememberedIfNeeded();
@@ -1171,8 +1167,8 @@ public sealed class EditorForm : Form
     // ---------- procurar erros ----------
     private ErrorsWindow? _errors;
     private GShopView? _gshop;
-    private TabPage? _tabGShop, _tabUi;
-    private InterfaceView? _uiView;
+    private TabPage? _tabGShop, _tabPck;
+    private PckView? _pckView;
     private readonly MyAceEditor.Changes.EditHistory _edits = new();
 
     private void FindErrors()
@@ -1275,7 +1271,7 @@ public sealed class EditorForm : Form
             && ActiveControlDeep() is not TextBoxBase && !_grid.IsCurrentCellInEditMode)
         {
             bool undo = keyData == (Keys.Control | Keys.Z);
-            if (_tabs?.SelectedTab == _tabUi && _uiView is not null) { if (!(undo ? _uiView.Undo() : _uiView.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
+            if (_tabs?.SelectedTab == _tabPck && _pckView?.Editor is { } ui) { if (!(undo ? ui.Undo() : ui.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabGShop && _gshop is not null) { if (!(undo ? _gshop.Undo() : _gshop.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             UndoRedo(undo);
             return true;
@@ -1344,7 +1340,7 @@ public sealed class EditorForm : Form
     {
         if (id.Equals("shop", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.SelectedTab = _tabShop; return; }
         if (id.Equals("desc", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedIndex = _detailTabs.TabCount - 1; return; }
-        if (id.StartsWith("ui:", StringComparison.OrdinalIgnoreCase)) { _uiView?.OpenForSnapshot(id[3..]); return; }
+        if (id.StartsWith("ui:", StringComparison.OrdinalIgnoreCase)) { if (_tabs is not null && _tabPck is not null) _tabs.SelectedTab = _tabPck; _pckView?.OpenUiForSnapshot(id[3..]); return; }
         if (id.Equals("links", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedTab = _tabLinks; if (_current is not null) FillLinks(_current); return; }
         foreach (TabPage t in _groupTabs.TabPages)
             if (string.Equals(t.Tag as string, id, StringComparison.OrdinalIgnoreCase)) { _groupTabs.SelectedTab = t; return; }
@@ -2664,7 +2660,7 @@ public sealed class EditorForm : Form
 
     // ---------- aba Extrator PCK (nativo: UI/PckView.cs) ----------
     private Control BuildPckView() =>
-        new PckView(() => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)));   // element\data\elements.data -> element
+        _pckView = new PckView(() => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)));   // element\data\elements.data -> element
 
     // ---------- settings genéricas ----------
     private static string SettingsDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor");

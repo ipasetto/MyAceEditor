@@ -128,6 +128,7 @@ internal sealed class GShopView : UserControl
             _interfacesPck = TryPck(Path.Combine(element, "interfaces.pck"));
             _surfacesPck = TryPck(Path.Combine(element, "surfaces.pck"));
             _tex = _surfacesPck is null ? null : new GameTextures(_surfacesPck);
+            GameFonts.Load(element);
             _dlg = _interfacesPck is null ? null : GameDialog.Load(_interfacesPck, @"interfaces\version01\qshop.xml");
             _cell = _interfacesPck is null ? null : GameDialog.Load(_interfacesPck, @"interfaces\version01\qshopitemdefault0.xml");
             FillSurfaceList();
@@ -487,29 +488,9 @@ internal sealed class GShopView : UserControl
         static Font GameFont(float size, bool bold) => new("Microsoft YaHei UI", Math.Max(8, size * 1.05f), bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
         static readonly Color Outline = Color.FromArgb(10, 20, 30);
 
+        // mesmas fontes do cliente e reserva p/ acentos do editor de interface; aqui o texto diminui para caber (nomes vêm do arquivo)
         void Text(Graphics g, string t, Rectangle r, Color c, float size, bool bold = false, ContentAlignment align = ContentAlignment.MiddleCenter)
-        {
-            // texto maior que o espaço (ex.: categorias em russo): diminui a fonte até caber, como o jogo faz com rótulos fixos
-            var f = GameFont(size, bold);
-            if (r.Width > 0)
-                for (float k = 0.95f; k >= 0.7f && g.MeasureString(t, f).Width > r.Width + 2; k -= 0.05f)
-                { f.Dispose(); f = GameFont(size * k, bold); }
-            using var fontScope = f;
-            using var sf = new StringFormat(StringFormatFlags.NoWrap)
-            {
-                Trimming = StringTrimming.EllipsisCharacter, LineAlignment = StringAlignment.Center,
-                Alignment = align switch { ContentAlignment.MiddleLeft => StringAlignment.Near, ContentAlignment.MiddleRight => StringAlignment.Far, _ => StringAlignment.Center },
-            };
-            // rótulo sem largura no XML (só a âncora): deixa o texto correr
-            var rf = r.Width > 0 ? (RectangleF)r : new RectangleF(r.X - 150, r.Y, 300, Math.Max(r.Height, 18));
-            if (r.Height == 0) rf.Height = 18;
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-            using (var ob = new SolidBrush(Outline))
-                foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
-                    g.DrawString(t, f, ob, new RectangleF(rf.X + dx, rf.Y + dy, rf.Width, rf.Height), sf);
-            using var b = new SolidBrush(c);
-            g.DrawString(t, f, b, rf, sf);
-        }
+            => GameDraw.Text(g, t, r, c, size, bold, align);
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -525,7 +506,7 @@ internal sealed class GShopView : UserControl
             var f = _v._shops[_v._which];
             if (Img(D?.Frame) is { } frame) g.DrawImage(frame, new Rectangle(Point.Empty, win));
             else using (var b = new SolidBrush(Color.FromArgb(28, 40, 58))) g.FillRectangle(b, new Rectangle(Point.Empty, win));
-            Text(g, D?["titletxt"]?.Text ?? "LOJA", R("titletxt", new Rectangle(291, 37, 206, 35)), Gold, 24, true);
+            GameDraw.Text(g, D?["titletxt"]?.Text ?? "LOJA", R("titletxt", new Rectangle(291, 37, 206, 35)), Gold, 24, false, ContentAlignment.MiddleCenter, D?["titletxt"]?.FontName);   // fonte do título do jogo (隶二)
 
             // abas Loja / Butique de Eventos (gshop / gshop1)
             for (int i = 0; i < 2; i++)
