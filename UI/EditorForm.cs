@@ -466,10 +466,15 @@ public sealed class EditorForm : Form
         bulk.Click += (_, _) => BulkChange();
         Bind(() => bulk.Text = Loc.T("ctx.bulkField", "Alterar este campo nos itens selecionados…"));
         _gridCtx.Items.Add(bulk);
+        var addonEd = new ToolStripMenuItem();
+        addonEd.Click += (_, _) => { if (_current is not null) OpenAddonEditor(_current); };
+        Bind(() => addonEd.Text = Loc.T("ctx.addonEditor", "Editor de addons e chances…"));
+        _gridCtx.Items.Add(addonEd);
         _gridCtx.Opening += (_, e) =>
         {
             if (_grid.CurrentRow?.Tag is not string k) { e.Cancel = true; return; }
             balance.Visible = FieldKinds.Of(k) == FieldKind.Probability;
+            addonEd.Visible = _current is not null && AddonGroups.Find(_current).Count > 0;
             int n = _list.SelectedIndices.Count;
             bulk.Text = Loc.T("ctx.bulkField", "Alterar este campo nos itens selecionados…") + (n > 1 ? $" ({n})" : "");
         };
@@ -594,6 +599,28 @@ public sealed class EditorForm : Form
         if (ReferenceEquals(_current, d.Item)) FillGrid(d.Item);
         var s2 = ProbabilityGroups.Sum(d.Item, d.Before.Keys);
         Status(string.Format(Loc.T("status.probSet", "{0} = {1:0.###}% · soma do grupo {2:0.###}%"), FieldLabels.Label(d.Key), ProbabilityGroups.Num(after[d.Key]) * 100, s2 * 100));
+    }
+
+    // Editor de addons (janela): trabalha numa cópia; ao salvar, as mudanças entram no histórico como uma ação só.
+    private void OpenAddonEditor(Item item)
+    {
+        _grid.EndEdit();
+        var addons = _cfgs?.Addons;
+        string Text(string id) => _refs?.Resolve(FieldKind.AddonRef, id) is { } hit ? addons?.Describe(hit.Item) is { Length: > 0 } d ? d : hit.Item.Name : "";
+        List<string>? Pick(string refKey)
+        {
+            var src = PickSource(FieldKind.AddonRef, refKey);
+            if (src.Count == 0) return null;
+            var picked = FieldEditors.Pick(this, Loc.T("pick.addon", "Escolher atributo"), src, null, IconIndexFor, _treeIcons,
+                it => addons?.Describe(it) ?? "", addons is not null ? it => addons.TypeCaption(it.Id) : _ => null, true);
+            return picked?.Select(p => p.Id).ToList();
+        }
+        using var dlg = new AddonEditor(item, FieldLabels.Label, Text, Pick);
+        if (dlg.ShowDialog(this) != DialogResult.OK || dlg.Changes.Count == 0) return;
+        using (_edits.Batch(string.Format(Loc.T("hist.addonEditor", "Editor de addons em {0}"), item.Id)))
+            foreach (var (k, v) in dlg.Changes) SetField(item, k, v, refresh: false);
+        if (ReferenceEquals(_current, item)) ShowItem(item);
+        Status(string.Format(Loc.T("status.addonEditor", "Editor de addons: {0} campo(s) alterado(s) em {1}"), dlg.Changes.Count, item.Id));
     }
 
     // Probabilidades irmãs (mesmo nome trocando o número): divide 100% entre os slots com referência preenchida.
