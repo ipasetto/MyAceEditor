@@ -17,9 +17,12 @@
 [ ] editores especiais: addons, mascaras (classes) c/ checkbox, bool como checkbox, cor, probabilidades
 [ ] editar descricao do item (exige gravar configs.pck)
 [ ] rotulos PT melhores p/ campos (ex. "Magico defences 1 min")
-[ ] nomes de skill (skillstr.txt) e de quest nos vinculos
+[x] nomes de skill (skillstr.txt) e de quest nos vinculos (falta clicar e ir a quest)
 [ ] icones de monstro/NPC
 [ ] importar/exportar item (entre elements de versoes diferentes, .rules)
+
+[x] desfazer/refazer + historico (#1) | [x] procurar erros + corrigir probabilidades (#4) | [x] alterar campo em lote (somar/multiplicar/sequencia/aleatorio/substituir)
+[x] tooltip da lista estilo RAE + vinculos por espaco de ID | [x] tipos/subtipos com vinculos e duplo clique
 
 ## FASE 3 — outros arquivos
 [x] tasks.data v93 completo: 21.777 quests, 238 campos, textos, dialogos; leitura/gravacao byte-identica (§E3c)
@@ -28,7 +31,7 @@
 [ ] auto-tradutor (quests + elements + configs.pck)
 [ ] GShop (cliente+servidor juntos; formato PW-KB §S19)
 [ ] AI Policy (PW-KB §S18) | NPCGen/spawns (PW-KB §S22)
-[ ] gravar .pck (para interface/configs)
+[x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)
 
 ## FASE 4 — engine
 [ ] corrigir automaticamente o par (exportar loja/elements/tasks p/ os 2 lados)

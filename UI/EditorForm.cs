@@ -2583,65 +2583,9 @@ public sealed class EditorForm : Form
         Status("Verificação concluída");
     }
 
-    // ---------- aba Extrator PCK (invólucro do sPCK) ----------
-    private Label _lblSpck = null!, _lblIcons = null!;
-    private Control BuildPckView()
-    {
-        var p = new Panel { Dock = DockStyle.Fill, BackColor = CBg, Padding = new Padding(20) };
-        int y = 10;
-        Label Title(string t) { var l = new Label { Text = t, Location = new Point(14, y), AutoSize = true, Font = new Font("Segoe UI", 12, FontStyle.Bold), ForeColor = CFg }; y += 34; return l; }
-        Label Info(string t) { var l = new Label { Text = t, Location = new Point(14, y), AutoSize = true, MaximumSize = new Size(820, 0), ForeColor = CMuted }; y += l.PreferredHeight + 10; return l; }
-        Button Btn(string t, Action a) { var b = new Button { Text = t, Location = new Point(14, y), Size = new Size(260, 30), FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; b.Click += (_, _) => a(); y += 40; return b; }
-
-        p.Controls.Add(Title("Pacotes .pck"));
-        p.Controls.Add(Info("Os ícones dos itens agora são lidos DIRETO do surfaces.pck, automaticamente, ao abrir a pasta do Perfect World — não precisa extrair nada. As opções abaixo (sPCK + pasta extraída) ficam só como alternativa, caso algum ícone não apareça."));
-        p.Controls.Add(Btn("1) Localizar o sPCK (sPCK-GUI.exe)", LocateSpck));
-        _lblSpck = new Label { Location = new Point(290, y - 34), AutoSize = true, ForeColor = CMuted, MaximumSize = new Size(520, 0) };
-        p.Controls.Add(_lblSpck);
-        p.Controls.Add(Btn("2) Abrir o sPCK para extrair", OpenSpck));
-        p.Controls.Add(Info("No sPCK, extraia o .pck dos ícones (ex.: interfaces.pck / o pacote de ícones) para uma pasta."));
-        p.Controls.Add(Btn("3) Definir a pasta de ícones extraída", SetIconsFolder));
-        _lblIcons = new Label { Location = new Point(290, y - 34), AutoSize = true, ForeColor = CMuted, MaximumSize = new Size(520, 0) };
-        p.Controls.Add(_lblIcons);
-        p.Controls.Add(Info("Pronto: ao selecionar um item na aba Elements, o ícone aparece ao lado do nome (formatos PNG/BMP/TGA)."));
-        RefreshPckLabels();
-        return p;
-    }
-
-    private void RefreshPckLabels()
-    {
-        _lblSpck.Text = LoadSetting("spck") ?? "(não definido — ou deixe que eu procuro no padrão)";
-        _lblIcons.Text = LoadSetting("icons") ?? "(não definida)";
-    }
-    private void LocateSpck()
-    {
-        using var dlg = new OpenFileDialog { Filter = "sPCK (*.exe)|*.exe", Title = "Selecione o sPCK-GUI.exe" };
-        if (dlg.ShowDialog(this) == DialogResult.OK) { SaveSetting("spck", dlg.FileName); RefreshPckLabels(); }
-    }
-    private void OpenSpck()
-    {
-        var path = LoadSetting("spck") ?? DefaultSpck();
-        if (path is null || !File.Exists(path)) { Status("sPCK não encontrado — use 'Localizar o sPCK'."); return; }
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(path)! }); }
-        catch (Exception ex) { Error("Falha ao abrir o sPCK", ex); }
-    }
-    private static string? DefaultSpck()
-    {
-        foreach (var c in new[] { @"D:\Perfect World\PW\Outros Editores\sPCK GUI\sPCK-GUI.exe" })
-            if (File.Exists(c)) return c;
-        return null;
-    }
-    private void SetIconsFolder()
-    {
-        using var dlg = new FolderBrowserDialog { Description = "Pasta com os ícones extraídos do .pck" };
-        if (dlg.ShowDialog(this) == DialogResult.OK)
-        {
-            SaveSetting("icons", dlg.SelectedPath); RefreshPckLabels();
-            _iconsRoot = dlg.SelectedPath; _iconIdx.Clear(); _treeIcons.Images.Clear();
-            RefreshView();
-            Status("Pasta de ícones definida — ícones ativados na lista.");
-        }
-    }
+    // ---------- aba Extrator PCK (nativo: UI/PckView.cs) ----------
+    private Control BuildPckView() =>
+        new PckView(() => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)));   // element\data\elements.data -> element
 
     // ---------- settings genéricas ----------
     private static string SettingsDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor");
