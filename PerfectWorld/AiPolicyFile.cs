@@ -229,6 +229,17 @@ public sealed class AiOp { public int Type; public byte[] Param = Array.Empty<by
 
 public sealed class AiTrigger
 {
+    /// <summary>Cópia completa com outro ID (os bytes de parâmetros são copiados, nada é recodificado).</summary>
+    public AiTrigger Clone(int newId)
+    {
+        static AiCondNode C(AiCondNode n) => new() { Type = n.Type, Param = (byte[])n.Param.Clone(), EndMarker = n.EndMarker, Left = n.Left is null ? null : C(n.Left), Right = n.Right is null ? null : C(n.Right) };
+        return new AiTrigger
+        {
+            Version = Version, Id = newId, Active = Active, Run = Run, AttackValid = AttackValid, NameRaw = (byte[])NameRaw.Clone(), Root = C(Root),
+            Ops = Ops.Select(o => new AiOp { Type = o.Type, Param = (byte[])o.Param.Clone(), Target = new AiTarget { Type = o.Target.Type, Param = (byte[])o.Target.Param.Clone() } }).ToList(),
+        };
+    }
+
     public int Version, Id;
     public byte Active = 1, Run = 1, AttackValid = 1;
     public byte[] NameRaw = new byte[128];
@@ -251,6 +262,9 @@ public sealed class AiPolicy
 {
     public int Version, Id;
     public List<AiTrigger> Triggers = new();
+
+    /// <summary>Cópia completa (gatilhos, condições e operações) com outro ID de política.</summary>
+    public AiPolicy Clone(int newId) => new() { Version = Version, Id = newId, Triggers = Triggers.Select(t => t.Clone(t.Id)).ToList() };
 }
 
 public sealed class AiPolicyFile

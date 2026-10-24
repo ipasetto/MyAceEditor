@@ -35,6 +35,9 @@ public sealed class AiPolicyView : UserControl
     readonly Button _save = new() { AutoSize = true, Enabled = false };
     readonly Button _add = new() { AutoSize = true, Enabled = false };
     readonly Button _del = new() { AutoSize = true, Enabled = false };
+    readonly Button _clone = new() { AutoSize = true, Enabled = false };
+    readonly TextBox _find = new() { Width = 200 };
+    readonly Button _findNext = new() { AutoSize = true };
     readonly Button _trSel = new() { AutoSize = true, Enabled = false };
     readonly Button _trAll = new() { AutoSize = true, Enabled = false };
     readonly CheckBox _orig = new() { AutoSize = true, Padding = new Padding(8, 3, 0, 0) };
@@ -77,7 +80,7 @@ public sealed class AiPolicyView : UserControl
 
         var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 6, 8, 0), BackColor = bg, WrapContents = false };
         _lblNewOp.ForeColor = fg; _lblLang.ForeColor = fg; _orig.ForeColor = fg;
-        top.Controls.AddRange(new Control[] { _open, _save, _lblNewOp, _newOp, _add, _del });
+        top.Controls.AddRange(new Control[] { _open, _save, _lblNewOp, _newOp, _add, _del, _clone, new Label { Width = 12 }, _find, _findNext });
         var top2 = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(8, 2, 8, 0), BackColor = bg, WrapContents = false };
         top2.Controls.AddRange(new Control[] { _trSel, _trAll, _lblTarget, _tgt, _orig, _lblLang });
 
@@ -128,6 +131,9 @@ public sealed class AiPolicyView : UserControl
         _grid.CellEndEdit += OnCellEdit;
         _add.Click += (_, _) => AddOp();
         _del.Click += (_, _) => DeleteSelected();
+        _clone.Click += (_, _) => CloneSelected();
+        _findNext.Click += (_, _) => FindNext();
+        _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _trSel.Click += async (_, _) => await TranslateSelection();
         _trAll.Click += async (_, _) => await TranslateAll();
         _orig.CheckedChanged += (_, _) => { RefreshLabels(); if (_current != null) ShowFields(_detail.SelectedNode); RefreshMeaning(); };
@@ -152,6 +158,9 @@ public sealed class AiPolicyView : UserControl
         _lblNewOp.Text = L("  Nova operação:", "  New operation:");
         _add.Text = "+ " + L("Operação", "Operation");
         _del.Text = L("Excluir operação/trigger", "Delete operation/trigger");
+        _clone.Text = L("Clonar política/trigger", "Clone policy/trigger");
+        _find.PlaceholderText = L("Buscar: ID ou nome", "Search: ID or name");
+        _findNext.Text = L("Próximo", "Next");
         _lblTarget.Text = L("Traduzir para:", "Translate to:");
         _trSel.Text = _cts is null ? L("Traduzir seleção", "Translate selection") : L("Cancelar tradução", "Cancel translation");
         _trAll.Text = _cts is null ? L("Traduzir tudo", "Translate all") : L("Cancelar tradução", "Cancel translation");
@@ -543,6 +552,61 @@ public sealed class AiPolicyView : UserControl
         UpdateButtons();
     }
 
+    // Clonar: política (novo ID = maior + 1, no fim da lista) ou trigger (novo ID na mesma política, logo depois).
+    void CloneSelected()
+    {
+        if (_file is not { Ok: true }) return;
+        switch (_policies.SelectedNode)
+        {
+            case { Tag: AiTrigger tr, Parent: { Tag: AiPolicy pol } pn }:
+            {
+                var copy = tr.Clone(pol.Triggers.Max(x => x.Id) + 1);
+                pol.Triggers.Insert(pol.Triggers.IndexOf(tr) + 1, copy);
+                var node = new TreeNode(TriggerLabel(copy)) { Tag = copy };
+                pn.Nodes.Insert(pn.Nodes.IndexOf(_policies.SelectedNode) + 1, node);
+                _policies.SelectedNode = node; MarkDirty();
+                SetStatus(L($"Trigger {tr.Id} clonado como {copy.Id}", $"Trigger {tr.Id} cloned as {copy.Id}"));
+                break;
+            }
+            case { Tag: AiPolicy p }:
+            {
+                var copy = p.Clone(_file.Policies.Max(x => x.Id) + 1);
+                _file.Policies.Add(copy);
+                var pn = new TreeNode(PolicyLabel(copy)) { Tag = copy };
+                foreach (var t in copy.Triggers) pn.Nodes.Add(new TreeNode(TriggerLabel(t)) { Tag = t });
+                _policies.Nodes.Add(pn); _policies.SelectedNode = pn; MarkDirty();
+                SetStatus(L($"Política {p.Id} clonada como {copy.Id} (no fim da lista). Para um monstro usar, ponha esse ID no campo de IA dele.",
+                            $"Policy {p.Id} cloned as {copy.Id} (end of list). Set this ID in a monster's AI field to use it."));
+                break;
+            }
+        }
+        UpdateButtons();
+    }
+
+    // Busca por ID de política/trigger ou parte do nome do trigger, a partir do item selecionado (Próximo continua).
+    void FindNext()
+    {
+        var q = _find.Text.Trim();
+        if (q.Length == 0 || _file is not { Ok: true }) return;
+        var all = new List<TreeNode>();
+        foreach (TreeNode pn in _policies.Nodes) { all.Add(pn); foreach (TreeNode tn in pn.Nodes) all.Add(tn); }
+        int start = _policies.SelectedNode is { } sel ? all.IndexOf(sel) + 1 : 0;
+        bool Hit(TreeNode n) => n.Tag switch
+        {
+            AiPolicy p => p.Id.ToString() == q,
+            AiTrigger t => t.Id.ToString() == q || t.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || n.Text.Contains(q, StringComparison.OrdinalIgnoreCase),
+            _ => false,
+        };
+        for (int k = 0; k < all.Count; k++)
+        {
+            var n = all[(start + k) % all.Count];
+            if (!Hit(n)) continue;
+            n.EnsureVisible(); _policies.SelectedNode = n; _policies.Focus();
+            return;
+        }
+        SetStatus(L($"Nada encontrado para \"{q}\"", $"Nothing found for \"{q}\""));
+    }
+
     // ---------- tradução ----------
 
     /// <summary>Textos do escopo atual: operação selecionada > trigger aberto > política selecionada.</summary>
@@ -663,6 +727,7 @@ public sealed class AiPolicyView : UserControl
         _save.Enabled = ok && _dirty;
         _add.Enabled = ok && _current != null;
         _del.Enabled = ok && _current != null;
+        _clone.Enabled = ok && _policies.SelectedNode?.Tag is AiPolicy or AiTrigger;
         _trSel.Enabled = ok && (_cts != null || _current != null || _policies.SelectedNode?.Tag is AiPolicy);
         _trAll.Enabled = ok;
     }
