@@ -240,8 +240,12 @@ public sealed class EditorForm : Form
         tQ.Controls.Add(BuildQuestView());
         tabs.TabPages.Add(tQ);
         var tG = new TabPage() { BackColor = CBg };
-        Bind(() => { tG.Text = Loc.T("tab.gshop", "GShop"); foreach (Control c in tG.Controls) c.Text = Loc.T("tab.gshopSoon", "Editor de loja\n(em breve)"); });
-        tG.Controls.Add(new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = CMuted, Text = "Editor de loja\n(em breve)", Font = new Font("Segoe UI", 11) });
+        Bind(() => tG.Text = Loc.T("tab.gshop", "GShop"));
+        tG.Controls.Add(_gshop = new GShopView(
+            () => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)),   // pasta element
+            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? IconFor(h.Item) : null,
+            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
+            PickShopItem));
         tabs.TabPages.Add(tG);
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));
@@ -615,6 +619,7 @@ public sealed class EditorForm : Form
         _unusedCache.Clear();
         _typeCache.Clear();
         _edits.Clear();
+        BeginInvoke(() => _gshop?.GameFolderChanged());   // loja da mesma pasta do jogo
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _aiView?.LoadRememberedIfNeeded();
@@ -1159,6 +1164,7 @@ public sealed class EditorForm : Form
 
     // ---------- procurar erros ----------
     private ErrorsWindow? _errors;
+    private GShopView? _gshop;
     private readonly MyAceEditor.Changes.EditHistory _edits = new();
 
     private void FindErrors()
@@ -1546,6 +1552,16 @@ public sealed class EditorForm : Form
             }
         }
         return false;
+    }
+
+    // Loja: escolher o item vendido (mesma janela de escolha dos campos de item)
+    private int? PickShopItem(IWin32Window owner, int current)
+    {
+        var src = PickSource(FieldKind.ItemRef);
+        if (src.Count == 0) return null;
+        var picked = FieldEditors.Pick(owner, Loc.T("pick.item", "Escolher item"), src, current.ToString(), IconIndexFor, _treeIcons,
+            it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "", it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null, false);
+        return picked is { Count: > 0 } && int.TryParse(picked[0].Id, out var id) ? id : null;
     }
 
     private List<Item> PickSource(FieldKind kind, string key = "")

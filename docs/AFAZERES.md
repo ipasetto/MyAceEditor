@@ -29,7 +29,7 @@
 [x] aba Quests: arvore + Dados + Textos + Dialogos
 [ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | outras versoes (so v93 completa)
 [ ] auto-tradutor (quests + elements + configs.pck)
-[ ] GShop (cliente+servidor juntos; formato PW-KB §S19)
+[x] GShop (cliente+servidor juntos, tela igual a do jogo; falta validar no jogo e desfazer)
 [ ] AI Policy (PW-KB §S18) | NPCGen/spawns (PW-KB §S22)
 [x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)
 
