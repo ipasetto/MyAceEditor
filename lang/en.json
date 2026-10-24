@@ -907,5 +907,13 @@
   "tip.addonsRand": "Random attributes",
   "tip.addonsUnique": "Unique attributes",
   "tip.addonsOther": "Other attributes",
-  "tip.refine": "Refine"
+  "tip.refine": "Refine",
+  "field.slot": "socket",
+  "field.slots": "sockets",
+  "field.whenDrop": "on drop",
+  "field.whenMake": "crafting",
+  "field.socketChance": "Chance of {0} {1} ({2})",
+  "field.addonNum": "Chance of {0} attribute(s)",
+  "field.levelup_addon": "Refine attribute",
+  "field.fixed_props": "Fixed properties"
 }

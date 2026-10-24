@@ -56,7 +56,7 @@ public static class FieldLabels
         ["refresh_time"] = "Tempo para reaparecer", ["attack_rule"] = "Pode ser atacado", ["tax_rate"] = "Taxa",
         ["id_src_monster"] = "Monstro de origem", ["hello_msg"] = "Mensagem de saudação", ["id_to_discover"] = "Descoberta (ID)",
         ["domain_related"] = "Ligado a território", ["combined_services"] = "Serviços combinados", ["id_mine"] = "Mina", ["no_collision"] = "Sem colisão",
-        ["use_on_pick"] = "Usar ao pegar",
+        ["use_on_pick"] = "Usar ao pegar", ["levelup_addon"] = "Atributo de refino", ["fixed_props"] = "Propriedades fixas",
         ["equip_location"] = "Local do equipamento", ["equip_mask"] = "Máscara de equipamento",
         ["proc_type"] = "Regras do item", ["immune_type"] = "Imunidades do monstro", ["has_guid"] = "Tem GUID",
         ["file_model"] = "Modelo", ["file_model_right"] = "Modelo (direita)", ["file_model_left"] = "Modelo (esquerda)",
@@ -127,6 +127,17 @@ public static class FieldLabels
         var sv = System.Text.RegularExpressions.Regex.Match(field, @"^id_([a-z_]+)_service$");
         if (sv.Success && Services.TryGetValue(sv.Groups[1].Value, out var svc))
             return $"{Loc.T("field.kind.service", "Serviço")}: {Loc.T("svc." + sv.Groups[1].Value, svc)}";
+        // equipamento: chance de vir com N slots (ao cair / ao fabricar) e com N atributos
+        var so = System.Text.RegularExpressions.Regex.Match(field, @"^(drop|make)_probability_socket(\d)$");
+        if (so.Success)
+        {
+            int n = int.Parse(so.Groups[2].Value);
+            string slots = n == 1 ? Loc.T("field.slot", "slot") : Loc.T("field.slots", "slots");
+            string when = so.Groups[1].Value == "drop" ? Loc.T("field.whenDrop", "ao cair") : Loc.T("field.whenMake", "fabricação");
+            return string.Format(Loc.T("field.socketChance", "Chance de {0} {1} ({2})"), n, slots, when);
+        }
+        var an = System.Text.RegularExpressions.Regex.Match(field, @"^probability_addon_num(\d)$");
+        if (an.Success) return string.Format(Loc.T("field.addonNum", "Chance de {0} atributo(s)"), an.Groups[1].Value);
         // monstro: probability_drop_num0..3 = chance de cair N itens por vez
         var dn = System.Text.RegularExpressions.Regex.Match(field, @"^probability_drop_num(\d)$");
         if (dn.Success) return string.Format(Loc.T("field.dropNum", "Chance de cair {0} item(ns)"), dn.Groups[1].Value);
