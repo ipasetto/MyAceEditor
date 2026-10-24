@@ -133,7 +133,7 @@ public static class VersionCheck
             if (!File.Exists(path)) return null;
             using var f = File.OpenRead(path);
             var b = new byte[12];
-            if (f.Read(b, 0, 12) < 12) return null;
+            if (f.Read(b, 0, 12) < 8) return null;   // loja vazia (gshopsev1) tem só 8 bytes: timestamp + 0 itens
             return (BitConverter.ToUInt32(b, 0), BitConverter.ToUInt32(b, 4), BitConverter.ToUInt32(b, 8));
         }
         catch { return null; }

@@ -2562,7 +2562,11 @@ public sealed class EditorForm : Form
         form.Controls.Add(new Label { Text = "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).", Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
         form.SetColumnSpan(form.GetControlFromPosition(0, 2)!, 2);
         form.Controls.Add(run, 2, 2);
-        for (int i = 0; i < 3; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        var fix = B("🛠 Corrigir…", FixPair);
+        form.Controls.Add(new Label { Text = "Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.", Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 3);
+        form.SetColumnSpan(form.GetControlFromPosition(0, 3)!, 2);
+        form.Controls.Add(fix, 2, 3);
+        for (int i = 0; i < 4; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
 
         _chkList.Columns.Add("", 34);
         _chkList.Columns.Add("Item", 300);
@@ -2616,6 +2620,38 @@ public sealed class EditorForm : Form
                          : warn > 0 ? $"⚠ Sem erros de login · {warn} aviso(s)" : "✔ Cliente e servidor compatíveis";
         _chkSummary.ForeColor = nothing || err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
         Status("Verificação concluída");
+    }
+
+    // Correção automática do par (issue #26): o usuário escolhe o que trocar; o cliente é a referência.
+    private void FixPair()
+    {
+        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status("Escolha as pastas do cliente e do servidor."); return; }
+        var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text);
+        if (fixes.Count == 0) { MessageBox.Show(this, Loc.T("fix.none", "Nada para corrigir: o servidor já está igual ao cliente no que o login exige."), Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        using var f = new Form
+        {
+            Text = Loc.T("fix.title", "Corrigir o par"), Width = 760, Height = 420, StartPosition = FormStartPosition.CenterParent,
+            ShowInTaskbar = false, MinimizeBox = false, BackColor = CSurface, ForeColor = CFg, Font = new Font("Segoe UI", 9.5f),
+        };
+        var info = new Label { Dock = DockStyle.Top, Height = 46, Padding = new Padding(8), ForeColor = CMuted,
+            Text = Loc.T("fix.info", "O cliente é a referência (é o que os jogadores têm). Marque o que deve ser refeito no servidor. Cada arquivo do servidor trocado é salvo antes como backup (.bak).") };
+        var list = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None, IntegralHeight = false };
+        foreach (var x in fixes) list.Items.Add($"{x.Title}  —  {x.Detail}", x.Recommended);
+        var ok = new Button { Text = Loc.T("fix.apply", "Corrigir marcados"), Dock = DockStyle.Bottom, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White, DialogResult = DialogResult.OK };
+        f.Controls.Add(list); f.Controls.Add(info); f.Controls.Add(ok);
+        if (f.ShowDialog(this) != DialogResult.OK) return;
+        var done = new List<string>(); var failed = new List<string>();
+        for (int i = 0; i < fixes.Count; i++)
+        {
+            if (!list.GetItemChecked(i)) continue;
+            try { fixes[i].Apply(); done.Add(fixes[i].Title); }
+            catch (Exception ex) { failed.Add($"{fixes[i].Title}: {ex.Message}"); }
+        }
+        RunCheck();
+        MessageBox.Show(this, (done.Count > 0 ? Loc.T("fix.done", "Corrigido:") + "\n• " + string.Join("\n• ", done) : "")
+            + (failed.Count > 0 ? "\n\n" + Loc.T("fix.failed", "Falhou:") + "\n• " + string.Join("\n• ", failed) : "")
+            + "\n\n" + Loc.T("fix.restart", "Reinicie o servidor para ele ler os arquivos novos."), Loc.T("fix.title", "Corrigir o par"),
+            MessageBoxButtons.OK, failed.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
     }
 
     // ---------- aba Extrator PCK (nativo: UI/PckView.cs) ----------
