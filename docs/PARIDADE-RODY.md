@@ -1,58 +1,78 @@
 # PARIDADE com o Rody's Angelica Editor (RAE) — checklist
-# fonte: textos de interface do RAE (Lang/MainWindow.csv, 287 entradas) | [x] temos [~] parcial [ ] falta | prioridade: A alta, B media, C baixa
-# regra: mesma funcao/organizacao, codigo NOSSO. Atualizar ao concluir.
+# fontes: textos de interface do RAE (Lang/MainWindow.csv, 287 entradas) + 175 prints da versao 2026.9.1 beta (24/10/2026, usuario)
+# [x] temos [~] parcial [ ] falta | prioridade: A alta, B media, C baixa
+# regra: mesma funcao/organizacao, codigo NOSSO (prints = so referencia de tela). Atualizar ao concluir.
 
 ## 1. ARQUIVO
-[x] abrir diretorio do jogo | [x] abrir elements.data | [x] salvar (backup+atomico) | [x] salvar como
+[x] abrir diretorio do jogo | [x] abrir elements.data | [x] salvar (backup+atomico) | [x] salvar como | [x] salvar em outra versao (converter)
 [ ] A salvar tudo (elements+tasks+gshop+configs de uma vez) | [ ] B salvar versao cliente (elements sem dados de servidor)
-[ ] B perfis (abrir/salvar perfil = conjunto de arquivos) + recentes | [ ] B arquivos recentes | [ ] C fechar arquivo
+[ ] B perfis/projetos (nome do projeto, conjunto de arquivos cliente+servidor) + recentes | [ ] B arquivos recentes | [ ] C fechar arquivo
 [ ] A salvar item_color.txt / item_ext_desc.txt (exige gravar configs.pck) | [ ] C abrir local do arquivo
+[ ] B 1a execucao: perguntar pasta do jogo e associar .data ao programa (abrir pelo Explorer)
 [ ] C protecao de elements/tasks/PCK (nao prioritario; anti-edicao)
 
 ## 2. EDITAR
-[ ] A desfazer / refazer + historico de acoes
-[~] A pesquisar (temos busca nome/ID + Buscar por campo) | [ ] A pesquisa avancada (todas as listas, varios criterios) | [ ] A substituir (valor em massa)
+[x] desfazer / refazer + historico de acoes
+[~] A pesquisar (temos busca nome/ID + Buscar por campo) | [ ] A pesquisa avancada: aba Pesquisar com fonte (lista atual/todas), campo, condicao (=,<,>,contem), valor; resultados com "manter resultados", "corrigir bugs selecionados", "alterar resultados selecionados"
+[x] alterar valores em lote (definir, somar, multiplicar, sequencia, aleatorio, substituir texto) | [ ] B + ordenar crescente/decrescente, remover duplicados
 [ ] A copiar/colar itens (entre listas e entre arquivos, com dependencias, ID unico automatico, com desc e cor)
 [ ] B copiar nome/modelo/drops/valor/pagina/tudo | [ ] B importar/exportar itens (arquivo)
-[ ] A escanear lista/elements por erros (+ corrigir) | [ ] B corrigir IDs de quest in/out dos NPCs via tasks.data | [ ] C corrigir tipos invalidos de monstros
-[ ] B alterar valores global (mesmo campo em muitos itens)
+[x] escanear elements por erros (+ corrigir probabilidades) | [ ] B corrigir IDs de quest in/out dos NPCs via tasks.data | [ ] C corrigir tipos invalidos de monstros
 
 ## 3. LISTA DE ITENS (menu de contexto)
 [x] seletor de blocos agrupado por categoria | [x] adicionar | [x] clonar | [x] excluir | [x] favoritar | [x] ordenar por ID/nome (coluna)
 [~] A selecao multipla (Ctrl/Shift/Ctrl+A) + lote: [x] clonar (Ctrl+N) [x] excluir (Del) [x] alterar campo [x] copiar IDs [ ] copiar/colar itens
 [ ] B mover itens (cima/baixo/topo/fim) | [ ] B ordenar selecionados (ID/nome/valor, cresc/decr)
-[ ] A mudanca de ID avancada / refatorar ID (trocar em elements+tasks+gshop+npcgen) | [ ] B definir ID unico | [ ] B copiar IDs
-[ ] B adicionar ao GShop / procurar no GShop | [ ] A traduzir itens selecionados (Ctrl+T)
-[ ] B descricao: anexar texto, mudanca avancada, limpar, salvar | [ ] B criar receita/roupa/ovos/NPC/quest a partir dos selecionados
-[ ] C gerar dados de pedra | [ ] C salvar icones dos selecionados
+[ ] A refatorar ID (mudar ID e trocar todas as referencias: elements+tasks+gshop+npcgen) | [ ] B definir ID unico | [x] copiar IDs
+[ ] B adicionar ao GShop / procurar no GShop | [~] A traduzir itens selecionados (Ctrl+T) (temos: traduzir com outro elements.data)
+[ ] B descricao: anexar texto (ex.: copyright), mudanca avancada, limpar, salvar
+[ ] B criar receita / roupa / quest a partir dos selecionados
+[ ] C gerar dados de pedra | [ ] C salvar icones dos selecionados | [ ] C pesquisar no PWDatabase (link externo)
 [x] nome colorido (cor oficial) | [ ] B definir tag de cor | [ ] B renomear em massa | [ ] B itens com nome similar
 
 ## 4. DETALHE DO ITEM
 [x] Valores com sub-abas (conjunto de campos) | [x] coluna de vinculo (nome/%/classes) | [x] Referencias/Vinculos (quem usa) | [x] Buscar | [x] Descricao e cor
-[~] A editores por duplo clique: [x] mascara de classes (checkbox) [x] addons (lista c/ descricao e filtro por tipo, multi preenche slots seguintes) [x] item/monstro/receita (seletor c/ busca e icone) [ ] protecao de item (proc_type mask) [ ] imunidades (mask) [ ] cor [ ] bool [ ] enums
-[x] descricao de addon (texto como no jogo, §E3e) 
-[x] A links clicaveis nos vinculos | [x] A "dropado por" no item (monstros + chance, link) | [x] efeito do addon no bloco de addons
-[ ] B alterar valor (Ctrl+E) / limpar campos / copiar-colar campos / pesquisar iguais / nao iguais / itens com este ID
-[ ] B definir tipo do campo / lista vinculada (custom pelo usuario)
-[ ] B preview de modelo 3D / de receita
-[ ] B editar descricao (item_ext_desc) e cor (item_color) do item
+[~] A editores por duplo clique: [x] mascara de classes (checkbox) [x] addons (lista c/ descricao e filtro por tipo) [x] item/monstro/receita (seletor c/ busca e icone)
+    [ ] protecao de item (proc_type: lista de flags com nomes, ex. "nao pode ser descartado", "nao desaparece ao morrer")
+    [ ] imunidades (mask) [ ] comida de mascote (mask) [ ] ambiente de movimento (chao/agua/ceu…) [ ] enums em lista popup "Escolha um valor"
+    [ ] cor de personagem (seletor de cor) [ ] bool
+    [ ] servicos do NPC: duplo clique abre o seletor ja no bloco do servico; servicos combinados = mascara com checkboxes
+    [ ] ponto de TP / cidade: lista de nomes de cidades | [ ] habilidade: lista de skills com descricao
+    [ ] seletor de icone em grade (todas as figuras do surfaces.pck; tooltip nome/indice/uso)
+    [ ] seletor de modelo (.ecm/.ski) com "so nao usados" e contagem de uso
+[x] descricao de addon (texto como no jogo, §E3e) | [x] links clicaveis nos vinculos | [x] "dropado por" no item | [x] efeito do addon no bloco de addons
+[ ] A barras de probabilidade na propria grade (verde, com cadeado "fixo" e soma Σ 100%)
+[ ] A editor de addons (janela): chance de 0-4 soquetes, chance de 0-N addons, lista de addons com barra e "fixo", adicionar/remover/ordenar, Σ 100%
+[ ] A editor de drop do monstro (janela): chance de 0/1/2/3 drops, vezes de drop, lista com icone/nome/barra/fixo, adicionar/remover/ordenar
+[ ] B editor de probabilidades de receita (itens resultantes com barras)
+[ ] B monstro: habilidades por % de HP (75/50/25) com barras de chance
+[ ] B barra de valor sob a grade: numero + botoes rapidos (0.1 0.2 0.25 0.33 0.5 … / 0 1 2 5 10 100 1000 …) + slider + Σ
+[ ] B menu de contexto do campo: alterar valor (Ctrl+E), mover campos, selecionar campos similares, pesquisar iguais/nao iguais/originais/itens nao encontrados, substituir nos selecionados, copiar/colar/recortar, limpar campos/pagina
+[ ] B definir tipo do campo / lista vinculada (custom pelo usuario, manual ou automatica)
+[ ] B preview de modelo 3D (janela separada) | [ ] A preview do servico de criar do NPC como a janela do jogo (abas Amuleto/Pingente/Anel/Mats) — ver myaceeditor-game-like-ui
+[ ] B editar descricao (item_ext_desc) com botoes de cor nomeados (Azul, Dourado, Roxo, Laranja, Branco, Cinza, Verde) e previa
+[ ] C curva de evolucao de mascote (lista de niveis)
+[x] tooltip como no jogo | [ ] B tooltip fixavel (F2) + "Ctrl+Shift+G: ir para este item" + barras de chance nas referencias
 
 ## 5. FERRAMENTAS
-[x] abrir/ler PCK (nativo) | [ ] A descompactar/compactar PCK (gravar)
+[x] abrir/ler PCK (nativo) + extrair | [ ] A compactar PCK (gravar)
 [ ] B unificar elements.data (join) | [ ] B unificar item_ext_desc | [ ] B unificar tasks (novas quests, mascara, tipo)
-[ ] B geradores de mascara: classes / protecao de item / imunidades de monstro | [ ] C gerador de octets
-[ ] B exportar lista / NPCs p/ NPCGen / monstros p/ AIPolicy / tabela / addons / icones .jpg
-[ ] B traducao de elements com outro elements (localizacao) | [ ] A auto-tradutor (nosso diferencial)
-[ ] C permissoes do elements | [ ] C limpar cache de icones | [x] favoritos
+[ ] C gerador de octets (item → octets, copiar como XML/HTML)
+[ ] B exportar lista / NPCs p/ NPCGen / monstros p/ AIPolicy / tabela / addons / todos os icones .jpg
+[x] traducao de elements com outro elements (localizacao) | [ ] A auto-tradutor (nosso diferencial)
+[ ] C permissoes do elements | [ ] C limpar cache de icones | [x] favoritos (menu Favoritos = atalhos de blocos)
 
 ## 6. EDITORES SEPARADOS
-[~] Quests (tasks.data) — falta: premios/listas editaveis, criar/clonar/excluir, outras versoes
-[ ] A GShop (gshop.data) | [ ] A NPCGen (npcgen.data) | [ ] B domain2.data | [ ] B dynamicobjects / path.data
-[ ] A AI Policy (nao esta no menu do RAE, mas no pacote: NextAIPolicyEditor2)
+[~] Quests (tasks.data) — temos campos/textos/dialogos/listas/premios, clonar/excluir; RAE usa sTASKedit: abas Basic Properties I-V, Special Parameters, Given Requirements I-V, Complete Requirements, Awards (sucesso/falha, Awards I/II), Text Page (talks → janelas → opcoes), Extended Search; falta: mudar qtd de entradas, outras versoes, organizar em abas como o sTASKedit
+[x] GShop (gshop.data + gshopsev) com a tela do jogo | [ ] B GShop: inicio/fim de venda (dia da semana/dia/mes), classe necessaria, preco por 10 moedas, "corrigir bugs automaticamente", mostrar itens nao encontrados/nome igual/ID repetido
+[ ] A NPCGen (npcgen.data) | [ ] B domain2.data (guerra territorial: tempo de batalha, territorios, pontos) | [ ] B path.data (caminhos) | [ ] B dynamicobjects
+[x] AI Policy
 
 ## 7. SERVIDOR
-[x] verificacao do par cliente x servidor (nosso diferencial)
-[ ] B enviar elements/tasks/gshopsev para o servidor + reiniciar GS + comando custom + console (SSH)
+[x] verificacao do par cliente x servidor + corrigir (nosso diferencial)
+[ ] B enviar arquivos ao servidor por SSH (IP/porta/usuario, caminho remoto por arquivo, compactar antes) + reiniciar GS + comando custom + console — so quando o usuario pedir (myaceeditor-server-simple)
 
-## 8. INTERFACE
-[x] voltar/avancar | [x] favoritos | [x] tooltip c/ drops | [ ] B separadores/abas configuraveis | [ ] B atalhos (links) | [ ] C idiomas
+## 8. INTERFACE / CONFIGURACOES
+[x] voltar/avancar | [x] favoritos | [x] tooltip c/ drops | [x] idiomas (pt/en/zh, lang/*.json) | [ ] B separadores/abas configuraveis | [ ] B atalhos (links)
+[ ] B janela de configuracoes com abas: Interface, Geral (limite de historico/desfazer, acao do duplo clique, mover itens), Icones (tamanho), Arquivos (pasta do cliente, PCKs, arquivos de dados e estado), Servidor, Diverso
+[ ] B backups compactados com limite de quantidade | [ ] C editores externos configuraveis
