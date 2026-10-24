@@ -304,7 +304,17 @@ public sealed class EditorForm : Form
 
         var searchRow = new Panel { Dock = DockStyle.Top, Height = 30, Padding = new Padding(0, 4, 0, 0), BackColor = CTreeBg };
         _search.Dock = DockStyle.Fill; _search.BackColor = CTreeInput; _search.ForeColor = CTreeFg; _search.Font = new Font("Segoe UI", 10);
-        _search.TextChanged += (_, _) => RefreshView();
+        // busca só depois de uma pausa na digitação, e a caixa continua com o foco (antes cada letra abria o 1º
+        // resultado, a caixa perdia o foco e "8617" virava "88")
+        var searchDelay = new System.Windows.Forms.Timer { Interval = 250 };
+        searchDelay.Tick += (_, _) =>
+        {
+            searchDelay.Stop();
+            bool had = _search.Focused;
+            RefreshView();
+            if (had && !_search.Focused) { _search.Focus(); _search.SelectionStart = _search.TextLength; }
+        };
+        _search.TextChanged += (_, _) => { searchDelay.Stop(); searchDelay.Start(); };
         _searchAll.ForeColor = CTreeFg; _searchAll.BackColor = CTreeBg;
         _searchAll.CheckedChanged += (_, _) => RefreshView();
         _tip.SetToolTip(_searchAll, "Buscar em todos os blocos");
@@ -1477,6 +1487,66 @@ public sealed class EditorForm : Form
         return fixedOnes;
     }
 
+    // ---------- refatorar ID ----------
+    // Troca o ID do item e de tudo que aponta para ele (elements, quests, loja) num passo só do histórico.
+    private void ChangeIdRefactor()
+    {
+        if (_current is not { } item || !_owner.TryGetValue(item, out var block) || _store.Current is not { } module || _refs is null) return;
+        var shops = _gshop?.LoadedShops.ToList() ?? new();
+        using var f = new Form
+        {
+            Text = string.Format(Loc.T("chid.title", "Mudar ID — {0} {1}"), item.Id, TasksFile.SplitColor(item.Name).Text),
+            Width = 560, Height = 330, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+            MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, Font = new Font("Segoe UI", 9.5f), BackColor = Color.FromArgb(242, 245, 249),
+        };
+        var lbl = new Label { Text = Loc.T("chid.newId", "Novo ID:"), AutoSize = true, Location = new Point(16, 20) };
+        var box = new TextBox { Text = IdRefactor.NextFreeId(module, block).ToString(), Location = new Point(100, 16), Width = 140 };
+        var hint = new Label { Text = Loc.T("chid.hint", "(sugestão: o primeiro ID livre depois do maior)"), AutoSize = true, Location = new Point(250, 20), ForeColor = CMuted };
+        var info = new Label { Location = new Point(16, 56), Size = new Size(510, 180) };
+        var ok = new Button { Text = Loc.T("chid.ok", "Mudar ID"), Location = new Point(300, 244), Size = new Size(110, 30), FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White, DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = Loc.T("dlg.cancel", "Cancelar"), Location = new Point(416, 244), Size = new Size(110, 30), FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.Cancel };
+        f.Controls.AddRange(new Control[] { lbl, box, hint, info, ok, cancel });
+        f.AcceptButton = ok; f.CancelButton = cancel;
+        IdChangePlan? plan = null;
+        void Preview()
+        {
+            var nid = box.Text.Trim();
+            if (IdRefactor.Validate(module, block, item, nid) is { } err) { plan = null; ok.Enabled = false; info.ForeColor = Color.FromArgb(185, 28, 28); info.Text = "⚠ " + err; return; }
+            plan = IdRefactor.Plan(_refs, block, item, nid, _tasks, shops);
+            ok.Enabled = true; info.ForeColor = CFg;
+            info.Text = string.Format(Loc.T("chid.preview",
+                "Vai mudar:\n  • o ID do item ({0} → {1})\n  • {2} campo(s) no elements.data que apontam para ele\n  • {3} campo(s) em quests (tasks.data)\n  • {4} referência(s) na loja (gshop)\n\nNão atualiza ainda: o npcgen.data (onde monstros e NPCs nascem no mapa) e a descrição/cor do nome no configs.pck (ficam no ID antigo). Ctrl+Z desfaz tudo de uma vez."),
+                item.Id, nid, plan.Elements.Count, plan.Quests.Count, plan.Shop.Count);
+        }
+        // a prévia percorre elements e quests: espera a digitação parar (antes cada tecla travava ~1 s)
+        var wait = new System.Windows.Forms.Timer { Interval = 300 };
+        wait.Tick += (_, _) => { wait.Stop(); Preview(); };
+        box.TextChanged += (_, _) => { ok.Enabled = false; wait.Stop(); wait.Start(); };
+        f.FormClosed += (_, _) => wait.Dispose();
+        Preview();
+        if (f.ShowDialog(this) != DialogResult.OK || plan is null) return;
+        var p = plan;
+        var label = string.Format(Loc.T("hist.changeId", "Mudar ID {0} → {1}"), p.OldId, p.NewId);
+        void Quests(string v) { foreach (var (q, tf) in p.Quests) q.Set(tf, v); if (p.Quests.Count > 0) { _tasksDirty = true; if (_qCur is not null) ShowQuest(_qTree.SelectedNode?.Tag); } }
+        void Shop(string v)
+        {
+            foreach (var (s, it, gift) in p.Shop) { if (gift) it.GiftId = int.Parse(v); else it.ItemId = int.Parse(v); }
+            foreach (var s in p.Shop.Select(x => x.Shop).Distinct()) _gshop?.ExternalEdit(s);
+        }
+        using (_edits.Batch(label))
+        {
+            SetField(item, "ID", p.NewId, refresh: false);   // primeiro: ao desfazer, a tela volta para este item
+            foreach (var r in p.Elements) SetField(r.Item, r.Field, p.NewId, refresh: false);
+            if (p.Quests.Count > 0) _edits.Custom(label, () => Quests(p.NewId), () => Quests(p.OldId));
+            if (p.Shop.Count > 0) _edits.Custom(label, () => Shop(p.NewId), () => Shop(p.OldId));
+        }
+        _refs = new RefIndex(module);
+        RefreshView();
+        GoToItem(item);
+        Status(string.Format(Loc.T("status.changeId", "ID {0} → {1}: {2} referência(s) atualizada(s) (elements {3}, quests {4}, loja {5}). Salve os arquivos para gravar."),
+            p.OldId, p.NewId, p.Total - 1, p.Elements.Count, p.Quests.Count, p.Shop.Count));
+    }
+
     // ---------- desfazer / refazer ----------
     private void UndoRedo(bool undo)
     {
@@ -1502,7 +1572,7 @@ public sealed class EditorForm : Form
             else show ??= item;
             if (_owner.TryGetValue(item, out var ob)) _unusedCache.Remove(ob);
         }
-        if (structural)
+        if (structural || step.ChangesIds)
         {
             if (_store.Current is not null) _refs = new RefIndex(_store.Current);
             RefreshView();
@@ -2311,6 +2381,7 @@ public sealed class EditorForm : Form
         Item("new", NewItem, "ctx.new", "Novo item");
         Item("clone", CloneItem, "ctx.clone", "Clonar item");
         Item("delete", RemoveItem, "ctx.delete", "Excluir item");
+        Item("changeId", ChangeIdRefactor, "ctx.changeId", "Mudar ID (atualiza referências)…");
         _ctx.Items.Add(new ToolStripSeparator());
         Item("bulkClone", BulkClone, "ctx.bulkClone", "Clonar selecionados");
         Item("bulkDelete", BulkDelete, "ctx.bulkDelete", "Excluir selecionados");

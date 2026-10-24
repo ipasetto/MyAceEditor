@@ -84,6 +84,18 @@ internal sealed class GShopView : UserControl
     }
 
     /// <summary>A pasta do jogo mudou (elements.data aberto): abre a loja dela se não houver mudança pendente.</summary>
+    /// <summary>Lojas abertas (cliente e cliente 1), para quem troca IDs fora da aba (refatorar ID).</summary>
+    public IEnumerable<GShopFile> LoadedShops => _shops.OfType<GShopFile>();
+
+    /// <summary>A loja foi alterada por fora (ex.: refatorar ID): marca como não salva e redesenha.</summary>
+    public void ExternalEdit(GShopFile f)
+    {
+        int i = Array.IndexOf(_shops, f);
+        if (i < 0) return;
+        _dirty[i] = true;
+        UpdateInfo(); _game.Invalidate();
+    }
+
     public void GameFolderChanged()
     {
         if (_dirty.Any(d => d)) return;

@@ -14,6 +14,8 @@ public sealed class EditHistory
     internal abstract record Op;
     internal sealed record FieldOp(Item Item, string Key, Field Old, Field New) : Op;
     internal sealed record ListOp(ItemList Block, Item Item, int Index, bool Added) : Op;
+    /// <summary>Mudança fora do elements.data (quests, loja): o passo guarda como refazer e como desfazer.</summary>
+    internal sealed record CustomOp(Action Redo, Action Undo) : Op;
 
     public sealed class Step(string label)
     {
@@ -22,8 +24,10 @@ public sealed class EditHistory
         internal List<Op> Ops { get; } = new();
         /// <summary>Itens tocados pelo passo, com o bloco (para a tela sincronizar dono e seleção).</summary>
         public IEnumerable<(ItemList? Block, Item Item)> Touched =>
-            Ops.Select(o => o switch { ListOp l => (l.Block, l.Item), FieldOp f => ((ItemList?)null, f.Item), _ => default });
+            Ops.Select(o => o switch { ListOp l => (l.Block, l.Item), FieldOp f => ((ItemList?)null, f.Item), _ => default }).Where(t => t.Item is not null);
         public int Count => Ops.Count;
+        /// <summary>O passo troca algum ID (a tela refaz o índice de referências).</summary>
+        public bool ChangesIds => Ops.Any(o => o is FieldOp { Key: "ID" });
     }
 
     readonly List<Step> _undo = new(), _redo = new();
@@ -98,10 +102,18 @@ public sealed class EditHistory
         Record(new ListOp(block, item, i, Added: false), label);
     }
 
+    /// <summary>Aplica agora e registra uma mudança fora dos campos do elements.data (ex.: IDs em quests e na loja).</summary>
+    public void Custom(string label, Action redo, Action undo)
+    {
+        redo();
+        Record(new CustomOp(redo, undo), label);
+    }
+
     static void Assign(Item item, string key, Field value)
     {
         item.Fields[key] = value;
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase)) item.Name = value.Value;
+        if (key.Equals("ID", StringComparison.OrdinalIgnoreCase)) item.Id = value.Value;
     }
 
     static void Apply(Op op, bool forward)
@@ -112,6 +124,7 @@ public sealed class EditHistory
             case ListOp l when l.Added == forward:   // refazer inclusão / desfazer exclusão
                 l.Block.Items.Insert(Math.Min(l.Index, l.Block.Items.Count), l.Item); break;
             case ListOp l: l.Block.Items.Remove(l.Item); break;
+            case CustomOp c: (forward ? c.Redo : c.Undo)(); break;
         }
     }
 
