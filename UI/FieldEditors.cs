@@ -60,10 +60,10 @@ internal static class FieldEditors
         }
         var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(6, 4, 6, 0) };
         Button B(string t, bool v) { var bt = new Button { Text = t, AutoSize = true, FlatStyle = FlatStyle.Flat }; bt.Click += (_, _) => { for (int i = 0; i < list.Items.Count; i++) list.SetItemChecked(i, v); }; return bt; }
-        top.Controls.Add(B("Todas", true)); top.Controls.Add(B("Nenhuma", false));
+        top.Controls.Add(B(Loc.T("dlg.all", "Todas"), true)); top.Controls.Add(B(Loc.T("dlg.none", "Nenhuma"), false));
         var bottom = Buttons(f, out _);
         var maskLbl = new Label { Dock = DockStyle.Bottom, Height = 22, ForeColor = Color.Gray, Padding = new Padding(8, 0, 0, 0) };
-        void Upd() { long m = 0; for (int i = 0; i < list.Items.Count; i++) if (list.GetItemChecked(i)) m |= 1L << ((BitItem)list.Items[i]).Bit; maskLbl.Text = $"valor = {m}"; }
+        void Upd() { long m = 0; for (int i = 0; i < list.Items.Count; i++) if (list.GetItemChecked(i)) m |= 1L << ((BitItem)list.Items[i]).Bit; maskLbl.Text = $"{Loc.T("dlg.value", "valor")} = {m}"; }
         list.ItemCheck += (_, _) => f.BeginInvoke(Upd);
         Upd();
         f.Controls.Add(list); f.Controls.Add(top); f.Controls.Add(maskLbl); f.Controls.Add(bottom);
@@ -151,5 +151,97 @@ internal static class FieldEditors
         f.Controls.Add(tl); f.Controls.Add(bottom);
         if (f.ShowDialog(owner) != DialogResult.OK || cb.SelectedItem is not KeyValuePair<string, string> kv) return null;
         return (kv.Key, tb.Text);
+    }
+
+    /// <summary>
+    /// Grade com todos os ícones do jogo (atlas do surfaces.pck), como no "Icon selection" dos editores da comunidade.
+    /// Clique escolhe, duplo clique confirma. Retorna o nome do arquivo do ícone (ex.: "x.dds") ou null.
+    /// </summary>
+    public static string? IconPicker(IWin32Window owner, PerfectWorld.IconAtlas atlas, string current)
+    {
+        using var f = NewDialog(Loc.T("dlg.iconTitle", "Escolher ícone"), 780, 620);
+        var all = atlas.Names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+        var curName = Path.GetFileName(current.Replace('/', '\\'));
+        var search = new TextBox { Dock = DockStyle.Top, PlaceholderText = Loc.T("dlg.iconSearch", "Filtrar pelo nome do arquivo…"), BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f) };
+        var info = new Label { Dock = DockStyle.Bottom, Height = 24, ForeColor = Color.Gray, Padding = new Padding(8, 4, 0, 0) };
+        var grid = new IconGrid(atlas) { Dock = DockStyle.Fill };
+        void Refresh()
+        {
+            var q = search.Text.Trim();
+            grid.Items = q.Length == 0 ? all : all.Where(n => n.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+            grid.Selected = grid.Items.FindIndex(n => n.Equals(curName, StringComparison.OrdinalIgnoreCase));
+            grid.Reset();
+            info.Text = string.Format(Loc.T("dlg.iconCount", "{0:N0} ícones"), grid.Items.Count);
+        }
+        grid.HoverChanged += n => info.Text = n ?? string.Format(Loc.T("dlg.iconCount", "{0:N0} ícones"), grid.Items.Count);
+        grid.Accepted += () => { f.DialogResult = DialogResult.OK; f.Close(); };
+        search.TextChanged += (_, _) => Refresh();
+        var bottom = Buttons(f, out _);
+        f.Controls.Add(grid); f.Controls.Add(search); f.Controls.Add(info); f.Controls.Add(bottom);
+        f.Shown += (_, _) => { Refresh(); grid.EnsureVisible(grid.Selected); grid.Focus(); };
+        if (f.ShowDialog(owner) != DialogResult.OK || grid.Selected < 0) return null;
+        return grid.Items[grid.Selected];
+    }
+
+    /// <summary>Grade desenhada sob demanda: só recorta do atlas os ícones visíveis (abre rápido com milhares).</summary>
+    private sealed class IconGrid : Panel
+    {
+        const int Cell = 40;
+        readonly PerfectWorld.IconAtlas _atlas;
+        readonly Dictionary<string, Bitmap?> _cache = new(StringComparer.OrdinalIgnoreCase);
+        int _hover = -1;
+        public List<string> Items = new();
+        public int Selected = -1;
+        public event Action<string?>? HoverChanged;
+        public event Action? Accepted;
+
+        public IconGrid(PerfectWorld.IconAtlas atlas) { _atlas = atlas; DoubleBuffered = true; AutoScroll = true; BackColor = Color.FromArgb(24, 28, 34); }
+        int Cols => Math.Max(1, ClientSize.Width / Cell);
+        public void Reset() { AutoScrollMinSize = new Size(0, (Items.Count + Cols - 1) / Cols * Cell); Invalidate(); }
+        public void EnsureVisible(int i) { if (i >= 0) AutoScrollPosition = new Point(0, Math.Max(0, i / Cols * Cell - ClientSize.Height / 2)); }
+        protected override void OnResize(EventArgs e) { base.OnResize(e); Reset(); }
+
+        int HitTest(Point p)
+        {
+            int x = p.X / Cell, y = (p.Y - AutoScrollPosition.Y) / Cell, i = y * Cols + x;
+            return x < Cols && i >= 0 && i < Items.Count ? i : -1;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            int cols = Cols, oy = AutoScrollPosition.Y;
+            int first = Math.Max(0, -oy / Cell) * cols, last = Math.Min(Items.Count, ((-oy + ClientSize.Height) / Cell + 1) * cols);
+            for (int i = first; i < last; i++)
+            {
+                var r = new Rectangle(i % cols * Cell + 4, i / cols * Cell + oy + 4, 32, 32);
+                if (!_cache.TryGetValue(Items[i], out var bmp)) _cache[Items[i]] = bmp = _atlas.Get(Items[i]);
+                if (bmp is not null) e.Graphics.DrawImage(bmp, r);
+                if (i == Selected) { using var p = new Pen(Accent, 3); e.Graphics.DrawRectangle(p, Rectangle.Inflate(r, 2, 2)); }
+                else if (i == _hover) e.Graphics.DrawRectangle(Pens.Gold, Rectangle.Inflate(r, 1, 1));
+            }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            int h = HitTest(e.Location);
+            if (h == _hover) return;
+            _hover = h; Invalidate();
+            HoverChanged?.Invoke(h >= 0 ? Items[h] : null);
+        }
+
+        protected override void OnMouseClick(MouseEventArgs e)
+        {
+            base.OnMouseClick(e);
+            if (HitTest(e.Location) is var i && i >= 0) { Selected = i; Invalidate(); }
+            Focus();
+        }
+
+        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        {
+            base.OnMouseDoubleClick(e);
+            if (HitTest(e.Location) is var i && i >= 0) { Selected = i; Accepted?.Invoke(); }
+        }
     }
 }

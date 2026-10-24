@@ -50,9 +50,15 @@ public sealed class EditorForm : Form
     private readonly ListView _links = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None, HideSelection = false };
     private readonly TabControl _detailTabs = new() { Dock = DockStyle.Fill };
     private TabPage _tabLinks = null!;
+    private readonly TabPage _tabShop = new();   // só aparece em NPC_SELL_SERVICE
+    private ShopPreview _shop = null!;
     private TabControl? _tabs;
     private TabPage? _tabQuests;
     private readonly ContextMenuStrip _ctx = new();
+    private readonly ContextMenuStrip _gridCtx = new();
+    // campos zerados em todos os itens do bloco ficam ocultos (Exibir > Mostrar campos sem uso no bloco)
+    private bool _hideUnused = LoadSetting("hide_unused") != "0";
+    private readonly Dictionary<ItemList, HashSet<string>> _unusedCache = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<string> _favorites = new();
     private SplitContainer _split = null!;
     private enum SortMode { Codigo, Nome }
@@ -126,7 +132,15 @@ public sealed class EditorForm : Form
     {
         var menu = new MenuStrip { BackColor = CSurface, ForeColor = CFg, Padding = new Padding(4, 2, 0, 2) };
         ToolStripMenuItem M() => new() { ForeColor = CFg };
-        var arq = M(); var ed = M(); var aj = M(); var lg = M();
+        var arq = M(); var ed = M(); var aj = M(); var lg = M(); var view = M();
+        var showUnused = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = !_hideUnused };
+        showUnused.CheckedChanged += (_, _) =>
+        {
+            _hideUnused = !showUnused.Checked;
+            SaveSetting("hide_unused", _hideUnused ? "1" : "0");
+            if (_current is not null) FillGrid(_current);
+        };
+        view.DropDownItems.Add(showUnused);
         var openPw = new ToolStripMenuItem { ForeColor = CFg }; openPw.Click += (_, _) => OpenPwFolder();
         var openEl = new ToolStripMenuItem { ForeColor = CFg }; openEl.Click += (_, _) => OpenElements();
         var save = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.S }; save.Click += (_, _) => SaveCurrent();
@@ -163,8 +177,10 @@ public sealed class EditorForm : Form
             removeItem.Text = Loc.T("menu.removeItem", "&Remover item");
             aj.Text = Loc.T("menu.help", "A&juda");
             about.Text = Loc.T("menu.about", "Sobre");
+            view.Text = Loc.T("menu.view", "E&xibir");
+            showUnused.Text = Loc.T("menu.showUnused", "Mostrar campos sem uso no bloco");
         });
-        menu.Items.AddRange(new ToolStripItem[] { arq, ed, lg, aj });
+        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, lg, aj });
         MainMenuStrip = menu;
         return menu;
     }
@@ -254,8 +270,14 @@ public sealed class EditorForm : Form
         _list.BackColor = CTreeBg; _list.ForeColor = CTreeFg; _list.Font = new Font("Segoe UI", 10);
         _list.SmallImageList = _treeIcons;
         _list.Columns.Add("ID", 70, HorizontalAlignment.Right);
-        _list.Columns.Add("Nome", 240);
-        _list.Columns.Add("∞", 58, HorizontalAlignment.Right);
+        _list.Columns.Add("Nome", 218);   // cabe ao lado de ID e Vínculos sem rolagem horizontal
+        _list.Columns.Add(Loc.T("list.links", "Vínculos"), 84, HorizontalAlignment.Right);   // quantos itens usam este
+        // a coluna Nome ocupa o que sobra (sem barra de rolagem horizontal)
+        _list.ClientSizeChanged += (_, _) =>
+        {
+            int w = _list.ClientSize.Width - _list.Columns[0].Width - _list.Columns[2].Width - 2;
+            if (w > 80 && _list.Columns[1].Width != w) _list.Columns[1].Width = w;
+        };
         Bind(UpdateCounters);
         _list.RetrieveVirtualItem += OnRetrieveItem;
         _list.DrawColumnHeader += OnDrawHeader;
@@ -356,6 +378,9 @@ public sealed class EditorForm : Form
         _detailTabs.TabPages.Add(_tabLinks);
         _detailTabs.TabPages.Add(tFind);
         _detailTabs.TabPages.Add(tDesc);
+        _shop = new ShopPreview(id => _refs?.Resolve(FieldKind.ItemRef, id)?.Item, IconFor, GoToItem) { Dock = DockStyle.Fill };
+        _tabShop.Controls.Add(_shop);
+        Bind(() => _tabShop.Text = Loc.T("detail.shop", "Loja (como no jogo)"));
         _detailTabs.SelectedIndexChanged += (_, _) => { if (_detailTabs.SelectedTab == _tabLinks && _current is not null) FillLinks(_current); };
         right.Controls.Add(_detailTabs);
         right.Controls.Add(headPanel);
@@ -398,6 +423,67 @@ public sealed class EditorForm : Form
         _grid.CellEndEdit += (_, e) => OnFieldEdited(e.RowIndex);
         // caixa de seleção: confirma o clique na hora (senão só grava ao sair da célula)
         _grid.CurrentCellDirtyStateChanged += (_, _) => { if (_grid.IsCurrentCellDirty) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
+        _grid.CellPainting += PaintExtras;
+        // clique direito: seleciona a linha antes de abrir o menu
+        _grid.CellMouseDown += (_, e) => { if (e.Button == MouseButtons.Right && e.RowIndex >= 0) _grid.CurrentCell = _grid.Rows[e.RowIndex].Cells[0]; };
+        var balance = new ToolStripMenuItem();
+        balance.Click += (_, _) => { if (_current is not null && _grid.CurrentRow?.Tag is string k) BalanceProbabilities(_current, k); };
+        Bind(() => balance.Text = Loc.T("ctx.balance", "Distribuir 100% entre as probabilidades preenchidas"));
+        _gridCtx.Items.Add(balance);
+        _gridCtx.Opening += (_, e) => e.Cancel = _grid.CurrentRow?.Tag is not string k || FieldKinds.Of(k) != FieldKind.Probability;
+        _grid.ContextMenuStrip = _gridCtx;
+    }
+
+    // Coluna "Vínculo": barra para probabilidade (0..1) e amostra para cor (ARGB), como nos editores da comunidade.
+    private void PaintExtras(object? s, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex != 2 || e.Graphics is null || _current is null
+            || _grid.Rows[e.RowIndex].Tag is not string key || !_current.Fields.TryGetValue(key, out var f)) return;
+        var kind = FieldKinds.Of(key);
+        var r = e.CellBounds;
+        var fg = (e.State & DataGridViewElementStates.Selected) != 0 ? CSelFg : CFg;
+        if (kind == FieldKind.Probability && float.TryParse(f.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) && p > 0 && p <= 1)
+        {
+            e.PaintBackground(r, true);
+            var bar = new Rectangle(r.X + 76, r.Y + 8, Math.Max(20, Math.Min(180, r.Width - 90)), r.Height - 16);
+            using (var back = new SolidBrush(Color.FromArgb(226, 231, 238))) e.Graphics.FillRectangle(back, bar);
+            using (var fill = new SolidBrush(Color.FromArgb(34, 160, 90))) e.Graphics.FillRectangle(fill, bar with { Width = Math.Max(1, (int)Math.Round(bar.Width * p)) });
+            TextRenderer.DrawText(e.Graphics, $"{p * 100:0.###}%", _grid.Font, new Rectangle(r.X + 6, r.Y, 68, r.Height), fg, TextFormatFlags.VerticalCenter);
+            e.Handled = true;
+        }
+        else if (kind == FieldKind.Color && long.TryParse(f.Value, out var c))
+        {
+            e.PaintBackground(r, true);
+            var sw = new Rectangle(r.X + 6, r.Y + 6, 28, r.Height - 12);
+            using (var b = new SolidBrush(Color.FromArgb(255, (int)(c >> 16) & 255, (int)(c >> 8) & 255, (int)c & 255))) e.Graphics.FillRectangle(b, sw);
+            e.Graphics.DrawRectangle(Pens.Gray, sw);
+            TextRenderer.DrawText(e.Graphics, $"#{c & 0xFFFFFF:X6}", _grid.Font, new Rectangle(sw.Right + 8, r.Y, 120, r.Height), fg, TextFormatFlags.VerticalCenter);
+            e.Handled = true;
+        }
+    }
+
+    // Probabilidades irmãs (mesmo nome trocando o número): divide 100% entre os slots com referência preenchida.
+    private void BalanceProbabilities(Item item, string probKey)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(probKey, @"^(.*?_)(\d+)(_.*|)$");
+        if (!m.Success) return;
+        var pattern = new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(m.Groups[1].Value) + @"\d+" + System.Text.RegularExpressions.Regex.Escape(m.Groups[3].Value) + "$");
+        var siblings = item.Fields.Keys.Where(k => pattern.IsMatch(k) && FieldKinds.Of(k) == FieldKind.Probability).ToList();
+        // referência de cada probabilidade (drop_matters_3_id -> drop_matters_3_probability)
+        var refOf = item.Fields.Keys.Where(k => FieldKinds.IsReference(FieldKinds.Of(k)))
+            .Select(k => (Ref: k, Prob: FieldKinds.ProbabilityFor(k, item.Fields))).Where(x => x.Prob is not null)
+            .GroupBy(x => x.Prob!).ToDictionary(g => g.Key, g => g.First().Ref);
+        var filled = siblings.Where(pk => refOf.TryGetValue(pk, out var rk) ? !IsEmpty(item.Fields[rk].Value) : !IsEmpty(item.Fields[pk].Value)).ToList();
+        if (filled.Count == 0) { Status(Loc.T("status.balanceNone", "Nenhum slot preenchido para distribuir.")); return; }
+        double each = Math.Round(1.0 / filled.Count, 6), sum = 0;
+        foreach (var pk in siblings)
+        {
+            double v = !filled.Contains(pk) ? 0 : pk == filled[^1] ? Math.Round(1 - sum, 6) : each;
+            sum += filled.Contains(pk) && pk != filled[^1] ? each : 0;
+            SetField(item, pk, v.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture), refresh: false);
+        }
+        FillGrid(item);
+        Status(string.Format(Loc.T("status.balanced", "Probabilidades: {0} slots com {1:0.###}% cada"), filled.Count, each * 100));
     }
 
     private StatusStrip BuildStatus()
@@ -495,6 +581,7 @@ public sealed class EditorForm : Form
     {
         var module = r.Module;
         _store.Adopt(module);
+        _unusedCache.Clear();
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _aiView?.LoadRememberedIfNeeded();
@@ -518,7 +605,23 @@ public sealed class EditorForm : Form
             + (_atlas is null ? " · ícones: surfaces.pck não encontrado" : $" · {_atlas.Count:N0} ícones do jogo")
             + (module.Source is ElementsLayout { CanWrite: false } lay ? " · " + Loc.T("status.readOnly", "somente leitura") + ": " + lay.ReadOnlyReason : "")
             + (r.Warnings.Count > 0 ? " · " + string.Join(" · ", r.Warnings) : ""));
+        Text = $"MyAceEditor — {module.Name}{HeaderInfo(path)}";
         UseWaitCursor = false;
+    }
+
+    // " · v60 · 14/03/2012 23:05" lido do cabeçalho do elements.data (u16 versão, u16 assinatura, u32 data de exportação).
+    private static string HeaderInfo(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            var b = new byte[8];
+            if (fs.Read(b, 0, 8) < 8) return "";
+            int ver = BitConverter.ToUInt16(b, 0);
+            long ts = BitConverter.ToUInt32(b, 4);
+            return $" · v{ver}" + (ts > 0 ? $" · {DateTimeOffset.FromUnixTimeSeconds(ts).LocalDateTime:dd/MM/yyyy HH:mm}" : "");
+        }
+        catch { return ""; }
     }
 
     // Ícones nativos: lê o atlas direto do surfaces.pck (sem extrair nada).
@@ -964,6 +1067,48 @@ public sealed class EditorForm : Form
         ["ELEMENT_ESSENCE"] = "Elementos", ["TOWNSCROLL_ESSENCE"] = "Pergaminhos de Cidade",
         ["EQUIPMENT_ADDON"] = "Atributos de Equipamento", ["MINE_ESSENCE"] = "Minas", ["SKILLTOME_ESSENCE"] = "Livros de Habilidade",
         ["FLYSWORD_ESSENCE"] = "Montarias Voadoras", ["TASKMATTER_ESSENCE"] = "Itens de Missão", ["TALK_PROC"] = "Diálogos de NPC",
+        // demais blocos do v60 (nomes nossos; ingles em lang/en.json, chave block.*)
+        ["WEAPON_MAJOR_TYPE"] = "Tipos de Arma", ["WEAPON_SUB_TYPE"] = "Subtipos de Arma", ["ARMOR_MAJOR_TYPE"] = "Tipos de Armadura",
+        ["ARMOR_SUB_TYPE"] = "Subtipos de Armadura", ["DECORATION_MAJOR_TYPE"] = "Tipos de Acessório", ["DECORATION_SUB_TYPE"] = "Subtipos de Acessório",
+        ["MEDICINE_MAJOR_TYPE"] = "Tipos de Poção", ["MEDICINE_SUB_TYPE"] = "Subtipos de Poção", ["MATERIAL_MAJOR_TYPE"] = "Tipos de Material",
+        ["MATERIAL_SUB_TYPE"] = "Subtipos de Material", ["DAMAGERUNE_SUB_TYPE"] = "Subtipos de Runa de Ataque", ["DAMAGERUNE_ESSENCE"] = "Runas de Ataque",
+        ["ARMORRUNE_SUB_TYPE"] = "Subtipos de Runa de Defesa", ["ARMORRUNE_ESSENCE"] = "Runas de Defesa", ["SKILLTOME_SUB_TYPE"] = "Subtipos de Livro de Habilidade",
+        ["WINGMANWING_ESSENCE"] = "Asas", ["UNIONSCROLL_ESSENCE"] = "Pergaminhos de Clã", ["REVIVESCROLL_ESSENCE"] = "Pergaminhos de Ressurreição",
+        ["TOSSMATTER_ESSENCE"] = "Itens de Arremesso", ["PROJECTILE_TYPE"] = "Tipos de Munição", ["QUIVER_SUB_TYPE"] = "Subtipos de Aljava",
+        ["STONE_SUB_TYPE"] = "Subtipos de Pedra", ["MONSTER_ADDON"] = "Atributos de Monstro", ["MONSTER_TYPE"] = "Tipos de Monstro",
+        ["NPC_TALK_SERVICE"] = "NPC: Conversa", ["NPC_SELL_SERVICE"] = "NPC: Loja", ["NPC_BUY_SERVICE"] = "NPC: Compra",
+        ["NPC_REPAIR_SERVICE"] = "NPC: Conserto", ["NPC_INSTALL_SERVICE"] = "NPC: Encaixar Pedras", ["NPC_UNINSTALL_SERVICE"] = "NPC: Remover Pedras",
+        ["NPC_TASK_IN_SERVICE"] = "NPC: Entregar Quest", ["NPC_TASK_OUT_SERVICE"] = "NPC: Dar Quest", ["NPC_TASK_MATTER_SERVICE"] = "NPC: Itens de Quest",
+        ["NPC_SKILL_SERVICE"] = "NPC: Ensinar Habilidade", ["NPC_HEAL_SERVICE"] = "NPC: Cura", ["NPC_TRANSMIT_SERVICE"] = "NPC: Teletransporte",
+        ["NPC_TRANSPORT_SERVICE"] = "NPC: Transporte", ["NPC_PROXY_SERVICE"] = "NPC: Procurador", ["NPC_STORAGE_SERVICE"] = "NPC: Armazém",
+        ["NPC_MAKE_SERVICE"] = "NPC: Fabricação", ["NPC_DECOMPOSE_SERVICE"] = "NPC: Decompor", ["NPC_TYPE"] = "Tipos de NPC",
+        ["FACE_SHAPE_ESSENCE"] = "Formatos de Rosto", ["FACE_EMOTION_TYPE"] = "Tipos de Emoção", ["FACE_EXPRESSION_ESSENCE"] = "Expressões",
+        ["FACE_MOUSTACHE_ESSENCE"] = "Bigodes", ["COLORPICKER_ESSENCE"] = "Paletas de Cor", ["CUSTOMIZEDATA_ESSENCE"] = "Personalização",
+        ["RECIPE_MAJOR_TYPE"] = "Tipos de Receita", ["RECIPE_SUB_TYPE"] = "Subtipos de Receita", ["ENEMY_FACTION_CONFIG"] = "Facções Inimigas",
+        ["CHARRACTER_CLASS_CONFIG"] = "Classes de Personagem", ["PARAM_ADJUST_CONFIG"] = "Ajustes por Nível e Grupo", ["PLAYER_ACTION_INFO_CONFIG"] = "Ações do Personagem",
+        ["TASKDICE_ESSENCE"] = "Bilhetes de Quest", ["TASKNORMALMATTER_ESSENCE"] = "Itens Comuns de Quest", ["FACE_FALING_ESSENCE"] = "Feições",
+        ["PLAYER_LEVELEXP_CONFIG"] = "EXP por Nível", ["MINE_TYPE"] = "Tipos de Mina", ["NPC_IDENTIFY_SERVICE"] = "NPC: Identificar",
+        ["FASHION_MAJOR_TYPE"] = "Tipos de Moda", ["FASHION_SUB_TYPE"] = "Subtipos de Moda", ["FACETICKET_MAJOR_TYPE"] = "Tipos de Cupom de Rosto",
+        ["FACETICKET_SUB_TYPE"] = "Subtipos de Cupom de Rosto", ["FACETICKET_ESSENCE"] = "Cupons de Rosto", ["FACEPILL_MAJOR_TYPE"] = "Tipos de Pílula de Rosto",
+        ["FACEPILL_SUB_TYPE"] = "Subtipos de Pílula de Rosto", ["FACEPILL_ESSENCE"] = "Pílulas de Transformação", ["GM_GENERATOR_TYPE"] = "Tipos de Gerador GM",
+        ["GM_GENERATOR_ESSENCE"] = "Geradores GM", ["PET_TYPE"] = "Tipos de Pet", ["PET_FACETICKET_ESSENCE"] = "Cupons de Aparência de Pet",
+        ["WAR_TANKCALLIN_ESSENCE"] = "Convocação de Catapulta", ["NPC_WAR_TOWERBUILD_SERVICE"] = "NPC: Torres de Guerra", ["PLAYER_SECONDLEVEL_CONFIG"] = "Cultivo",
+        ["NPC_RESETPROP_SERVICE"] = "NPC: Redistribuir Atributos", ["NPC_PETNAME_SERVICE"] = "NPC: Nome de Pet", ["NPC_PETLEARNSKILL_SERVICE"] = "NPC: Pet Aprender Habilidade",
+        ["NPC_PETFORGETSKILL_SERVICE"] = "NPC: Pet Esquecer Habilidade", ["SKILLMATTER_ESSENCE"] = "Itens de Habilidade", ["DESTROYING_ESSENCE"] = "Itens em Destruição",
+        ["NPC_EQUIPBIND_SERVICE"] = "NPC: Vincular Equipamento", ["NPC_EQUIPDESTROY_SERVICE"] = "NPC: Destruir Vinculado", ["NPC_EQUIPUNDESTROY_SERVICE"] = "NPC: Cancelar Destruição",
+        ["BIBLE_ESSENCE"] = "Tomos", ["SPEAKER_ESSENCE"] = "Megafones", ["AUTOHP_ESSENCE"] = "Recuperação Automática de HP",
+        ["AUTOMP_ESSENCE"] = "Recuperação Automática de MP", ["DOUBLE_EXP_ESSENCE"] = "EXP Dupla", ["TRANSMITSCROLL_ESSENCE"] = "Pergaminhos de Teletransporte",
+        ["DYE_TICKET_ESSENCE"] = "Corantes", ["GOBLIN_ESSENCE"] = "Gênios", ["GOBLIN_EQUIP_TYPE"] = "Tipos de Equipamento de Gênio",
+        ["GOBLIN_EQUIP_ESSENCE"] = "Equipamentos de Gênio", ["GOBLIN_EXPPILL_ESSENCE"] = "Pílulas de EXP de Gênio", ["SELL_CERTIFICATE_ESSENCE"] = "Certificados de Venda",
+        ["TARGET_ITEM_ESSENCE"] = "Itens de Alvo", ["LOOK_INFO_ESSENCE"] = "Itens de Inspeção", ["UPGRADE_PRODUCTION_CONFIG"] = "Melhoria de Produção",
+        ["ACC_STORAGE_BLACKLIST_CONFIG"] = "Proibidos no Armazém da Conta", ["FACE_HAIR_TEXTURE_MAP"] = "Texturas de Cabelo", ["MULTI_EXP_CONFIG"] = "Multiplicadores de EXP",
+        ["INC_SKILL_ABILITY_ESSENCE"] = "Aumento de Habilidade", ["GOD_EVIL_CONVERT_CONFIG"] = "Conversão Sábio/Demônio", ["WEDDING_CONFIG"] = "Casamento",
+        ["WEDDING_BOOKCARD_ESSENCE"] = "Reservas de Casamento", ["WEDDING_INVITECARD_ESSENCE"] = "Convites de Casamento", ["SHARPENER_ESSENCE"] = "Amoladores",
+        ["FACE_THIRDEYE_ESSENCE"] = "Terceiro Olho", ["FACTION_FORTRESS_CONFIG"] = "Fortaleza do Clã", ["FACTION_BUILDING_SUB_TYPE"] = "Subtipos de Construção do Clã",
+        ["FACTION_BUILDING_ESSENCE"] = "Construções do Clã", ["FACTION_MATERIAL_ESSENCE"] = "Materiais do Clã", ["CONGREGATE_ESSENCE"] = "Convocação",
+        ["ENGRAVE_MAJOR_TYPE"] = "Tipos de Gravação", ["ENGRAVE_SUB_TYPE"] = "Subtipos de Gravação", ["ENGRAVE_ESSENCE"] = "Gravações",
+        ["NPC_ENGRAVE_SERVICE"] = "NPC: Gravação", ["NPC_RANDPROP_SERVICE"] = "NPC: Atributo Aleatório", ["RANDPROP_TYPE"] = "Tipos de Atributo Aleatório",
+        ["RANDPROP_ESSENCE"] = "Atributos Aleatórios", ["WIKI_TABOO_CONFIG"] = "Wiki: Proibidos",
     };
     private static string Pretty(string block) =>
         BlockPt.TryGetValue(block, out var p) ? Loc.T("block." + block, p)
@@ -980,6 +1125,12 @@ public sealed class EditorForm : Form
         _tabLinks.Text = (uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos"));
         if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);
 
+        // loja do NPC: aba extra com a prévia como no jogo
+        bool isShop = _owner.TryGetValue(item, out var ib) && ib.Name == "NPC_SELL_SERVICE";
+        if (isShop && !_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.TabPages.Insert(1, _tabShop);
+        else if (!isShop && _detailTabs.TabPages.Contains(_tabShop)) _detailTabs.TabPages.Remove(_tabShop);
+        if (isShop) _shop.ShowShop(item);
+
         // sub-abas por grupo (Básico, Habilidades, Queda, Modelo…), mantendo a aba escolhida se existir
         RebuildGroupTabs(item);
         FillGrid(item);
@@ -992,11 +1143,21 @@ public sealed class EditorForm : Form
             if (_history.Count == 0 || _history[^1] != item) { _history.Add(item); if (_history.Count > 200) _history.RemoveAt(0); }
             _histPos = _history.Count - 1;
         }
-        _stSel.Text = string.Format(Loc.T("status.selected", "Selecionado: {0}"), item.Id);
+        _stSel.Text = string.Format(Loc.T("status.selected", "Selecionado: {0}"), item.Id)
+            + $" · {item.Fields.Count} {Loc.T("status.fields", "campos")}" + (item.Raw is { } raw ? $" · {raw.Length} bytes" : "");
     }
 
     // O ID do grupo ("Todos", "Básico"…) fica em TabPage.Tag e nunca muda; só o Text (exibição) segue o idioma.
     private string SelectedGroupId => _groupTabs.SelectedTab?.Tag as string ?? "Todos";
+
+    /// <summary>Seleciona a sub-aba de grupo pelo ID (usado pelo --snapshot).</summary>
+    internal void SelectGroup(string id)
+    {
+        if (id.Equals("shop", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.SelectedTab = _tabShop; return; }
+        if (id.Equals("desc", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedIndex = _detailTabs.TabCount - 1; return; }
+        foreach (TabPage t in _groupTabs.TabPages)
+            if (string.Equals(t.Tag as string, id, StringComparison.OrdinalIgnoreCase)) { _groupTabs.SelectedTab = t; return; }
+    }
 
     private void RebuildGroupTabs(Item item)
     {
@@ -1010,7 +1171,22 @@ public sealed class EditorForm : Form
             if (again is not null) _groupTabs.SelectedTab = again;
         }
         foreach (TabPage t in _groupTabs.TabPages)
-            if (t.Tag is string id && FieldLabels.GroupName(id) is var txt && t.Text != txt) t.Text = txt;
+            if (t.Tag is string id && FieldLabels.GroupName(id) + SlotCount(item, id) is var txt && t.Text != txt) t.Text = txt;
+    }
+
+    // " (7/32)": slots preenchidos nas abas de addons, queda e habilidades (ocupação, como nos editores da comunidade).
+    private static string SlotCount(Item item, string group)
+    {
+        if (group is not ("Atributos / Addons" or "Queda" or "Habilidades")) return "";
+        int total = 0, filled = 0;
+        foreach (var (k, f) in item.Fields)
+        {
+            var kind = FieldKinds.Of(k);
+            if (DisplayGroup(k) != group || !(FieldKinds.IsReference(kind) || kind == FieldKind.SkillRef)) continue;
+            total++;
+            if (!IsEmpty(f.Value)) filled++;
+        }
+        return total > 1 ? $" ({filled}/{total})" : "";
     }
 
     // Grupo de exibição: drops → Queda, habilidades → Habilidades, arquivos → Modelo; resto pelo FieldLabels.
@@ -1019,7 +1195,7 @@ public sealed class EditorForm : Form
         var k = key.ToLowerInvariant();
         var kind = FieldKinds.Of(key);
         if (k.Contains("drop") || (kind == FieldKind.ItemRef && k.Contains("matter") && !k.Contains("material"))) return "Queda";
-        if (kind == FieldKind.SkillRef || k.Contains("skill")) return "Habilidades";
+        if (kind == FieldKind.SkillRef || (k.Contains("skill") && k != "skillpoint")) return "Habilidades";
         if (kind == FieldKind.File) return "Modelo";
         return FieldLabels.Group(key);
     }
@@ -1039,11 +1215,16 @@ public sealed class EditorForm : Form
         var sel = SelectedGroupId;
         _grid.Rows.Clear();
         var byGroup = item.Fields.GroupBy(f => DisplayGroup(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
+        var unused = _hideUnused ? UnusedFields(_owner.TryGetValue(item, out var blk) ? blk : null) : new HashSet<string>();
+        int hidden = 0;
         foreach (var gname in GroupsOf(item).Skip(1))
         {
             if (sel != "Todos" && sel != gname) continue;
             if (!byGroup.TryGetValue(gname, out var fields)) continue;
-            var vis = fields.Where(f => (gname != "Atributos / Addons" && gname != "Queda" && gname != "Habilidades") || !IsEmpty(f.Value.Value) || sel == gname).ToList();
+            // realname: nome original em chinês, sem efeito no jogo; fica no arquivo e some da grade.
+            hidden += fields.Count(f => unused.Contains(f.Key));
+            var vis = fields.Where(f => f.Key != "realname" && !unused.Contains(f.Key)
+                && ((gname != "Atributos / Addons" && gname != "Queda" && gname != "Habilidades") || !IsEmpty(f.Value.Value) || sel == gname)).ToList();
             if (vis.Count == 0) continue;
             if (sel == "Todos")
             {
@@ -1057,7 +1238,7 @@ public sealed class EditorForm : Form
                 var desc = Describe(item, k, f.Value);
                 int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, desc);
                 _grid.Rows[r].Tag = k;
-                if (FieldKinds.IsFlag(k, f.Value))
+                if (FieldKinds.IsFlag(_owner.TryGetValue(item, out var ownerBlock) ? ownerBlock.Name : "", k, f.Value))
                 {
                     // sim/não: caixa de seleção (grava 1/0)
                     _grid.Rows[r].Cells[1] = new DataGridViewCheckBoxCell { Value = f.Value == "1", TrueValue = true, FalseValue = false };
@@ -1094,6 +1275,29 @@ public sealed class EditorForm : Form
                 }
             }
         }
+        if (hidden > 0)
+        {
+            int r = _grid.Rows.Add("  " + string.Format(Loc.T("grid.hiddenUnused", "{0} campos sem uso neste bloco estão ocultos"), hidden), "",
+                Loc.T("grid.hiddenHow", "Exibir > Mostrar campos sem uso no bloco"));
+            var row = _grid.Rows[r]; row.ReadOnly = true;
+            row.DefaultCellStyle.ForeColor = CMuted; row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Italic);
+        }
+    }
+
+    // Campos sem valor em NENHUM item do bloco (0, vazio, -1) e os reservados: não têm efeito no jogo com este arquivo.
+    private HashSet<string> UnusedFields(ItemList? block)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        if (block is null || block.Items.Count < 2) return set;
+        if (_unusedCache.TryGetValue(block, out var hit)) return hit;
+        foreach (var key in block.Items[0].Fields.Keys)
+        {
+            if (key is "ID" or "id" or "Name" or "id_major_type" or "id_sub_type") continue;
+            if (key.StartsWith("reserved", StringComparison.OrdinalIgnoreCase)
+                || block.Items.All(it => !it.Fields.TryGetValue(key, out var f) || IsEmpty(f.Value)))
+                set.Add(key);
+        }
+        return _unusedCache[block] = set;
     }
 
     private static float ParsePct(string? v) =>
@@ -1106,13 +1310,25 @@ public sealed class EditorForm : Form
     };
 
     // ---------- editores por duplo clique (estilo Rody) ----------
-    private static bool IsSpecialEditor(string key) =>
-        FieldKinds.Of(key) is FieldKind.ClassMask or FieldKind.ProcMask or FieldKind.ImmuneMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef;
+    private bool IsSpecialEditor(string key) =>
+        FieldKinds.Of(key) is FieldKind.ClassMask or FieldKind.ProcMask or FieldKind.ImmuneMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef or FieldKind.ServiceRef
+        || (key.Equals("file_icon", StringComparison.OrdinalIgnoreCase) && _atlas is not null);
 
     private bool EditFieldSpecial(Item item, string key)
     {
         var kind = FieldKinds.Of(key);
         var cur = item.Fields[key].Value;
+        if (key.Equals("file_icon", StringComparison.OrdinalIgnoreCase) && _atlas is not null)
+        {
+            // mantém a pasta do caminho atual (Surfaces\图标\物品\...) e troca só o arquivo
+            if (FieldEditors.IconPicker(this, _atlas, cur) is { } name)
+            {
+                var dir = Path.GetDirectoryName(cur.Replace('/', '\\'));
+                SetField(item, key, string.IsNullOrEmpty(dir) ? name : dir + "\\" + name);
+                LoadItemIcon(item);
+            }
+            return true;
+        }
         switch (kind)
         {
             case FieldKind.ClassMask:
@@ -1124,16 +1340,17 @@ public sealed class EditorForm : Form
             case FieldKind.ImmuneMask:
                 if (FieldEditors.BitMask(this, Loc.T("dialog.immuneTitle", "Imunidades do monstro"), long.TryParse(cur, out var im) ? im : 0, BitMasks.Immune) is { } ni) SetField(item, key, ni.ToString());
                 return true;
-            case FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef:
+            case FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef or FieldKind.ServiceRef:
             {
-                var src = PickSource(kind);
+                var src = PickSource(kind, key);
                 if (src.Count == 0) return false;
                 bool multi = System.Text.RegularExpressions.Regex.IsMatch(key, @"_\d+_");
                 var addons = _cfgs?.Addons;
                 var picked = FieldEditors.Pick(this, kind switch
                     {
                         FieldKind.AddonRef => Loc.T("pick.addon", "Escolher atributo"), FieldKind.MonsterRef => Loc.T("pick.monster", "Escolher monstro"),
-                        FieldKind.RecipeRef => Loc.T("pick.recipe", "Escolher receita"), _ => Loc.T("pick.item", "Escolher item"),
+                        FieldKind.RecipeRef => Loc.T("pick.recipe", "Escolher receita"), FieldKind.ServiceRef => Loc.T("pick.service", "Escolher serviço"),
+                        _ => Loc.T("pick.item", "Escolher item"),
                     }, src, cur, IconIndexFor, _treeIcons,
                     it => kind == FieldKind.AddonRef ? addons?.Describe(it) ?? "" : _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "",
                     kind == FieldKind.AddonRef && addons is not null ? it => addons.TypeCaption(it.Id) : it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null,
@@ -1158,11 +1375,15 @@ public sealed class EditorForm : Form
         return false;
     }
 
-    private List<Item> PickSource(FieldKind kind)
+    private List<Item> PickSource(FieldKind kind, string key = "")
     {
         var lists = _store.Current?.Lists ?? new List<ItemList>();
+        // serviço: o bloco certo pelo nome do campo (id_sell_service -> NPC_SELL_SERVICE); se não existir, todos os serviços
+        var svcBlock = "NPC_" + key.ToUpperInvariant().Replace("ID_", "");
         IEnumerable<ItemList> src = kind switch
         {
+            FieldKind.ServiceRef when lists.Any(l => l.Name == svcBlock) => lists.Where(l => l.Name == svcBlock),
+            FieldKind.ServiceRef => lists.Where(l => l.Name.StartsWith("NPC_") && l.Name.EndsWith("_SERVICE")),
             FieldKind.AddonRef => lists.Where(l => l.Name == "EQUIPMENT_ADDON"),
             FieldKind.MonsterRef => lists.Where(l => l.Name == "MONSTER_ESSENCE"),
             FieldKind.RecipeRef => lists.Where(l => l.Name == "RECIPE_ESSENCE"),
@@ -1175,6 +1396,7 @@ public sealed class EditorForm : Form
     {
         item.Fields[key] = Field.Of(item.Fields[key].Type, value);
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase)) item.Name = value;
+        if (_owner.TryGetValue(item, out var ob)) _unusedCache.Remove(ob);
         if (refresh) FillGrid(item);
         _list.Invalidate();
         Status($"'{FieldLabels.Label(key)}' = {value}");
@@ -1193,9 +1415,60 @@ public sealed class EditorForm : Form
         }
         Put((string.IsNullOrEmpty(item.Name) ? Loc.T("block.noName", "(sem nome)") : TasksFile.SplitColor(item.Name).Text) + "\n", NameColor(item), bold: true);
         Put($"ID {item.Id}\n\n", CMuted);
+        PutTooltipSummary(item, Put);
         if (_cfgs is not null && int.TryParse(item.Id, out var id) && _cfgs.ItemDescs.TryGetValue(id, out var desc))
             foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg)) Put(t, c);
         else Put(_cfgs is null ? "(configs.pck não encontrado)" : "(este item não tem descrição no configs.pck)", CMuted);
+        _descBox.SelectionStart = 0; _descBox.SelectionLength = 0; _descBox.ScrollToCaret();   // AppendText rola até o fim
+    }
+
+    // Resumo no estilo do tooltip do jogo (como o preview do VAE): faixas min-max numa linha, requisitos, preço e atributos possíveis.
+    private void PutTooltipSummary(Item item, Action<string, Color, bool> put)
+    {
+        string? V(string k) => item.Fields.TryGetValue(k, out var f) && !IsEmpty(f.Value) ? f.Value : null;
+        var stat = Color.FromArgb(255, 203, 74); var val = CTreeFg; var blue = Color.FromArgb(108, 180, 255);
+        int lines = 0;
+        void Line(string label, string? value) { if (value is null) return; put(label + ": ", stat, false); put(value + "\n", val, false); lines++; }
+        string? Range(string lo, string hi) => (V(lo), V(hi)) switch
+        {
+            (null, null) => null, (var a, null) => a, (null, var b) => b,
+            var (a, b) => a == b ? a : $"{a} - {b}",
+        };
+        Line(FieldLabels.Label("level"), V("level"));
+        if (V("character_combo_id") is { } cc && FieldKinds.ClassNames(cc) is { Length: > 0 } cn) Line(FieldLabels.Label("character_combo_id"), cn);
+        Line(Loc.T("tip.physAttack", "Ataque físico"), Range("damage_low", "damage_high_max"));
+        Line(Loc.T("tip.magicAttack", "Ataque mágico"), Range("magic_damage_low", "magic_damage_high_max"));
+        Line(Loc.T("tip.physDefense", "Defesa física"), Range("defence_low", "defence_high"));
+        for (int e = 1; e <= 5; e++) Line(FieldLabels.Label($"magic_defences_{e}"), Range($"magic_defences_{e}_low", $"magic_defences_{e}_high"));
+        Line(Loc.T("tip.durability", "Durabilidade"), Range("durability_min", "durability_max"));
+        foreach (var k in new[] { "require_level", "require_strength", "require_agility", "require_energy", "require_tili", "require_reputation" })
+            Line(FieldLabels.Label(k), V(k));
+        Line(FieldLabels.Label("price"), V("price") is { } p && long.TryParse(p, out var pv) ? pv.ToString("N0") : null);
+        // atributos possíveis: addons/aleatórios/únicos com o efeito do configs.pck e a chance
+        var addons = _cfgs?.Addons;
+        var groups = new Dictionary<string, List<string>>();   // título -> linhas, na ordem em que aparecem
+        if (addons is not null)
+            foreach (var (k, f) in item.Fields)
+            {
+                if (FieldKinds.Of(k) != FieldKind.AddonRef || IsEmpty(f.Value) || _refs?.Resolve(FieldKind.AddonRef, f.Value) is not { } hit) continue;
+                var eff = addons.Describe(hit.Item) ?? $"#{f.Value}";
+                var prob = FieldKinds.ProbabilityFor(k, item.Fields);
+                var pct = prob is not null && float.TryParse(item.Fields[prob].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pp) && pp > 0 ? $"  ({pp * 100:0.##}%)" : "";
+                var title = k.StartsWith("addons_") ? Loc.T("tip.addonsCraft", "Atributos de fabricação")
+                    : k.StartsWith("rands_") ? Loc.T("tip.addonsRand", "Atributos aleatórios")
+                    : k.StartsWith("uniques_") ? Loc.T("tip.addonsUnique", "Atributos únicos")
+                    : k == "levelup_addon" ? Loc.T("tip.refine", "Refino")
+                    : Loc.T("tip.addonsOther", "Outros atributos");
+                if (!groups.TryGetValue(title, out var list)) groups[title] = list = new();
+                list.Add(eff + pct);
+            }
+        foreach (var (title, list) in groups)
+        {
+            put($"\n{title} ({list.Count})\n", stat, true);
+            foreach (var p2 in list.Take(64)) put("  " + p2 + "\n", blue, false);
+            lines++;
+        }
+        if (lines > 0) put("\n", val, false);
     }
 
     private void FillFindFields(Item item)
@@ -1258,8 +1531,14 @@ public sealed class EditorForm : Form
             case FieldKind.ClassMask: return FieldKinds.ClassNames(value);
             case FieldKind.ProcMask: return BitMasks.Describe(BitMasks.Proc, long.TryParse(value, out var pv) ? pv : 0);
             case FieldKind.ImmuneMask: return BitMasks.Describe(BitMasks.Immune, long.TryParse(value, out var iv) ? iv : 0);
-            case FieldKind.SkillRef: return IsEmpty(value) ? "" : "habilidade";
-            case FieldKind.TaskRef: return IsEmpty(value) ? "" : "quest";
+            case FieldKind.SkillRef:
+                if (IsEmpty(value)) return "";
+                return int.TryParse(value, out var sid) && _cfgs?.SkillNames.TryGetValue(sid, out var sname) == true
+                    ? $"{TasksFile.SplitColor(sname!).Text}  ({Loc.T("grid.skill", "habilidade")} {sid})" : Loc.T("grid.skill", "habilidade");
+            case FieldKind.TaskRef:
+                if (IsEmpty(value)) return "";
+                return int.TryParse(value, out var qid) && QuestName(qid) is { } qname
+                    ? $"{qname}  ({Loc.T("grid.quest", "quest")} {qid})" : Loc.T("grid.quest", "quest");
             default:
                 if (!FieldKinds.IsReference(kind) || _refs?.Resolve(kind, value) is not { } hit) return "";
                 var name = string.IsNullOrEmpty(hit.Item.Name) ? $"#{hit.Item.Id}" : hit.Item.Name;
@@ -1287,9 +1566,12 @@ public sealed class EditorForm : Form
 
     // Navega até um item de qualquer bloco (troca o seletor de bloco se precisar).
     /// <summary>Diagnóstico (--snapshot): abre o item de um bloco pelo ID.</summary>
+    /// <summary>Abre o item pelo ID; "*" escolhe o item mais preenchido do bloco (usado pelo --snapshot).</summary>
     internal void GoToId(string block, string id)
     {
-        if (_store.Current?.FindListByName(block)?.FindById(id) is { } it) GoToItem(it);
+        var list = _store.Current?.FindListByName(block);
+        var it = id == "*" ? list?.Items.OrderByDescending(x => x.Fields.Values.Count(f => !IsEmpty(f.Value))).FirstOrDefault() : list?.FindById(id);
+        if (it is not null) GoToItem(it);
     }
 
     private void GoToItem(Item it)
@@ -1311,11 +1593,12 @@ public sealed class EditorForm : Form
         var cell = _grid.Rows[row].Cells[1];
         var val = cell is DataGridViewCheckBoxCell ? (cell.Value is true ? "1" : "0") : cell.Value?.ToString() ?? "";
         _current.Fields[key] = Field.Of(_current.Fields[key].Type, val);
+        if (_owner.TryGetValue(_current, out var ob)) _unusedCache.Remove(ob);
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase))
         {
             _current.Name = val;
             _list.Invalidate();
-            _header.Text = $"{val}     (ID {_current.Id})";
+            _header.Text = TasksFile.SplitColor(val).Text;   // o ID já aparece no quadro ao lado
         }
         Status($"'{FieldLabels.Label(key)}' atualizado");
     }
@@ -1570,6 +1853,17 @@ public sealed class EditorForm : Form
     // ---------- aba Quests (tasks.data) ----------
     // v93: esquema completo (árvore + campos + textos + diálogos). Outras versões: só ID/nome.
     private TasksFile? _tasks;
+    private (TasksFile Src, Dictionary<int, string> Names)? _questNames;
+
+    // Nome da quest pelo ID (quests de topo e subquests), refeito quando o tasks.data muda.
+    private string? QuestName(int id)
+    {
+        if (_tasks is null) return null;
+        if (_questNames?.Src != _tasks)
+            _questNames = (_tasks, (_tasks.FullSchema ? _tasks.AllNodes().Select(n => (n.Id, n.Name)) : _tasks.Quests.Select(q => (q.Id, q.Name)))
+                .GroupBy(x => x.Id).ToDictionary(g => g.Key, g => TasksFile.SplitColor(g.First().Name).Text));
+        return _questNames.Value.Names.TryGetValue(id, out var n) ? n : null;
+    }
     private string? _tasksPath;
     private QuestNode? _qCur;
     private readonly TreeView _qTree = new() { Dock = DockStyle.Fill, HideSelection = false, FullRowSelect = true, BorderStyle = BorderStyle.None, ItemHeight = 22, ShowLines = false, DrawMode = TreeViewDrawMode.OwnerDrawText };

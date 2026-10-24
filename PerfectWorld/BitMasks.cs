@@ -10,11 +10,12 @@ public static class BitMasks
     /// <summary>Regras do item (proc_type): bits do cliente.</summary>
     public static readonly (int Bit, string Name)[] Proc =
     {
-        (0, "Cai ao morrer"),
-        (1, "Pode largar no chão"),
-        (2, "Pode vender ao NPC"),
+        // bits 0-2 e 4 são RESTRIÇÕES (ligado = não pode): soulbound 32791 = bits 0,1,2,4,15; item de missão 19 = bits 0,1,4
+        (0, "Não cai ao morrer"),
+        (1, "Não pode largar no chão"),
+        (2, "Não pode vender ao NPC"),
         (3, "Registrar log detalhado"),
-        (4, "Pode trocar com jogadores"),
+        (4, "Não pode trocar com jogadores"),
         (5, "Item de missão"),
         (6, "Vincula ao equipar"),
         (7, "Pode desvincular"),
@@ -41,7 +42,7 @@ public static class BitMasks
         (15, "Dano que ignora defesa"), (17, "Sangramento"), (18, "Todos os estados negativos"),
     };
 
-    /// <summary>Nomes dos bits ligados em <paramref name="value"/> (ex.: "Cai ao morrer, Pode vender ao NPC").</summary>
+    /// <summary>Nomes dos bits ligados em <paramref name="value"/> (ex.: "Não cai ao morrer, Não pode vender ao NPC").</summary>
     public static string Describe((int Bit, string Name)[] table, long value, string unknownPrefix = "Bit")
     {
         if (value == 0) return "";

@@ -43,19 +43,19 @@ internal static class Program
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
         ApplicationConfiguration.Initialize();
-        if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null); return; }
+        if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }
         Application.Run(new EditorForm());
     }
 
-    // --snapshot <saida.png> [aba] [bloco id]: abre o editor fora da tela (com a última pasta), salva um print e sai.
-    private static void Snapshot(string outPng, string? tab, (string Block, string Id)? item)
+    // --snapshot <saida.png> [aba] [bloco id] [grupo]: abre o editor fora da tela (com a última pasta), salva um print e sai.
+    private static void Snapshot(string outPng, string? tab, (string Block, string Id)? item, string? group = null)
     {
         using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
         f.Show();
         if (tab is not null && f.Controls.OfType<TabControl>().FirstOrDefault() is { } tc)
             foreach (TabPage tp in tc.TabPages) if (tp.Text.StartsWith(tab, StringComparison.OrdinalIgnoreCase)) tc.SelectedTab = tp;
         var until = DateTime.Now.AddSeconds(12);
-        if (item is { } x) { var t0 = DateTime.Now.AddSeconds(8); while (DateTime.Now < t0) { Application.DoEvents(); Thread.Sleep(30); } f.GoToId(x.Block, x.Id); }
+        if (item is { } x) { var t0 = DateTime.Now.AddSeconds(8); while (DateTime.Now < t0) { Application.DoEvents(); Thread.Sleep(30); } f.GoToId(x.Block, x.Id); if (group is not null) f.SelectGroup(group); }
         while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));

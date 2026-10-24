@@ -13,6 +13,7 @@ public enum FieldKind
     MonsterRef,  // ID em MONSTER_ESSENCE
     SkillRef,    // ID de skill (elementskill; ainda sem nomes)
     TaskRef,     // ID de quest (tasks.data)
+    ServiceRef,  // ID de registro de serviço do NPC (id_sell_service -> NPC_SELL_SERVICE); não é quest
     Probability, // float 0..1 exibido em %
     ClassMask,   // máscara de classes (PW-KB §S24)
     ProcMask,    // regras do item (proc_type): cair, vender, trocar… (BitMasks.Proc)
@@ -44,6 +45,8 @@ public static class FieldKinds
         if (n.StartsWith("file_") || n.StartsWith("pllfiles")) return FieldKind.File;
         if (n.Contains("color")) return FieldKind.Color;
         if (n is "character_combo_id" || n.Contains("occupation") || n.EndsWith("class_mask")) return FieldKind.ClassMask;
+        // NPC_ESSENCE: id_<serviço>_service aponta para o registro do bloco NPC_<SERVIÇO>_SERVICE (antes das regras de quest/skill)
+        if (Regex.IsMatch(n, @"^id_[a-z_]+_service$")) return FieldKind.ServiceRef;
         if (n == "proc_type") return FieldKind.ProcMask;
         if (n == "immune_type") return FieldKind.ImmuneMask;
         if (n.Contains("probability") || Regex.IsMatch(n, @"(^|_)prob(_|\d|$)")) return FieldKind.Probability;
@@ -66,18 +69,13 @@ public static class FieldKinds
     }
 
     /// <summary>
-    /// Sim/não (flag) pelo nome do campo: prefixos/sufixos típicos de flag (has_, no_, is_, can_, enable_...).
-    /// Usado junto com o valor 0/1 do item. Precisão alta; cobertura parcial (ver issue #7).
+    /// Sim/não (flag): o campo é ft_bool no bloco (lista do Rody, FlagFields) e o valor é 0 ou 1.
     /// </summary>
-    static readonly System.Text.RegularExpressions.Regex FlagName = new(
-        @"^(has_|no_|is_|can_|enable|allow|show_|use_|bind_|need_|disable|forbid|ignore|auto_|display_|record_|hide_)|(_flag|_bool|_enable|_show|_can|_use)$|^b_",
-        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
-
-    public static bool IsFlag(string field, string value) =>
-        (value == "0" || value == "1") && FlagName.IsMatch(field);
+    public static bool IsFlag(string block, string field, string value) =>
+        (value == "0" || value == "1") && FlagFields.Contains(block, field);
 
     public static bool IsReference(FieldKind k) =>
-        k is FieldKind.ItemRef or FieldKind.AddonRef or FieldKind.RecipeRef or FieldKind.MonsterRef;
+        k is FieldKind.ItemRef or FieldKind.AddonRef or FieldKind.RecipeRef or FieldKind.MonsterRef or FieldKind.ServiceRef;
 
     /// <summary>
     /// Campo de probabilidade "irmão" de uma referência (ex.: drop_matters_3_id → drop_matters_3_probability,
@@ -169,7 +167,7 @@ public sealed class RefIndex
             FieldKind.AddonRef => _addon,
             FieldKind.RecipeRef => _recipe,
             FieldKind.MonsterRef => _monster,
-            FieldKind.ItemRef => _essence,
+            FieldKind.ItemRef or FieldKind.ServiceRef => _essence,   // serviços de NPC também estão no espaço de IDs essence
             _ => null,
         };
         return d is not null && d.TryGetValue(id, out var hit) ? hit : null;

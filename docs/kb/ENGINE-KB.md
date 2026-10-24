@@ -64,6 +64,8 @@ RefIndex: IDs essence (+monstros) / addon / recipe / monster; indice reverso Use
 UI: coluna Vinculo na grade (nome + bloco + %, classes por extenso; duplo clique navega) | aba Vinculos (quem usa) | tooltip c/ drops icone+nome+% (ex. monstro 986: 32 drops resolvidos) [T]
 pendente: SkillRef/TaskRef so dizem "habilidade"/"quest" (sem nomes ainda: skillstr.txt / tasks.data); id_strategy -> aipolicy; icones de monstro
 
+sim/nao (IsFlag) [T]: FlagFields.cs = 253 pares (bloco|campo) ft_bool da lista do Rody (configs/PW/PW_types.csv). So campos com tipo especial entram nela; campos comuns (ex.: price) nao. Substituiu regra por nome (cobria 37 de 106 nomes). Rody PW_FieldSets.csv vazio na copia: sem lista de agrupamento da grade [A].
+
 ## §E3c tasks.data (TasksFile.cs + TaskSchema.cs) — v93 COMPLETO [T]
 esquema v93 escrito a partir do estudo do Rody V22 (reducao automatica dos ifs de versao: scratch v93_reduce.py; codigo nosso, declarativo)
 quest = 58 fases do bloco fixo (238 campos rotulados PT, editaveis no lugar) + arrays variaveis (horarios, chaves, expr PQ, contrib, regioes, itens pedidos/dados, membros, monstros/itens a obter, expressoes, textos de quest, locais) + premios AWARD_DATA (sucesso, falha, 2× por razao [5 escalas], 2× por itens [5 escalas]) + 4 pwstr (descricao/ok/no/tributo) + 5 talk_proc (id, texto 64ch, janelas{id,pai,texto,opcoes{param,texto 64ch,id}}) + i32 nSub + subquests
@@ -130,6 +132,20 @@ abas: Elements (pronta) | Quests (v93 completa §E3c) | GShop/AI Policy (vazias)
 detalhe do item: cabecalho escuro (icone|ID|nome cor oficial) | abas Valores (sub-abas por grupo: Todos/Basico/.../Queda/Habilidades/Modelo; coluna Vinculo) | Vinculos (N) | Buscar (campo op valor) | Descricao e cor (§E3d)
 lista: coluna ∞ = nº de vinculos | barra: ◀ ▶ historico | status: total/bloco/selecionado
 diagnostico: --snapshot <png> abre o editor fora da tela c/ a ultima pasta e salva print (verificacao visual sem abrir janela)
+ --snapshot <png> Elements <BLOCO> <ID|*> [grupo|shop|desc]: "*" = item mais preenchido do bloco; 6o arg escolhe sub-aba de grupo, aba Loja ou Descricao [T]
+melhorias de UI (out/2026, ideias de §E9b) [T por print]:
+ - Exibir > "Mostrar campos sem uso no bloco": por padrao esconde campos zerados em TODOS os itens do bloco + reserved_*; linha no fim "N campos sem uso ocultos" (setting hide_unused)
+ - sub-abas com ocupacao: Atributos (25/64), Queda (32/32), Habilidades (2/48)
+ - coluna Vinculo: barra verde + % para probabilidade; amostra + #RRGGBB para cor; menu de contexto "Distribuir 100% entre as probabilidades preenchidas"
+ - nomes: habilidades pelo skillstr.txt do configs.pck (ID*10 = nome) e quests pelo tasks.data ("Ira (habilidade 41)", "Bilhete da Sorte (quest 3462)") -> issue #10
+ - FieldKind.ServiceRef: id_*_service do NPC aponta para o registro NPC_*_SERVICE (antes era tratado como quest por conter "task" = ERRO corrigido); rotulo "Servico: Loja", link e seletor do bloco certo
+ - rotulos: defesa/dano por elemento (Defesa de Metal...), drops/habilidades/quests numerados ("Drop 3 (item)"), ~70 campos de monstro/NPC, 122 blocos com nome PT/EN
+ - aba "Loja (como no jogo)" em NPC_SELL_SERVICE (UI/ShopPreview.cs): paginas com titulo e ocupacao, grade 8x4 de icones, hover = nome, clique abre o item
+ - aba Descricao: resumo estilo tooltip do jogo (faixas min-max, requisitos, preco, atributos por origem com %), rolagem volta ao topo
+ - duplo clique em file_icon: seletor em grade de todos os icones do atlas (FieldEditors.IconPicker; desenho sob demanda) [sem verificacao visual: janela modal]
+ - titulo da janela com versao e data do elements.data; status com campos e bytes do registro; coluna Nome da lista ocupa o espaco (sem rolagem horizontal)
+ - proc_type bits 0,1,2,4 renomeados como restricao ("Nao pode trocar"...) — estavam invertidos (PWKB§S26)
+ pendente conhecido: Tests/audit_localization.py procura dicionario Tokens em FieldLabels.cs (foi movido p/ FieldTokens.cs) -> script quebrado, nao relacionado a estas mudancas
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's Angelica Editor faz, com CODIGO NOSSO e interface parecida com a dele.
@@ -156,6 +172,52 @@ par client+server: gshop (1380B x 164B, control_type), elements, tasks -> export
 patches em binario: tabela de patches c/ verificacao de hash do ELF, achar alvo por simbolo DWARF, nunca offset fixo de outro build
 coordenadas: client exibe X=400+x/10 Z=550+z/10 (tasks); path 1px=1un centro; wmap 1px=2un -> unificar num conversor so
 
+### §E9b INTERFACE DOS EDITORES (prints do RageZone, out/2026) [P] — ideias para a NOSSA UI (so observado; nada copiado)
+Angelica Core Editor 2026.6.1 (familia Rody/RAE; thread 1271952; pacote de origem duvidosa, NAO baixar):
+- janela: menu Arquivo/Editar/Ferramentas/Favoritos/Links/Ajuda; a direita "Modo escuro" e menu "Desenvolvimento"; barra: voltar/avancar, abrir, salvar, Importar, Exportar, desfazer/refazer, "Octets"/ver XML, seletor "Servidor"
+- esquerda: combo de bloco; busca + caixinha (= buscar em todos os blocos) + lupa; lista ID | Nome | coluna de vinculos; rodape "+ Adicionar" + numero (quantidade a adicionar) + botao + "Excluir"; status "item nao selecionado | tamanho do item"
+- direita: abas Valores | Referencias (n) | Buscar | Descricao e cor (= nosso layout atual)
+- Configuracoes (abas Interface/Parametros/Icones/Arquivos/npcgen+precinct/Servidor/Adicional): idioma (inclui Portugues Brasil), destacar monstro acima do nivel N, mostrar modelo (ski), nome de receita pelo item, **mostrar campos desconhecidos** (desligavel -> resolve "campos demais"), max de IDs no tooltip, refino padrao +12
+VAE Vietnam Angelica Editor (base sELedit; thread 1269297):
+- subabas por familia com ocupacao no titulo: Main | Model | Craft Addons (7/32) | Random Addons (7/32) | Unique Addons (5/16) | Hide Addons; NPC: Page 7 (0/32)
+- faixa min-max numa linha ("Damage High 1954 - 1964", "Durability 430 - 430"); enum com nome ("Short Range Mode: Melee (assassin)"); ref de refino com descricao ("Refine Method (3744) - Physical attack +44")
+- cor: amostra + hex; caminho de imagem: preview ao passar o mouse; titulo da janela: caminho + versao + timestamp do elements
+- aba Descricao: barra de cores (Reset/Remove/Blue/Gold/Purple/Orange/White/Gray/Green/Red/paleta) que insere ^RRGGBB + tooltip do item IGUAL AO JOGO (nome, soquetes, +refino, atributos, requisitos, addons coloridos, preco, descricao, referencias com barra de %)
+- preview da loja do NPC como no jogo (paginas 1-8, grade de icones, custo); aba "Itens recentes"; campo "Nota do item"; status: total, ID, selecionados, indice do campo, "buscar no PWDB"
+- preview 3D (GFX/modelo) com animacao/efeito/skill
+- menu Ferramentas: editores de quests, GShop, NPCGen, AI Policy, Configuracoes
+- NPCGen: visualizador de mapa (mundo 8192x11264, ~29 mil marcadores), zoom, Full Width/Fit All, filtros NPC/Mob/Resource/Dynamic, rotulos/tooltips, minimapa; clicar no ponto abre painel X/Y/Z, Random X/Y/Z, quantidade, gatilho, Aplicar/Reverter; circulo = area de spawn
+sEledit / sELedit++ (osudesu, base Wrechid; thread 1264402):
+- recursos: elements.data COMPRIMIDO, float guardado em int32 exibido certo, desfazer/refazer, busca em registros e campos, balanceador automatico de % (probabilidades somam 100%), mascaras (classe/equip), cor de int32 editavel, timestamp -> data/hora, icones por nome sem caminho e sem diferenciar maiusculas, links entre listas ate 1.8.0 v531, tasks ate 194, varios idiomas
+- grade com colunas Nome | Tipo (int32/float) | Valor; probabilidade em % com barra verde; addon com descricao ("3230 - Ataque +80")
+- rodape "Set Value" + "Set Value To Selected" (mesmo campo em varios itens)
+- janela "Icon selection": grade de todos os icones, destaque ao passar, clique escolhe
+- seletor de quest (le tasks.data): busca id/nome, icone por tipo; campos de quest no NPC mostram nome (= issue #10)
+- seletor de mascara de classe: 1 caixa por classe (14), numero da mascara, botoes none/all, Enter=OK Esc=cancelar
+sELedit++ (Wrechid, thread 1163866; imagens externas quebradas): miniaturas na lista (pesa no desempenho), tema configuravel por arquivo theme.txt (escuro/cinza/azul), descricoes; pedidos da comunidade: "Auto Next ID" (ao importar/clonar, renumerar a partir de um ID), exportar a lista inteira, traduzir o elements.data, cor do item junto do ID, refino +12, barra voltar/avancar/abrir/importar/exportar; "faz igual ao RAE" (o RAE e a referencia de usabilidade da comunidade)
+Gshop Editor (Luka, thread 1121787; imagens 404): gshop.data 1.3.6 ate 1.5.3, abrir/salvar/CONVERTER entre versoes, gerar gshop.sev (servidor) a partir do cliente, importar varios itens do elements.data, clonar/editar/excluir em lote, icones do surfaces.pck, janela de escolha de icone, definir timestamp. Bug relatado: elements.data aberto por outro processo -> abrir com FileShare.ReadWrite
+New EL Editor (yangyxd, thread 1249464; zh/en): barra Abrir/Salvar/Salvar como/Importar (adicionar)/Importar (substituir)/Exportar (selecionados | esta pagina); lista com caixinhas, selecionar tudo/inverter/contador; campos em FORMULARIO DE 3 COLUNAS (cabe tudo numa tela); rodape "80 campos, 628 bytes"; versao no titulo; direita: abas Buscar | Alterar em lote | Corrigir probabilidades; busca global lista "(bloco) [id] nome"; tema claro/escuro
+UIEdit (pdev, thread 927695): editor WYSIWYG do interfaces.pck (XML + surfaces), preview aproximado do jogo; fluxo: extrair interfaces.pck e surfaces.pck, apontar a pasta, editar
+EasyUIEditor (jstvibex, thread 1266961): interfaces.pck em 3 modos (Previa como no jogo | Edicao visual | XML com analise de erro e recurso faltando), modelos de controles/dialogos, desfazer/refazer, camadas, explorador com favoritos, busca por nome de arquivo e por conteudo, MCP + skills do Claude para edicao assistida por IA
+DataBrowser (hollyland, thread 1235492): arvore dos arquivos de mapa (bsdata, .t2bk, precinct.clt, region.clt, litmodels .bmd); precinct: regiao (id, prioridade, protecao PK), teleporte (alvo, coords), musica (loop, tempo, lista de sons), poligono X/Y/Z, exportar (ref. issue #31)
+AipolicyEditor 11.0 (Kn1fe, thread 1147344; todas as versoes incl. 1.5.5; en/ru/zh): UI plana; esquerda lista de controladores (ID + botoes +/-); TRIGGERS (VERSION n) com nome; condicao desenhada como BLOCOS ("VAR(1) x CONSTANT(100) / VAR(2)", "&&"); chaves liga/desliga Active | Run | AttackValid; OPERATIONS (VERSION n) "[14] active_controller", "[2] talk"; grade de propriedades agrupada (Operation: Text, AppendDataMask | Target: type, occupation); valores enumerados (ex.: calc_var); busca por padrao com resultados "Controller X, Trigger Y, Operation Z" que levam ao ponto; remover controladores vazios; TRADUZIR o aipolicy aberto usando outro arquivo; exportar/importar
+Universal Data Editor Tool (LegalSin, thread 1155623, licenca propria): um so programa para elements/gshop(1,2)/tasks/npcgen/aipolicy (PW completo; FW/JD/HTK/ESO em andamento) -> mesma ideia do nosso editor unico
+World Targets Editor (Luka, thread 1124793): world_targets.sev/.clt (teleportes do mundo), edicao multipla, converter .clt <-> .sev, pegar coordenada do jogo, pontos no mapa
+Perfect World Interface Translator (pdev, thread 947912): traduz XML da interface com integracao ao tradutor Yandex; arrastar e soltar arquivos
+010 editor Templates (thread 1222468): templates binarios para PW/Swordsman/JD (ex.: litmodel_*.bmd) -> fonte para formatos de mapa
+sTASKedit C# (Ronny/porte C#, thread 982771): arvore de quests colorida por tipo + busca "ID ou nome" + Find Next; quest em abas Geral | Locais | Basico I+II | Requisitos | Quest publica | Recompensas | Conversa; Geral: ID, Tipo (combo), limite de tempo, nome, texto do autor, datas de falha/validade em grade (A M D H M dia), FLAGS como caixinhas (ativar 1a subquest, pode desistir, repetivel, repetivel apos falha, falha ao morrer, no sucesso/falha do pai) -> modelo para issues #15/#16
+Ground Breaking Tool (Steve Langley, thread 1163031): gera .dhmap/.rmap a partir dos mapas do CLIENTE e exporta .hmap/.wmap/.bht (sem precisar de arquivos de servidor, exceto npcgen/aipolicy); UI 3D: malha andavel (verde) e de colisao (vermelha), perfis, abas Setor | DHMAP | RMAP, lista de modelos com acao usar/omitir, "Gerar mapa inteiro"/"Gerar setor", posicao do cursor (ref. issue #31 e servidor de teste)
+Simple Element Editor (thread 1057841): edicao/exclusao/clonagem em massa, importar/exportar itens em massa, "adicionar item com ID livre", conversao de versao, paginas proprias por bloco
+Npcgen Editor v1.7.4 atualizado por Haly (thread 1223806; print com dados do PW BR): caminhos no topo (elements.data, npcgen.data, surfaces.pck) + "Show map"; abas com contagem: Mobs and Npcs 1/21892 | Resources 1/6309 | Dynamic Objects 1/2560 | Triggers 1/6003 | Search | ERRORS | Options and saving; barra Export/Import/Line up/Move objects; painel: Location, Type, X/Y/Z, Group type, Scatter, Auto respawn, ValidOnce; Mobs/Npcs: ID, Amount, Respawn time, Death amount, Aggression, Path type, Speed, Water/Turn offset, Group, Ask/Need help, Corpse(s), flags de faccao; "Opcoes para adicionar nova existencia" (gatilho, local, tipo, ID, quantidade, respawn) + "Insert Coordinates from game"; tooltip rico do NPC (tipo, monstro de origem, hello msg, quests); seletor "Choice Item" por tipo (038 Monster | 057 NPC | 078 Mine), busca Next, OK=Enter, Cancel=Esc; integra com o RAE aberto (API) e Ctrl+Shift+G "ir ao NPC"
+Angelica PCK Viewer (Rust, thread 1263732): arvore + breadcrumb, lista ordenavel (nome, tamanho, comprimido, tipo), busca global substring/regex, multisselecao, PREVIEW de texto (XML/Lua/HLSL/CFG/INI/CSV com GBK), imagens (DDS DXT1-5/BC1-7, TGA, BMP, PNG, JPEG, HDR com zoom), audio (WAV/MP3/OGG com forma de onda); extrair, importar por arrastar (substitui mesmo caminho), excluir com reescrita so do indice + compactacao em segundo plano, cache de indice, PCK v2.1/2.2/2.3 e .pkx divididos, tema escuro/claro (Ctrl+D), atalhos Ctrl+O/A/E, F5, Del (ref. issue #13 "Gravar .pck")
+Iconlist Editor C# (thread 1249930): abrir/ver/editar pacotes de icones DDS + txt, renomear/adicionar icones, exportar PNG/BMP/JPG, dividir pacote em arquivos e juntar arquivos num pacote
+sTASKedit 2.191 modificado (thread 1269915, ate 1.8.0 v531): multisselecao na arvore (Ctrl/Shift/Ctrl+A) com clonar/excluir em lote; planos: edicao em lote com confirmacao, painel "N selecionadas", resumo de diferencas entre quests, exportar selecionadas em .data/JSON/CSV
+Editor web "PW Mirage" (beta11n, thread 1172741, 1.3.6): NPC (nome, local, loja, receitas), receitas (4 alvos, 8 materiais), itens; clonar/buscar/excluir; listas personalizadas + recentes; HISTORICO completo com envio a cada 5 min e desfazer qualquer mudanca; fluxo publicar -> discutir -> aprovar -> entra no jogo + launcher que baixa as mudancas (ref. issue #1 desfazer/historico)
+"New of Editors PW" (autor BR, thread 1268109, UI escura com textos PT): (1) editor de dominios/Guerra Territorial: barra Abrir/Salvar/TRADUZIR NOMES/Exportar SEV/Adicionar/Duplicar/Excluir; tabela ID|Nome|Nivel|Recompensa|X|Y; abas Domain | TW Map | Battletime | Battletime 2 | File; mapa com poligonos, nomes, IDs, centros, pontos; mover XY/dominio, editar pontos; horarios (dia da semana, hora, minuto); status "52 dominios, 20 horarios, versao 2"; (2) editor de Precinct: versao/timestamp, Abrir/Salvar texto/Salvar servidor/Exportar mapas/Pasta de imagens/DESFAZER/REFAZER/Adicionar e excluir zona/ponto/NPC; mapa com zonas e NPCs rotulados; lista "382 zonas | 187 seguras | 195 PK" com filtros; abas Pontos | NPCs | Detalhes; grade de propriedades (posicao, musica, som noturno, protecao PK, prioridade); "arraste os pontos brancos para editar X/Z" (ref. issue #31)
+pwAdmin "Server Control" (thread 1238276): SERVICOS = memoria e swap (total/usado/livre) + cada processo (logservice, authd, uniquenamed, gacd, gfactiond, gdeliveryd, glinkd, gamedbd, gs) com caminho, quantidade, status Online/Offline, botoes Iniciar/Backup; MAPAS = atraso (s), "parar todos com calma", lista de mapas online e de mapas disponiveis (gs01 World, is01 ...), Iniciar/Parar -> modelo da nossa pagina de gerenciamento
+Painel web moderno (thread 1268473): menu Registrar, contas, cash, vouchers, personagens, GM (enviar itens com gerador de hex, logs, console, bans IP/HWID), Servidor, Site, Editor; Elements Editor web: blocos com contagem, busca, NPC_SELL_SERVICE alterna "Shop grid" (loja como no jogo, icones) | "Raw fields"; paginas p1..p8 com ocupacao; mudancas pendentes ate "Generate & Apply", "Revert all"
+Npcgen Editor (Luka, thread 1124227; imagens removidas): abrir/editar/salvar/CONVERTER versoes (v6, v7, v10, v11), edicao multipla, carrega elements.data (varias versoes) para escolher o objeto, surfaces.pck para mostrar no mapa, nomes/imagens de objetos dinamicos (arquivo DynObjectInfo), PEGAR COORDENADAS DO JOGO e adicionar objeto por atalho, Maps.conf (id do mapa -> largura,altura), mover cima/baixo, busca por ID/nome/gatilho, alinhar objetos, procurar erros, exportar/importar entre versoes, tema escuro/claro, ru/en
+
 ## §Z RESOLVIDOS
 - formato elements.data do usuario: v60 via .cfg comunidade (nao RE) [T]
 - 2o u32 do header = timestamp, nao assinatura [I forte, casa PWKB§S17]
@@ -166,6 +228,10 @@ coordenadas: client exibe X=400+x/10 Z=550+z/10 (tasks); path 1px=1un centro; wm
 - string:N do elements e GBK (era lido como Latin-1: caminhos saiam embaralhados) [T]
 - PCK nativo pronto; icones automaticos sem sPCK [T]
 - escrita elements.data pronta e provada byte-identica (§E3) [T]
+- round-trip no PKG144 (PWKB§S14): 41.679 itens, sem mudanca = identico; trocar 1 nome muda so 31 bytes do registro e relê OK [T]
+- tasks v93 do PKG144: 21.777 quests, regravacao identica [T]
+- verificacao do par PKG144 (--check): v60/v93 iguais, aipolicy v1 1.819 politicas iguais, criptografia off; avisos so de copias antigas de elements.data (a29/a32/a33) [T]
+- dicionario de tokens (FieldTokens.cs + en.json): 218 palavras sem uso nos .cfg do repo removidas; restam 253 [T]
 
 ## §Q ABERTOS
 1 cauda ~1,4% elements.data a partir de NPC_WAR_TOWERBUILD_SERVICE (guerra territorio; comparar .cfg v60 x v61 / PWKB DOMAIN_COUNT=52)

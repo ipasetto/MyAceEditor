@@ -19,6 +19,9 @@ public sealed class IconAtlas
 
     public int Count => _index.Count;
 
+    /// <summary>Nomes de arquivo de todos os ícones do atlas (ex.: "x.dds"), para o seletor de ícone.</summary>
+    public IEnumerable<string> Names => _index.Keys;
+
     /// <summary>
     /// Carrega os atlas de itens do surfaces.pck: ivtrm (masculino) primeiro, ivtrf (feminino) completa
     /// o que faltar. Retorna null se nenhum existir.

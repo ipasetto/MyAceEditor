@@ -23,6 +23,8 @@ public sealed class GameConfigs
 
     public Dictionary<int, int> ItemColors { get; } = new();
     public Dictionary<int, string> ItemDescs { get; } = new();
+    /// <summary>Nome da habilidade por ID (skillstr.txt: linha "ID*10 \"nome\""; ID*10+1 é a descrição).</summary>
+    public Dictionary<int, string> SkillNames { get; } = new();
     public AddonText? Addons { get; private set; }
 
     public static GameConfigs? Load(string configsPck, LoadContext? context = null)
@@ -42,6 +44,13 @@ public sealed class GameConfigs
                 context?.Check();
                 var m = Regex.Match(line, "^(\\d+)\\s+\"(.*)\"\\s*$");
                 if (m.Success) gc.ItemDescs[int.Parse(m.Groups[1].Value)] = m.Groups[2].Value;
+            }
+        if (pck.Find(@"configs\skillstr.txt") is { } s)
+            foreach (var line in Decode(pck.Read(s)).Split('\n'))
+            {
+                context?.Check();
+                var m = Regex.Match(line, "^(\\d+)0\\s+\"([^\"]*)\"\\s*$");
+                if (m.Success && m.Groups[2].Value.Length > 0) gc.SkillNames[int.Parse(m.Groups[1].Value)] = m.Groups[2].Value;
             }
         context?.Check();
         gc.Addons = AddonText.Load(pck, context?.Token ?? default);
