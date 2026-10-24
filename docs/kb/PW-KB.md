@@ -431,6 +431,14 @@ join de EL: casa por campo 0 (ID): MISSING / novo / DIFFERENT, c/ backups e LOG.
 validacoes sELedit (indices hardcoded 1.3.6): soma de probabilidades=1 (armas/armaduras/adornos), skills invalidas em monstros, task overflow (listas 45/46 [?])
 xref: configs\references.txt (lista;campo,campo)
 
+- [T] food_mask (PET_ESSENCE) bits: 0 grama, 1 carne, 2 fungos, 3 frutas, 4 agua/oleo (v60: cavalos 29, lobos 26, caranguejos mecanicos 16; = tela do RAE).
+- [T] inhabit_type valores usados v60: 0 terra (4383 monstros), 1 agua, 2 ar, 3 = anfibios (tartarugas, ra), 6 = Goshiki/espiritos; nomes 3..6 (terra+agua, terra+ar, agua+ar, todos) [I].
+- [T] combined_services (NPC_ESSENCE) 32 bits com nomes do RAE conferidos nos NPCs v60: 4 criar cla, 6 correio, 7 leilao, 9/10 incubar/restaurar mascote, 11 resultado guerra territorial (teleportadoras), 14 refino (anciaos), 15 pintar roupa (tecelas), 23 reparar (ferreiros/alfaiates), 26 casamento; bits 2 e 8 sem uso. Bit 31 ligado = int negativo.
+- [T] NPC_MAKE_SERVICE pages_N_id_goods_M = IDs de RECEITA (todas as versoes); NPC_SELL_SERVICE usa pages_N_goods_M_id (item) — mas em 22 cfgs antigos a loja tambem usa id_goods: o tipo depende do bloco.
+- [T] file_model = "Models\..." .ecm; no models.pck o caminho e "models\..." minusculo (4628 .ecm no 1.4.4; 390/400 caminhos do elements achados).
+- [T] Pontos de teleporte com nome: element\maps\world\world_targets.txt (UTF-16): ID<TAB>"nome"<TAB>mapa<TAB>"x,y,z"<TAB>regiao (61 no 1.4.4); IDs de id_to_discover (NPC) e targets_N_idTarget (NPC_TRANSMIT_SERVICE); servidor tem world_targets.sev.
+- [T] RECIPE_ESSENCE materials_1..32 podem estar espalhados (ex. receita 27 usa slots 2, 7, 11); a janela de fabricar (interfaces\version01\produce_icon.xml: Btn_Set1..8 paginas, U_01..U_32 receitas, Item_01..08 + Txt_no materiais, Item_out/Txt_out, Txt_Gold, Txt_SkillName/Level) mostra 8 — nossa previa compacta em sequencia [I].
+- [T] skillstr.txt: "ID*10 \"nome\"" e "ID*10+1 \"descricao\"" (descricao pode ter varias linhas; 1789 habilidades com nome no 1.4.4).
 ## §S24 OPERACAO, SEGURANCA, ERROS (PDFs PWDevGroup + Protegendo Servidor + guia andrey.pw; doc analise_arquivos_pw.md §3-6) [W/M]
 classes (mascara, confirmada em sELedit+aipolicy+tasks): BM=1 WIZ=2 PSY=4 VEN=8 BAR=16 AS=32 AR=64 CLE=128 SE=256 MY=512 | modernas: Duskblade 0x400 Stormbringer 0x800 Technician 0x1000 Edgerunner 0x2000 [C]
  nomes internos (§S12): SWORDSMAN=BM MAGE=WIZ NEC=PSY HAG=VEN ORGE=BAR ASN=AS ARCHER=AR ANGEL=CLE BLADE=SE GENIE=MY [I forte]

@@ -13,7 +13,7 @@
 
 ## 2. EDITAR
 [x] desfazer / refazer + historico de acoes
-[~] A pesquisar (temos busca nome/ID + Buscar por campo) | [ ] A pesquisa avancada: aba Pesquisar com fonte (lista atual/todas), campo, condicao (=,<,>,contem), valor; resultados com "manter resultados", "corrigir bugs selecionados", "alterar resultados selecionados"
+[x] A pesquisa avancada (aba Buscar): bloco atual/todos, campo ou qualquer campo, = ≠ > < ≥ ≤ entre contem nao-contem comeca-com, manter resultados, alterar campo nos resultados, copiar IDs | [ ] B "corrigir bugs selecionados" nos resultados
 [x] alterar valores em lote (definir, somar, multiplicar, sequencia, aleatorio, substituir texto) | [ ] B + ordenar crescente/decrescente, remover duplicados
 [ ] A copiar/colar itens (entre listas e entre arquivos, com dependencias, ID unico automatico, com desc e cor)
 [ ] B copiar nome/modelo/drops/valor/pagina/tudo | [ ] B importar/exportar itens (arquivo)
@@ -23,7 +23,7 @@
 [x] seletor de blocos agrupado por categoria | [x] adicionar | [x] clonar | [x] excluir | [x] favoritar | [x] ordenar por ID/nome (coluna)
 [~] A selecao multipla (Ctrl/Shift/Ctrl+A) + lote: [x] clonar (Ctrl+N) [x] excluir (Del) [x] alterar campo [x] copiar IDs [ ] copiar/colar itens
 [ ] B mover itens (cima/baixo/topo/fim) | [ ] B ordenar selecionados (ID/nome/valor, cresc/decr)
-[ ] A refatorar ID (mudar ID e trocar todas as referencias: elements+tasks+gshop+npcgen) | [ ] B definir ID unico | [x] copiar IDs
+[x] A refatorar ID (elements + quests + gshop, um Ctrl+Z; falta npcgen e configs.pck) | [ ] B definir ID unico | [x] copiar IDs
 [ ] B adicionar ao GShop / procurar no GShop | [~] A traduzir itens selecionados (Ctrl+T) (temos: traduzir com outro elements.data)
 [ ] B descricao: anexar texto (ex.: copyright), mudanca avancada, limpar, salvar
 [ ] B criar receita / roupa / quest a partir dos selecionados
@@ -34,12 +34,12 @@
 [x] Valores com sub-abas (conjunto de campos) | [x] coluna de vinculo (nome/%/classes) | [x] Referencias/Vinculos (quem usa) | [x] Buscar | [x] Descricao e cor
 [~] A editores por duplo clique: [x] mascara de classes (checkbox) [x] addons (lista c/ descricao e filtro por tipo) [x] item/monstro/receita (seletor c/ busca e icone)
     [ ] protecao de item (proc_type: lista de flags com nomes, ex. "nao pode ser descartado", "nao desaparece ao morrer")
-    [ ] imunidades (mask) [ ] comida de mascote (mask) [ ] ambiente de movimento (chao/agua/ceu…) [ ] enums em lista popup "Escolha um valor"
+    [x] imunidades (mask) [x] comida de mascote (mask) [x] ambiente de movimento (0-6) [x] enums em lista popup "Escolha um valor"
     [ ] cor de personagem (seletor de cor) [ ] bool
-    [ ] servicos do NPC: duplo clique abre o seletor ja no bloco do servico; servicos combinados = mascara com checkboxes
-    [ ] ponto de TP / cidade: lista de nomes de cidades | [ ] habilidade: lista de skills com descricao
+    [x] servicos do NPC: duplo clique abre o seletor ja no bloco do servico; servicos combinados = mascara com checkboxes
+    [x] ponto de TP / cidade: lista de nomes (world_targets.txt) | [x] habilidade: lista de skills com descricao
     [ ] seletor de icone em grade (todas as figuras do surfaces.pck; tooltip nome/indice/uso)
-    [ ] seletor de modelo (.ecm/.ski) com "so nao usados" e contagem de uso
+    [~] seletor de modelo (.ecm do models.pck) com contagem de uso (falta filtro "so nao usados")
 [x] descricao de addon (texto como no jogo, §E3e) | [x] links clicaveis nos vinculos | [x] "dropado por" no item | [x] efeito do addon no bloco de addons
 [x] A barras de probabilidade na propria grade: clicar/arrastar muda, cadeado fixa o slot, os livres se ajustam p/ manter Σ 100%; Σ verde/vermelho no 1o slot do grupo
 [x] A editor de addons (janela): aba Chances (soquetes drop/fabricar, qtd de addons, chance de unico) + abas fabricacao/aleatorios/unicos com barras, cadeado, adicionar/remover/ordenar/ajustar 100%/dividir igual; menu de contexto da grade

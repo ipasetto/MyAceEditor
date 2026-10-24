@@ -66,6 +66,12 @@ pendente: SkillRef/TaskRef so dizem "habilidade"/"quest" (sem nomes ainda: skill
 
 sim/nao (IsFlag) [T]: FlagFields.cs = 253 pares (bloco|campo) ft_bool da lista do Rody (configs/PW/PW_types.csv). So campos com tipo especial entram nela; campos comuns (ex.: price) nao. Substituiu regra por nome (cobria 37 de 106 nomes). Rody PW_FieldSets.csv vazio na copia: sem lista de agrupamento da grade [A].
 
+- [T] FieldKinds.Of(bloco, campo): tipo dependente do bloco (NPC_MAKE_SERVICE id_goods = RecipeRef); usado no RefIndex, ErrorFinder, IdRefactor e na grade (EditorForm.KindOf). Novos tipos: FoodMask, ServiceMask (BitMasks.Food/Services), Waypoint (WorldTargets.cs).
+- [T] Duplo clique (EditFieldSpecial): habilidade (skillstr), "Escolha um valor" (FieldValues.Options: habitat/tipo de combate, monstro e mascote; campos bool ficam na caixinha), comida, servicos combinados, modelo (models.pck), ponto de teleporte. Grade mantem a rolagem ao editar (FillGrid).
+- [T] ChanceEditor (UI) + ProbabilityGroups/AddonGroups (PerfectWorld): barras arrastaveis, cadeado, Σ; editor de addons (equipamento) e de drops (monstro), copia do item + Ctrl+Z proprio; Salvar = 1 passo do historico. Seletor (FieldEditors.Pick) le a selecao no FormClosing (aberto por janela modal voltava vazio).
+- [T] AdvancedSearch (aba Buscar): bloco/todos, campo/qualquer, = ≠ > < ≥ ≤ entre contem nao-contem comeca-com, manter resultados, alterar em lote nos resultados.
+- [T] IdRefactor + EditHistory.Custom: troca ID e referencias em elements (RefIndex.UsedBy por espaco), quests (campos "...: ID", "item que cai", "NPC ...") e gshop (item/presente) num passo so; nao atualiza npcgen nem configs.pck.
+- [T] MakePreview: NPC_MAKE_SERVICE com produce_icon.xml; cliques por MouseDown + duplo clique proprio (MouseClick/MouseDoubleClick nao disparavam no Panel); dica via SetToolTip (Show() engolia o clique).
 ## §E3c tasks.data (TasksFile.cs + TaskSchema.cs) — v93 COMPLETO [T]
 esquema v93 escrito a partir do estudo do Rody V22 (reducao automatica dos ifs de versao: scratch v93_reduce.py; codigo nosso, declarativo)
 quest = 58 fases do bloco fixo (238 campos rotulados PT, editaveis no lugar) + arrays variaveis (horarios, chaves, expr PQ, contrib, regioes, itens pedidos/dados, membros, monstros/itens a obter, expressoes, textos de quest, locais) + premios AWARD_DATA (sucesso, falha, 2× por razao [5 escalas], 2× por itens [5 escalas]) + 4 pwstr (descricao/ok/no/tributo) + 5 talk_proc (id, texto 64ch, janelas{id,pai,texto,opcoes{param,texto 64ch,id}}) + i32 nSub + subquests
