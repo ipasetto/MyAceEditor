@@ -486,6 +486,13 @@ skillstr.txt (configs.pck): UTF-16; skill_translator gera skillstr.tab "ID<TAB>n
 - [W] proc_type por bit (uniq, thread 1121806, testado por ele): 0 nao cai ao morrer | 1 nao pode largar | 2 nao pode vender | 3 reservado (moda/montaria; sem efeito em outros) | 4 nao pode trocar | 5 nao pode refinar (?) | 6 vincula ao equipar | 7 ? | 8 some ao sair da area | 9 usado ao pegar | 10 cai ao morrer | 11 perde ao desconectar | 12 nao pode consertar | 13 ? | 14 nao pode guardar no armazem da conta. Exemplos: 19 = item de missao (sem queda/troca), 64 = vincula ao equipar, 32791 = vinculado a alma, 8 = montaria/voo, 23 = genio/ovo. => bits 0,1,2,4 sao RESTRICOES; nomes do enum do cliente (PROC_DROPPABLE etc.) enganam. Corrigido em BitMasks.cs [T: rotulos].
 - [W] Clientes novos (PWBR/PWI/PWRU 172+) geram elements.data que o gs da versao 172 nao le (filtros de ID nao declarados no codigo-fonte). Fonte: thread 1238529. Sem resposta conclusiva no trecho lido.
 
+## §S27 FORUM iwebGM / SuporteGM (BR, secao Editores; quase todo conteudo tecnico oculto: exige login e as vezes reagir/responder) [W]
+- [W] Mapa versao do jogo -> versao do elements.data (lista de .cfg publicada, out/2026): 1.8.0=v531, 1.8.4=v585, 1.8.5=v591, 1.8.7=v600/v604, 1.8.8=v611/v614, 1.8.9=v618/v622, 1.9.0=v624. Ha tambem "Estrutura de tasks.data ate v247" (template 010 Editor; oculto).
+- [W] RAE (Rody's Angelica Editor) e VENDIDO (licenca permanente R$ 690 / mensal R$ 44, topico 181) -> so referencia de UI/recursos, nunca copiar. Recursos anunciados: PW 1.1.6-2.0.0 (+FW, JD, ESO, HoTK); icones e imagens da loja; edicao em massa; importar/exportar/mesclar entre versoes; modificar valores em lote (recalcular, intervalo, aleatorio, multiplicar, substituir texto); busca/troca ilimitada; editor de probabilidades com calculo inteligente; gerador de octets (XML); editor visual de lojas e forjas; achar e corrigir erros (probabilidade errada, item inexistente); integracao com pwAdmin e sTASKedit; traducao automatica de itens selecionados (Bing/Yandex); desfazer ilimitado; protecao de elements.data.
+- [W] Limite maximo de refino e uma constante no binario gs (alteravel por editor hexadecimal; topico 178). Bytes do padrao nao registrados aqui (regra do projeto).
+- [W] pwAdmin em PT: configuracao em /pwserver/jakarta/webapps/pwAdmin/WEB-INF/.pwadminconf.jsp (topico 179).
+- [W] Boss em horario: no NPCGen criar gatilho com "Start on schedule"/"Stop on schedule" (topico 279).
+
 ## §Z RESOLVIDOS (use SEMPRE estes; ignore versoes antigas)
 - lancamento: jan/2006 (nao 2005)
 - daemons: 9 servicos incl. gacd (=ANTI-CHEAT); authd=Java (nao nativo); clsconfig=TABELA do gamedbd (nao arquivo solto); gamesys.conf existe em quase todos
