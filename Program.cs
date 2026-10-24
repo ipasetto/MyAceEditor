@@ -40,6 +40,7 @@ internal static class Program
                 string.Join(" | ", GameConfigs.Runs(d, System.Drawing.Color.White).Select(r => $"#{r.Color.R:X2}{r.Color.G:X2}{r.Color.B:X2}:{r.Text.Replace("\n", "⏎")}")), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--errors") { FindErrors(args[1]); return; }
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
         ApplicationConfiguration.Initialize();
@@ -243,6 +244,18 @@ internal static class Program
     }
 
     // --refs <elements.data> <bloco> <id>: vínculos resolvidos de um item + quem usa o 1o item referenciado (refs.txt).
+    // --errors <elements.data>: localizador de erros (errors-report.txt).
+    private static void FindErrors(string dataPath)
+    {
+        var module = CfgCatalog.Load(dataPath).Module;
+        var found = ErrorFinder.Find(module);
+        var sb = new StringBuilder($"{found.Count} problemas\n");
+        foreach (var g in found.GroupBy(p => (p.Kind, p.Block.Name, Group: System.Text.RegularExpressions.Regex.Replace(p.Field, @"\d+", "#"))).OrderByDescending(g => g.Count()))
+            sb.AppendLine($"{g.Count(),6} {g.Key.Kind} {g.Key.Name} {g.Key.Group}  ex: {g.First().Item.Id} {g.First().Item.Name} = {g.First().Detail}");
+        sb.AppendLine("\ndistribuições (devem somar 100%):"); foreach (var d in ErrorFinder.Distributions) sb.AppendLine("  " + d);
+        File.WriteAllText("errors-report.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
     private static void DumpRefs(string dataPath, string block, string id)
     {
         var module = CfgCatalog.Load(dataPath).Module;

@@ -124,6 +124,7 @@ Store/ModuleStore.cs Changes/ChangeSet.cs | estado, load/save, mudancas
 fluxo: EditorForm -> ModuleStore/CfgElementsReader -> elements.data(+.cfg)
 
 ## §E7 UI/FEATURES PRONTAS [T]
+- [T] Ferramentas > Procurar erros (Ctrl+E; PerfectWorld/ErrorFinder.cs + UI/ErrorsWindow.cs; CLI --errors <elements.data>): ID inexistente (em bloco nenhum), probabilidade fora de 0..1, grupo que nao soma 100% (grupo = mesmo nome trocando o ultimo numero; so conta como distribuicao se soma 1 em >=90% dos itens do bloco), ID repetido entre itens de inventario (blocos com pile_num_max). Corrigir: so probabilidades (limita a 0..1 / reescala proporcional). Base oficial 1.4.4 v60: 0 problemas.
 - [T] Alterar campo nos selecionados (UI/FieldEditors.BulkValue/BulkApply): definir, somar, multiplicar, sequencia inicio+passo, aleatorio min-max (prévia = gravado, mesma semente), substituir texto; prévia antes/depois; também no clique direito da grade. Paridade RAE "modificar valores em lote" (PWKB§S27).
 layout = modelo do Rody's Angelica Editor (decisao do usuario; arvore em cascata abandonada). Rody: exe nativo x86 sem metadados .NET (protegido/empacotado) -> layout copiado do print, sem RE
 esquerda (fundo preto): seletor de bloco "[NNN] Nome (qtd)" (1a opcao = ★ Favoritos; lembra o ultimo; padrao WEAPON_ESSENCE) | filtro tipo/subtipo (so blocos *_ESSENCE c/ id_major_type/id_sub_type) | busca nome/ID + caixa "todos os blocos" | ListView VIRTUAL owner-draw: ID | icone 24px + nome na cor de grade (★☆»«*) | clique na coluna ordena | rodape: Adicionar | ir para ID (Enter) | Excluir

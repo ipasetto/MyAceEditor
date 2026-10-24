@@ -132,7 +132,9 @@ public sealed class EditorForm : Form
     {
         var menu = new MenuStrip { BackColor = CSurface, ForeColor = CFg, Padding = new Padding(4, 2, 0, 2) };
         ToolStripMenuItem M() => new() { ForeColor = CFg };
-        var arq = M(); var ed = M(); var aj = M(); var lg = M(); var view = M();
+        var arq = M(); var ed = M(); var aj = M(); var lg = M(); var view = M(); var tools = M();
+        var findErrors = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.E }; findErrors.Click += (_, _) => FindErrors();
+        tools.DropDownItems.Add(findErrors);
         var showUnused = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = !_hideUnused };
         showUnused.CheckedChanged += (_, _) =>
         {
@@ -179,8 +181,10 @@ public sealed class EditorForm : Form
             about.Text = Loc.T("menu.about", "Sobre");
             view.Text = Loc.T("menu.view", "E&xibir");
             showUnused.Text = Loc.T("menu.showUnused", "Mostrar campos sem uso no bloco");
+            tools.Text = Loc.T("menu.tools", "&Ferramentas");
+            findErrors.Text = Loc.T("menu.findErrors", "Procurar &erros…");
         });
-        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, lg, aj });
+        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, tools, lg, aj });
         MainMenuStrip = menu;
         return menu;
     }
@@ -1130,6 +1134,39 @@ public sealed class EditorForm : Form
     private static string Pretty(string block) =>
         BlockPt.TryGetValue(block, out var p) ? Loc.T("block." + block, p)
         : System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(block.Replace("_ESSENCE", "").Replace("_", " ").ToLowerInvariant());
+
+    // ---------- procurar erros ----------
+    private ErrorsWindow? _errors;
+
+    private void FindErrors()
+    {
+        if (_store.Current is null) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
+        if (_errors is { IsDisposed: false }) { _errors.Activate(); return; }
+        var module = _store.Current;
+        _errors = new ErrorsWindow(() => ErrorFinder.Find(module), p => { GoToItem(p.Item); FocusField(p.Field); }, OnErrorsFixed, b => Pretty(b.Name));
+        _errors.Show(this);
+    }
+
+    private void OnErrorsFixed(IReadOnlyList<ErrorFinder.Problem> fixedOnes)
+    {
+        foreach (var b in fixedOnes.Select(p => p.Block).Distinct()) _unusedCache.Remove(b);
+        if (_current is not null && fixedOnes.Any(p => p.Item == _current)) FillGrid(_current);
+        _list.Invalidate();
+        Status(string.Format(Loc.T("status.errorsFixed", "{0} problema(s) corrigido(s) — salve para gravar"), fixedOnes.Count));
+    }
+
+    // Mostra o campo na grade: troca para a sub-aba do grupo dele e seleciona a linha.
+    private void FocusField(string key)
+    {
+        SelectGroup(DisplayGroup(key));
+        foreach (DataGridViewRow r in _grid.Rows)
+            if (r.Tag as string == key)
+            {
+                _grid.CurrentCell = r.Cells[1];
+                _grid.FirstDisplayedScrollingRowIndex = Math.Max(0, r.Index - 3);
+                return;
+            }
+    }
 
     // ---------- detalhes ----------
     private void ShowItem(Item item)
