@@ -22,6 +22,14 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--inspect") { InspectElements(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--testcfg") { TestCfg(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--pck") { ListPck(args[1], args.Length >= 3 ? args[2] : ""); return; }
+        if (args.Length >= 4 && args[0] == "--pck-extract")   // --pck-extract <pck> <filtro> <pasta>
+        {
+            using var pck = new PckArchive(args[1]);
+            var list = pck.Entries.Where(e => e.Path.Contains(args[2], StringComparison.OrdinalIgnoreCase)).ToList();
+            var (done, failed) = MyAceEditor.UI.PckView.ExtractTo(pck, args[3], list, CancellationToken.None);
+            File.WriteAllText("pck-extract.txt", $"{done - failed} extraídos, {failed} falhas");
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
@@ -41,6 +49,7 @@ internal static class Program
             return;
         }
         if (args.Length >= 2 && args[0] == "--errors") { FindErrors(args[1]); return; }
+        if (args.Length >= 3 && args[0] == "--gshop") { TestGShop(args[1], args[2]); return; }
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
         ApplicationConfiguration.Initialize();
@@ -245,6 +254,30 @@ internal static class Program
     }
 
     // --refs <elements.data> <bloco> <id>: vínculos resolvidos de um item + quem usa o 1o item referenciado (refs.txt).
+    // --gshop <gshop.data> <gshopsev.data>: prova de leitura/gravação da loja (gshop-report.txt).
+    private static void TestGShop(string clientPath, string serverPath)
+    {
+        var c = File.ReadAllBytes(clientPath);
+        var f = GShopFile.ReadClient(c);
+        var sb = new StringBuilder($"{Path.GetFileName(clientPath)}: ts {f.Timestamp}, {f.Items.Count} itens, categorias: {string.Join(" | ", f.Categories.Select(k => $"{k.Name} ({k.Subs.Count})"))}\n");
+        sb.AppendLine($"cliente regravado idêntico: {f.WriteClient().AsSpan().SequenceEqual(c)}");
+        if (File.Exists(serverPath))
+        {
+            var sv = File.ReadAllBytes(serverPath);
+            var diffs = f.AttachServer(sv);
+            sb.AppendLine($"servidor {Path.GetFileName(serverPath)}: diferenças cliente x servidor = {diffs.Count}");
+            foreach (var x in diffs.Take(15)) sb.AppendLine("  " + x);
+            sb.AppendLine($"servidor regravado (a partir do cliente) idêntico: {f.WriteServer().AsSpan().SequenceEqual(sv)}");
+        }
+        foreach (var it in f.Items.Take(3))
+            sb.AppendLine($"  [{it.ShopId}] {it.Name} item {it.ItemId} x{it.Amount} cat {it.MainType}/{it.SubType} op0 {it.GetOption(0)} fig {it.Surface}");
+        var st = f.Items.SelectMany(i => Enumerable.Range(0, 4).Select(i.GetOption)).Where(o => !o.IsEmpty).ToList();
+        sb.AppendLine($"opções usadas {st.Count}; control_type: {string.Join(",", st.GroupBy(o => o.ControlType).Select(g => $"{g.Key}x{g.Count()}"))}; status: {string.Join(",", st.GroupBy(o => o.Status).Select(g => $"{g.Key}x{g.Count()}"))}; flags: {string.Join(",", st.GroupBy(o => o.Flags).Select(g => $"{g.Key}x{g.Count()}"))}; day: {string.Join(",", st.GroupBy(o => o.Day).Select(g => $"{g.Key}x{g.Count()}"))}");
+        sb.AppendLine($"duração (s): {string.Join(",", st.GroupBy(o => o.Duration).OrderBy(g => g.Key).Select(g => $"{g.Key}x{g.Count()}"))}");
+        sb.AppendLine($"presentes: {f.Items.Count(i => i.GiftId != 0)}; log_price != 0: {f.Items.Count(i => i.LogPrice != 0)}");
+        File.AppendAllText("gshop-report.txt", sb.ToString() + "\n", new UTF8Encoding(false));
+    }
+
     // --errors <elements.data>: localizador de erros (errors-report.txt).
     private static void FindErrors(string dataPath)
     {

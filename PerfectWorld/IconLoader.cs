@@ -32,9 +32,11 @@ public static class IconLoader
     }
 
     // Decoder TGA mínimo: truecolor 24/32 bits, sem compressão (tipo 2) e RLE (tipo 10).
-    private static Bitmap? LoadTga(string path)
+    private static Bitmap? LoadTga(string path) => DecodeTga(File.ReadAllBytes(path));
+
+    /// <summary>TGA em memória (ex.: textura de interface lida do surfaces.pck).</summary>
+    public static Bitmap? DecodeTga(byte[] d)
     {
-        var d = File.ReadAllBytes(path);
         if (d.Length < 18) return null;
         int idLen = d[0];
         int type = d[2];

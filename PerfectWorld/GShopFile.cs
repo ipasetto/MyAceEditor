@@ -1,0 +1,190 @@
+using System.Text;
+
+namespace MyAceEditor.PerfectWorld;
+
+/// <summary>
+/// Loja de cash: gshop.data / gshop1.data (cliente) e gshopsev.data / gshopsev1.data (servidor), PW-KB §S19.
+/// Cliente: i32 timestamp | i32 n | n × item 1380 B | 8 categorias (nome[64] UTF-16 + i32 nSub + nSub × nome[64]).
+/// Servidor: i32 timestamp | i32 n | n × item 164 B (só os números, mesma ordem).
+/// Cada item guarda os bytes originais e as propriedades escrevem neles, então salvar sem mudar nada
+/// reproduz o arquivo byte a byte.
+/// </summary>
+public sealed class GShopFile
+{
+    public const int ClientItemSize = 1380, ServerItemSize = 164, OptionCount = 4, CategoryCount = 8, NameChars = 64;
+
+    static readonly Encoding Gbk;
+    static GShopFile() { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); Gbk = Encoding.GetEncoding(936); }
+
+    public int Timestamp { get; set; }
+    public List<GShopItem> Items { get; } = new();
+    public List<GShopCategory> Categories { get; } = new();
+
+    public static GShopFile ReadClient(byte[] d)
+    {
+        var f = new GShopFile { Timestamp = BitConverter.ToInt32(d, 0) };
+        int n = BitConverter.ToInt32(d, 4), p = 8;
+        if (n < 0 || 8L + (long)n * ClientItemSize > d.Length) throw new InvalidDataException("gshop.data: número de itens inválido");
+        for (int i = 0; i < n; i++, p += ClientItemSize) f.Items.Add(new GShopItem(d.AsSpan(p, ClientItemSize).ToArray()));
+        for (int c = 0; c < CategoryCount; c++)
+        {
+            var cat = new GShopCategory { Name = Str(d, p, NameChars) };
+            int ns = BitConverter.ToInt32(d, p + 128); p += 132;
+            if (ns < 0 || p + ns * 128L > d.Length) throw new InvalidDataException("gshop.data: subcategorias inválidas");
+            for (int s = 0; s < ns; s++, p += 128) cat.Subs.Add(Str(d, p, NameChars));
+            cat.Raw = d.AsSpan(p - 132 - ns * 128, 132 + ns * 128).ToArray();
+            f.Categories.Add(cat);
+        }
+        if (p != d.Length) throw new InvalidDataException($"gshop.data: sobraram {d.Length - p} bytes no fim (formato diferente)");
+        return f;
+    }
+
+    /// <summary>Junta os números do servidor (gshopsev) aos itens do cliente; devolve as diferenças encontradas.</summary>
+    public List<string> AttachServer(byte[] d)
+    {
+        var diffs = new List<string>();
+        int ts = BitConverter.ToInt32(d, 0), n = BitConverter.ToInt32(d, 4);
+        if (8L + (long)n * ServerItemSize != d.Length) throw new InvalidDataException("gshopsev.data: tamanho não bate com o número de itens");
+        if (ts != Timestamp) diffs.Add($"timestamp diferente (cliente {Timestamp}, servidor {ts})");
+        if (n != Items.Count) diffs.Add($"quantidade diferente (cliente {Items.Count}, servidor {n})");
+        for (int i = 0; i < Math.Min(n, Items.Count); i++)
+        {
+            var raw = d.AsSpan(8 + i * ServerItemSize, ServerItemSize).ToArray();
+            Items[i].ServerRaw = raw;
+            if (!Items[i].ServerMatchesClient) diffs.Add($"item {i} (loja {Items[i].ShopId}): números diferentes entre cliente e servidor");
+        }
+        return diffs;
+    }
+
+    public byte[] WriteClient()
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(Timestamp); w.Write(Items.Count);
+        foreach (var it in Items) w.Write(it.ClientRaw);
+        foreach (var c in Categories) w.Write(c.ToBytes());
+        return ms.ToArray();
+    }
+
+    /// <summary>gshopsev: os números de cada item vêm do cliente (os dois lados ficam sempre iguais).</summary>
+    public byte[] WriteServer()
+    {
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        w.Write(Timestamp); w.Write(Items.Count);
+        foreach (var it in Items) w.Write(it.BuildServer());
+        return ms.ToArray();
+    }
+
+    internal static string Str(byte[] d, int at, int chars)
+    {
+        var s = Encoding.Unicode.GetString(d, at, chars * 2);
+        int z = s.IndexOf('\0');
+        return z < 0 ? s : s[..z];
+    }
+
+    internal static void PutStr(byte[] d, int at, int chars, string v)
+    {
+        Array.Clear(d, at, chars * 2);
+        var b = Encoding.Unicode.GetBytes(v.Length >= chars ? v[..(chars - 1)] : v);
+        Buffer.BlockCopy(b, 0, d, at, b.Length);
+    }
+
+    internal static string Gbk128(byte[] d, int at)
+    {
+        int z = Array.IndexOf(d, (byte)0, at, 128);
+        return Gbk.GetString(d, at, (z < 0 ? at + 128 : z) - at);
+    }
+
+    internal static void PutGbk128(byte[] d, int at, string v)
+    {
+        Array.Clear(d, at, 128);
+        var b = Gbk.GetBytes(v);
+        Buffer.BlockCopy(b, 0, d, at, Math.Min(b.Length, 127));
+    }
+}
+
+public sealed class GShopCategory
+{
+    public string Name { get; set; } = "";
+    public List<string> Subs { get; } = new();
+    internal byte[]? Raw;
+
+    internal byte[] ToBytes()
+    {
+        var b = new byte[132 + Subs.Count * 128];
+        // sem mudança: bytes originais (o lixo depois do \0 também é preservado)
+        if (Raw is not null && Raw.Length == b.Length && GShopFile.Str(Raw, 0, 64) == Name
+            && Enumerable.Range(0, Subs.Count).All(i => GShopFile.Str(Raw, 132 + i * 128, 64) == Subs[i]))
+            return Raw;
+        GShopFile.PutStr(b, 0, 64, Name);
+        BitConverter.TryWriteBytes(b.AsSpan(128), Subs.Count);
+        for (int i = 0; i < Subs.Count; i++) GShopFile.PutStr(b, 132 + i * 128, 64, Subs[i]);
+        return b;
+    }
+}
+
+/// <summary>Opção de venda (até 4 por item): preço em centavos de ouro, prazo e regras.</summary>
+public readonly record struct GShopOption(int Price, int EndTime, int Duration, int StartTime, int ControlType, int Day, int Status, int Flags)
+{
+    public bool IsEmpty => Price == 0 && Duration == 0 && EndTime == 0 && StartTime == 0;
+}
+
+public sealed class GShopItem
+{
+    // deslocamentos no registro do cliente (1380 B)
+    const int OShop = 0, OMain = 4, OSub = 8, OSurface = 12, OId = 140, OAmount = 144, OOptions = 148, ODesc = 276, OName = 1300,
+        OGift = 1364, OGiftNum = 1368, OGiftTime = 1372, OLogPrice = 1376;
+    public const int DescChars = 512, NameChars = 32;
+
+    public byte[] ClientRaw { get; }
+    public byte[]? ServerRaw { get; internal set; }
+
+    public GShopItem(byte[] clientRaw) => ClientRaw = clientRaw.Length == GShopFile.ClientItemSize ? clientRaw : throw new ArgumentException("registro de loja com tamanho errado");
+
+    public static GShopItem New(int shopId) => new(new byte[GShopFile.ClientItemSize]) { ShopId = shopId, Amount = 1 };
+
+    public GShopItem Clone(int shopId) => new((byte[])ClientRaw.Clone()) { ShopId = shopId };
+
+    int I(int o) => BitConverter.ToInt32(ClientRaw, o);
+    void I(int o, int v) => BitConverter.TryWriteBytes(ClientRaw.AsSpan(o), v);
+
+    public int ShopId { get => I(OShop); set => I(OShop, value); }
+    public int MainType { get => I(OMain); set => I(OMain, value); }
+    public int SubType { get => I(OSub); set => I(OSub, value); }
+    /// <summary>Figura grande da loja (surfaces\...), GBK.</summary>
+    public string Surface { get => GShopFile.Gbk128(ClientRaw, OSurface); set => GShopFile.PutGbk128(ClientRaw, OSurface, value); }
+    public int ItemId { get => I(OId); set => I(OId, value); }
+    public int Amount { get => I(OAmount); set => I(OAmount, value); }
+    public string Description { get => GShopFile.Str(ClientRaw, ODesc, DescChars); set => GShopFile.PutStr(ClientRaw, ODesc, DescChars, value); }
+    public string Name { get => GShopFile.Str(ClientRaw, OName, NameChars); set => GShopFile.PutStr(ClientRaw, OName, NameChars, value); }
+    public int GiftId { get => I(OGift); set => I(OGift, value); }
+    public int GiftAmount { get => I(OGiftNum); set => I(OGiftNum, value); }
+    public int GiftDuration { get => I(OGiftTime); set => I(OGiftTime, value); }
+    public int LogPrice { get => I(OLogPrice); set => I(OLogPrice, value); }
+
+    public GShopOption GetOption(int k)
+    {
+        int o = OOptions + k * 32;
+        return new(I(o), I(o + 4), I(o + 8), I(o + 12), I(o + 16), I(o + 20), I(o + 24), I(o + 28));
+    }
+
+    public void SetOption(int k, GShopOption v)
+    {
+        int o = OOptions + k * 32;
+        I(o, v.Price); I(o + 4, v.EndTime); I(o + 8, v.Duration); I(o + 12, v.StartTime);
+        I(o + 16, v.ControlType); I(o + 20, v.Day); I(o + 24, v.Status); I(o + 28, v.Flags);
+    }
+
+    /// <summary>Registro do servidor (164 B) = números do cliente: loja, tipo, subtipo, item, qtd, 4 opções, presente.</summary>
+    internal byte[] BuildServer()
+    {
+        var b = new byte[GShopFile.ServerItemSize];
+        Buffer.BlockCopy(ClientRaw, OShop, b, 0, 12);          // shop, main, sub
+        Buffer.BlockCopy(ClientRaw, OId, b, 12, 8 + 128);      // id, amount, opções
+        Buffer.BlockCopy(ClientRaw, OGift, b, 148, 16);        // presente + log_price
+        return b;
+    }
+
+    public bool ServerMatchesClient => ServerRaw is null || BuildServer().AsSpan().SequenceEqual(ServerRaw);
+}

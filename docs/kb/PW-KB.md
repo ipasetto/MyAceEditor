@@ -365,7 +365,7 @@ controller = (uID, uIDType) 8B; O_64 = bool+3B + 10 ctrl fixos (84B); controller
 
 ## §S19 GSHOP (fonte: sGSHOPedit C++/CLI decompilado; doc pw-gshop-ui.md) [C-terceiros]
 client gshop.data/gshop1.data: i32 timestamp | i32 nItens | item[1380B] | categoria[8 fixas]
- item client: shop_id cat sub (i32) | surface_path[128] UTF-16 (surfaces\百宝阁\*.dds) | item_id amount | 4 sale_option (8xi32: price expire_date duration start_date control_type day status flags) | description[1024] | name[64] | gift_id gift_amount gift_duration log_price
+ item client [T 24/10, PKG144 + server 1.4.4]: @0 shop_id @4 cat @8 sub (i32) | @12 surface 128 BYTES GBK (Surfaces\百宝阁\*.dds, figura grande) | @140 item_id @144 amount | @148 4 sale_option x32B (price end_time duration(s) start_time control_type day status flags) | @276 descricao 512 chars UTF-16 (1024B, ^cor,  quebra) | @1300 nome 32 chars UTF-16 (64B) | @1364 gift_id gift_amount gift_duration log_price = 1380B. Servidor 164B = mesmos numeros na mesma ordem (shop,cat,sub,id,amount,4 opcoes,gift x3,log_price); regravar o servidor a partir do cliente da identico. Precos vistos: 10..80000 (unidade [I] centavos de ouro). status visto 0-3 (0 normal, 1-3 novo/quente/presente? [I]); control_type sempre -1; duration 604800 (7 dias) ou 0 (permanente). gshop1 (Butique de Eventos) pode estar vazio (so 8 categorias).
  categoria: nome[128] UTF-16 | i32 nSub | nSub x nome[128]
 server gshopsev.data/gshopsev1.data: i32 timestamp | i32 nItens | item[164B] (mesmos numericos, SEM textos/surface/categorias)
 juncao: shop_id (unico) + item_id (= id elements.data). Strings UTF-16LE fixas zero-padded. timestamp unix UTC = provavel gshop_ts de Challenge.edition (§S17) [I forte]
