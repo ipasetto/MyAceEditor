@@ -7,7 +7,7 @@ namespace MyAceEditor.PerfectWorld;
 /// <summary>
 /// Procura erros comuns no elements.data (como o "achar e corrigir erros" do RAE, código nosso):
 /// referência para ID que não existe, probabilidade fora de 0..1, grupo de probabilidades que não soma 100%,
-/// e ID repetido entre itens de inventário. Os grupos que "devem somar 100%" são aprendidos dos próprios dados:
+/// e ID repetido dentro do mesmo espaço de IDs (IdSpaces). Os grupos que "devem somar 100%" são aprendidos dos próprios dados:
 /// conta como distribuição o grupo que soma 1 na grande maioria dos itens do bloco.
 /// </summary>
 public static class ErrorFinder
@@ -43,7 +43,7 @@ public static class ErrorFinder
         // NPC_MAKE_SERVICE aponta receitas, MONSTER_TYPE aponta MONSTER_ADDON...)
         var allIds = new HashSet<string>(module.Lists.SelectMany(l => l.Items).Select(i => i.Id));
         long total = Math.Max(1, module.Lists.Sum(l => (long)l.Items.Count)), done = 0;
-        var seen = new Dictionary<string, (ItemList, Item)>();
+        var seen = new Dictionary<(IdSpaces.Space, string), (ItemList, Item)>();
         foreach (var block in module.Lists)
         {
             if (block.Items.Count == 0) { continue; }
@@ -68,16 +68,15 @@ public static class ErrorFinder
                 if (used >= 3 && one >= used * 0.9) { distribution.Add(g); Distributions.Add($"{block.Name}|{g} ({one}/{used})"); }
             }
 
-            // itens de inventário dividem um só espaço de IDs (tabelas de rosto, configs etc. têm o próprio)
-            bool essenceSpace = sample.Contains("pile_num_max");
+            var space = IdSpaces.Of(block.Name);   // ID só conflita dentro do mesmo espaço
             foreach (var it in block.Items)
             {
                 if ((++done & 1023) == 0) progress?.Invoke(done / (double)total);
-                if (essenceSpace && !Empty(it.Id))
+                if (!Empty(it.Id))
                 {
-                    if (seen.TryGetValue(it.Id, out var first))
+                    if (seen.TryGetValue((space, it.Id), out var first))
                         found.Add(new(Kind.DuplicateId, block, it, "ID", $"{first.Item1.Name} {first.Item2.Id} {first.Item2.Name}"));
-                    else seen[it.Id] = (block, it);
+                    else seen[(space, it.Id)] = (block, it);
                 }
                 foreach (var k in refKeys)
                 {

@@ -136,13 +136,16 @@ public sealed class RefIndex
         foreach (var l in module.Lists)
         {
             context?.Check();
-            var target = l.Name switch
-            {
-                "EQUIPMENT_ADDON" => _addon,
-                "RECIPE_ESSENCE" => _recipe,
-                "MONSTER_ESSENCE" => _monster,
-                _ => l.Name.EndsWith("_MAJOR_TYPE") || l.Name.EndsWith("_SUB_TYPE") || l.Name == "TALK_PROC" ? null : _essence,
-            };
+            // espaço de IDs do jogo (IdSpaces): addon de monstro conta como addon; gravação/atributo aleatório como receita
+            var target = l.Name == "MONSTER_ESSENCE" ? _monster
+                : l.Name.EndsWith("_MAJOR_TYPE") || l.Name.EndsWith("_SUB_TYPE") ? null
+                : IdSpaces.Of(l.Name) switch
+                {
+                    IdSpaces.Space.Addon => _addon,
+                    IdSpaces.Space.Recipe => _recipe,
+                    IdSpaces.Space.Essence => _essence,
+                    _ => null,
+                };
             if (target is null) { done += l.Items.Count; continue; }
             foreach (var it in l.Items)
             {
