@@ -434,6 +434,7 @@ public sealed class EditorForm : Form
             if (e.RowIndex < 0 || e.ColumnIndex != 2 && e.ColumnIndex != 0 || _grid.Rows[e.RowIndex].Cells[e.ColumnIndex] is not DataGridViewLinkCell) return;
             switch (_grid.Rows[e.RowIndex].Tag)
             {
+                case string k when _current is not null && FieldKinds.Of(k) == FieldKind.TaskRef && int.TryParse(_current.Fields[k].Value, out var qid): GoToQuest(qid); break;
                 case string k when _current is not null && _refs?.Resolve(FieldKinds.Of(k), _current.Fields[k].Value) is { } hit: GoToItem(hit.Item); break;
                 case Item it: GoToItem(it); break;
             }
@@ -1729,7 +1730,7 @@ public sealed class EditorForm : Form
             case FieldKind.TaskRef:
                 if (IsEmpty(value)) return "";
                 return int.TryParse(value, out var qid) && QuestName(qid) is { } qname
-                    ? $"{qname}  ({Loc.T("grid.quest", "quest")} {qid})" : Loc.T("grid.quest", "quest");
+                    ? $"→ {qname}  ({Loc.T("grid.quest", "quest")} {qid})" : Loc.T("grid.quest", "quest");   // → vira link para a aba Quests
             default:
                 if (kind == FieldKind.Plain)   // código com significado (tipo de combate, habitat...)
                     return FieldValues.Text(_owner.TryGetValue(item, out var vb) ? vb.Name : "", field, value) ?? "";
@@ -2318,6 +2319,16 @@ public sealed class EditorForm : Form
                 : $"{Path.GetFileName(path)} · versão {_tasks.Version} · {_tasks.Quests.Count:N0} quests · só nomes (esquema desta versão ainda não suportado{(_tasks.SchemaError is null ? "" : ": " + _tasks.SchemaError)})";
         }
         catch (Exception ex) { _tasks = null; _qStatus.Text = "Falha ao ler tasks.data: " + ex.Message; }
+    }
+
+    // Link de quest (coluna Vínculo): abre a aba Quests já filtrada e selecionada no ID.
+    private void GoToQuest(int id)
+    {
+        if (_tasks is null || _tabs is null) return;
+        _tabs.SelectedTab = _tabQuests;
+        _qSearch.Text = id.ToString();   // RefreshQuests filtra pelo ID
+        foreach (TreeNode n in _qTree.Nodes)
+            if (n.Tag is QuestNode qn && qn.Id == id || n.Tag is QuestEntry qe && qe.Id == id) { _qTree.SelectedNode = n; n.EnsureVisible(); return; }
     }
 
     private void RefreshQuests()
