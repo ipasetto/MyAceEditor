@@ -11,6 +11,10 @@ public static class ElementsTranslator
 {
     public sealed record Change(ItemList Block, Item Item, string Field, string Value);
 
+    /// <summary>Texto ainda na língua original do jogo (chinês, japonês, coreano ou russo) — ou seja, falta traduzir.</summary>
+    public static bool LooksUntranslated(string s) =>
+        s.Any(ch => ch is >= '\u3040' and <= '\u9FFF' or >= '\uAC00' and <= '\uD7AF' or >= '\u0400' and <= '\u04FF' or >= '\uF900' and <= '\uFAFF');
+
     public static List<Change> Plan(Module current, ElementsCfg currentCfg, Module other)
     {
         var textFields = currentCfg.Blocks.ToDictionary(b => b.Name,

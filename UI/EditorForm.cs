@@ -1182,12 +1182,10 @@ public sealed class EditorForm : Form
         catch (Exception ex) { Error(Loc.T("tr.loadFail", "Não consegui ler o outro arquivo"), ex); return; }
         finally { Cursor = Cursors.Default; }
         var plan = ElementsTranslator.Plan(mod, ElementsCfg.Load(layout.ConfigPath), other);
-        var changes = plan.Select(c => (c.Item, c.Field, c.Value)).ToList();
-        var perBlock = plan.GroupBy(c => c.Block.Name).ToDictionary(g => g.Key, g => g.Count());
-        if (changes.Count == 0) { MessageBox.Show(this, Loc.T("tr.none", "Nada a traduzir: os textos já são iguais ao outro arquivo."), Loc.T("tr.title", "Traduzir")); return; }
-        var top = string.Join("\n", perBlock.OrderByDescending(x => x.Value).Take(12).Select(x => $"  {Pretty(x.Key)}: {x.Value:N0}"));
-        if (MessageBox.Show(this, string.Format(Loc.T("tr.confirm", "{0:N0} textos diferentes em {1} blocos (versão do outro arquivo: v{2}).\n\n{3}\n\nAplicar? Dá para desfazer com Ctrl+Z."),
-                changes.Count, perBlock.Count, other.Version & 0xFFFF, top), Loc.T("tr.title", "Traduzir"), MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+        if (plan.Count == 0) { MessageBox.Show(this, Loc.T("tr.none", "Nada a traduzir: os textos já são iguais ao outro arquivo."), Loc.T("tr.title", "Traduzir")); return; }
+        using var win = new TranslateWindow(plan, other.Version & 0xFFFF, Pretty);
+        if (win.ShowDialog(this) != DialogResult.OK || win.Selected.Count == 0) return;
+        var changes = win.Selected.Select(c => (c.Item, c.Field, c.Value)).ToList();
         int skipped = 0;
         using (_edits.Batch(string.Format(Loc.T("hist.translate", "Traduzir {0:N0} textos"), changes.Count)))
             foreach (var (it, f, v) in changes)
