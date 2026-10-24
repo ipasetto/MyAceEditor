@@ -110,13 +110,14 @@ public static class ErrorFinder
     /// Corrige no lugar: fora de 0..1 vira o limite mais próximo; grupo que não soma 100% é reescalado
     /// mantendo a proporção entre os slots (o último slot preenchido absorve o arredondamento).
     /// </summary>
-    public static bool Fix(Problem p)
+    public static bool Fix(Problem p, Action<Item, string, Field>? set = null)
     {
         var f = p.Item.Fields;
+        set ??= (it, k, v) => it.Fields[k] = v;   // a tela passa o histórico (desfazer)
         string Fmt(double v) => v.ToString("0.######", Inv);
         if (p.Kind == Kind.ProbRange && f.TryGetValue(p.Field, out var one))
         {
-            f[p.Field] = Field.Of(one.Type, Fmt(Math.Clamp(Num(one.Value), 0, 1)));
+            set(p.Item, p.Field, Field.Of(one.Type, Fmt(Math.Clamp(Num(one.Value), 0, 1))));
             return true;
         }
         if (p.Kind != Kind.ProbSum || GroupOf(p.Field) is not { } g) return false;
@@ -131,7 +132,7 @@ public static class ErrorFinder
             if (v <= 0) continue;
             double nv = k == lastFilled ? Math.Round(1 - acc, 6) : Math.Round(v / sum, 6);
             acc += nv;
-            f[k] = Field.Of(f[k].Type, Fmt(nv));
+            set(p.Item, k, Field.Of(f[k].Type, Fmt(nv)));
         }
         return true;
     }

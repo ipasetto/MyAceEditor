@@ -153,7 +153,18 @@ public sealed class EditorForm : Form
         Bind(() => exportCsv.Text = Loc.T("menu.exportCsv", "&Exportar bloco atual (planilha CSV)…"));
         var newItem = new ToolStripMenuItem { ForeColor = CFg }; newItem.Click += (_, _) => AddItem();
         var removeItem = new ToolStripMenuItem { ForeColor = CFg }; removeItem.Click += (_, _) => RemoveItem();
-        ed.DropDownItems.AddRange(new ToolStripItem[] { newItem, removeItem });
+        var undo = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeyDisplayString = "Ctrl+Z" }; undo.Click += (_, _) => UndoRedo(undo: true);
+        var redo = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeyDisplayString = "Ctrl+Y" }; redo.Click += (_, _) => UndoRedo(undo: false);
+        var history = new ToolStripMenuItem { ForeColor = CFg }; history.Click += (_, _) => ShowHistory();
+        ed.DropDownItems.AddRange(new ToolStripItem[] { undo, redo, history, new ToolStripSeparator(), newItem, removeItem });
+        void UpdateUndoMenu()
+        {
+            undo.Enabled = _edits.CanUndo; redo.Enabled = _edits.CanRedo;
+            undo.Text = Loc.T("menu.undo", "&Desfazer") + (_edits.UndoLabel is { Length: > 0 } u ? $": {u}" : "");
+            redo.Text = Loc.T("menu.redo", "&Refazer") + (_edits.RedoLabel is { Length: > 0 } r ? $": {r}" : "");
+            history.Text = Loc.T("menu.history", "&Histórico de ações…");
+        }
+        _edits.Changed += UpdateUndoMenu;
         var about = new ToolStripMenuItem { ForeColor = CFg };
         about.Click += (_, _) => MessageBox.Show(Loc.T("menu.aboutText", "MyAceEditor — editor dos dados do Perfect World."), Loc.T("menu.about", "Sobre"));
         aj.DropDownItems.Add(about);
@@ -177,6 +188,7 @@ public sealed class EditorForm : Form
             ed.Text = Loc.T("menu.edit", "&Editar");
             newItem.Text = Loc.T("menu.newItem", "&Novo item");
             removeItem.Text = Loc.T("menu.removeItem", "&Remover item");
+            UpdateUndoMenu();
             aj.Text = Loc.T("menu.help", "A&juda");
             about.Text = Loc.T("menu.about", "Sobre");
             view.Text = Loc.T("menu.view", "E&xibir");
@@ -490,6 +502,7 @@ public sealed class EditorForm : Form
         var filled = siblings.Where(pk => refOf.TryGetValue(pk, out var rk) ? !IsEmpty(item.Fields[rk].Value) : !IsEmpty(item.Fields[pk].Value)).ToList();
         if (filled.Count == 0) { Status(Loc.T("status.balanceNone", "Nenhum slot preenchido para distribuir.")); return; }
         double each = Math.Round(1.0 / filled.Count, 6), sum = 0;
+        using var batch = _edits.Batch(Loc.T("hist.balance", "Distribuir probabilidades") + " " + item.Id);
         foreach (var pk in siblings)
         {
             double v = !filled.Contains(pk) ? 0 : pk == filled[^1] ? Math.Round(1 - sum, 6) : each;
@@ -596,6 +609,7 @@ public sealed class EditorForm : Form
         var module = r.Module;
         _store.Adopt(module);
         _unusedCache.Clear();
+        _edits.Clear();
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _aiView?.LoadRememberedIfNeeded();
@@ -960,12 +974,13 @@ public sealed class EditorForm : Form
         var sel = SelectedItems();
         if (sel.Count == 0) return;
         Item? last = null;
+        using var batch = _edits.Batch(string.Format(Loc.T("hist.clone", "Clonar {0} item(ns)"), sel.Count));
         foreach (var src in sel)
         {
             if (!_owner.TryGetValue(src, out var block)) continue;
             var ni = new Item { Id = NextCode(block).ToString(), Name = src.Name, Fields = src.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)), Raw = src.Raw?.ToArray() };
             SetIdName(ni);
-            block.Items.Add(ni); _owner[ni] = block; last = ni;
+            _edits.AddItem(block, ni, ""); _owner[ni] = block; last = ni;
         }
         if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         RefreshView();
@@ -978,7 +993,8 @@ public sealed class EditorForm : Form
         var sel = SelectedItems();
         if (sel.Count == 0) return;
         if (MessageBox.Show($"Excluir {sel.Count} item(ns) selecionado(s)?", "Excluir", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-        foreach (var it in sel) if (_owner.TryGetValue(it, out var b)) { b.Items.Remove(it); _owner.Remove(it); _favorites.Remove(FavKey(b, it)); }
+        using (_edits.Batch(string.Format(Loc.T("hist.delete", "Excluir {0} item(ns)"), sel.Count)))
+            foreach (var it in sel) if (_owner.TryGetValue(it, out var b)) { _edits.RemoveItem(b, it, ""); _owner.Remove(it); _favorites.Remove(FavKey(b, it)); }
         SaveFavorites();
         if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         _current = null;
@@ -997,12 +1013,13 @@ public sealed class EditorForm : Form
         if (FieldEditors.BulkValue(this, sel, fields, FieldLabels.Label, start) is not { } op) return;
         var rng = new Random(op.Seed);   // mesma semente da prévia
         int n = 0, idx = 0;
-        foreach (var it in sel)
-        {
-            if (!it.Fields.TryGetValue(op.Field, out var f) || FieldEditors.BulkApply(op, f, idx++, rng) is not { } v) continue;
-            SetField(it, op.Field, v, refresh: false);
-            n++;
-        }
+        using (_edits.Batch(string.Format(Loc.T("hist.bulk", "{0} em {1} itens"), FieldLabels.Label(op.Field), sel.Count)))
+            foreach (var it in sel)
+            {
+                if (!it.Fields.TryGetValue(op.Field, out var f) || FieldEditors.BulkApply(op, f, idx++, rng) is not { } v) continue;
+                SetField(it, op.Field, v, refresh: false);
+                n++;
+            }
         if (_current is not null) ShowItem(_current);
         Status(string.Format(Loc.T("status.bulkDone", "'{0}' alterado em {1} item(ns)"), FieldLabels.Label(op.Field), n));
     }
@@ -1137,22 +1154,118 @@ public sealed class EditorForm : Form
 
     // ---------- procurar erros ----------
     private ErrorsWindow? _errors;
+    private readonly MyAceEditor.Changes.EditHistory _edits = new();
 
     private void FindErrors()
     {
         if (_store.Current is null) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
         if (_errors is { IsDisposed: false }) { _errors.Activate(); return; }
         var module = _store.Current;
-        _errors = new ErrorsWindow(() => ErrorFinder.Find(module), p => { GoToItem(p.Item); FocusField(p.Field); }, OnErrorsFixed, b => Pretty(b.Name));
+        _errors = new ErrorsWindow(() => ErrorFinder.Find(module), p => { GoToItem(p.Item); FocusField(p.Field); }, FixErrors, b => Pretty(b.Name));
         _errors.Show(this);
     }
 
-    private void OnErrorsFixed(IReadOnlyList<ErrorFinder.Problem> fixedOnes)
+    private IReadOnlyList<ErrorFinder.Problem> FixErrors(IReadOnlyList<ErrorFinder.Problem> targets)
     {
+        List<ErrorFinder.Problem> fixedOnes;
+        using (_edits.Batch(string.Format(Loc.T("hist.fixErrors", "Corrigir {0} erro(s)"), targets.Count)))
+            fixedOnes = targets.Where(p => ErrorFinder.Fix(p, (it, k, v) => _edits.SetField(it, k, v, ""))).ToList();
         foreach (var b in fixedOnes.Select(p => p.Block).Distinct()) _unusedCache.Remove(b);
         if (_current is not null && fixedOnes.Any(p => p.Item == _current)) FillGrid(_current);
         _list.Invalidate();
         Status(string.Format(Loc.T("status.errorsFixed", "{0} problema(s) corrigido(s) — salve para gravar"), fixedOnes.Count));
+        return fixedOnes;
+    }
+
+    // ---------- desfazer / refazer ----------
+    private void UndoRedo(bool undo)
+    {
+        var step = undo ? _edits.Undo() : _edits.Redo();
+        if (step is null) { Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return; }
+        AfterHistory(step);
+        Status(string.Format(undo ? Loc.T("status.undone", "Desfeito: {0}") : Loc.T("status.redone", "Refeito: {0}"), step.Label));
+    }
+
+    // Depois de desfazer/refazer: dono dos itens, índices, lista e o item afetado na tela.
+    private void AfterHistory(MyAceEditor.Changes.EditHistory.Step step)
+    {
+        bool structural = false;
+        Item? show = null;
+        foreach (var (block, item) in step.Touched)
+        {
+            if (block is not null)
+            {
+                structural = true;
+                if (block.Items.Contains(item)) { _owner[item] = block; show ??= item; }
+                else { _owner.Remove(item); if (_current == item) _current = null; }
+            }
+            else show ??= item;
+            if (_owner.TryGetValue(item, out var ob)) _unusedCache.Remove(ob);
+        }
+        if (structural)
+        {
+            if (_store.Current is not null) _refs = new RefIndex(_store.Current);
+            RefreshView();
+        }
+        _list.Invalidate();
+        if (show is not null && _owner.ContainsKey(show))
+        {
+            if (show != _current) GoToItem(show); else ShowItem(show);
+        }
+        else if (_current is not null) ShowItem(_current);
+    }
+
+    private void ShowHistory()
+    {
+        using var f = new Form
+        {
+            Text = Loc.T("hist.title", "Histórico de ações"), Width = 520, Height = 460, StartPosition = FormStartPosition.CenterParent,
+            ShowInTaskbar = false, MinimizeBox = false, BackColor = CSurface, ForeColor = CFg, Font = new Font("Segoe UI", 9.5f),
+        };
+        var lv = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false };
+        lv.Columns.Add(Loc.T("hist.colWhen", "Hora"), 70); lv.Columns.Add(Loc.T("hist.colAction", "Ação"), 330); lv.Columns.Add(Loc.T("hist.colChanges", "Mudanças"), 80);
+        void Fill()
+        {
+            lv.Items.Clear();
+            // desfeitos (dá para refazer) em cinza no topo, depois os feitos do mais novo ao mais antigo
+            foreach (var st in _edits.RedoSteps.Reverse())
+                lv.Items.Add(new ListViewItem(new[] { st.When.ToString("HH:mm:ss"), "↷ " + st.Label, st.Count.ToString() }) { ForeColor = CMuted, Tag = (st, false) });
+            foreach (var st in _edits.UndoSteps)
+                lv.Items.Add(new ListViewItem(new[] { st.When.ToString("HH:mm:ss"), st.Label, st.Count.ToString() }) { Tag = (st, true) });
+        }
+        var go = new Button { Text = Loc.T("hist.goTo", "Voltar/avançar até aqui"), Dock = DockStyle.Bottom, Height = 34, FlatStyle = FlatStyle.Flat };
+        go.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0 || lv.SelectedItems[0].Tag is not ValueTuple<MyAceEditor.Changes.EditHistory.Step, bool> t) return;
+            var (target, done) = t;
+            // passo feito: desfaz os mais novos até ele ficar no topo; passo desfeito: refaz até ele
+            if (done) { while (_edits.UndoSteps.Count > 0 && _edits.UndoSteps[0] != target && _edits.Undo() is { } u) AfterHistory(u); }
+            else { while (_edits.Redo() is { } r) { AfterHistory(r); if (r == target) break; } }
+            Fill();
+        };
+        lv.ItemActivate += (_, _) => go.PerformClick();
+        f.Controls.Add(lv); f.Controls.Add(go);
+        Fill();
+        f.ShowDialog(this);
+    }
+
+    // Ctrl+Z / Ctrl+Y: dentro de uma caixa de texto (busca, célula em edição) ficam com a própria caixa.
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData is (Keys.Control | Keys.Z) or (Keys.Control | Keys.Y) or (Keys.Control | Keys.Shift | Keys.Z)
+            && ActiveControlDeep() is not TextBoxBase && !_grid.IsCurrentCellInEditMode)
+        {
+            UndoRedo(undo: keyData == (Keys.Control | Keys.Z));
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private Control? ActiveControlDeep()
+    {
+        Control? c = ActiveControl;
+        while (c is ContainerControl cc && cc.ActiveControl is not null) c = cc.ActiveControl;
+        return c;
     }
 
     // Mostra o campo na grade: troca para a sub-aba do grupo dele e seleciona a linha.
@@ -1448,8 +1561,7 @@ public sealed class EditorForm : Form
 
     private void SetField(Item item, string key, string value, bool refresh = true)
     {
-        item.Fields[key] = Field.Of(item.Fields[key].Type, value);
-        if (key.Equals("Name", StringComparison.OrdinalIgnoreCase)) item.Name = value;
+        _edits.SetField(item, key, Field.Of(item.Fields[key].Type, value), string.Format(Loc.T("hist.field", "{0} em {1}"), FieldLabels.Label(key), item.Id));
         if (_owner.TryGetValue(item, out var ob)) _unusedCache.Remove(ob);
         if (refresh) FillGrid(item);
         _list.Invalidate();
@@ -1646,11 +1758,10 @@ public sealed class EditorForm : Form
         if (_current is null || row < 0 || _grid.Rows[row].Tag is not string key || !_current.Fields.ContainsKey(key)) return;
         var cell = _grid.Rows[row].Cells[1];
         var val = cell is DataGridViewCheckBoxCell ? (cell.Value is true ? "1" : "0") : cell.Value?.ToString() ?? "";
-        _current.Fields[key] = Field.Of(_current.Fields[key].Type, val);
+        _edits.SetField(_current, key, Field.Of(_current.Fields[key].Type, val), string.Format(Loc.T("hist.field", "{0} em {1}"), FieldLabels.Label(key), _current.Id));
         if (_owner.TryGetValue(_current, out var ob)) _unusedCache.Remove(ob);
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase))
         {
-            _current.Name = val;
             _list.Invalidate();
             _header.Text = TasksFile.SplitColor(val).Text;   // o ID já aparece no quadro ao lado
         }
@@ -1725,7 +1836,7 @@ public sealed class EditorForm : Form
 
     private void InsertNewItem(ItemList block, Item ni)
     {
-        block.Items.Add(ni);
+        _edits.AddItem(block, ni, string.Format(Loc.T("hist.add", "Novo item {0}"), ni.Id));
         _owner[ni] = block;
         if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         _current = ni;
@@ -1782,7 +1893,7 @@ public sealed class EditorForm : Form
         if (MessageBox.Show($"Excluir \"{_current.Name}\" (ID {_current.Id})?", "Excluir item",
             MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         _favorites.Remove(FavKey(block, _current)); SaveFavorites();
-        block.Items.Remove(_current); _owner.Remove(_current);
+        _edits.RemoveItem(block, _current, string.Format(Loc.T("hist.deleteOne", "Excluir item {0}"), _current.Id)); _owner.Remove(_current);
         if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         _current = null;
         RefreshView();

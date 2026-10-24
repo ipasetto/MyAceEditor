@@ -13,7 +13,7 @@ internal sealed class ErrorsWindow : Form
 
     readonly Func<List<ErrorFinder.Problem>> _scan;
     readonly Action<ErrorFinder.Problem> _go;
-    readonly Action<IReadOnlyList<ErrorFinder.Problem>> _fixed;
+    readonly Func<IReadOnlyList<ErrorFinder.Problem>, IReadOnlyList<ErrorFinder.Problem>> _fixer;
     readonly Func<ItemList, string> _blockName;
     readonly ListView _lv = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, BorderStyle = BorderStyle.None };
     readonly Label _summary = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
@@ -38,9 +38,9 @@ internal sealed class ErrorsWindow : Form
     };
 
     public ErrorsWindow(Func<List<ErrorFinder.Problem>> scan, Action<ErrorFinder.Problem> go,
-        Action<IReadOnlyList<ErrorFinder.Problem>> onFixed, Func<ItemList, string> blockName)
+        Func<IReadOnlyList<ErrorFinder.Problem>, IReadOnlyList<ErrorFinder.Problem>> fix, Func<ItemList, string> blockName)
     {
-        _scan = scan; _go = go; _fixed = onFixed; _blockName = blockName;
+        _scan = scan; _go = go; _fixer = fix; _blockName = blockName;
         Text = Loc.T("err.title", "Procurar erros");
         Width = 980; Height = 520; StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
         BackColor = Bg; ForeColor = Fg; Font = new Font("Segoe UI", 9.5f); MinimizeBox = false;
@@ -104,8 +104,7 @@ internal sealed class ErrorsWindow : Form
 
     void FixSelected()
     {
-        var done = FixTargets().Where(ErrorFinder.Fix).ToList();
-        _fixed(done);
+        var done = _fixer(FixTargets().ToList());   // a tela corrige pelo histórico (dá para desfazer)
         _problems.RemoveAll(done.Contains);
         Fill();
     }
