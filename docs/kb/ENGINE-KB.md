@@ -124,6 +124,7 @@ Store/ModuleStore.cs Changes/ChangeSet.cs | estado, load/save, mudancas
 fluxo: EditorForm -> ModuleStore/CfgElementsReader -> elements.data(+.cfg)
 
 ## §E7 UI/FEATURES PRONTAS [T]
+- [T] Alterar campo nos selecionados (UI/FieldEditors.BulkValue/BulkApply): definir, somar, multiplicar, sequencia inicio+passo, aleatorio min-max (prévia = gravado, mesma semente), substituir texto; prévia antes/depois; também no clique direito da grade. Paridade RAE "modificar valores em lote" (PWKB§S27).
 layout = modelo do Rody's Angelica Editor (decisao do usuario; arvore em cascata abandonada). Rody: exe nativo x86 sem metadados .NET (protegido/empacotado) -> layout copiado do print, sem RE
 esquerda (fundo preto): seletor de bloco "[NNN] Nome (qtd)" (1a opcao = ★ Favoritos; lembra o ultimo; padrao WEAPON_ESSENCE) | filtro tipo/subtipo (so blocos *_ESSENCE c/ id_major_type/id_sub_type) | busca nome/ID + caixa "todos os blocos" | ListView VIRTUAL owner-draw: ID | icone 24px + nome na cor de grade (★☆»«*) | clique na coluna ordena | rodape: Adicionar | ir para ID (Enter) | Excluir
 direita: cabecalho icone+nome+ID | grade de campos agrupados/rotulados (addons vazios ocultos) | edicao inline

@@ -430,7 +430,17 @@ public sealed class EditorForm : Form
         balance.Click += (_, _) => { if (_current is not null && _grid.CurrentRow?.Tag is string k) BalanceProbabilities(_current, k); };
         Bind(() => balance.Text = Loc.T("ctx.balance", "Distribuir 100% entre as probabilidades preenchidas"));
         _gridCtx.Items.Add(balance);
-        _gridCtx.Opening += (_, e) => e.Cancel = _grid.CurrentRow?.Tag is not string k || FieldKinds.Of(k) != FieldKind.Probability;
+        var bulk = new ToolStripMenuItem();
+        bulk.Click += (_, _) => BulkChange();
+        Bind(() => bulk.Text = Loc.T("ctx.bulkField", "Alterar este campo nos itens selecionados…"));
+        _gridCtx.Items.Add(bulk);
+        _gridCtx.Opening += (_, e) =>
+        {
+            if (_grid.CurrentRow?.Tag is not string k) { e.Cancel = true; return; }
+            balance.Visible = FieldKinds.Of(k) == FieldKind.Probability;
+            int n = _list.SelectedIndices.Count;
+            bulk.Text = Loc.T("ctx.bulkField", "Alterar este campo nos itens selecionados…") + (n > 1 ? $" ({n})" : "");
+        };
         _grid.ContextMenuStrip = _gridCtx;
     }
 
@@ -976,14 +986,21 @@ public sealed class EditorForm : Form
     {
         var sel = SelectedItems();
         if (sel.Count == 0) return;
-        var fields = sel[0].Fields.Keys.ToList();
-        if (FieldEditors.BulkValue(this, fields, sel.Count, FieldLabels.Label) is not { } r) return;
-        int n = 0;
+        // mesmos campos da grade (sem realname nem os sem uso, se estiverem ocultos); começa no campo selecionado na grade
+        var hidden = _hideUnused && BlockContaining(sel[0]) is { } blk ? UnusedFields(blk) : new HashSet<string>();
+        var fields = sel[0].Fields.Keys.Where(k => k != "realname" && !hidden.Contains(k)).ToList();
+        var start = _grid.CurrentRow?.Tag as string;
+        if (FieldEditors.BulkValue(this, sel, fields, FieldLabels.Label, start) is not { } op) return;
+        var rng = new Random(op.Seed);   // mesma semente da prévia
+        int n = 0, idx = 0;
         foreach (var it in sel)
-            if (it.Fields.TryGetValue(r.Field, out var f)) { it.Fields[r.Field] = Field.Of(f.Type, r.Value); if (r.Field.Equals("Name", StringComparison.OrdinalIgnoreCase)) it.Name = r.Value; n++; }
-        _list.Invalidate();
+        {
+            if (!it.Fields.TryGetValue(op.Field, out var f) || FieldEditors.BulkApply(op, f, idx++, rng) is not { } v) continue;
+            SetField(it, op.Field, v, refresh: false);
+            n++;
+        }
         if (_current is not null) ShowItem(_current);
-        Status($"'{FieldLabels.Label(r.Field)}' = {r.Value} em {n} item(ns)");
+        Status(string.Format(Loc.T("status.bulkDone", "'{0}' alterado em {1} item(ns)"), FieldLabels.Label(op.Field), n));
     }
 
     private void OnListSelect()

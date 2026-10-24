@@ -135,22 +135,110 @@ internal static class FieldEditors
         return lv.SelectedIndices.Cast<int>().OrderBy(i => i).Select(i => view[i]).ToList();
     }
 
-    /// <summary>Alterar o mesmo campo em vários itens. Retorna (campo, valor) ou null.</summary>
-    public static (string Field, string Value)? BulkValue(IWin32Window owner, IReadOnlyList<string> fields, int count, Func<string, string> label)
+    /// <summary>Operações de "Alterar campo nos selecionados" (como o "modificar valores" do RAE, código nosso).</summary>
+    public enum BulkMode { Set, Add, Multiply, Sequence, Random, Replace }
+    public sealed record BulkOp(string Field, BulkMode Mode, string A, string B, int Seed);
+
+    static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    static bool Num(string s, out double v) => double.TryParse(s.Trim().Replace(',', '.'), System.Globalization.NumberStyles.Float, Inv, out v);
+
+    /// <summary>Novo valor do campo para o item de posição <paramref name="index"/> na seleção; null = parâmetro inválido.</summary>
+    public static string? BulkApply(BulkOp op, Field old, int index, Random rng)
     {
-        using var f = NewDialog(string.Format(Loc.T("dlg.bulkTitle", "Alterar campo em {0} itens"), count), 520, 200);
+        bool isInt = old.Type is FieldType.Int or FieldType.Bool or FieldType.Reference;
+        bool isNum = isInt || old.Type == FieldType.Float;
+        string Out(double v) => isInt ? ((long)Math.Clamp(Math.Round(v), int.MinValue, uint.MaxValue)).ToString(Inv) : ((float)v).ToString("0.######", Inv);
+        Num(old.Value, out var cur);
+        switch (op.Mode)
+        {
+            case BulkMode.Set: return isNum ? (Num(op.A, out var s) ? Out(s) : null) : op.A;
+            case BulkMode.Replace: return op.A.Length == 0 ? null : old.Value.Replace(op.A, op.B);
+        }
+        if (!isNum || !Num(op.A, out var a)) return null;
+        double b = 0;
+        if (op.Mode is BulkMode.Sequence or BulkMode.Random && !Num(op.B, out b)) return null;
+        return op.Mode switch
+        {
+            BulkMode.Add => Out(cur + a),
+            BulkMode.Multiply => Out(cur * a),
+            BulkMode.Sequence => Out(a + b * index),
+            BulkMode.Random => isInt ? Out(rng.NextInt64((long)Math.Min(a, b), (long)Math.Max(a, b) + 1)) : Out(Math.Min(a, b) + rng.NextDouble() * Math.Abs(b - a)),
+            _ => null,
+        };
+    }
+
+    /// <summary>Alterar um campo em vários itens: definir, somar, multiplicar, sequência, aleatório ou substituir texto, com prévia.</summary>
+    public static BulkOp? BulkValue(IWin32Window owner, IReadOnlyList<Item> items, IReadOnlyList<string> fields, Func<string, string> label, string? initialField = null)
+    {
+        using var f = NewDialog(string.Format(Loc.T("dlg.bulkTitle", "Alterar campo em {0} itens"), items.Count), 620, 420);
         var tl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(10) };
-        tl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80)); tl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        tl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110)); tl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var cb = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
         foreach (var k in fields) cb.Items.Add(new KeyValuePair<string, string>(k, $"{label(k)}  ({k})"));
-        cb.DisplayMember = "Value"; if (cb.Items.Count > 0) cb.SelectedIndex = 0;
-        var tb = new TextBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
-        tl.Controls.Add(new Label { Text = Loc.T("list.field", "Campo"), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0); tl.Controls.Add(cb, 1, 0);
-        tl.Controls.Add(new Label { Text = Loc.T("list.value", "Valor"), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1); tl.Controls.Add(tb, 1, 1);
-        var bottom = Buttons(f, out _);
+        cb.DisplayMember = "Value";
+        cb.SelectedIndex = Math.Max(0, initialField is null ? 0 : fields.ToList().IndexOf(initialField));
+        int seed = Environment.TickCount;   // a prévia do "aleatório" é o que será gravado
+        var modes = new (BulkMode M, string Key, string Pt)[]
+        {
+            (BulkMode.Set, "dlg.bulkSet", "Definir valor"),
+            (BulkMode.Add, "dlg.bulkAdd", "Somar (use negativo para subtrair)"),
+            (BulkMode.Multiply, "dlg.bulkMul", "Multiplicar por"),
+            (BulkMode.Sequence, "dlg.bulkSeq", "Sequência (início + passo)"),
+            (BulkMode.Random, "dlg.bulkRand", "Aleatório entre (mín e máx)"),
+            (BulkMode.Replace, "dlg.bulkRepl", "Substituir texto"),
+        };
+        var mode = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        foreach (var m in modes) mode.Items.Add(Loc.T(m.Key, m.Pt));
+        mode.SelectedIndex = 0;
+        var ta = new TextBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
+        var tbx = new TextBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
+        var la = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+        var lb = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+        var preview = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HeaderStyle = ColumnHeaderStyle.Nonclickable, BorderStyle = BorderStyle.FixedSingle };
+        preview.Columns.Add(Loc.T("dlg.bulkItem", "Item"), 260); preview.Columns.Add(Loc.T("dlg.bulkBefore", "Antes"), 120); preview.Columns.Add(Loc.T("dlg.bulkAfter", "Depois"), 120);
+        void Row(Control l, Control c, int r) { tl.Controls.Add(l, 0, r); tl.Controls.Add(c, 1, r); }
+        Row(new Label { Text = Loc.T("list.field", "Campo"), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, cb, 0);
+        Row(new Label { Text = Loc.T("dlg.bulkOp", "Operação"), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, mode, 1);
+        Row(la, ta, 2); Row(lb, tbx, 3);
+        tl.Controls.Add(preview, 0, 4); tl.SetColumnSpan(preview, 2);
+        for (int i = 0; i < 4; i++) tl.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        tl.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var bottom = Buttons(f, out var ok);
         f.Controls.Add(tl); f.Controls.Add(bottom);
-        if (f.ShowDialog(owner) != DialogResult.OK || cb.SelectedItem is not KeyValuePair<string, string> kv) return null;
-        return (kv.Key, tb.Text);
+
+        BulkOp? Current() => cb.SelectedItem is KeyValuePair<string, string> kv ? new BulkOp(kv.Key, modes[mode.SelectedIndex].M, ta.Text, tbx.Text, seed) : null;
+        void Refresh()
+        {
+            var m = modes[mode.SelectedIndex].M;
+            (la.Text, lb.Text) = m switch
+            {
+                BulkMode.Sequence => (Loc.T("dlg.bulkStart", "Início"), Loc.T("dlg.bulkStep", "Passo")),
+                BulkMode.Random => (Loc.T("dlg.bulkMin", "Mínimo"), Loc.T("dlg.bulkMax", "Máximo")),
+                BulkMode.Replace => (Loc.T("dlg.bulkFind", "Procurar"), Loc.T("dlg.bulkWith", "Trocar por")),
+                BulkMode.Multiply => (Loc.T("dlg.bulkFactor", "Fator"), ""),
+                _ => (Loc.T("list.value", "Valor"), ""),
+            };
+            lb.Visible = tbx.Visible = m is BulkMode.Sequence or BulkMode.Random or BulkMode.Replace;
+            preview.BeginUpdate(); preview.Items.Clear();
+            var op = Current(); var rng = new Random(seed); bool valid = op is not null;
+            int idx = 0;
+            foreach (var it in items)
+            {
+                if (op is null || !it.Fields.TryGetValue(op.Field, out var fld)) continue;
+                var nv = BulkApply(op, fld, idx++, rng);
+                if (nv is null) valid = false;
+                if (preview.Items.Count < 200)
+                    preview.Items.Add(new ListViewItem(new[] { $"{it.Id}  {PerfectWorld.TasksFile.SplitColor(it.Name).Text}", fld.Value, nv ?? "?" }));
+            }
+            preview.EndUpdate();
+            ok.Enabled = valid && idx > 0;
+        }
+        cb.SelectedIndexChanged += (_, _) => Refresh(); mode.SelectedIndexChanged += (_, _) => Refresh();
+        ta.TextChanged += (_, _) => Refresh(); tbx.TextChanged += (_, _) => Refresh();
+        Refresh();
+        f.Shown += (_, _) => ta.Focus();
+        return f.ShowDialog(owner) == DialogResult.OK ? Current() : null;
     }
 
     /// <summary>
