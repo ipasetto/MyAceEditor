@@ -113,7 +113,19 @@ internal sealed class ChanceEditor : Form
         B(Loc.T("addonEd.add", "＋ Adicionar…"), () =>
         {
             var empty = listSection.Rows.Where(r => r.Ref is not null && AddonGroups.Empty(_work.Fields[r.Ref].Value) && ProbabilityGroups.Num(_work.Fields[r.Prob].Value) == 0).ToList();
-            if (empty.Count == 0) { Warn(Loc.T("addonEd.full", "A lista está cheia: remova uma linha (✕ Remover) para liberar um slot.")); return; }
+            if (empty.Count == 0)
+            {
+                // o arquivo tem um número fixo de slots: cheia, "Adicionar" troca o item da linha selecionada
+                if (view.Selected is { Ref: { } selRef } && _pick(this, selRef) is { Count: > 0 } one)
+                {
+                    Snapshot(); Put(selRef, one[0]); view.Rebuild();
+                    Info(string.Format(Loc.T("addonEd.replaced", "Lista cheia ({0} slots, limite do arquivo): o item da linha selecionada foi trocado, mantendo a chance."), listSection.Rows.Count));
+                    return;
+                }
+                if (view.Selected is null)
+                    Warn(string.Format(Loc.T("addonEd.full", "Lista cheia ({0} slots, limite do arquivo). Selecione uma linha e clique em Adicionar para trocar o item dela, ou use ✕ Remover para liberar um slot."), listSection.Rows.Count));
+                return;
+            }
             if (_pick(this, empty[0].Ref!) is not { Count: > 0 } ids) return;
             Snapshot();
             int n = 0;
@@ -233,6 +245,7 @@ internal sealed class ProbListView : ScrollableControl
         return d.Length > 0 ? $"{id}   {d}" : id;
     }
 
+    // TextRenderer só segue a rolagem (TranslateTransform) com PreserveGraphicsTranslateTransform
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -244,34 +257,34 @@ internal sealed class ProbListView : ScrollableControl
                 var sib = sec.Rows.Select(r => r.Prob).ToList();
                 double s = ProbabilityGroups.Sum(_item, sib);
                 using var hf = new Font(Font, FontStyle.Bold);
-                TextRenderer.DrawText(g, ChanceEditor.SectionTitle(sec.Name).ToUpperInvariant(), hf, new Rectangle(8, y, ClientSize.Width - 160, HeadH), Accent, TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(g, ChanceEditor.SectionTitle(sec.Name).ToUpperInvariant(), hf, new Rectangle(8, y, ClientSize.Width - 160, HeadH), Accent, TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.VerticalCenter);
                 if (sec.Rows.Count > 1)
                 {
                     var col = ProbabilityGroups.SumsToOne(s, sib.Count) ? Green : s <= 0.0005 ? Muted : Red;
-                    TextRenderer.DrawText(g, $"Σ {s * 100:0.###}%", hf, new Rectangle(ClientSize.Width - 150, y, 140, HeadH), col, TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
+                    TextRenderer.DrawText(g, $"Σ {s * 100:0.###}%", hf, new Rectangle(ClientSize.Width - 150, y, 140, HeadH), col, TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
                 }
                 using var line = new Pen(Track); g.DrawLine(line, 8, y + HeadH - 2, ClientSize.Width - 8, y + HeadH - 2);
                 continue;
             }
             var c = Cols(y, sec.HasRefs);
             if (row == Selected) using (var sb = new SolidBrush(Sel)) g.FillRectangle(sb, 4, y, ClientSize.Width - 8, RowH);
-            if (row.Prob == "") { TextRenderer.DrawText(g, RowName(row), Font, c.Name, Muted, TextFormatFlags.VerticalCenter); continue; }
+            if (row.Prob == "") { TextRenderer.DrawText(g, RowName(row), Font, c.Name, Muted, TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.VerticalCenter); continue; }
             var nameBox = c.Name;
             if (row.Ref is not null && _icon?.Invoke(_item.Fields[row.Ref].Value) is { } img)
             {
                 g.DrawImage(img, new Rectangle(c.Name.X, y + 2, RowH - 4, RowH - 4));
                 nameBox = Rectangle.FromLTRB(c.Name.X + RowH + 2, c.Name.Y, c.Name.Right, c.Name.Bottom);
             }
-            TextRenderer.DrawText(g, RowName(row), Font, nameBox, Fg(row), TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            TextRenderer.DrawText(g, RowName(row), Font, nameBox, Fg(row), TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             double p = ProbabilityGroups.Num(_item.Fields[row.Prob].Value);
             bool bad = p < 0 || p > 1.0005;
             using (var tb = new SolidBrush(Track)) g.FillRectangle(tb, c.Bar);
             int bw = (int)Math.Round(c.Bar.Width * Math.Clamp(p, 0, 1));
             if (bw > 0) using (var fb = new SolidBrush(bad ? Red : Green)) g.FillRectangle(fb, c.Bar with { Width = bw });
             g.DrawRectangle(Pens.Silver, c.Bar);
-            TextRenderer.DrawText(g, $"{p * 100:0.###}%", Font, c.Pct, bad ? Red : ForeColor, TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
+            TextRenderer.DrawText(g, $"{p * 100:0.###}%", Font, c.Pct, bad ? Red : ForeColor, TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
             bool locked = _locks.Contains(row.Prob);
-            TextRenderer.DrawText(g, locked ? "🔒" : "🔓", Font, c.Lock, locked ? Accent : Color.FromArgb(160, 170, 184), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, locked ? "🔒" : "🔓", Font, c.Lock, locked ? Accent : Color.FromArgb(160, 170, 184), TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
     }
 

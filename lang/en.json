@@ -1395,7 +1395,7 @@
   "addonEd.title": "Addon editor — {0} {1}",
   "addonEd.chances": "Chances",
   "addonEd.hint": "Drag the bars; the lock fixes a slot. Double-click the name to change the addon. Ctrl+Z undoes.",
-  "addonEd.full": "The list is full: remove a row (✕ Remove) to free a slot.",
+  "addonEd.full": "List full ({0} slots, the file limit). Select a row and click Add to replace its item, or use ✕ Remove to free a slot.",
   "addonEd.noRoom": "{0} did not fit.",
   "addonEd.remove": "✕ Remove",
   "addonEd.add": "＋ Add…",
@@ -1422,5 +1422,6 @@
   "addonEd.nothingUndo": "Nothing to undo.",
   "addonEd.undone": "Undone (Ctrl+Y redoes).",
   "addonEd.redone": "Redone.",
-  "pick.addonCompatible": "Choose addon (only those used by items of this block)"
+  "pick.addonCompatible": "Choose addon (only those used by items of this block)",
+  "addonEd.replaced": "List full ({0} slots, the file limit): the selected row's item was replaced, keeping its chance."
 }
