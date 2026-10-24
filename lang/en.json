@@ -1383,5 +1383,6 @@
   "task.Diálogo sem requisitos": "Dialog without requirements",
   "task.Diálogo ao entregar item": "Dialog when delivering an item",
   "task.Diálogo em andamento": "Dialog in progress",
-  "task.Diálogo do prêmio": "Reward dialog"
+  "task.Diálogo do prêmio": "Reward dialog",
+  "status.probSet": "{0} = {1:0.###}% · group total {2:0.###}%"
 }

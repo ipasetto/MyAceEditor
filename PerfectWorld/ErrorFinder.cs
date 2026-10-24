@@ -22,15 +22,7 @@ public static class ErrorFinder
     static bool Empty(string v) => v is "" or "0" or "-1" or "0.0";
     static double Num(string v) => double.TryParse(v.Replace(',', '.'), NumberStyles.Float, Inv, out var d) ? d : 0;
 
-    // drop_matters_3_probability -> "drop_matters_#_probability"; probability_socket2 -> "probability_socket#"
-    static readonly Regex Digits = new(@"\d+", RegexOptions.Compiled);
-    static string? GroupOf(string key)
-    {
-        var ms = Digits.Matches(key);
-        if (ms.Count == 0) return null;
-        var m = ms[^1];   // o último número é o índice do slot (skill_hp75_2_probability -> skill_hp75_#_probability)
-        return key[..m.Index] + "#" + key[(m.Index + m.Length)..];
-    }
+    static string? GroupOf(string key) => ProbabilityGroups.GroupOf(key);
 
     /// <summary>Grupos de probabilidade tratados como distribuição (bloco|grupo), para diagnóstico.</summary>
     public static List<string> Distributions { get; } = new();

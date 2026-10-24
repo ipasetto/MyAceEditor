@@ -455,6 +455,7 @@ public sealed class EditorForm : Form
         // caixa de seleção: confirma o clique na hora (senão só grava ao sair da célula)
         _grid.CurrentCellDirtyStateChanged += (_, _) => { if (_grid.IsCurrentCellDirty) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
         _grid.CellPainting += PaintExtras;
+        _grid.MouseDown += ProbMouseDown; _grid.MouseMove += ProbMouseMove; _grid.MouseUp += ProbMouseUp;
         // clique direito: seleciona a linha antes de abrir o menu
         _grid.CellMouseDown += (_, e) => { if (e.Button == MouseButtons.Right && e.RowIndex >= 0) _grid.CurrentCell = _grid.Rows[e.RowIndex].Cells[0]; };
         var balance = new ToolStripMenuItem();
@@ -483,13 +484,28 @@ public sealed class EditorForm : Form
         var kind = FieldKinds.Of(key);
         var r = e.CellBounds;
         var fg = (e.State & DataGridViewElementStates.Selected) != 0 ? CSelFg : CFg;
-        if (kind == FieldKind.Probability && float.TryParse(f.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) && p > 0 && p <= 1)
+        if (kind == FieldKind.Probability && (e.Value as string ?? "") is var desc && !desc.StartsWith("→"))
         {
+            double p = ProbabilityGroups.Num(f.Value);
             e.PaintBackground(r, true);
-            var bar = new Rectangle(r.X + 76, r.Y + 8, Math.Max(20, Math.Min(180, r.Width - 90)), r.Height - 16);
+            var (bar, lockBox) = ProbRects(r);
+            bool bad = p < 0 || p > 1.0005;
             using (var back = new SolidBrush(Color.FromArgb(226, 231, 238))) e.Graphics.FillRectangle(back, bar);
-            using (var fill = new SolidBrush(Color.FromArgb(34, 160, 90))) e.Graphics.FillRectangle(fill, bar with { Width = Math.Max(1, (int)Math.Round(bar.Width * p)) });
-            TextRenderer.DrawText(e.Graphics, $"{p * 100:0.###}%", _grid.Font, new Rectangle(r.X + 6, r.Y, 68, r.Height), fg, TextFormatFlags.VerticalCenter);
+            int w = (int)Math.Round(bar.Width * Math.Clamp(p, 0, 1));
+            using (var fill = new SolidBrush(bad ? Color.FromArgb(220, 38, 38) : Color.FromArgb(34, 160, 90))) if (w > 0) e.Graphics.FillRectangle(fill, bar with { Width = w });
+            e.Graphics.DrawRectangle(Pens.Silver, bar);
+            TextRenderer.DrawText(e.Graphics, $"{p * 100:0.###}%", _grid.Font, new Rectangle(r.X + 6, r.Y, 68, r.Height), bad ? Color.FromArgb(220, 38, 38) : fg, TextFormatFlags.VerticalCenter);
+            // cadeado: slot fixo (não muda quando outra barra do grupo é arrastada)
+            bool locked = ReferenceEquals(_probLockItem, _current) && _probLocks.Contains(key);
+            TextRenderer.DrawText(e.Graphics, locked ? "🔒" : "🔓", _grid.Font, lockBox, locked ? CAccent : Color.FromArgb(160, 170, 184), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            // soma do grupo, na primeira linha do grupo
+            var sib = ProbabilityGroups.Siblings(_current, key);
+            if (sib.Count > 1 && sib[0] == key)
+            {
+                double sum = ProbabilityGroups.Sum(_current, sib);
+                var col = ProbabilityGroups.SumsToOne(sum, sib.Count) ? Color.FromArgb(22, 128, 61) : sum <= 0.0005 ? CMuted : Color.FromArgb(220, 38, 38);
+                TextRenderer.DrawText(e.Graphics, $"Σ {sum * 100:0.###}%", _grid.Font, new Rectangle(lockBox.Right + 6, r.Y, 110, r.Height), col, TextFormatFlags.VerticalCenter);
+            }
             e.Handled = true;
         }
         else if (kind == FieldKind.Color && long.TryParse(f.Value, out var c))
@@ -501,6 +517,83 @@ public sealed class EditorForm : Form
             TextRenderer.DrawText(e.Graphics, $"#{c & 0xFFFFFF:X6}", _grid.Font, new Rectangle(sw.Right + 8, r.Y, 120, r.Height), fg, TextFormatFlags.VerticalCenter);
             e.Handled = true;
         }
+    }
+
+    // ---------- barras de probabilidade: clicar/arrastar muda o valor; cadeado fixa o slot ----------
+    private readonly HashSet<string> _probLocks = new();
+    private Item? _probLockItem;
+    private (Item Item, string Key, Dictionary<string, Field> Before)? _probDrag;
+
+    private static (Rectangle Bar, Rectangle Lock) ProbRects(Rectangle cell)
+    {
+        var bar = new Rectangle(cell.X + 76, cell.Y + 7, Math.Max(20, Math.Min(180, cell.Width - 200)), cell.Height - 14);
+        return (bar, new Rectangle(bar.Right + 4, cell.Y, 22, cell.Height));
+    }
+
+    // linha de probabilidade sob o mouse (coluna Vínculo) e a área da célula
+    private bool ProbHit(Point pt, out string key, out Rectangle cell)
+    {
+        key = ""; cell = default;
+        var hit = _grid.HitTest(pt.X, pt.Y);
+        if (_current is null || hit.RowIndex < 0 || hit.ColumnIndex != 2 || _grid.Rows[hit.RowIndex].Tag is not string k
+            || FieldKinds.Of(k) != FieldKind.Probability || (_grid.Rows[hit.RowIndex].Cells[2].Value as string ?? "").StartsWith("→")) return false;
+        key = k; cell = _grid.GetCellDisplayRectangle(2, hit.RowIndex, false);
+        return true;
+    }
+
+    private void ProbMouseDown(object? s, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left || !ProbHit(e.Location, out var key, out var cell) || _current is null) return;
+        if (!ReferenceEquals(_probLockItem, _current)) { _probLocks.Clear(); _probLockItem = _current; }
+        var (bar, lockBox) = ProbRects(cell);
+        if (lockBox.Contains(e.Location))
+        {
+            if (!_probLocks.Remove(key)) _probLocks.Add(key);
+            _grid.InvalidateColumn(2);
+            return;
+        }
+        if (e.X < bar.X - 4 || e.X > bar.Right + 4) return;
+        var sib = ProbabilityGroups.Siblings(_current, key);
+        _probDrag = (_current, key, sib.ToDictionary(k => k, k => _current.Fields[k]));
+        ProbDragTo(e.X, bar);
+    }
+
+    private void ProbMouseMove(object? s, MouseEventArgs e)
+    {
+        if (_probDrag is not { } d || e.Button != MouseButtons.Left) return;
+        foreach (DataGridViewRow row in _grid.Rows)
+            if (row.Tag as string == d.Key) { ProbDragTo(e.X, ProbRects(_grid.GetCellDisplayRectangle(2, row.Index, false)).Bar); return; }
+    }
+
+    // Durante o arraste os valores vão direto no item (prévia); o histórico recebe só o resultado no MouseUp.
+    private void ProbDragTo(int x, Rectangle bar)
+    {
+        if (_probDrag is not { } d) return;
+        double v = Math.Round(Math.Clamp((x - bar.X) / (double)bar.Width, 0, 1), 3);   // passo de 0,1%
+        foreach (var (k, f) in d.Before) d.Item.Fields[k] = f;                         // parte sempre do original
+        var refOf = d.Item.Fields.Keys.Where(k => FieldKinds.IsReference(FieldKinds.Of(k)))
+            .Select(k => (Ref: k, Prob: FieldKinds.ProbabilityFor(k, d.Item.Fields))).Where(t => t.Prob is not null)
+            .GroupBy(t => t.Prob!).ToDictionary(g => g.Key, g => g.First().Ref);
+        var nv = ProbabilityGroups.Set(d.Item, d.Key, v, _probLocks, k => refOf.TryGetValue(k, out var rk) && !IsEmpty(d.Item.Fields[rk].Value));
+        foreach (var (k, val) in nv) d.Item.Fields[k] = Field.Of(d.Before[k].Type, ProbabilityGroups.Fmt(val));
+        foreach (DataGridViewRow row in _grid.Rows)
+            if (row.Tag is string rk2 && nv.ContainsKey(rk2)) row.Cells[1].Value = d.Item.Fields[rk2].Value;
+        _grid.InvalidateColumn(2);
+    }
+
+    private void ProbMouseUp(object? s, MouseEventArgs e)
+    {
+        if (_probDrag is not { } d) return;
+        _probDrag = null;
+        var after = d.Before.Keys.ToDictionary(k => k, k => d.Item.Fields[k].Value);
+        foreach (var (k, f) in d.Before) d.Item.Fields[k] = f;
+        var changed = after.Where(kv => kv.Value != d.Before[kv.Key].Value).ToList();
+        if (changed.Count == 0) return;
+        using (_edits.Batch(string.Format(Loc.T("hist.field", "{0} em {1}"), FieldLabels.Label(d.Key), d.Item.Id)))
+            foreach (var (k, v) in changed) SetField(d.Item, k, v, refresh: false);
+        if (ReferenceEquals(_current, d.Item)) FillGrid(d.Item);
+        var s2 = ProbabilityGroups.Sum(d.Item, d.Before.Keys);
+        Status(string.Format(Loc.T("status.probSet", "{0} = {1:0.###}% · soma do grupo {2:0.###}%"), FieldLabels.Label(d.Key), ProbabilityGroups.Num(after[d.Key]) * 100, s2 * 100));
     }
 
     // Probabilidades irmãs (mesmo nome trocando o número): divide 100% entre os slots com referência preenchida.

@@ -41,7 +41,7 @@
     [ ] seletor de icone em grade (todas as figuras do surfaces.pck; tooltip nome/indice/uso)
     [ ] seletor de modelo (.ecm/.ski) com "so nao usados" e contagem de uso
 [x] descricao de addon (texto como no jogo, §E3e) | [x] links clicaveis nos vinculos | [x] "dropado por" no item | [x] efeito do addon no bloco de addons
-[ ] A barras de probabilidade na propria grade (verde, com cadeado "fixo" e soma Σ 100%)
+[x] A barras de probabilidade na propria grade: clicar/arrastar muda, cadeado fixa o slot, os livres se ajustam p/ manter Σ 100%; Σ verde/vermelho no 1o slot do grupo
 [ ] A editor de addons (janela): chance de 0-4 soquetes, chance de 0-N addons, lista de addons com barra e "fixo", adicionar/remover/ordenar, Σ 100%
 [ ] A editor de drop do monstro (janela): chance de 0/1/2/3 drops, vezes de drop, lista com icone/nome/barra/fixo, adicionar/remover/ordenar
 [ ] B editor de probabilidades de receita (itens resultantes com barras)
