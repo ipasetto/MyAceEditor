@@ -2301,11 +2301,13 @@ public sealed class EditorForm : Form
         var right = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
         _qInfo.BackColor = CSurface2; _qInfo.ForeColor = CFg;
         _qStatus.ForeColor = CMuted; _qStatus.BackColor = CSurface2;
-        var editRow = new TableLayoutPanel { Dock = DockStyle.Top, Height = 44, ColumnCount = 4, Padding = new Padding(10, 6, 10, 6), BackColor = CSurface };
+        var editRow = new TableLayoutPanel { Dock = DockStyle.Top, Height = 44, ColumnCount = 6, Padding = new Padding(10, 6, 10, 6), BackColor = CSurface };
         editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
         editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         Button Btn(string t, Action a, bool accent = false)
         {
             var b = new Button { Text = t, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = accent ? CAccent : CSurface2, ForeColor = accent ? Color.White : CFg, Margin = new Padding(4, 0, 0, 0) };
@@ -2317,6 +2319,8 @@ public sealed class EditorForm : Form
         editRow.Controls.Add(_qName, 1, 0);
         editRow.Controls.Add(Btn("Aplicar nome", ApplyQuestName, accent: true), 2, 0);
         editRow.Controls.Add(Btn("💾 Salvar tasks.data", SaveTasks), 3, 0);
+        editRow.Controls.Add(Btn(Loc.T("quest.clone", "Clonar quest"), CloneQuest), 4, 0);
+        editRow.Controls.Add(Btn(Loc.T("quest.delete", "Excluir quest"), DeleteQuest), 5, 0);
 
         var tabs = new TabControl { Dock = DockStyle.Fill };
         // Dados
@@ -2385,6 +2389,16 @@ public sealed class EditorForm : Form
         if (v is "0" or "" || _refs is null) return "";
         var n = f.Name.ToLowerInvariant();
         FieldKind kind = n.Contains("npc") ? FieldKind.ItemRef : n.Contains("monstro") ? FieldKind.MonsterRef : n.Contains("item") ? FieldKind.ItemRef : FieldKind.Plain;
+        // entradas de lista ("Monstro 1: ID", "Prêmio 2.1: ID", "Item dado 3: quantidade"): o sufixo diz o que é
+        if (n.Contains(':'))
+        {
+            var suffix = n[(n.LastIndexOf(':') + 1)..].Trim();
+            kind = suffix == "item que cai" ? FieldKind.ItemRef
+                : suffix == "id" ? (n.StartsWith("monstro") ? FieldKind.MonsterRef : FieldKind.ItemRef)
+                : FieldKind.Plain;
+        }
+        else if (n.StartsWith("controle de monstros")) kind = FieldKind.Plain;
+        if (n == "nova quest") return _tasks?.AllNodes().FirstOrDefault(x => x.Id.ToString() == v) is { } nq ? "→ " + TasksFile.SplitColor(nq.Name).Text : "";
         if (n.StartsWith("quest") || n.Contains("quest anterior") || n.Contains("quest exclusiva") || n is "pai" or "irmão anterior" or "próximo irmão" or "primeiro filho" or "quest conjunta")
             return _tasks?.AllNodes().FirstOrDefault(x => x.Id.ToString() == v) is { } qq ? "→ " + TasksFile.SplitColor(qq.Name).Text : "";
         if (n.Contains("classe") && n.StartsWith("nº") is false && v.Length > 0 && n == "nº de classes") return "";
@@ -2399,6 +2413,31 @@ public sealed class EditorForm : Form
     }
 
     private bool _tasksDirty;
+    // Clonar/excluir quest principal (issue #16). A cópia ganha IDs novos e fica logo depois da original.
+    private QuestNode? RootOfSelected()
+    {
+        var q = _qTree.SelectedNode?.Tag as QuestNode;
+        while (q?.Parent is not null) q = q.Parent;
+        return q;
+    }
+
+    private void CloneQuest()
+    {
+        if (_tasks is not { FullSchema: true } || RootOfSelected() is not { } src) { _qStatus.Text = Loc.T("quest.pickRoot", "Escolha uma quest (com o tasks.data completo carregado)."); return; }
+        var copy = _tasks.CloneRoot(src);
+        MarkTasksDirty(string.Format(Loc.T("quest.cloned", "Quest {0} clonada como {1} ({2} subquests)"), src.Id, copy.Id, copy.Descendants().Count()));
+        _qSearch.Text = copy.Id.ToString();
+        foreach (TreeNode n in _qTree.Nodes) if (n.Tag is QuestNode qn && qn.Id == copy.Id) { _qTree.SelectedNode = n; break; }
+    }
+
+    private void DeleteQuest()
+    {
+        if (_tasks is not { FullSchema: true } || RootOfSelected() is not { } q) return;
+        if (MessageBox.Show(this, string.Format(Loc.T("quest.confirmDelete", "Excluir a quest {0} \"{1}\" e as {2} subquests dela?\n\nNPCs que oferecem essa quest continuam apontando para o ID (confira na aba Elements)."),
+                q.Id, TasksFile.SplitColor(q.Name).Text, q.Descendants().Count()), Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (_tasks.DeleteRoot(q)) { RefreshQuests(); MarkTasksDirty(string.Format(Loc.T("quest.deleted", "Quest {0} excluída"), q.Id)); }
+    }
+
     private void MarkTasksDirty(string msg) { _tasksDirty = true; _qStatus.Text = msg + " — clique em Salvar tasks.data para gravar."; }
 
     private void LoadTasks(string path)

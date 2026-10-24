@@ -30,7 +30,7 @@ public sealed class TasksFile
     public List<QuestNode>? Roots { get; }
     public string? SchemaError { get; }
     public bool FullSchema => Roots is not null;
-    public TaskIndex Index { get; }
+    public TaskIndex Index { get; private set; }
     public bool RoundTripVerified { get; }
     public string? ReadOnlyReason { get; private set; }
     public bool CanWrite => RoundTripVerified && ReadOnlyReason is null;
@@ -165,6 +165,76 @@ public sealed class TasksFile
     }
 
     public const int MaxNameLength = NameChars - 1;
+
+    // ---------- criar (clonar) e excluir quests (issue #16) ----------
+
+    /// <summary>
+    /// Copia uma quest principal (com as subquests) logo depois dela, com IDs novos (maior ID + 1...). O ID é a chave
+    /// dos textos (XOR), então nome, textos e diálogos são recodificados; os vínculos da árvore (pai, irmãos, primeiro
+    /// filho) passam a apontar para as cópias. Textos internos do bloco fixo (assinatura, textos de quest) não são
+    /// recodificados [?].
+    /// </summary>
+    public QuestNode CloneRoot(QuestNode src)
+    {
+        if (Roots is null) throw new InvalidOperationException("Clonar exige o esquema completo do tasks.data.");
+        int next = Index.Nodes.Max(n => n.Id) + 1;
+        var map = new Dictionary<int, int>();
+        void Plan(QuestNode q) { map[q.Id] = next++; foreach (var c in q.Children) Plan(c); }
+        Plan(src);
+        var copy = CloneNode(src, null, map);
+        // a cópia é principal: sem pai e sem irmãos
+        foreach (var name in new[] { "Pai", "Irmão anterior", "Próximo irmão" }) SetLink(copy, name, 0);
+        int at = Roots.IndexOf(src);
+        Roots.Insert(at < 0 ? Roots.Count : at + 1, copy);
+        Index = new TaskIndex(Roots, Quests);
+        return copy;
+    }
+
+    /// <summary>Remove uma quest principal (e as subquests dela).</summary>
+    public bool DeleteRoot(QuestNode q)
+    {
+        if (Roots is null || !Roots.Remove(q)) return false;
+        Index = new TaskIndex(Roots, Quests);
+        return true;
+    }
+
+    static QuestNode CloneNode(QuestNode s, QuestNode? parent, Dictionary<int, int> map)
+    {
+        int id = map[s.Id];
+        var q = new QuestNode
+        {
+            Id = id, Parent = parent, Fixed = (byte[])s.Fixed.Clone(), TextRaw = (byte[])s.TextRaw.Clone(),
+            Fields = s.Fields.Select(f => f.Name == "ID" && f.Offset == 0 ? f with { PreservedValue = id } : f).ToList(),   // ID protegido = o novo
+            Name = s.Name, OriginalName = "\u0001", TextsChanged = true,   // nome e textos sempre regravados com a chave nova
+            NullFlags = new List<bool>(s.NullFlags),
+        };
+        BitConverter.GetBytes(id).CopyTo(q.Fixed, 0);
+        Array.Copy(s.Texts, q.Texts, s.Texts.Length);
+        for (int i = 0; i < s.Talks.Length; i++)
+        {
+            var t = s.Talks[i];
+            q.Talks[i] = new TalkProc
+            {
+                IdTalk = t.IdTalk, Text = t.Text, OriginalText = "\u0001", Raw = Array.Empty<byte>(),
+                Windows = t.Windows.Select(w => new TalkWindow
+                {
+                    Id = w.Id, Parent = w.Parent, Text = w.Text,
+                    Options = w.Options.Select(o => new TalkOption { Param = o.Param, Id = o.Id, Text = o.Text, OriginalText = "\u0001", Raw = Array.Empty<byte>() }).ToList(),
+                }).ToList(),
+            };
+        }
+        // vínculos da árvore que apontam para quests copiadas passam a apontar para as cópias
+        foreach (var name in new[] { "Pai", "Irmão anterior", "Próximo irmão", "Primeiro filho" })
+            if (q.Fields.FirstOrDefault(f => f.Name == name) is { } f && map.TryGetValue(BitConverter.ToInt32(q.Fixed, f.Offset), out var nid))
+                BitConverter.GetBytes(nid).CopyTo(q.Fixed, f.Offset);
+        foreach (var c in s.Children) q.Children.Add(CloneNode(c, q, map));
+        return q;
+    }
+
+    static void SetLink(QuestNode q, string name, int value)
+    {
+        if (q.Fields.FirstOrDefault(f => f.Name == name) is { } f) BitConverter.GetBytes(value).CopyTo(q.Fixed, f.Offset);
+    }
 
     /// <summary>Separa o código de cor do PW ("^RRGGBB") do texto.</summary>
     public static (string Text, System.Drawing.Color? Color) SplitColor(string s)

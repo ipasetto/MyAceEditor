@@ -232,26 +232,56 @@ public sealed class TaskSchema93
         Skip(changeKeys * 9);
         Skip(pqExp * (64 + 64 * 8)); Skip(monContrib * 16);
         Skip((delvRegions + enterRegions + leaveRegions) * 24);
-        Skip(premItems * 17); Skip(givenItems * 17); Skip(teamMems * 32);
-        Skip(monWanted * 30); Skip(itemsWanted * 17);
+        G("Itens exigidos"); for (int i = 0; i < premItems; i++) Item($"Item exigido {i + 1}");
+        G("Itens dados"); for (int i = 0; i < givenItems; i++) Item($"Item dado {i + 1}");
+        Skip(teamMems * 32);
+        G("Monstros a matar"); for (int i = 0; i < monWanted; i++) Monster($"Monstro {i + 1}");
+        G("Itens a coletar"); for (int i = 0; i < itemsWanted; i++) Item($"Item a coletar {i + 1}");
+        G("");
         Skip(expCnt * (64 + 64 * 8)); Skip(taskChars * 128);
         Skip((reachSites + leaveSites) * 24);
         // 58: prêmios (sucesso, falha) + por razão + por itens
-        Award(); Award();
+        Award("Prêmio (sucesso)"); Award("Prêmio (falha)");
         for (int k = 0; k < 2; k++) { int sc = I(); Skip(AwardScales * 4); for (int i = 0; i < sc; i++) Award(); }
         for (int k = 0; k < 2; k++) { int sc = I(); Skip(4 + AwardScales * 4); for (int i = 0; i < sc; i++) Award(); }
     }
 
-    // AWARD_DATA v93 (campos não registrados: prêmios aninhados ficam preservados como bytes)
-    void Award()
+    // ITEM_WANTED v93 (17 B): id, comum, quantidade, chance, validade
+    void Item(string n) { I($"{n}: ID"); B($"{n}: comum"); I($"{n}: quantidade"); F($"{n}: chance"); I($"{n}: validade (s)"); }
+
+    // MONSTER_WANTED v93 (30 B): monstro, quantidade, item que cai, qtd, comum, chance, nível do matador, DPH, DPS
+    void Monster(string n)
     {
-        Skip(7 * 4 + 6 * 4);                                  // ouro, exp, nova quest, SP, reputação, período, estação; armazéns/inventário
-        Skip(4 + 4 + 12 + 4 + 4 * 1 + 4);                     // fúria, mundo, ponto, ctrl monstros, 4 bools, canal
-        int cand = I(); Skip(4); int summoned = I(); Skip(4); Skip(2);
+        I($"{n}: ID"); I($"{n}: quantidade"); I($"{n}: item que cai"); I($"{n}: qtd. do item"); B($"{n}: item comum"); F($"{n}: chance do item");
+        B($"{n}: nível do matador"); I($"{n}: DPH"); I($"{n}: DPS");
+    }
+
+    // AWARD_DATA v93. Com nome (sucesso/falha) os valores viram campos editáveis; sem nome (prêmios por razão/itens) só pula.
+    void Award(string? group = null)
+    {
+        if (group is null)
+        {
+            Skip(7 * 4 + 6 * 4);                              // ouro, exp, nova quest, SP, reputação, período, estação; armazéns/inventário
+            Skip(4 + 4 + 12 + 4 + 4 * 1 + 4);                 // fúria, mundo, ponto, ctrl monstros, 4 bools, canal
+        }
+        else
+        {
+            G(group);
+            I("Ouro"); I("Experiência"); I("Nova quest"); I("Espírito (SP)"); I("Reputação"); I("Novo período"); I("Estação de transporte");
+            I("Banco"); I("Banco 2"); I("Banco 3"); I("Banco 4"); I("Inventário"); I("Inventário do mascote");
+            I("Limite de fúria"); I("Mundo do teleporte"); Zone("Teleporte"); I("Controle de monstros"); B("Ativar controlador");
+            B("Prêmio pelo nível"); B("Divórcio"); B("Enviar mensagem"); I("Canal da mensagem");
+        }
+        int cand = I(group is null ? null : "Nº de grupos de itens", editable: false); Skip(4); int summoned = I(); Skip(4); Skip(2);
         Skip(4 + 1 + 4 + 4 + 8 * 4);                          // dividendo, habilidade, contribuições
         int ranking = I(); Skip(4); int keys = I(); Skip(12);
         Skip(1 + 4 + 4); int display = I(); Skip(4); int exp = I(); Skip(8); int chars = I(); Skip(4);
-        for (int i = 0; i < cand; i++) { Skip(1); int n = I(); Skip(n * 17); }
+        for (int i = 0; i < cand; i++)
+        {
+            if (group is null) { Skip(1); int n0 = I(); Skip(n0 * 17); continue; }
+            B($"Grupo {i + 1}: sortear um"); int n = I($"Grupo {i + 1}: nº de itens", editable: false);
+            for (int j = 0; j < n; j++) Item($"Prêmio {i + 1}.{j + 1}");
+        }
         if (summoned > 0) Skip(1 + 4 + 1 + summoned * 16);
         if (ranking > 0) Skip(1 + ranking * 21);
         Skip(keys * 9); Skip(display * 4); Skip(exp * (64 + 64 * 8)); Skip(chars * 128);
