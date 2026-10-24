@@ -19,7 +19,7 @@
 [ ] rotulos PT melhores p/ campos (ex. "Magico defences 1 min")
 [x] nomes de skill (skillstr.txt) e de quest nos vinculos (falta clicar e ir a quest)
 [ ] icones de monstro/NPC
-[ ] importar/exportar item (entre elements de versoes diferentes, .rules)
+[x] converter elements entre versoes (Salvar em outra versao) | [x] traduzir com outro elements.data | [ ] importar/exportar item avulso entre arquivos
 
 [x] desfazer/refazer + historico (#1) | [x] procurar erros + corrigir probabilidades (#4) | [x] alterar campo em lote (somar/multiplicar/sequencia/aleatorio/substituir)
 [x] tooltip da lista estilo RAE + vinculos por espaco de ID | [x] tipos/subtipos com vinculos e duplo clique
