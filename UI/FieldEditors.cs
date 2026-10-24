@@ -131,8 +131,12 @@ internal static class FieldEditors
             if (i >= 0) { lv.SelectedIndices.Add(i); lv.EnsureVisible(i); }
             search.Focus();
         };
+        // a seleção da lista virtual é lida antes de fechar: depois de fechada (seletor aberto por outra janela modal)
+        // SelectedIndices volta vazio e o "OK" não escolhia nada
+        List<Item> chosen = new();
+        f.FormClosing += (_, _) => chosen = lv.SelectedIndices.Cast<int>().OrderBy(i => i).Where(i => i < view.Count).Select(i => view[i]).ToList();
         if (f.ShowDialog(owner) != DialogResult.OK) return null;
-        return lv.SelectedIndices.Cast<int>().OrderBy(i => i).Select(i => view[i]).ToList();
+        return chosen;
     }
 
     /// <summary>Operações de "Alterar campo nos selecionados" (como o "modificar valores" do RAE, código nosso).</summary>
