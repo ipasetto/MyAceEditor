@@ -62,6 +62,7 @@ internal static class Program
                     using (var b = MyAceEditor.UI.GameDraw.Render(d, tex, outlines: true)) b.Save(Path.Combine(args[3], Path.GetFileNameWithoutExtension(e.Path) + ".png"));
             return;
         }
+        if (args.Length >= 4 && args[0] == "--convert") { ConvertElements(args[1], args[2], args[3]); return; }   // --convert <elements.data> <cfg destino> <saída>
         if (args.Length >= 3 && args[0] == "--gshop") { TestGShop(args[1], args[2]); return; }
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
@@ -267,6 +268,21 @@ internal static class Program
     }
 
     // --refs <elements.data> <bloco> <id>: vínculos resolvidos de um item + quem usa o 1o item referenciado (refs.txt).
+    // --convert: converte o elements.data para a versão do .cfg de destino e prova relendo (convert-report.txt).
+    private static void ConvertElements(string dataPath, string targetCfg, string outPath)
+    {
+        var src = CfgCatalog.Load(dataPath).Module;
+        var cfg = ElementsCfg.Load(targetCfg);
+        int ver = CfgCatalog.VersionFromName(targetCfg) ?? throw new InvalidDataException("versão não está no nome do .cfg");
+        var (data, rep) = ElementsConverter.Convert(src, cfg, ver);
+        var err = ElementsConverter.Verify(data, cfg, src);
+        File.WriteAllBytes(outPath, data);
+        var sb = new StringBuilder($"v{src.Version & 0xFFFF} -> v{ver}: {rep.Items:N0} itens em {rep.Blocks} blocos; campos descartados {rep.FieldsDropped}, criados {rep.FieldsAdded}; blocos descartados {rep.BlocksDropped}, criados {rep.BlocksAdded}; {data.Length:N0} bytes\n");
+        sb.AppendLine("prova (reler com o .cfg de destino): " + (err ?? "OK"));
+        foreach (var n in rep.Notes.Take(20)) sb.AppendLine("  " + n);
+        File.AppendAllText("convert-report.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
     // --gshop <gshop.data> <gshopsev.data>: prova de leitura/gravação da loja (gshop-report.txt).
     private static void TestGShop(string clientPath, string serverPath)
     {

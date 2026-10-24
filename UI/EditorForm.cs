@@ -136,6 +136,9 @@ public sealed class EditorForm : Form
         var arq = M(); var ed = M(); var aj = M(); var lg = M(); var view = M(); var tools = M();
         var findErrors = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.E }; findErrors.Click += (_, _) => FindErrors();
         tools.DropDownItems.Add(findErrors);
+        var translateFrom = new ToolStripMenuItem { ForeColor = CFg }; translateFrom.Click += (_, _) => TranslateFromOther();
+        tools.DropDownItems.Add(translateFrom);
+        Bind(() => translateFrom.Text = Loc.T("menu.translateFrom", "&Traduzir com outro elements.data…"));
         var showUnused = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = !_hideUnused };
         showUnused.CheckedChanged += (_, _) =>
         {
@@ -150,7 +153,9 @@ public sealed class EditorForm : Form
         var saveAs = new ToolStripMenuItem { ForeColor = CFg }; saveAs.Click += (_, _) => SaveElementsAs();
         var exit = new ToolStripMenuItem { ForeColor = CFg }; exit.Click += (_, _) => Close();
         var exportCsv = new ToolStripMenuItem { ForeColor = CFg }; exportCsv.Click += (_, _) => ExportBlockCsv();
-        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, new ToolStripSeparator(), exportCsv, exit });
+        var convert = new ToolStripMenuItem { ForeColor = CFg }; convert.Click += (_, _) => SaveOtherVersion();
+        Bind(() => convert.Text = Loc.T("menu.convert", "Salvar em &outra versão…"));
+        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, convert, new ToolStripSeparator(), exportCsv, exit });
         Bind(() => exportCsv.Text = Loc.T("menu.exportCsv", "&Exportar bloco atual (planilha CSV)…"));
         var newItem = new ToolStripMenuItem { ForeColor = CFg }; newItem.Click += (_, _) => AddItem();
         var removeItem = new ToolStripMenuItem { ForeColor = CFg }; removeItem.Click += (_, _) => RemoveItem();
@@ -1163,6 +1168,73 @@ public sealed class EditorForm : Form
     private static string Pretty(string block) =>
         BlockPt.TryGetValue(block, out var p) ? Loc.T("block." + block, p)
         : System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(block.Replace("_ESSENCE", "").Replace("_", " ").ToLowerInvariant());
+
+    // ---------- traduzir com outro elements.data (como o DataTranslator / "Localization" do RAE) ----------
+    // Copia nomes e textos (campos de texto UTF-16) pelo ID, bloco a bloco, de outro elements.data já traduzido,
+    // de qualquer versão. Só troca o que é diferente e não vazio no outro arquivo. Um passo de desfazer.
+    private void TranslateFromOther()
+    {
+        if (_store.Current is not { } mod || mod.Source is not ElementsLayout layout) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
+        using var dlg = new OpenFileDialog { Filter = "elements.data (*.data)|*.data|*.*|*.*", Title = Loc.T("tr.pick", "elements.data já traduzido (qualquer versão)") };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        Module other;
+        try { Cursor = Cursors.WaitCursor; other = CfgCatalog.Load(dlg.FileName).Module; }
+        catch (Exception ex) { Error(Loc.T("tr.loadFail", "Não consegui ler o outro arquivo"), ex); return; }
+        finally { Cursor = Cursors.Default; }
+        var plan = ElementsTranslator.Plan(mod, ElementsCfg.Load(layout.ConfigPath), other);
+        var changes = plan.Select(c => (c.Item, c.Field, c.Value)).ToList();
+        var perBlock = plan.GroupBy(c => c.Block.Name).ToDictionary(g => g.Key, g => g.Count());
+        if (changes.Count == 0) { MessageBox.Show(this, Loc.T("tr.none", "Nada a traduzir: os textos já são iguais ao outro arquivo."), Loc.T("tr.title", "Traduzir")); return; }
+        var top = string.Join("\n", perBlock.OrderByDescending(x => x.Value).Take(12).Select(x => $"  {Pretty(x.Key)}: {x.Value:N0}"));
+        if (MessageBox.Show(this, string.Format(Loc.T("tr.confirm", "{0:N0} textos diferentes em {1} blocos (versão do outro arquivo: v{2}).\n\n{3}\n\nAplicar? Dá para desfazer com Ctrl+Z."),
+                changes.Count, perBlock.Count, other.Version & 0xFFFF, top), Loc.T("tr.title", "Traduzir"), MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+        int skipped = 0;
+        using (_edits.Batch(string.Format(Loc.T("hist.translate", "Traduzir {0:N0} textos"), changes.Count)))
+            foreach (var (it, f, v) in changes)
+            {
+                try { _edits.SetField(it, f, Field.Of(it.Fields[f].Type, v), ""); }
+                catch { skipped++; }
+            }
+        _unusedCache.Clear(); _list.Invalidate();
+        if (_current is not null) ShowItem(_current);
+        Status(string.Format(Loc.T("tr.done", "{0:N0} textos traduzidos (salve para gravar)"), changes.Count - skipped));
+    }
+
+    // ---------- salvar em outra versão (issue #24) ----------
+    // Estratégia: trabalhar na versão mais nova e descer (ou subir) só na hora de salvar para outro cliente/servidor.
+    private void SaveOtherVersion()
+    {
+        if (_store.Current is not { } mod || mod.Source is not ElementsLayout) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
+        var dir = Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg");
+        var cfgs = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.cfg")
+            .Select(f => (Path: f, Ver: CfgCatalog.VersionFromName(f))).Where(x => x.Ver is not null).OrderByDescending(x => x.Ver).ThenBy(x => x.Path).ToList() : new();
+        if (cfgs.Count == 0) { Status("Nenhum .cfg encontrado."); return; }
+        int cur = mod.Version & 0xFFFF;
+        using var f = new Form { Text = Loc.T("conv.title", "Salvar em outra versão"), Width = 520, Height = 200, StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false, MinimizeBox = false, MaximizeBox = false, FormBorderStyle = FormBorderStyle.FixedDialog, BackColor = CSurface, ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) };
+        var info = new Label { Dock = DockStyle.Top, Height = 54, Padding = new Padding(10), ForeColor = CMuted,
+            Text = string.Format(Loc.T("conv.info", "Arquivo atual: v{0}. Campos e listas que a outra versão não tem são descartados; os que ela tem a mais nascem zerados. Os dados atuais não mudam."), cur) };
+        var combo = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
+        foreach (var c in cfgs) combo.Items.Add($"v{c.Ver}  —  {Path.GetFileNameWithoutExtension(c.Path)}" + (c.Ver == cur ? "  " + Loc.T("conv.current", "(atual)") : ""));
+        combo.SelectedIndex = 0;
+        var ok = new Button { Text = Loc.T("conv.go", "Converter e salvar…"), Dock = DockStyle.Bottom, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White, DialogResult = DialogResult.OK };
+        f.Controls.Add(combo); f.Controls.Add(info); f.Controls.Add(ok);
+        if (f.ShowDialog(this) != DialogResult.OK) return;
+        var (cfgPath, ver) = cfgs[combo.SelectedIndex];
+        using var dlg = new SaveFileDialog { Filter = "elements.data (*.data)|*.data", FileName = $"elements_v{ver}.data", InitialDirectory = _dataPath is null ? "" : Path.GetDirectoryName(_dataPath) };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            Cursor = Cursors.WaitCursor;
+            var target = ElementsCfg.Load(cfgPath);
+            var (data, rep) = ElementsConverter.Convert(mod, target, ver!.Value);
+            if (ElementsConverter.Verify(data, target, mod) is { } err) throw new InvalidDataException(Loc.T("conv.verifyFail", "O arquivo convertido não passou na releitura: ") + err);
+            AtomicFileSave.Write(dlg.FileName, data);
+            MessageBox.Show(this, string.Format(Loc.T("conv.done", "Salvo em v{0}: {1:N0} itens.\nCampos descartados: {2} · criados (zerados): {3}\nListas descartadas: {4} · criadas (vazias): {5}\n\nReleitura com o .cfg da v{0}: OK.\n{6}"),
+                ver, rep.Items, rep.FieldsDropped, rep.FieldsAdded, rep.BlocksDropped, rep.BlocksAdded, dlg.FileName), Loc.T("conv.title", "Salvar em outra versão"));
+        }
+        catch (Exception ex) { Error(Loc.T("conv.fail", "Falha ao converter"), ex); }
+        finally { Cursor = Cursors.Default; }
+    }
 
     // ---------- procurar erros ----------
     private ErrorsWindow? _errors;
@@ -2549,7 +2621,7 @@ public sealed class EditorForm : Form
     private Control BuildCheckView()
     {
         var root = new Panel { Dock = DockStyle.Fill, BackColor = CBg, Padding = new Padding(16) };
-        var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 118, ColumnCount = 3, BackColor = CBg };
+        var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 4 * 38 + 6, ColumnCount = 3, BackColor = CBg };   // 4 linhas: cliente, servidor, verificar, corrigir
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
@@ -2566,11 +2638,11 @@ public sealed class EditorForm : Form
         form.Controls.Add(new Label { Text = "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).", Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
         form.SetColumnSpan(form.GetControlFromPosition(0, 2)!, 2);
         form.Controls.Add(run, 2, 2);
-        var fix = B("🛠 Corrigir…", FixPair);
+        var fix = B("Corrigir…", FixPair); fix.BackColor = Color.FromArgb(255, 244, 214); fix.Font = new Font("Segoe UI Semibold", 10);
         form.Controls.Add(new Label { Text = "Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.", Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 3);
         form.SetColumnSpan(form.GetControlFromPosition(0, 3)!, 2);
         form.Controls.Add(fix, 2, 3);
-        for (int i = 0; i < 4; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        for (int i = 0; i < 4; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
 
         _chkList.Columns.Add("", 34);
         _chkList.Columns.Add("Item", 300);

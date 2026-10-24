@@ -115,7 +115,7 @@ public static class ElementsWriter
         }
         return raw;
     }
-    private static void EncodeField(CfgField field, string value, byte[] raw, int at)
+    internal static void EncodeField(CfgField field, string value, byte[] raw, int at)
     {
         string t = field.Type.ToLowerInvariant();
         if (t.StartsWith("wstring:") || t.StartsWith("string:"))
