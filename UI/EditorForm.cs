@@ -45,6 +45,18 @@ public sealed class EditorForm : Form
     private readonly ComboBox _findField = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
     private readonly ComboBox _findOp = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
     private readonly TextBox _findValue = new() { Width = 160, BorderStyle = BorderStyle.FixedSingle };
+    private readonly TextBox _findValue2 = new() { Width = 110, BorderStyle = BorderStyle.FixedSingle, Visible = false };
+    private readonly ComboBox _findScope = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
+    private readonly CheckBox _findKeep = new() { AutoSize = true, Padding = new Padding(8, 4, 0, 0) };
+    private readonly Label _findCount = new() { AutoSize = true, Padding = new Padding(10, 7, 0, 0) };
+    // opção do combo de campos: Key null = qualquer campo
+    private sealed record FindFieldOpt(string? Key, string Text) { public override string ToString() => Text; }
+    private static readonly (SearchOp Op, string Key, string Pt)[] FindOps =
+    {
+        (SearchOp.Eq, "find.eq", "="), (SearchOp.Ne, "find.ne", "≠"), (SearchOp.Gt, "find.gt", ">"), (SearchOp.Lt, "find.lt", "<"),
+        (SearchOp.Ge, "find.ge", "≥"), (SearchOp.Le, "find.le", "≤"), (SearchOp.Between, "find.between", "entre"),
+        (SearchOp.Contains, "find.contains", "contém"), (SearchOp.NotContains, "find.notContains", "não contém"), (SearchOp.StartsWith, "find.startsWith", "começa com"),
+    };
     private readonly ListView _findList = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None };
     private readonly Label _idLabel = new() { Dock = DockStyle.Left, Width = 92, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI Semibold", 11) };
     private readonly List<Item> _history = new();
@@ -395,19 +407,44 @@ public sealed class EditorForm : Form
         // Buscar por campo (no bloco atual)
         var tFind = new TabPage() { BackColor = CSurface };
         Bind(() => tFind.Text = Loc.T("detail.search", "Buscar"));
-        var findBar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(6, 6, 6, 0), BackColor = CSurface };
-        _findOp.Items.AddRange(new object[] { "=", "≠", ">", "<", "contém" }); _findOp.SelectedIndex = 0;
-        var findBtn = new Button { Text = "Buscar", Height = 26, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
+        // Pesquisa avançada: onde (bloco/todos), campo (ou qualquer), condição, valor(es); ações sobre os resultados
+        var findBar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(6, 6, 6, 0), BackColor = CSurface, WrapContents = false };
+        var findBtn = new Button { Height = 26, AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
         findBtn.Click += (_, _) => RunFind();
-        _findValue.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; RunFind(); } };
-        var findLbl = new Label { AutoSize = true, Padding = new Padding(0, 6, 0, 0), ForeColor = CMuted };
-        Bind(() => { findLbl.Text = Loc.T("list.field", "Campo"); findBtn.Text = Loc.T("detail.search", "Buscar"); });
-        findBar.Controls.AddRange(new Control[] { findLbl, _findField, _findOp, _findValue, findBtn });
-        _findList.Columns.Add("ID", 70, HorizontalAlignment.Right); _findList.Columns.Add("Nome", 300); _findList.Columns.Add("Valor", 200);
-        Bind(() => { _findList.Columns[0].Text = Loc.T("list.id", "ID"); _findList.Columns[1].Text = Loc.T("list.name", "Nome"); _findList.Columns[2].Text = Loc.T("list.value", "Valor"); });
+        foreach (var tb in new[] { _findValue, _findValue2 })
+            tb.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; RunFind(); } };
+        _findOp.SelectedIndexChanged += (_, _) => _findValue2.Visible = _findOp.SelectedIndex >= 0 && FindOps[_findOp.SelectedIndex].Op == SearchOp.Between;
+        _findScope.SelectedIndexChanged += (_, _) => { if (_current is not null) FillFindFields(_current, force: true); };
+        _findField.DropDownWidth = 360; _findField.Width = 240;
+        findBar.Controls.AddRange(new Control[] { _findScope, _findField, _findOp, _findValue, _findValue2, findBtn, _findKeep });
+        var findActions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 38, Padding = new Padding(6, 5, 6, 0), BackColor = CSurface, WrapContents = false };
+        Button FindAct(Action a) { var b = new Button { Height = 26, AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = CSurface2, ForeColor = CFg }; b.Click += (_, _) => a(); findActions.Controls.Add(b); return b; }
+        var actBulk = FindAct(() => { var hits = FindSelectedHits(); if (hits.Count > 0) BulkChangeOn(hits.Select(h => h.Item).Distinct().ToList(), hits[0].Field); });
+        var actIds = FindAct(() => { var hits = FindSelectedHits(); if (hits.Count > 0) { Clipboard.SetText(string.Join(Environment.NewLine, hits.Select(h => h.Item.Id).Distinct())); Status(string.Format(Loc.T("find.copied", "{0} ID(s) copiados"), hits.Select(h => h.Item.Id).Distinct().Count())); } });
+        var actClear = FindAct(() => { _findList.Items.Clear(); _findCount.Text = ""; });
+        findActions.Controls.Add(_findCount);
+        _findList.Columns.Add("Bloco", 150); _findList.Columns.Add("ID", 70, HorizontalAlignment.Right); _findList.Columns.Add("Nome", 260);
+        _findList.Columns.Add("Campo", 200); _findList.Columns.Add("Valor", 200);
+        Bind(() =>
+        {
+            findBtn.Text = Loc.T("detail.search", "Buscar");
+            _findKeep.Text = Loc.T("find.keep", "Manter resultados");
+            _tip.SetToolTip(_findKeep, Loc.T("find.keepTip", "Soma a nova busca aos resultados que já estão na lista"));
+            int si = Math.Max(0, _findScope.SelectedIndex);
+            _findScope.Items.Clear(); _findScope.Items.AddRange(new object[] { Loc.T("find.scopeBlock", "Bloco atual"), Loc.T("find.scopeAll", "Todos os blocos") }); _findScope.SelectedIndex = si;
+            int oi = Math.Max(0, _findOp.SelectedIndex);
+            _findOp.Items.Clear(); foreach (var o in FindOps) _findOp.Items.Add(Loc.T(o.Key, o.Pt)); _findOp.SelectedIndex = oi;
+            actBulk.Text = Loc.T("find.bulk", "Alterar campo nos selecionados…");
+            actIds.Text = Loc.T("find.copyIds", "Copiar IDs");
+            actClear.Text = Loc.T("find.clear", "Limpar");
+            _findList.Columns[0].Text = Loc.T("find.colBlock", "Bloco"); _findList.Columns[1].Text = Loc.T("list.id", "ID");
+            _findList.Columns[2].Text = Loc.T("list.name", "Nome"); _findList.Columns[3].Text = Loc.T("list.field", "Campo"); _findList.Columns[4].Text = Loc.T("list.value", "Valor");
+        });
+        _findList.MultiSelect = true; _findList.HideSelection = false;
         _findList.SmallImageList = _treeIcons; _findList.BackColor = CSurface; _findList.ForeColor = CFg;
-        _findList.DoubleClick += (_, _) => { if (_findList.SelectedItems.Count > 0 && _findList.SelectedItems[0].Tag is Item it) GoToItem(it); };
-        tFind.Controls.Add(_findList); tFind.Controls.Add(findBar);
+        _findList.DoubleClick += (_, _) => { if (_findList.SelectedItems.Count > 0 && _findList.SelectedItems[0].Tag is SearchHit h) GoToItem(h.Item); };
+        _findList.KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.A) { foreach (ListViewItem li in _findList.Items) li.Selected = true; e.SuppressKeyPress = true; } };
+        tFind.Controls.Add(_findList); tFind.Controls.Add(findBar); tFind.Controls.Add(findActions);
         // Descrição e cor (item_ext_desc.txt do configs.pck)
         var tDesc = new TabPage() { BackColor = CTreeBg, Padding = new Padding(12) };
         Bind(() => tDesc.Text = Loc.T("detail.description", "Descrição e cor"));
@@ -1196,14 +1233,15 @@ public sealed class EditorForm : Form
         Status($"{sel.Count} item(ns) excluído(s)");
     }
 
-    private void BulkChange()
+    private void BulkChange() => BulkChangeOn(SelectedItems(), _grid.CurrentRow?.Tag as string);
+
+    // Itens de vários blocos (pesquisa em todos): só os campos que todos têm
+    private void BulkChangeOn(List<Item> sel, string? start)
     {
-        var sel = SelectedItems();
         if (sel.Count == 0) return;
         // mesmos campos da grade (sem realname nem os sem uso, se estiverem ocultos); começa no campo selecionado na grade
         var hidden = _hideUnused && BlockContaining(sel[0]) is { } blk ? UnusedFields(blk) : new HashSet<string>();
-        var fields = sel[0].Fields.Keys.Where(k => k != "realname" && !hidden.Contains(k)).ToList();
-        var start = _grid.CurrentRow?.Tag as string;
+        var fields = sel[0].Fields.Keys.Where(k => k != "realname" && !hidden.Contains(k) && sel.All(it => it.Fields.ContainsKey(k))).ToList();
         if (FieldEditors.BulkValue(this, sel, fields, FieldLabels.Label, start) is not { } op) return;
         var rng = new Random(op.Seed);   // mesma semente da prévia
         int n = 0, idx = 0;
@@ -2047,41 +2085,47 @@ public sealed class EditorForm : Form
         if (lines > 0) put("\n", val, false);
     }
 
-    private void FillFindFields(Item item)
+    private bool FindAllBlocks => _findScope.SelectedIndex == 1;
+
+    // Campos do combo: os do bloco atual, ou todos os nomes de campo de todos os blocos; "(qualquer campo)" no topo
+    private void FillFindFields(Item item, bool force = false)
     {
-        var keys = item.Fields.Keys.ToList();
-        if (_findField.Items.Count == keys.Count && _findField.Tag == _curBlock) return;
-        var keep = _findField.SelectedItem as string;
-        _findField.Items.Clear();
-        foreach (var k in keys) _findField.Items.Add(k);
-        _findField.Tag = _curBlock;
-        _findField.SelectedItem = keep != null && keys.Contains(keep) ? keep : keys.FirstOrDefault(k => k.Equals("Name", StringComparison.OrdinalIgnoreCase)) ?? keys.FirstOrDefault();
+        object tag = FindAllBlocks ? "all" : (object?)_curBlock ?? "none";
+        if (!force && Equals(_findField.Tag, tag) && _findField.Items.Count > 0) return;
+        var keys = FindAllBlocks
+            ? (_store.Current?.Lists ?? new()).Where(l => l.Items.Count > 0).SelectMany(l => l.Items[0].Fields.Keys).Distinct().OrderBy(k => FieldLabels.Label(k)).ToList()
+            : item.Fields.Keys.ToList();
+        var keep = (_findField.SelectedItem as FindFieldOpt)?.Key;
+        _findField.BeginUpdate(); _findField.Items.Clear();
+        _findField.Items.Add(new FindFieldOpt(null, Loc.T("find.anyField", "(qualquer campo)")));
+        foreach (var k in keys) _findField.Items.Add(new FindFieldOpt(k, $"{FieldLabels.Label(k)}  ·  {k}"));
+        _findField.EndUpdate();
+        _findField.Tag = tag;
+        var want = keep ?? keys.FirstOrDefault(k => k.Equals("Name", StringComparison.OrdinalIgnoreCase));
+        _findField.SelectedItem = _findField.Items.Cast<FindFieldOpt>().FirstOrDefault(o => o.Key == want) ?? _findField.Items[0];
     }
+
+    private List<SearchHit> FindSelectedHits() =>
+        (_findList.SelectedItems.Count > 0 ? _findList.SelectedItems.Cast<ListViewItem>() : _findList.Items.Cast<ListViewItem>())
+        .Select(li => li.Tag).OfType<SearchHit>().ToList();
 
     private void RunFind()
     {
-        if (_findField.SelectedItem is not string key) return;
+        if (_findField.SelectedItem is not FindFieldOpt fo || _findOp.SelectedIndex < 0) return;
         var block = _curBlock ?? CurrentItemBlock;
-        if (block is null) return;
-        string v = _findValue.Text.Trim(), op = _findOp.SelectedItem as string ?? "=";
-        bool Match(string fv)
-        {
-            if (op == "contém") return fv.Contains(v, StringComparison.OrdinalIgnoreCase);
-            if (op is ">" or "<" && double.TryParse(fv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var a)
-                && double.TryParse(v.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var b))
-                return op == ">" ? a > b : a < b;
-            return op == "=" ? fv == v : op == "≠" && fv != v;
-        }
-        _findList.BeginUpdate(); _findList.Items.Clear();
-        int n = 0;
-        foreach (var it in block.Items)
-        {
-            if (!it.Fields.TryGetValue(key, out var f) || !Match(f.Value)) continue;
-            _findList.Items.Add(new ListViewItem(new[] { it.Id, it.Name, f.Value }, IconIndexFor(it)) { Tag = it });
-            if (++n >= 2000) break;
-        }
+        IEnumerable<ItemList> blocks = FindAllBlocks ? _store.Current?.Lists ?? new() : block is null ? Array.Empty<ItemList>() : new[] { block };
+        var op = FindOps[_findOp.SelectedIndex].Op;
+        const int max = 5000;
+        var hits = AdvancedSearch.Run(blocks, fo.Key, op, _findValue.Text.Trim(), _findValue2.Text.Trim(), max);
+        _findList.BeginUpdate();
+        if (!_findKeep.Checked) _findList.Items.Clear();
+        var already = _findKeep.Checked ? _findList.Items.Cast<ListViewItem>().Select(li => li.Tag).OfType<SearchHit>().Select(h => (h.Item, h.Field)).ToHashSet() : new();
+        foreach (var h in hits)
+            if (already.Add((h.Item, h.Field)))
+                _findList.Items.Add(new ListViewItem(new[] { Pretty(h.Block.Name), h.Item.Id, TasksFile.SplitColor(h.Item.Name).Text, FieldLabels.Label(h.Field), h.Value }, IconIndexFor(h.Item)) { Tag = h });
         _findList.EndUpdate();
-        Status($"Buscar: {n}{(n >= 2000 ? "+" : "")} item(ns) em {Pretty(block.Name)} com {key} {op} {v}");
+        _findCount.Text = string.Format(Loc.T("find.count", "{0} resultado(s)"), _findList.Items.Count) + (hits.Count >= max ? " " + string.Format(Loc.T("find.max", "(parou em {0})"), max) : "");
+        Status(string.Format(Loc.T("find.status", "Buscar: {0} encontrado(s) — duplo clique abre o item"), hits.Count));
     }
 
     private void Navigate(int delta)
