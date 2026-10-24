@@ -12,6 +12,8 @@
 (.NET 10) para ler e editar os dados do jogo, cliente e servidor, numa única janela.
 Projeto **aberto e comunitário**: a meta é tornar o Perfect World 100% editável com uma ferramenta livre.
 
+**[⬇ Baixar a versão de teste (Windows)](https://github.com/ipasetto/MyAceEditor/releases)** · [como instalar, passo a passo](#como-instalar-passo-a-passo)
+
 ![Editor de elementos](docs/img/editor.png)
 
 ## Recursos
@@ -65,7 +67,28 @@ Projeto **aberto e comunitário**: a meta é tornar o Perfect World 100% editáv
 | ![Tooltip de monstro](docs/img/tooltip-monster.png) | ![Tooltip de arma](docs/img/tooltip-weapon.png) |
 | **Tooltip de monstro** | **Tooltip de arma** |
 
-## Rodar
+## Como instalar (passo a passo)
+
+Não precisa instalar nada além do próprio programa. Funciona no **Windows 10 ou 11 (64 bits)**.
+
+1. Abra a página **[Releases](https://github.com/ipasetto/MyAceEditor/releases)** e, na versão mais recente, clique no arquivo **`MyAceEditor-...-win-x64.zip`** para baixar (cerca de 64 MB).
+2. Na pasta Downloads, clique com o **botão direito** no `.zip` → **Extrair tudo…** → **Extrair**.
+   Não abra o programa de dentro do `.zip`: ele precisa das pastas `lang` e `PerfectWorld` que vêm junto.
+3. Entre na pasta extraída `MyAceEditor` e dê dois cliques em **`MyAceEditor.exe`**.
+4. Se aparecer **"O Windows protegeu o computador"**: clique em **Mais informações** → **Executar assim mesmo**.
+   Isso acontece porque o programa ainda não tem assinatura digital paga; o código é aberto e está todo aqui no GitHub.
+5. No programa: **Arquivo → Abrir pasta do Perfect World…** e escolha a pasta do seu jogo (a que tem a pasta `element` dentro).
+   Na próxima vez ele abre sozinho a mesma pasta.
+
+**Dicas**
+- O programa faz **cópia de segurança** antes de gravar, mas trabalhe numa **cópia da pasta do jogo** até se acostumar.
+- Para trocar o idioma: menu **Idioma / Language**.
+- Para atualizar: baixe o `.zip` novo e extraia por cima (ou numa pasta nova). Suas preferências ficam guardadas no Windows.
+- Achou um erro? Abra uma [Issue](https://github.com/ipasetto/MyAceEditor/issues) com um print da tela.
+
+> As versões **beta** são de teste: muita coisa já funciona, mas ainda pode haver erros.
+
+## Rodar a partir do código (desenvolvedores)
 
 Requer Windows e o SDK do .NET 10.
 

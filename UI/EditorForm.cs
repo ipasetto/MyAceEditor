@@ -963,9 +963,9 @@ public sealed class EditorForm : Form
     }
 
     // ---------- lista de itens (estilo Rody: seletor de bloco + lista plana) ----------
-    // Entrada do seletor de bloco. Block == null => Favoritos.
+    // Entrada do seletor de bloco. Block == null => Favoritos (ou Todos, com All).
     // Dyn calcula o texto na hora de desenhar, então acompanha o idioma sem recriar o combo.
-    private sealed record BlockEntry(ItemList? Block, string Label, bool Header = false, Func<string>? Dyn = null)
+    private sealed record BlockEntry(ItemList? Block, string Label, bool Header = false, Func<string>? Dyn = null, bool All = false)
     {
         public override string ToString() => Dyn?.Invoke() ?? Label;
     }
@@ -1017,6 +1017,9 @@ public sealed class EditorForm : Form
             foreach (var l in lists) foreach (var it in l.Items) _owner[it] = l;
             _blockCombo.Items.Add(new BlockEntry(null, $"★ Favoritos ({_favorites.Count})",
                 Dyn: () => $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})"));
+            // "Todos": itens de todos os blocos numa lista só (pedido do usuário, logo abaixo dos favoritos)
+            _blockCombo.Items.Add(new BlockEntry(null, "", All: true,
+                Dyn: () => $"{Loc.T("block.all", "◆ Todos os blocos")} ({_store.Current?.Lists.Sum(l => l.Items.Count) ?? 0:N0})"));
             var entries = lists.Select((b, i) => (b, i)).Where(x => x.b.Items.Count > 0).ToList();
             foreach (var cat in CategoryOrder)
             {
@@ -1042,6 +1045,7 @@ public sealed class EditorForm : Form
         if (_blockCombo.SelectedItem is BlockEntry { Header: true } && _blockCombo.SelectedIndex + 1 < _blockCombo.Items.Count)
         { _blockCombo.SelectedIndex++; return; }
         _curBlock = (_blockCombo.SelectedItem as BlockEntry)?.Block;
+        _allBlocks = _blockCombo.SelectedItem is BlockEntry { All: true };
         if (_curBlock is not null) SaveSetting("block", _curBlock.Name);
         BuildTypeFilter();
         RefreshView();
@@ -1094,6 +1098,8 @@ public sealed class EditorForm : Form
     [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     private static extern int SetWindowTheme(IntPtr hWnd, string? appName, string? idList);
 
+    private bool _allBlocks;   // seletor de bloco em "Todos os blocos"
+
     private static string Fv(Item it, string k) => it.Fields.GetValueOrDefault(k)?.Value ?? "0";
 
     // Recalcula os itens visíveis (bloco/favoritos + filtro de tipo + busca + ordenação).
@@ -1102,7 +1108,7 @@ public sealed class EditorForm : Form
         if (_store.Current is null) return;
         string q = _search.Text.Trim();
         IEnumerable<Item> src;
-        if (q.Length > 0 && _searchAll.Checked)
+        if ((q.Length > 0 && _searchAll.Checked) || (_curBlock is null && _allBlocks))
             src = _store.Current.Lists.SelectMany(l => l.Items);
         else if (_curBlock is null)
             src = _store.Current.Lists.SelectMany(l => l.Items.Where(it => _favorites.Contains(FavKey(l, it))));
@@ -1808,7 +1814,9 @@ public sealed class EditorForm : Form
                     _grid.Rows[r].Cells[2].Value = Loc.T("grid.flag", "sim / não");
                 }
                 if (desc.StartsWith("→")) _grid.Rows[r].Cells[2] = LinkCell(desc);
-                if (IsSpecialEditor(k)) _grid.Rows[r].Cells[0].ToolTipText = Loc.T("grid.dblClick", "Duplo clique para escolher");
+                var help = FieldHelp(k);
+                if (IsSpecialEditor(k)) _grid.Rows[r].Cells[0].ToolTipText = (help is null ? "" : help + "\n") + Loc.T("grid.dblClick", "Duplo clique para escolher");
+                else if (help is not null) _grid.Rows[r].Cells[0].ToolTipText = help;
             }
         }
         // efeito do addon (bloco EQUIPMENT_ADDON) e "dropado por" (monstros que dropam o item)
@@ -1878,6 +1886,21 @@ public sealed class EditorForm : Form
     };
 
     // ---------- editores por duplo clique (estilo Rody) ----------
+    // O que o campo faz no jogo (dica ao passar o mouse no nome); null = sem explicação ainda
+    private static string? FieldHelp(string key) => key.ToLowerInvariant() switch
+    {
+        "inhabit_type" => Loc.T("help.inhabit", "Onde o monstro/mascote vive e consegue andar: terra, água, ar ou combinações. Monstro de água não sai da água, voador fica no ar."),
+        "id_strategy" => Loc.T("help.strategy", "Como o monstro luta: corpo a corpo, à distância (parado ou recuando), combo ou sem se mover."),
+        "aggressive_mode" => Loc.T("help.aggressive", "Agressivo ataca quem chega perto; passivo só revida."),
+        "food_mask" => Loc.T("help.food", "Comidas que o mascote aceita (cada caixinha é um tipo de ração)."),
+        "combined_services" => Loc.T("help.services", "Serviços extras do NPC que não têm registro próprio: correio, leilão, reparar, refinar, pintar roupa…"),
+        "id_to_discover" => Loc.T("help.discover", "Ponto de teleporte que o jogador libera ao falar com este NPC."),
+        "file_model" => Loc.T("help.model", "Modelo 3D (.ecm) que o jogo desenha para este item, monstro ou NPC."),
+        "attack_speed" => Loc.T("help.attackSpeed", "Segundos entre um golpe e outro (menor = ataca mais rápido)."),
+        _ when System.Text.RegularExpressions.Regex.IsMatch(key, @"^targets_\d+_idTarget$") => Loc.T("help.target", "Destino deste teleporte (ponto do mapa)."),
+        _ => null,
+    };
+
     // Tipo do campo no bloco do item (ver FieldKinds.Of(bloco, campo))
     private FieldKind KindOf(Item? item, string key) => FieldKinds.Of(item is not null && _owner.TryGetValue(item, out var b) ? b.Name : null, key);
 
@@ -1987,7 +2010,16 @@ public sealed class EditorForm : Form
             }
             case FieldKind.SkillRef when _cfgs is { SkillNames.Count: > 0 } gc:
             {
-                static string Plain(string t) => System.Text.RegularExpressions.Regex.Replace(t, @"\^[0-9a-fA-F]{6}", "").Replace("\\r", " ").Replace("\r", " ").Replace("\n", " ");
+                // descrição do skillstr: tira cores, troca %d por N e junta numa linha: a frase do efeito primeiro e depois
+                // os dados "Alcance: ..." (habilidades de personagem trazem a dica inteira do jogo, com o nome e "Nv. %d" no topo)
+                static string Plain(string t)
+                {
+                    t = System.Text.RegularExpressions.Regex.Replace(t, @"\^[0-9a-fA-F]{6}", "").Replace("\\r", "\n").Replace("\\n", "\n").Replace("%d", "N").Replace("%%", "%");
+                    var lines = t.Split('\r', '\n').Select(l => System.Text.RegularExpressions.Regex.Replace(l, @"\s+", " ").Trim()).Where(l => l.Length > 0).ToList();
+                    if (lines.Count > 1 && System.Text.RegularExpressions.Regex.IsMatch(lines[0], @"Nv\.|Lv\.|Nível", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) lines.RemoveAt(0);
+                    var stats = lines.Where(l => l.Contains(':')).ToList();
+                    return string.Join(" · ", lines.Where(l => !l.Contains(':')).Concat(stats));
+                }
                 var opts3 = gc.SkillNames.OrderBy(k => k.Key).Select(k => (k.Key.ToString(), TasksFile.SplitColor(k.Value).Text,
                     gc.SkillDescs.TryGetValue(k.Key, out var d) ? Plain(d) : ""));
                 if (PickValue(Loc.T("pick.skill", "Escolher habilidade"), opts3, cur) is { } sv) SetField(item, key, sv);

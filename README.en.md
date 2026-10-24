@@ -12,6 +12,8 @@
 and edit the game data, client and server, in a single window.
 An **open, community project**: the goal is to make Perfect World 100% editable with a free tool.
 
+**[⬇ Download the test version (Windows)](https://github.com/ipasetto/MyAceEditor/releases)** · [how to install, step by step](#how-to-install-step-by-step)
+
 ![Elements editor](docs/img/en/editor.png)
 
 ## Features
@@ -67,7 +69,28 @@ Screenshots taken with a Brazilian client: game content (item, monster and quest
 | ![Monster tooltip](docs/img/en/tooltip-monster.png) | ![Weapon tooltip](docs/img/en/tooltip-weapon.png) |
 | **Monster tooltip** | **Weapon tooltip** |
 
-## Run
+## How to install (step by step)
+
+Nothing else to install besides the program itself. Works on **Windows 10 or 11 (64-bit)**.
+
+1. Open the **[Releases](https://github.com/ipasetto/MyAceEditor/releases)** page and, in the latest version, click the **`MyAceEditor-...-win-x64.zip`** file to download it (about 64 MB).
+2. In your Downloads folder, **right-click** the `.zip` → **Extract All…** → **Extract**.
+   Do not run the program from inside the `.zip`: it needs the `lang` and `PerfectWorld` folders that come with it.
+3. Open the extracted `MyAceEditor` folder and double-click **`MyAceEditor.exe`**.
+4. If **"Windows protected your PC"** shows up: click **More info** → **Run anyway**.
+   This happens because the program has no paid digital signature yet; the code is open and all here on GitHub.
+5. In the program: **File → Open Perfect World folder…** and pick your game folder (the one with the `element` folder inside).
+   Next time it opens the same folder by itself.
+
+**Tips**
+- The program makes a **backup** before saving, but work on a **copy of the game folder** until you get used to it.
+- To change the language: **Idioma / Language** menu.
+- To update: download the new `.zip` and extract it over the old one (or into a new folder). Your preferences are kept in Windows.
+- Found a bug? Open an [Issue](https://github.com/ipasetto/MyAceEditor/issues) with a screenshot.
+
+> **Beta** versions are for testing: a lot already works, but there may still be bugs.
+
+## Run from source (developers)
 
 Requires Windows and the .NET 10 SDK.
 

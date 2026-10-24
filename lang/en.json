@@ -55,7 +55,7 @@
   "dialog.delete": "Delete \"{0}\" (ID {1})?",
   "dialog.deleteTitle": "Delete item",
   "dialog.error": "Error",
-  "block.all": "All types",
+  "block.all": "◆ All blocks",
   "block.favorites": "★ Favorites",
   "block.noName": "(no name)",
   "sort.code": "Sort by: Code",
@@ -1476,5 +1476,14 @@
   "make.missing": "Recipe {0} not found",
   "make.recipe": "Recipe",
   "make.hint": "Click: show materials · double-click: open the recipe",
-  "make.page": "Page {0}: {1} ({2} recipes)"
+  "make.page": "Page {0}: {1} ({2} recipes)",
+  "help.inhabit": "Where the monster/pet lives and can move: land, water, air or combinations. A water monster does not leave the water, a flyer stays in the air.",
+  "help.strategy": "How the monster fights: melee, ranged (standing or backing off), combo or not moving.",
+  "help.aggressive": "Aggressive attacks whoever comes close; passive only fights back.",
+  "help.food": "Food the pet accepts (each box is a kind of food).",
+  "help.services": "Extra NPC services without their own record: mail, auction, repair, refine, dye clothes…",
+  "help.discover": "Teleport point the player unlocks by talking to this NPC.",
+  "help.model": "3D model (.ecm) the game draws for this item, monster or NPC.",
+  "help.attackSpeed": "Seconds between hits (lower = attacks faster).",
+  "help.target": "Destination of this teleport (map point)."
 }
