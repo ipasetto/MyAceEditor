@@ -18,6 +18,9 @@ public enum FieldKind
     ClassMask,   // máscara de classes (PW-KB §S24)
     ProcMask,    // regras do item (proc_type): cair, vender, trocar… (BitMasks.Proc)
     ImmuneMask,  // imunidades do monstro (immune_type) (BitMasks.Immune)
+    FoodMask,    // comida do mascote (food_mask) (BitMasks.Food)
+    ServiceMask, // serviços combinados do NPC (combined_services) (BitMasks.Services)
+    Waypoint,    // ponto de teleporte (id_to_discover, targets_N_idTarget) (WorldTargets)
     File,        // caminho de arquivo do cliente
     Color,       // cor ARGB
 }
@@ -49,6 +52,9 @@ public static class FieldKinds
         if (Regex.IsMatch(n, @"^id_[a-z_]+_service$")) return FieldKind.ServiceRef;
         if (n == "proc_type") return FieldKind.ProcMask;
         if (n == "immune_type") return FieldKind.ImmuneMask;
+        if (n == "food_mask") return FieldKind.FoodMask;
+        if (n == "combined_services") return FieldKind.ServiceMask;
+        if (n == "id_to_discover" || Regex.IsMatch(n, @"^targets_\d+_idtarget$")) return FieldKind.Waypoint;
         if (n.Contains("probability") || Regex.IsMatch(n, @"(^|_)prob(_|\d|$)")) return FieldKind.Probability;
 
         bool idLike = n.StartsWith("id_") || n.EndsWith("_id") || Regex.IsMatch(n, @"(^|_)id(_|\d|$)") || n.Contains("_id_");

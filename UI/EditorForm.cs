@@ -1645,9 +1645,17 @@ public sealed class EditorForm : Form
         return order;
     }
 
+    // mesmo item e mesma aba: depois de editar, a grade volta para a mesma posição (antes pulava para o topo)
+    private Item? _gridItem;
+    private string? _gridGroup;
+
     private void FillGrid(Item item)
     {
         var sel = SelectedGroupId;
+        bool same = ReferenceEquals(_gridItem, item) && sel == _gridGroup;
+        int keepTop = same ? _grid.FirstDisplayedScrollingRowIndex : -1;
+        var keepKey = same ? _grid.CurrentRow?.Tag as string : null;
+        _gridItem = item; _gridGroup = sel;
         _grid.Rows.Clear();
         var byGroup = item.Fields.GroupBy(f => DisplayGroup(f.Key)).ToDictionary(g => g.Key, g => g.ToList());
         var unused = _hideUnused ? UnusedFields(_owner.TryGetValue(item, out var blk) ? blk : null) : new HashSet<string>();
@@ -1717,6 +1725,11 @@ public sealed class EditorForm : Form
             var row = _grid.Rows[r]; row.ReadOnly = true;
             row.DefaultCellStyle.ForeColor = CMuted; row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Italic);
         }
+        if (keepTop > 0 && keepTop < _grid.Rows.Count) _grid.FirstDisplayedScrollingRowIndex = keepTop;
+        if (keepKey is not null)
+            foreach (DataGridViewRow r in _grid.Rows)
+                if (r.Tag as string == keepKey) { _grid.CurrentCell = r.Cells[0]; break; }
+        if (keepTop > 0 && keepTop < _grid.Rows.Count) _grid.FirstDisplayedScrollingRowIndex = keepTop;
     }
 
     // Campos sem valor em NENHUM item do bloco (0, vazio, -1) e os reservados: não têm efeito no jogo com este arquivo.
@@ -1747,7 +1760,61 @@ public sealed class EditorForm : Form
     // ---------- editores por duplo clique (estilo Rody) ----------
     private bool IsSpecialEditor(string key) =>
         FieldKinds.Of(key) is FieldKind.ClassMask or FieldKind.ProcMask or FieldKind.ImmuneMask or FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef or FieldKind.ServiceRef
-        || (key.Equals("file_icon", StringComparison.OrdinalIgnoreCase) && _atlas is not null);
+            or FieldKind.FoodMask or FieldKind.ServiceMask
+        || (FieldKinds.Of(key) == FieldKind.Waypoint && Waypoints().Count > 0)
+        || (FieldKinds.Of(key) == FieldKind.SkillRef && _cfgs?.SkillNames.Count > 0)
+        || (key.Equals("file_icon", StringComparison.OrdinalIgnoreCase) && _atlas is not null)
+        || key.Equals("file_model", StringComparison.OrdinalIgnoreCase)
+        || (_current is not null && _owner.TryGetValue(_current, out var ob) && FieldValues.Options(ob.Name, key) is not null
+            && _current.Fields.TryGetValue(key, out var of) && of.Type != FieldType.Bool);
+
+    // Lista "Escolha um valor": pseudo-itens no seletor comum (ID = valor gravado, Nome = significado).
+    private string? PickValue(string title, IEnumerable<(string Value, string Text, string Desc)> options, string current)
+    {
+        var items = options.Select(o => new Item { Id = o.Value, Name = o.Text, Fields = new() { ["desc"] = Field.Of(FieldType.String, o.Desc) } }).ToList();
+        var picked = FieldEditors.Pick(this, title, items, current, _ => -1, _treeIcons, it => it.Fields["desc"].Value, null, false);
+        return picked is { Count: > 0 } ? picked[0].Id : null;
+    }
+
+    // Pontos de teleporte com nome (maps\world\world_targets.txt do cliente), lidos uma vez por pasta do jogo
+    private Dictionary<int, WorldTarget>? _waypoints;
+    private string? _waypointsFor;
+    private Dictionary<int, WorldTarget> Waypoints()
+    {
+        var file = _dataPath is null ? null : WorldTargets.FindFile(_dataPath);
+        if (_waypoints is not null && _waypointsFor == file) return _waypoints;
+        _waypointsFor = file;
+        try { _waypoints = file is null ? new() : WorldTargets.Load(file); } catch { _waypoints = new(); }
+        return _waypoints;
+    }
+
+    // Modelos do cliente (.ecm do models.pck), lidos uma vez por pasta do jogo
+    private List<string>? _models;
+    private string? _modelsFor;
+    private List<string> ClientModels()
+    {
+        var pck = _dataPath is null ? null : FindClientPck(_dataPath, "models.pck");
+        if (_models is not null && _modelsFor == pck) return _models;
+        _models = new(); _modelsFor = pck;
+        if (pck is null) return _models;
+        try
+        {
+            using var a = new PckArchive(pck);
+            // no pck o caminho começa com "models\" minúsculo; no elements.data é "Models\..."
+            _models = a.Entries.Where(e => e.Path.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase))
+                .Select(e => "Models" + e.Path[(e.Path.IndexOf('\\') is var i && i > 0 ? i : 0)..]).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        catch (Exception ex) { Status(Loc.T("status.modelsFail", "Não foi possível ler o models.pck: ") + ex.Message); }
+        return _models;
+    }
+
+    private static string? FindClientPck(string elementsPath, string name)
+    {
+        for (var dir = Path.GetDirectoryName(elementsPath); dir is not null; dir = Path.GetDirectoryName(dir))
+            foreach (var c in new[] { Path.Combine(dir, name), Path.Combine(dir, "element", name) })
+                if (File.Exists(c)) return c;
+        return null;
+    }
 
     private bool EditFieldSpecial(Item item, string key)
     {
@@ -1764,8 +1831,53 @@ public sealed class EditorForm : Form
             }
             return true;
         }
+        if (_owner.TryGetValue(item, out var vb) && FieldValues.Options(vb.Name, key) is { } opts && item.Fields[key].Type != FieldType.Bool)
+        {
+            if (PickValue(string.Format(Loc.T("pick.value", "Escolha um valor — {0}"), FieldLabels.Label(key)),
+                    opts.Select(o => (o.Value.ToString(), o.Text, "")), cur) is { } v) SetField(item, key, v);
+            return true;
+        }
+        if (key.Equals("file_model", StringComparison.OrdinalIgnoreCase))
+        {
+            var models = ClientModels();
+            if (models.Count == 0) { Status(Loc.T("status.noModels", "models.pck não encontrado ao lado do elements.data.")); return true; }
+            // quantos itens usam cada modelo (ajuda a achar um livre ou o mesmo de outro monstro)
+            var uses = (_store.Current?.Lists ?? new()).SelectMany(l => l.Items)
+                .Where(i => i.Fields.TryGetValue("file_model", out var f) && f.Value.Length > 1)
+                .GroupBy(i => i.Fields["file_model"].Value, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+            // caminho na coluna Nome (a coluna ID é estreita); o ID é a posição na lista
+            var opts2 = models.Select((mp, i) => (i.ToString(), mp,
+                uses.TryGetValue(mp, out var n) ? string.Format(Loc.T("pick.modelUses", "usado por {0}"), n) : Loc.T("pick.modelFree", "sem uso")));
+            int curIdx = models.FindIndex(mp => mp.Equals(cur, StringComparison.OrdinalIgnoreCase));
+            if (PickValue(Loc.T("pick.model", "Escolher modelo (.ecm do models.pck)"), opts2, curIdx.ToString()) is { } mv && int.TryParse(mv, out var mi))
+                SetField(item, key, models[mi]);
+            return true;
+        }
         switch (kind)
         {
+            case FieldKind.Waypoint when Waypoints() is { Count: > 0 } wps:
+            {
+                var opts4 = wps.Values.OrderBy(w => w.Id).Select(w => (w.Id.ToString(), w.Name,
+                    string.Format(Loc.T("pick.waypointDesc", "mapa {0} · posição {1}"), w.World, w.Position)));
+                if (PickValue(Loc.T("pick.waypoint", "Escolher ponto de teleporte"), opts4, cur) is { } wv) SetField(item, key, wv);
+                return true;
+            }
+            case FieldKind.SkillRef when _cfgs is { SkillNames.Count: > 0 } gc:
+            {
+                static string Plain(string t) => System.Text.RegularExpressions.Regex.Replace(t, @"\^[0-9a-fA-F]{6}", "").Replace("\\r", " ").Replace("\r", " ").Replace("\n", " ");
+                var opts3 = gc.SkillNames.OrderBy(k => k.Key).Select(k => (k.Key.ToString(), TasksFile.SplitColor(k.Value).Text,
+                    gc.SkillDescs.TryGetValue(k.Key, out var d) ? Plain(d) : ""));
+                if (PickValue(Loc.T("pick.skill", "Escolher habilidade"), opts3, cur) is { } sv) SetField(item, key, sv);
+                return true;
+            }
+            case FieldKind.FoodMask:
+                if (FieldEditors.BitMask(this, Loc.T("dialog.foodTitle", "Comida do mascote"), long.TryParse(cur, out var fm) ? fm : 0, BitMasks.Food) is { } nf) SetField(item, key, nf.ToString());
+                return true;
+            case FieldKind.ServiceMask:
+                // bit 31 ligado: o campo é int com sinal, então grava o valor negativo equivalente
+                if (FieldEditors.BitMask(this, Loc.T("dialog.servicesTitle", "Serviços combinados do NPC"), long.TryParse(cur, out var sm) ? sm & 0xFFFFFFFFL : 0, BitMasks.Services) is { } ns)
+                    SetField(item, key, (item.Fields[key].Type == FieldType.Int ? unchecked((int)(uint)ns) : ns).ToString());
+                return true;
             case FieldKind.ClassMask:
                 if (FieldEditors.ClassMask(this, long.TryParse(cur, out var m) ? m : 0) is { } nm) SetField(item, key, nm.ToString());
                 return true;
@@ -1995,6 +2107,12 @@ public sealed class EditorForm : Form
             case FieldKind.ClassMask: return FieldKinds.ClassNames(value);
             case FieldKind.ProcMask: return BitMasks.Describe(BitMasks.Proc, long.TryParse(value, out var pv) ? pv : 0);
             case FieldKind.ImmuneMask: return BitMasks.Describe(BitMasks.Immune, long.TryParse(value, out var iv) ? iv : 0);
+            case FieldKind.FoodMask: return BitMasks.Describe(BitMasks.Food, long.TryParse(value, out var fv) ? fv : 0);
+            case FieldKind.Waypoint:
+                if (IsEmpty(value)) return "";
+                return int.TryParse(value, out var wid) && Waypoints().TryGetValue(wid, out var wp)
+                    ? string.Format(Loc.T("grid.waypoint", "{0}  (ponto de teleporte, mapa {1})"), wp.Name, wp.World) : "";
+            case FieldKind.ServiceMask: return BitMasks.Describe(BitMasks.Services, long.TryParse(value, out var sv) ? sv & 0xFFFFFFFFL : 0);
             case FieldKind.SkillRef:
                 if (IsEmpty(value)) return "";
                 return int.TryParse(value, out var sid) && _cfgs?.SkillNames.TryGetValue(sid, out var sname) == true

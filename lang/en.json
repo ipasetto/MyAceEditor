@@ -1423,5 +1423,21 @@
   "addonEd.undone": "Undone (Ctrl+Y redoes).",
   "addonEd.redone": "Redone.",
   "pick.addonCompatible": "Choose addon (only those used by items of this block)",
-  "addonEd.replaced": "List full ({0} slots, the file limit): the selected row's item was replaced, keeping its chance."
+  "addonEd.replaced": "List full ({0} slots, the file limit): the selected row's item was replaced, keeping its chance.",
+  "pick.value": "Choose a value — {0}",
+  "pick.model": "Choose model (.ecm from models.pck)",
+  "pick.modelUses": "used by {0}",
+  "pick.modelFree": "unused",
+  "status.noModels": "models.pck not found next to elements.data.",
+  "status.modelsFail": "Could not read models.pck: ",
+  "pick.skill": "Choose skill",
+  "dialog.foodTitle": "Pet food",
+  "dialog.servicesTitle": "NPC combined services",
+  "pick.waypoint": "Choose teleport point",
+  "pick.waypointDesc": "map {0} · position {1}",
+  "grid.waypoint": "{0}  (teleport point, map {1})",
+  "val.landWater": "Land and water",
+  "val.landAir": "Land and air",
+  "val.waterAir": "Water and air",
+  "val.everywhere": "Everywhere"
 }
