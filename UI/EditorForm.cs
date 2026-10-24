@@ -25,6 +25,9 @@ public sealed class EditorForm : Form
     private readonly DataGridView _grid = new() { Dock = DockStyle.Fill, AllowUserToAddRows = false, AllowUserToResizeRows = false, RowHeadersVisible = false, BorderStyle = BorderStyle.None, ColumnHeadersVisible = false };
     private readonly ToolStripStatusLabel _status = new();
     private readonly ToolTip _tip = new() { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 100 };
+    private readonly FlowLayoutPanel _editorBar = new() { Dock = DockStyle.Top, Height = 38, Padding = new Padding(6, 5, 0, 0), Visible = false, WrapContents = false };
+    private readonly Button _btnAddonEd = new(), _btnDropEd = new();
+    private bool _hasAddonEd, _hasDropEd;
     // tooltip da lista: linhas de trechos coloridos (como o tooltip do jogo), drops com ícone e vínculos
     private readonly List<List<(string Text, Color Color, bool Bold)>> _tipRuns = new();
     private readonly List<(Image? Icon, string Text, string Pct, Color Color)> _tipDrops = new();
@@ -369,6 +372,24 @@ public sealed class EditorForm : Form
         var tVal = new TabPage() { BackColor = CSurface };
         Bind(() => tVal.Text = Loc.T("detail.values", "Valores"));
         tVal.Controls.Add(_grid);
+        // botões dos editores em janela, visíveis só quando o item tem o que editar
+        _editorBar.BackColor = CSurface;
+        foreach (var b in new[] { _btnAddonEd, _btnDropEd })
+        {
+            b.FlatStyle = FlatStyle.Flat; b.BackColor = CAccent; b.ForeColor = Color.White; b.AutoSize = true; b.Height = 28; b.Margin = new Padding(0, 0, 8, 0);
+            b.FlatAppearance.BorderSize = 0; b.Cursor = Cursors.Hand;
+            _editorBar.Controls.Add(b);
+        }
+        _btnAddonEd.Click += (_, _) => { if (_current is not null) OpenChanceEditor(_current, drops: false); };
+        _btnDropEd.Click += (_, _) => { if (_current is not null) OpenChanceEditor(_current, drops: true); };
+        Bind(() =>
+        {
+            _btnAddonEd.Text = Loc.T("btn.addonEditor", "✎ Editor de addons e chances");
+            _btnDropEd.Text = Loc.T("btn.dropEditor", "✎ Editor de drops");
+            _tip.SetToolTip(_btnAddonEd, Loc.T("tip.addonEditor", "Soquetes, quantidade de addons e listas de addons com barras de chance (também no clique direito da grade)"));
+            _tip.SetToolTip(_btnDropEd, Loc.T("tip.dropEditor", "Chance de cair 0–3 itens e a lista de drops com ícones e barras (também no clique direito da grade)"));
+        });
+        tVal.Controls.Add(_editorBar);
         tVal.Controls.Add(_groupTabs);
         _groupTabs.SelectedIndexChanged += (_, _) => { if (_current is not null) FillGrid(_current); };
         // Buscar por campo (no bloco atual)
@@ -467,14 +488,19 @@ public sealed class EditorForm : Form
         Bind(() => bulk.Text = Loc.T("ctx.bulkField", "Alterar este campo nos itens selecionados…"));
         _gridCtx.Items.Add(bulk);
         var addonEd = new ToolStripMenuItem();
-        addonEd.Click += (_, _) => { if (_current is not null) OpenAddonEditor(_current); };
+        addonEd.Click += (_, _) => { if (_current is not null) OpenChanceEditor(_current, drops: false); };
         Bind(() => addonEd.Text = Loc.T("ctx.addonEditor", "Editor de addons e chances…"));
         _gridCtx.Items.Add(addonEd);
+        var dropEd = new ToolStripMenuItem();
+        dropEd.Click += (_, _) => { if (_current is not null) OpenChanceEditor(_current, drops: true); };
+        Bind(() => dropEd.Text = Loc.T("ctx.dropEditor", "Editor de drops…"));
+        _gridCtx.Items.Add(dropEd);
         _gridCtx.Opening += (_, e) =>
         {
             if (_grid.CurrentRow?.Tag is not string k) { e.Cancel = true; return; }
             balance.Visible = FieldKinds.Of(k) == FieldKind.Probability;
-            addonEd.Visible = _current is not null && AddonGroups.Find(_current).Count > 0;
+            addonEd.Visible = _hasAddonEd;
+            dropEd.Visible = _hasDropEd;
             int n = _list.SelectedIndices.Count;
             bulk.Text = Loc.T("ctx.bulkField", "Alterar este campo nos itens selecionados…") + (n > 1 ? $" ({n})" : "");
         };
@@ -601,26 +627,44 @@ public sealed class EditorForm : Form
         Status(string.Format(Loc.T("status.probSet", "{0} = {1:0.###}% · soma do grupo {2:0.###}%"), FieldLabels.Label(d.Key), ProbabilityGroups.Num(after[d.Key]) * 100, s2 * 100));
     }
 
-    // Editor de addons (janela): trabalha numa cópia; ao salvar, as mudanças entram no histórico como uma ação só.
-    private void OpenAddonEditor(Item item)
+    // Editor de addons / de drops (janela): trabalha numa cópia; ao salvar, as mudanças entram no histórico como uma ação só.
+    private void OpenChanceEditor(Item item, bool drops)
     {
         _grid.EndEdit();
         var addons = _cfgs?.Addons;
-        string Text(string id) => _refs?.Resolve(FieldKind.AddonRef, id) is { } hit ? addons?.Describe(hit.Item) is { Length: > 0 } d ? d : hit.Item.Name : "";
+        var kind = drops ? FieldKind.ItemRef : FieldKind.AddonRef;
+        string Text(string id) => _refs?.Resolve(kind, id) is not { } hit ? ""
+            : drops ? $"{TasksFile.SplitColor(hit.Item.Name).Text}   [{Pretty(hit.Block.Name)}]"
+            : addons?.Describe(hit.Item) is { Length: > 0 } d ? d : hit.Item.Name;
+        Image? Icon(string id) => _refs?.Resolve(kind, id) is { } hit && IconIndexFor(hit.Item) is >= 0 and var i ? _treeIcons.Images[i] : null;
         List<string>? Pick(string refKey)
         {
-            var src = PickSource(FieldKind.AddonRef, refKey);
+            var src = PickSource(kind, refKey);
             if (src.Count == 0) return null;
-            var picked = FieldEditors.Pick(this, Loc.T("pick.addon", "Escolher atributo"), src, null, IconIndexFor, _treeIcons,
-                it => addons?.Describe(it) ?? "", addons is not null ? it => addons.TypeCaption(it.Id) : _ => null, true);
+            var picked = drops
+                ? FieldEditors.Pick(this, Loc.T("pick.item", "Escolher item"), src, null, IconIndexFor, _treeIcons,
+                    it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "", it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null, true)
+                : FieldEditors.Pick(this, Loc.T("pick.addon", "Escolher atributo"), src, null, IconIndexFor, _treeIcons,
+                    it => addons?.Describe(it) ?? "", addons is not null ? it => addons.TypeCaption(it.Id) : _ => null, true);
             return picked?.Select(p => p.Id).ToList();
         }
-        using var dlg = new AddonEditor(item, FieldLabels.Label, Text, Pick);
+        using var dlg = new ChanceEditor(item, drops, FieldLabels.Label, Text, Pick, drops ? Icon : null);
         if (dlg.ShowDialog(this) != DialogResult.OK || dlg.Changes.Count == 0) return;
-        using (_edits.Batch(string.Format(Loc.T("hist.addonEditor", "Editor de addons em {0}"), item.Id)))
+        var what = drops ? Loc.T("dropEd.name", "Editor de drops") : Loc.T("addonEd.name", "Editor de addons");
+        using (_edits.Batch($"{what} {item.Id}"))
             foreach (var (k, v) in dlg.Changes) SetField(item, k, v, refresh: false);
         if (ReferenceEquals(_current, item)) ShowItem(item);
-        Status(string.Format(Loc.T("status.addonEditor", "Editor de addons: {0} campo(s) alterado(s) em {1}"), dlg.Changes.Count, item.Id));
+        Status(string.Format(Loc.T("status.chanceEditor", "{0}: {1} campo(s) alterado(s) em {2}"), what, dlg.Changes.Count, item.Id));
+    }
+
+    // Barra acima da grade com os editores que valem para o item atual (addons em equipamento, drops em monstro).
+    private void UpdateEditorBar(Item item)
+    {
+        // (Visible de um filho lê false enquanto o pai está oculto: guardar o estado em variáveis)
+        _hasAddonEd = AddonGroups.Find(item, AddonGroups.IsAddonGroup).Count > 0;
+        _hasDropEd = AddonGroups.Find(item, AddonGroups.IsDropGroup).Any(s => s.HasRefs);
+        _btnAddonEd.Visible = _hasAddonEd; _btnDropEd.Visible = _hasDropEd;
+        _editorBar.Visible = _hasAddonEd || _hasDropEd;
     }
 
     // Probabilidades irmãs (mesmo nome trocando o número): divide 100% entre os slots com referência preenchida.
@@ -1494,6 +1538,7 @@ public sealed class EditorForm : Form
         _header.ForeColor = NameColor(item);
         _idLabel.Text = item.Id;
         LoadItemIcon(item);
+        UpdateEditorBar(item);
         var uses = LinkCount(item);
         _tabLinks.Text = (uses > 0 ? $"{Loc.T("detail.links", "Vínculos")} ({uses})" : Loc.T("detail.links", "Vínculos"));
         if (_detailTabs.SelectedTab == _tabLinks) FillLinks(item);

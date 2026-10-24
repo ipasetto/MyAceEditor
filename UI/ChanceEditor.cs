@@ -4,12 +4,13 @@ using MyAceEditor.PerfectWorld;
 namespace MyAceEditor.UI;
 
 /// <summary>
-/// Editor de addons e chances do equipamento (como o "Editor de addons" do RAE, código nosso): aba "Chances" com
-/// soquetes / quantidade de addons / chance de único, e uma aba por lista de addons (fabricação, aleatórios, únicos)
-/// com barras arrastáveis, cadeado, adicionar/remover/ordenar/ajustar para 100%. Trabalha numa cópia do item;
+/// Editor de chances (como os editores de addons e de drop do RAE, código nosso). Addons: aba "Chances" com
+/// soquetes / quantidade de addons / chance de único, e uma aba por lista (fabricação, aleatórios, únicos).
+/// Drops: chance de cair 0..3 itens e a lista de drops do monstro. Barras arrastáveis, cadeado,
+/// adicionar/remover/ordenar/ajustar para 100%. Trabalha numa cópia do item;
 /// <see cref="Changes"/> traz só o que mudou (a tela aplica pelo histórico).
 /// </summary>
-internal sealed class AddonEditor : Form
+internal sealed class ChanceEditor : Form
 {
     static readonly Color Bg = Color.FromArgb(242, 245, 249), Fg = Color.FromArgb(30, 39, 51), Accent = Color.FromArgb(37, 99, 235);
 
@@ -18,6 +19,7 @@ internal sealed class AddonEditor : Form
     readonly Func<string, string> _label;
     readonly Func<string, string> _addonText;
     readonly Func<string, List<string>?> _pick;
+    readonly Func<string, Image?>? _icon;
     readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(100, 112, 128) };
 
     public Dictionary<string, string> Changes { get; } = new();
@@ -31,20 +33,25 @@ internal sealed class AddonEditor : Form
         _ when g.StartsWith("addons_") => Loc.T("addonEd.addons", "Addons (fabricação)"),
         _ when g.StartsWith("rands_") => Loc.T("addonEd.rands", "Addons aleatórios"),
         _ when g.StartsWith("uniques_") => Loc.T("addonEd.uniques", "Addons únicos"),
+        _ when g.StartsWith("probability_drop_num") => Loc.T("dropEd.num", "Chance de cair N itens"),
+        _ when g.StartsWith("drop_matters_") => Loc.T("dropEd.list", "Itens que caem"),
         _ => g,
     };
 
+    /// <param name="drops">true = drops do monstro; false = addons e soquetes do equipamento</param>
     /// <param name="label">nome do campo para mostrar</param>
-    /// <param name="addonText">descrição do addon pelo ID ("" se não existe)</param>
-    /// <param name="pick">abre o seletor de addons (vários) e devolve os IDs escolhidos</param>
-    public AddonEditor(Item item, Func<string, string> label, Func<string, string> addonText, Func<string, List<string>?> pick)
+    /// <param name="addonText">texto do ID referenciado (addon ou item; "" se não existe)</param>
+    /// <param name="pick">abre o seletor (vários) para o campo de ID e devolve os IDs escolhidos</param>
+    /// <param name="icon">ícone do ID referenciado (drops), opcional</param>
+    public ChanceEditor(Item item, bool drops, Func<string, string> label, Func<string, string> addonText, Func<string, List<string>?> pick, Func<string, Image?>? icon = null)
     {
-        _orig = item; _work = AddonGroups.Clone(item); _label = label; _addonText = addonText; _pick = pick;
-        Text = string.Format(Loc.T("addonEd.title", "Editor de addons — {0} {1}"), item.Id, TasksFile.SplitColor(item.Name).Text);
+        _orig = item; _work = AddonGroups.Clone(item); _label = label; _addonText = addonText; _pick = pick; _icon = icon;
+        Text = string.Format(drops ? Loc.T("dropEd.title", "Editor de drops — {0} {1}") : Loc.T("addonEd.title", "Editor de addons — {0} {1}"),
+            item.Id, TasksFile.SplitColor(item.Name).Text);
         Width = 980; Height = 680; StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; MinimizeBox = false;
         BackColor = Bg; ForeColor = Fg; Font = new Font("Segoe UI", 9.5f);
 
-        var sections = AddonGroups.Find(_work);
+        var sections = AddonGroups.Find(_work, drops ? AddonGroups.IsDropGroup : AddonGroups.IsAddonGroup);
         var tabs = new TabControl { Dock = DockStyle.Fill };
         var chances = sections.Where(s => !s.HasRefs).ToList();
         if (chances.Count > 0) tabs.TabPages.Add(Page(Loc.T("addonEd.chances", "Chances"), chances, null));
@@ -64,7 +71,8 @@ internal sealed class AddonEditor : Form
             DialogResult = DialogResult.OK;
         };
         bottom.Controls.Add(_status, 0, 0); bottom.Controls.Add(ok, 1, 0); bottom.Controls.Add(cancel, 2, 0);
-        _status.Text = Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon.");
+        _status.Text = drops ? Loc.T("dropEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o item.")
+            : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon.");
         CancelButton = cancel;
         Controls.Add(tabs); Controls.Add(bottom);
     }
@@ -72,7 +80,7 @@ internal sealed class AddonEditor : Form
     TabPage Page(string title, List<ProbSection> sections, ProbSection? listSection)
     {
         var page = new TabPage(title) { BackColor = Color.White };
-        var view = new ProbListView(_work, sections, _locks, _label, _addonText) { Dock = DockStyle.Fill };
+        var view = new ProbListView(_work, sections, _locks, _label, _addonText, _icon) { Dock = DockStyle.Fill };
         view.Changed += () =>
         {
             if (listSection is not null) page.Text = $"{SectionTitle(listSection.Name)} ({AddonGroups.Filled(_work, listSection).Count()})";
@@ -95,7 +103,7 @@ internal sealed class AddonEditor : Form
             if (_pick(empty[0].Ref!) is not { Count: > 0 } ids) return;
             int n = 0;
             foreach (var (row, id) in empty.Zip(ids)) { Put(row.Ref!, id); n++; }
-            _status.Text = string.Format(Loc.T("addonEd.added", "{0} addon(s) adicionado(s) com 0% — arraste a barra ou use \"Ajustar para 100%\"."), n)
+            _status.Text = string.Format(Loc.T("addonEd.added", "{0} adicionado(s) com 0% — arraste a barra ou use \"Ajustar para 100%\"."), n)
                 + (ids.Count > n ? " " + string.Format(Loc.T("addonEd.noRoom", "{0} não couberam."), ids.Count - n) : "");
             view.Rebuild();
         });
@@ -136,6 +144,7 @@ internal sealed class ProbListView : ScrollableControl
     readonly List<ProbSection> _sections;
     readonly HashSet<string> _locks;
     readonly Func<string, string> _label, _addonText;
+    readonly Func<string, Image?>? _icon;
     readonly List<(ProbSection Sec, ProbRow? Row, int Y)> _layout = new();
     ProbRow? _drag;
     Dictionary<string, Field>? _before;
@@ -144,9 +153,9 @@ internal sealed class ProbListView : ScrollableControl
     public event Action? Changed;
     public event Action<ProbRow>? PickFor;
 
-    public ProbListView(Item item, List<ProbSection> sections, HashSet<string> locks, Func<string, string> label, Func<string, string> addonText)
+    public ProbListView(Item item, List<ProbSection> sections, HashSet<string> locks, Func<string, string> label, Func<string, string> addonText, Func<string, Image?>? icon = null)
     {
-        _item = item; _sections = sections; _locks = locks; _label = label; _addonText = addonText;
+        _item = item; _sections = sections; _locks = locks; _label = label; _addonText = addonText; _icon = icon;
         DoubleBuffered = true; AutoScroll = true; BackColor = Color.White;
         SetStyle(ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
         Rebuild();
@@ -201,7 +210,7 @@ internal sealed class ProbListView : ScrollableControl
                 var sib = sec.Rows.Select(r => r.Prob).ToList();
                 double s = ProbabilityGroups.Sum(_item, sib);
                 using var hf = new Font(Font, FontStyle.Bold);
-                TextRenderer.DrawText(g, AddonEditor.SectionTitle(sec.Name).ToUpperInvariant(), hf, new Rectangle(8, y, ClientSize.Width - 160, HeadH), Accent, TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(g, ChanceEditor.SectionTitle(sec.Name).ToUpperInvariant(), hf, new Rectangle(8, y, ClientSize.Width - 160, HeadH), Accent, TextFormatFlags.VerticalCenter);
                 if (sec.Rows.Count > 1)
                 {
                     var col = ProbabilityGroups.SumsToOne(s, sib.Count) ? Green : s <= 0.0005 ? Muted : Red;
@@ -213,7 +222,13 @@ internal sealed class ProbListView : ScrollableControl
             var c = Cols(y, sec.HasRefs);
             if (row == Selected) using (var sb = new SolidBrush(Sel)) g.FillRectangle(sb, 4, y, ClientSize.Width - 8, RowH);
             if (row.Prob == "") { TextRenderer.DrawText(g, RowName(row), Font, c.Name, Muted, TextFormatFlags.VerticalCenter); continue; }
-            TextRenderer.DrawText(g, RowName(row), Font, c.Name, Fg(row), TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            var nameBox = c.Name;
+            if (row.Ref is not null && _icon?.Invoke(_item.Fields[row.Ref].Value) is { } img)
+            {
+                g.DrawImage(img, new Rectangle(c.Name.X, y + 2, RowH - 4, RowH - 4));
+                nameBox = Rectangle.FromLTRB(c.Name.X + RowH + 2, c.Name.Y, c.Name.Right, c.Name.Bottom);
+            }
+            TextRenderer.DrawText(g, RowName(row), Font, nameBox, Fg(row), TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             double p = ProbabilityGroups.Num(_item.Fields[row.Prob].Value);
             bool bad = p < 0 || p > 1.0005;
             using (var tb = new SolidBrush(Track)) g.FillRectangle(tb, c.Bar);

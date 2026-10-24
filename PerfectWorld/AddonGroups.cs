@@ -18,11 +18,16 @@ public sealed record ProbSection(string Name, List<ProbRow> Rows)
 /// </summary>
 public static class AddonGroups
 {
-    static bool Wanted(string group) =>
+    /// <summary>Grupos do editor de addons: soquetes, quantidade de addons, únicos, listas de addons.</summary>
+    public static bool IsAddonGroup(string group) =>
         group.Contains("socket") || group.Contains("addon") || group.Contains("rand") || group.Contains("unique");
 
-    public static List<ProbSection> Find(Item item)
+    /// <summary>Grupos do editor de drops do monstro: chance de cair N itens e a lista drop_matters.</summary>
+    public static bool IsDropGroup(string group) => group.StartsWith("probability_drop_num") || group.StartsWith("drop_matters_");
+
+    public static List<ProbSection> Find(Item item, Func<string, bool>? wanted = null)
     {
+        wanted ??= IsAddonGroup;
         var refOf = new Dictionary<string, string>();
         foreach (var k in item.Fields.Keys)
             if (FieldKinds.IsReference(FieldKinds.Of(k)) && FieldKinds.ProbabilityFor(k, item.Fields) is { } p && !refOf.ContainsKey(p))
@@ -33,7 +38,7 @@ public static class AddonGroups
         {
             if (FieldKinds.Of(k) != FieldKind.Probability) continue;
             var g = ProbabilityGroups.GroupOf(k) ?? k;   // sem número (probability_unique): grupo de uma linha só
-            if (!Wanted(g)) continue;
+            if (!wanted(g)) continue;
             if (!byName.TryGetValue(g, out var sec)) { sec = new ProbSection(g, new()); byName[g] = sec; sections.Add(sec); }
             sec.Rows.Add(new ProbRow(k, refOf.GetValueOrDefault(k)));
         }
