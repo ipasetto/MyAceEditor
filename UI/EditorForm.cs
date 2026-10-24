@@ -637,14 +637,15 @@ public sealed class EditorForm : Form
             : drops ? $"{TasksFile.SplitColor(hit.Item.Name).Text}   [{Pretty(hit.Block.Name)}]"
             : addons?.Describe(hit.Item) is { Length: > 0 } d ? d : hit.Item.Name;
         Image? Icon(string id) => _refs?.Resolve(kind, id) is { } hit && IconIndexFor(hit.Item) is >= 0 and var i ? _treeIcons.Images[i] : null;
-        List<string>? Pick(string refKey)
+        List<string>? Pick(IWin32Window owner, string refKey)
         {
             var src = PickSource(kind, refKey);
+            if (!drops) src = CompatibleAddons(item, src);
             if (src.Count == 0) return null;
             var picked = drops
-                ? FieldEditors.Pick(this, Loc.T("pick.item", "Escolher item"), src, null, IconIndexFor, _treeIcons,
+                ? FieldEditors.Pick(owner, Loc.T("pick.item", "Escolher item"), src, null, IconIndexFor, _treeIcons,
                     it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "", it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null, true)
-                : FieldEditors.Pick(this, Loc.T("pick.addon", "Escolher atributo"), src, null, IconIndexFor, _treeIcons,
+                : FieldEditors.Pick(owner, Loc.T("pick.addonCompatible", "Escolher atributo (só os usados por itens deste bloco)"), src, null, IconIndexFor, _treeIcons,
                     it => addons?.Describe(it) ?? "", addons is not null ? it => addons.TypeCaption(it.Id) : _ => null, true);
             return picked?.Select(p => p.Id).ToList();
         }
@@ -655,6 +656,20 @@ public sealed class EditorForm : Form
             foreach (var (k, v) in dlg.Changes) SetField(item, k, v, refresh: false);
         if (ReferenceEquals(_current, item)) ShowItem(item);
         Status(string.Format(Loc.T("status.chanceEditor", "{0}: {1} campo(s) alterado(s) em {2}"), what, dlg.Changes.Count, item.Id));
+    }
+
+    // Addons compatíveis: só os que algum item do mesmo bloco (armas, armaduras, acessórios…) já usa em qualquer
+    // lista de addons. Addon de outro tipo de equipamento pode travar o cliente; o próprio jogo serve de referência.
+    private List<Item> CompatibleAddons(Item item, List<Item> src)
+    {
+        if (!_owner.TryGetValue(item, out var block)) return src;
+        var used = new HashSet<string>();
+        foreach (var it in block.Items)
+            foreach (var sec in AddonGroups.Find(it, AddonGroups.IsAddonGroup))
+                foreach (var r in sec.Rows)
+                    if (r.Ref is not null && it.Fields.TryGetValue(r.Ref, out var f) && !AddonGroups.Empty(f.Value)) used.Add(f.Value);
+        var ok = src.Where(a => used.Contains(a.Id)).ToList();
+        return ok.Count > 0 ? ok : src;
     }
 
     // Barra acima da grade com os editores que valem para o item atual (addons em equipamento, drops em monstro).

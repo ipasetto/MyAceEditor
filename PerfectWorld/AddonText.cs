@@ -137,7 +137,14 @@ public sealed class AddonText
         int P(string k) => int.TryParse(addon.Fields.GetValueOrDefault(k)?.Value, out var v) ? v : 0;
         int p0 = P("param1"), p1 = P("param2");
         string cap = CaptionOf(type, ti);
-        static string S(int v) => v >= 0 ? $"+{v}" : v.ToString();
+        // alguns addons de tipo inteiro guardam float em bits (ex.: velocidade de ataque 1036831949 = 0.1):
+        // número gigante que vira um float pequeno e "redondo" é mostrado como float
+        static string S(int v)
+        {
+            if (Math.Abs((long)v) > 10_000_000 && BitConverter.Int32BitsToSingle(v) is var f && float.IsFinite(f) && Math.Abs(f) is > 0.0001f and < 100_000f)
+                return (f >= 0 ? "+" : "") + f.ToString("0.###", CultureInfo.InvariantCulture);
+            return v >= 0 ? $"+{v}" : v.ToString();
+        }
         static int Pc(int bits) => (int)MathF.Round(BitConverter.Int32BitsToSingle(bits) * 100f);
         static string Fl(int bits) { var f = BitConverter.Int32BitsToSingle(bits); return (f >= 0 ? "+" : "") + f.ToString("0.##", CultureInfo.InvariantCulture); }
         return ti.Mode switch

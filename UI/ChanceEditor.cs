@@ -18,9 +18,14 @@ internal sealed class ChanceEditor : Form
     readonly HashSet<string> _locks = new();
     readonly Func<string, string> _label;
     readonly Func<string, string> _addonText;
-    readonly Func<string, List<string>?> _pick;
+    readonly Func<IWin32Window, string, List<string>?> _pick;
     readonly Func<string, Image?>? _icon;
-    readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(100, 112, 128) };
+    readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(100, 112, 128), Padding = new Padding(8, 0, 0, 0) };
+    readonly List<ProbListView> _views = new();
+    readonly List<Action> _titles = new();
+    // desfazer/refazer dentro da janela: fotos dos valores antes de cada ação
+    readonly Stack<Dictionary<string, string>> _undo = new(), _redo = new();
+    readonly List<string> _keys;
 
     public Dictionary<string, string> Changes { get; } = new();
 
@@ -41,9 +46,9 @@ internal sealed class ChanceEditor : Form
     /// <param name="drops">true = drops do monstro; false = addons e soquetes do equipamento</param>
     /// <param name="label">nome do campo para mostrar</param>
     /// <param name="addonText">texto do ID referenciado (addon ou item; "" se não existe)</param>
-    /// <param name="pick">abre o seletor (vários) para o campo de ID e devolve os IDs escolhidos</param>
+    /// <param name="pick">abre o seletor (vários, com esta janela como dona) para o campo de ID e devolve os IDs escolhidos</param>
     /// <param name="icon">ícone do ID referenciado (drops), opcional</param>
-    public ChanceEditor(Item item, bool drops, Func<string, string> label, Func<string, string> addonText, Func<string, List<string>?> pick, Func<string, Image?>? icon = null)
+    public ChanceEditor(Item item, bool drops, Func<string, string> label, Func<string, string> addonText, Func<IWin32Window, string, List<string>?> pick, Func<string, Image?>? icon = null)
     {
         _orig = item; _work = AddonGroups.Clone(item); _label = label; _addonText = addonText; _pick = pick; _icon = icon;
         Text = string.Format(drops ? Loc.T("dropEd.title", "Editor de drops — {0} {1}") : Loc.T("addonEd.title", "Editor de addons — {0} {1}"),
@@ -52,6 +57,13 @@ internal sealed class ChanceEditor : Form
         BackColor = Bg; ForeColor = Fg; Font = new Font("Segoe UI", 9.5f);
 
         var sections = AddonGroups.Find(_work, drops ? AddonGroups.IsDropGroup : AddonGroups.IsAddonGroup);
+        _keys = sections.SelectMany(x => x.Rows).SelectMany(r => r.Ref is null ? new[] { r.Prob } : new[] { r.Prob, r.Ref }).ToList();
+        KeyPreview = true;
+        KeyDown += (_, e) =>
+        {
+            if (e.Control && e.KeyCode == Keys.Z) { e.SuppressKeyPress = true; Undo(); }
+            else if (e.Control && e.KeyCode == Keys.Y) { e.SuppressKeyPress = true; Redo(); }
+        };
         var tabs = new TabControl { Dock = DockStyle.Fill };
         var chances = sections.Where(s => !s.HasRefs).ToList();
         if (chances.Count > 0) tabs.TabPages.Add(Page(Loc.T("addonEd.chances", "Chances"), chances, null));
@@ -71,8 +83,8 @@ internal sealed class ChanceEditor : Form
             DialogResult = DialogResult.OK;
         };
         bottom.Controls.Add(_status, 0, 0); bottom.Controls.Add(ok, 1, 0); bottom.Controls.Add(cancel, 2, 0);
-        _status.Text = drops ? Loc.T("dropEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o item.")
-            : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon.");
+        Info(drops ? Loc.T("dropEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o item. Ctrl+Z desfaz.")
+            : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon. Ctrl+Z desfaz."));
         CancelButton = cancel;
         Controls.Add(tabs); Controls.Add(bottom);
     }
@@ -81,13 +93,15 @@ internal sealed class ChanceEditor : Form
     {
         var page = new TabPage(title) { BackColor = Color.White };
         var view = new ProbListView(_work, sections, _locks, _label, _addonText, _icon) { Dock = DockStyle.Fill };
-        view.Changed += () =>
-        {
-            if (listSection is not null) page.Text = $"{SectionTitle(listSection.Name)} ({AddonGroups.Filled(_work, listSection).Count()})";
-        };
+        _views.Add(view);
+        void Title() { if (listSection is not null) page.Text = $"{SectionTitle(listSection.Name)} ({AddonGroups.Filled(_work, listSection).Count()})"; }
+        _titles.Add(Title);
+        view.Changed += Title;
+        view.BeforeChange += Snapshot;
         view.PickFor += row =>
         {
-            if (row.Ref is null || _pick(row.Ref) is not { Count: > 0 } ids) return;
+            if (row.Ref is null || _pick(this, row.Ref) is not { Count: > 0 } ids) return;
+            Snapshot();
             Put(row.Ref, ids[0]);
             view.Rebuild();
         };
@@ -99,26 +113,30 @@ internal sealed class ChanceEditor : Form
         B(Loc.T("addonEd.add", "＋ Adicionar…"), () =>
         {
             var empty = listSection.Rows.Where(r => r.Ref is not null && AddonGroups.Empty(_work.Fields[r.Ref].Value) && ProbabilityGroups.Num(_work.Fields[r.Prob].Value) == 0).ToList();
-            if (empty.Count == 0) { _status.Text = Loc.T("addonEd.full", "Não há slot livre nesta lista."); return; }
-            if (_pick(empty[0].Ref!) is not { Count: > 0 } ids) return;
+            if (empty.Count == 0) { Warn(Loc.T("addonEd.full", "A lista está cheia: remova uma linha (✕ Remover) para liberar um slot.")); return; }
+            if (_pick(this, empty[0].Ref!) is not { Count: > 0 } ids) return;
+            Snapshot();
             int n = 0;
             foreach (var (row, id) in empty.Zip(ids)) { Put(row.Ref!, id); n++; }
-            _status.Text = string.Format(Loc.T("addonEd.added", "{0} adicionado(s) com 0% — arraste a barra ou use \"Ajustar para 100%\"."), n)
+            var msg = string.Format(Loc.T("addonEd.added", "{0} adicionado(s) com 0% — arraste a barra ou use \"Ajustar para 100%\"."), n)
                 + (ids.Count > n ? " " + string.Format(Loc.T("addonEd.noRoom", "{0} não couberam."), ids.Count - n) : "");
+            if (ids.Count > n) Warn(msg); else Info(msg);
             view.Rebuild();
         });
         B(Loc.T("addonEd.remove", "✕ Remover"), () =>
         {
-            if (view.Selected is not { } row) { _status.Text = Loc.T("addonEd.pickRow", "Selecione uma linha."); return; }
+            if (view.Selected is not { } row) { Warn(Loc.T("addonEd.pickRow", "Selecione uma linha.")); return; }
+            Snapshot();
             if (row.Ref is not null) Put(row.Ref, "0");
             Put(row.Prob, "0");
             _locks.Remove(row.Prob);
             view.Rebuild();
         });
-        B(Loc.T("addonEd.sort", "Ordenar"), () => { AddonGroups.Sort(_work, listSection); _locks.Clear(); view.Rebuild(); });
-        B(Loc.T("addonEd.normalize", "Ajustar para 100%"), () => { AddonGroups.Normalize(_work, listSection, _locks); view.Rebuild(); });
+        B(Loc.T("addonEd.sort", "Ordenar"), () => { Snapshot(); AddonGroups.Sort(_work, listSection); _locks.Clear(); view.Rebuild(); });
+        B(Loc.T("addonEd.normalize", "Ajustar para 100%"), () => { Snapshot(); AddonGroups.Normalize(_work, listSection, _locks); view.Rebuild(); });
         B(Loc.T("addonEd.equal", "Dividir igual"), () =>
         {
+            Snapshot();
             foreach (var r in listSection.Rows.Where(r => !_locks.Contains(r.Prob))) Put(r.Prob, "0");
             AddonGroups.Normalize(_work, listSection, _locks);
             view.Rebuild();
@@ -128,6 +146,21 @@ internal sealed class ChanceEditor : Form
     }
 
     void Put(string key, string v) => _work.Fields[key] = Field.Of(_work.Fields[key].Type, v);
+
+    void Info(string t) { _status.Text = t; _status.ForeColor = Color.FromArgb(100, 112, 128); _status.BackColor = Bg; }
+    // aviso: amarelo, para não passar despercebido
+    void Warn(string t) { _status.Text = "⚠ " + t; _status.ForeColor = Color.FromArgb(113, 63, 18); _status.BackColor = Color.FromArgb(254, 240, 138); }
+
+    Dictionary<string, string> Values() => _keys.ToDictionary(k => k, k => _work.Fields[k].Value);
+    void Snapshot() { _undo.Push(Values()); _redo.Clear(); }
+    void Restore(Dictionary<string, string> v)
+    {
+        foreach (var (k, x) in v) Put(k, x);
+        foreach (var view in _views) view.Rebuild();
+        foreach (var t in _titles) t();
+    }
+    void Undo() { if (_undo.Count == 0) { Info(Loc.T("addonEd.nothingUndo", "Nada para desfazer.")); return; } _redo.Push(Values()); Restore(_undo.Pop()); Info(Loc.T("addonEd.undone", "Desfeito (Ctrl+Y refaz).")); }
+    void Redo() { if (_redo.Count == 0) return; _undo.Push(Values()); Restore(_redo.Pop()); Info(Loc.T("addonEd.redone", "Refeito.")); }
 }
 
 /// <summary>
@@ -152,6 +185,7 @@ internal sealed class ProbListView : ScrollableControl
     public ProbRow? Selected { get; private set; }
     public event Action? Changed;
     public event Action<ProbRow>? PickFor;
+    public event Action? BeforeChange;
 
     public ProbListView(Item item, List<ProbSection> sections, HashSet<string> locks, Func<string, string> label, Func<string, string> addonText, Func<string, Image?>? icon = null)
     {
@@ -262,6 +296,7 @@ internal sealed class ProbListView : ScrollableControl
         if (c.Lock.Contains(x, c.Lock.Y + 1)) { if (!_locks.Remove(h.Row.Prob)) _locks.Add(h.Row.Prob); Invalidate(); return; }
         if (x >= c.Bar.X - 4 && x <= c.Bar.Right + 4)
         {
+            BeforeChange?.Invoke();
             _drag = h.Row;
             _before = ProbabilityGroups.Siblings(_item, h.Row.Prob).ToDictionary(k => k, k => _item.Fields[k]);
             DragTo(x, c.Bar);
@@ -276,6 +311,10 @@ internal sealed class ProbListView : ScrollableControl
         foreach (var (sec, row, ry) in _layout)
             if (row == _drag) { DragTo(e.X - AutoScrollPosition.X, Cols(ry, sec.HasRefs).Bar); return; }
     }
+
+    protected override void OnScroll(ScrollEventArgs se) { base.OnScroll(se); Invalidate(); }
+    protected override void OnMouseWheel(MouseEventArgs e) { base.OnMouseWheel(e); Invalidate(); }
+    protected override void OnPaintBackground(PaintEventArgs e) => e.Graphics.Clear(BackColor);
 
     protected override void OnMouseUp(MouseEventArgs e) { base.OnMouseUp(e); if (_drag is not null) { _drag = null; _before = null; Changed?.Invoke(); } }
 
