@@ -78,6 +78,9 @@ internal sealed class GShopView : UserControl
         B("gshop.delete", "Excluir", DeleteItem, 90);
         B("gshop.up", "◀ Antes", () => MoveItem(-1), 90);
         B("gshop.down", "Depois ▶", () => MoveItem(+1), 90);
+        _bar.Controls.Add(new Label { Width = 14 });
+        B("gshop.undo", "↶ Desfazer", () => Undo(), 100);
+        B("gshop.redo", "↷ Refazer", () => Redo(), 100);
     }
 
     /// <summary>A pasta do jogo mudou (elements.data aberto): abre a loja dela se não houver mudança pendente.</summary>
@@ -131,6 +134,7 @@ internal sealed class GShopView : UserControl
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("gshop.openFail", "Não consegui abrir a loja"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
         _which = _shops[0] is not null ? 0 : 1; _main = 0; _sub = -1; _scroll = 0;
+        _undo.Clear(); _redo.Clear();
         SelectItem(VisibleItems().FirstOrDefault());
         UpdateInfo(); _game.Invalidate();
     }
@@ -184,6 +188,36 @@ internal sealed class GShopView : UserControl
     static string? LoadSetting(string k) { try { return File.Exists(SettingFile(k)) ? File.ReadAllText(SettingFile(k)).Trim() : null; } catch { return null; } }
     static void SaveSetting(string k, string v) { try { Directory.CreateDirectory(Path.GetDirectoryName(SettingFile(k))!); File.WriteAllText(SettingFile(k), v); } catch { } }
 
+    // ---------- desfazer / refazer (foto da loja antes de cada mudança) ----------
+    readonly List<(int Which, byte[] Data, int Sel)> _undo = new(), _redo = new();
+    string? _lastKey; DateTime _lastPush;
+
+    /// <summary>Guarda o estado antes de mudar. Digitação seguida no mesmo campo vira um passo só.</summary>
+    internal void Snapshot(string key)
+    {
+        if (_binding || _shops[_which] is not { } f) return;
+        var now = DateTime.Now;
+        if (key == _lastKey && (now - _lastPush).TotalSeconds < 2) { _lastPush = now; return; }
+        _undo.Add((_which, f.WriteClient(), _sel?.ShopId ?? -1));
+        if (_undo.Count > 60) _undo.RemoveAt(0);
+        _redo.Clear(); _lastKey = key; _lastPush = now;
+    }
+
+    public bool Undo() => Swap(_undo, _redo);
+    public bool Redo() => Swap(_redo, _undo);
+
+    bool Swap(List<(int Which, byte[] Data, int Sel)> from, List<(int Which, byte[] Data, int Sel)> to)
+    {
+        if (from.Count == 0 || _shops[from[^1].Which] is not { } cur) return false;
+        var (w, data, sel) = from[^1]; from.RemoveAt(from.Count - 1);
+        to.Add((w, cur.WriteClient(), _sel?.ShopId ?? -1));
+        var back = GShopFile.ReadClient(data);
+        _shops[w] = back; _which = w; _dirty[w] = true; _lastKey = null;
+        SelectItem(back.Items.FirstOrDefault(i => i.ShopId == sel) ?? VisibleItems().FirstOrDefault());
+        UpdateInfo(); _game.Invalidate();
+        return true;
+    }
+
     void Touch() { _dirty[_which] = true; UpdateInfo(); _game.Invalidate(); }
 
     // ---------- itens visíveis (categoria/subcategoria atuais) ----------
@@ -192,6 +226,7 @@ internal sealed class GShopView : UserControl
     void NewItem()
     {
         if (_shops[_which] is not { } f) return;
+        Snapshot(Guid.NewGuid().ToString());
         var it = GShopItem.New(f.Items.Count == 0 ? 0 : f.Items.Max(i => i.ShopId) + 1);
         it.MainType = _main; it.SubType = Math.Max(0, _sub); it.Name = Loc.T("gshop.newName", "Novo item");
         it.SetOption(0, new GShopOption(100, 0, 0, 0, -1, 0, 0, 0));
@@ -202,6 +237,7 @@ internal sealed class GShopView : UserControl
     void CloneItem()
     {
         if (_shops[_which] is not { } f || _sel is null) return;
+        Snapshot(Guid.NewGuid().ToString());
         var it = _sel.Clone(f.Items.Max(i => i.ShopId) + 1);
         f.Items.Insert(f.Items.IndexOf(_sel) + 1, it);
         SelectItem(it); ScrollTo(it); Touch();
@@ -211,6 +247,7 @@ internal sealed class GShopView : UserControl
     {
         if (_shops[_which] is not { } f || _sel is null) return;
         if (MessageBox.Show(this, string.Format(Loc.T("gshop.confirmDelete", "Excluir \"{0}\" da loja?"), _sel.Name), "GShop", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+        Snapshot(Guid.NewGuid().ToString());
         var vis = VisibleItems().ToList(); int k = vis.IndexOf(_sel);
         f.Items.Remove(_sel);
         vis = VisibleItems().ToList();
@@ -221,6 +258,7 @@ internal sealed class GShopView : UserControl
     void MoveItem(int dir)
     {
         if (_shops[_which] is not { } f || _sel is null) return;
+        Snapshot(Guid.NewGuid().ToString());
         var vis = VisibleItems().ToList(); int k = vis.IndexOf(_sel) + dir;
         if (k < 0 || k >= vis.Count) return;
         int a = f.Items.IndexOf(_sel), b = f.Items.IndexOf(vis[k]);
@@ -376,13 +414,14 @@ internal sealed class GShopView : UserControl
         _surface.AutoCompleteMode = AutoCompleteMode.SuggestAppend; _surface.AutoCompleteSource = AutoCompleteSource.CustomSource; _surface.AutoCompleteCustomSource = _surfaces;
     }
 
-    void Edit(Action<GShopItem> a)
+    void Edit(Action<GShopItem> a, [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
     {
         if (_binding || _sel is null) return;
+        Snapshot($"campo{line}:{_sel.ShopId}");
         a(_sel); Touch();
     }
 
-    void EditOption(int k) => Edit(it =>
+    void EditOption(int k) => EditOpt(k, it =>
     {
         var o = it.GetOption(k);
         var d = ParseDuration(_dur[k].Text);
@@ -390,6 +429,13 @@ internal sealed class GShopView : UserControl
             ? new GShopOption(0, 0, 0, 0, o.ControlType == 0 ? 0 : o.ControlType, 0, 0, 0)
             : o with { Price = (int)Math.Round(_price[k].Value * 100), Duration = d ?? o.Duration, Status = (int)_status[k].Value, ControlType = o.IsEmpty ? -1 : o.ControlType });
     });
+
+    void EditOpt(int k, Action<GShopItem> a)
+    {
+        if (_binding || _sel is null) return;
+        Snapshot($"opcao{k}:{_sel.ShopId}");
+        a(_sel); Touch();
+    }
 
     // ---------- edição direto na tela (duplo clique) ----------
     void InlineEdit(Rectangle screenRect, string text, int maxLen, Action<string> apply)
@@ -443,7 +489,12 @@ internal sealed class GShopView : UserControl
 
         void Text(Graphics g, string t, Rectangle r, Color c, float size, bool bold = false, ContentAlignment align = ContentAlignment.MiddleCenter)
         {
-            using var f = GameFont(size, bold);
+            // texto maior que o espaço (ex.: categorias em russo): diminui a fonte até caber, como o jogo faz com rótulos fixos
+            var f = GameFont(size, bold);
+            if (r.Width > 0)
+                for (float k = 0.95f; k >= 0.7f && g.MeasureString(t, f).Width > r.Width + 2; k -= 0.05f)
+                { f.Dispose(); f = GameFont(size * k, bold); }
+            using var fontScope = f;
             using var sf = new StringFormat(StringFormatFlags.NoWrap)
             {
                 Trimming = StringTrimming.EllipsisCharacter, LineAlignment = StringAlignment.Center,
@@ -493,7 +544,8 @@ internal sealed class GShopView : UserControl
                 var r = MainBtn(i); var ctl = $"Btn_MainType{i}";
                 var img = Img(ImgOf(ctl, i == _v._main ? 1 : 0));
                 if (img is not null) g.DrawImage(img, r); else using (var b = new SolidBrush(i == _v._main ? Color.FromArgb(70, 110, 160) : Color.FromArgb(40, 60, 90))) g.FillRectangle(b, r);
-                var to = D?[ctl] is { } c ? new Rectangle(r.X + 12, r.Y + 3, r.Width - 12, r.Height - 3) : r;
+                // o botão tem o ícone à esquerda (TextOffsetX=12 no XML): o texto ocupa o espaço depois dele
+                var to = D?[ctl] is not null ? new Rectangle(r.X + 26, r.Y + 2, r.Width - 28, r.Height - 2) : r;
                 Text(g, f.Categories[i].Name, to, Cream, 9, true);
             }
             // subcategorias + "Tudo"
@@ -508,6 +560,8 @@ internal sealed class GShopView : UserControl
 
             // 8 células: 2 colunas x 4 linhas, rolando de 2 em 2
             var vis = _v.VisibleItems().ToList();
+            if (f.Items.Count == 0)
+                Text(g, Loc.T("gshop.emptyShop", "Esta loja está vazia neste arquivo. Use \"+ Novo item\" para adicionar."), new Rectangle(258, 300, 450, 40), Cream, 12);
             int rows = (vis.Count + 1) / 2;
             _v._scroll = Math.Clamp(_v._scroll, 0, Math.Max(0, rows - 4));
             for (int i = 0; i < 8; i++)
@@ -640,11 +694,11 @@ internal sealed class GShopView : UserControl
             switch (Hit(e.Location))
             {
                 case ("main", var i):
-                    _v.InlineEdit(ToScreen(MainBtn(i)), f.Categories[i].Name, GShopFile.NameChars - 1, t => { f.Categories[i].Name = t; _v.Touch(); _v.SelectItem(_v._sel); });
+                    _v.InlineEdit(ToScreen(MainBtn(i)), f.Categories[i].Name, GShopFile.NameChars - 1, t => { _v.Snapshot(Guid.NewGuid().ToString()); f.Categories[i].Name = t; _v.Touch(); _v.SelectItem(_v._sel); });
                     break;
                 case ("sub", var i) when i >= 0:
                     var cat = f.Categories[_v._main];
-                    _v.InlineEdit(ToScreen(SubBtn(i)), cat.Subs[i], GShopFile.NameChars - 1, t => { cat.Subs[i] = t; _v.Touch(); _v.SelectItem(_v._sel); });
+                    _v.InlineEdit(ToScreen(SubBtn(i)), cat.Subs[i], GShopFile.NameChars - 1, t => { _v.Snapshot(Guid.NewGuid().ToString()); cat.Subs[i] = t; _v.Touch(); _v.SelectItem(_v._sel); });
                     break;
                 case ("cell", _) when _v._sel is { } it:
                     // nome no topo da célula; preço no canto direito

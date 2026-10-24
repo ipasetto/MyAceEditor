@@ -24,6 +24,9 @@ internal sealed class PckView : Panel
     readonly ProgressBar _bar = new() { Dock = DockStyle.Bottom, Height = 6, Visible = false };
 
     PckArchive? _pck;
+    string? _dest;   // pasta de destino; padrão = <pacote>.files ao lado do .pck (como o sPCK)
+    readonly Label _destLabel = new() { AutoSize = true, ForeColor = Muted, Padding = new Padding(10, 7, 0, 0), MaximumSize = new Size(420, 0) };
+    readonly Button _destChange = new();
     List<PckEntry> _view = new();
     CancellationTokenSource? _work;
 
@@ -41,18 +44,21 @@ internal sealed class PckView : Panel
         top.Controls.Add(B(_extractSel, () => Extract(selectedOnly: true), 190));
         top.Controls.Add(B(_extractAll, () => Extract(selectedOnly: false), 150));
         top.Controls.Add(B(_cancel, () => _work?.Cancel(), 90));
+        top.Controls.Add(_destLabel);
+        top.Controls.Add(B(_destChange, ChangeDest, 110));
         _cancel.Visible = false;
         _extractSel.BackColor = Accent; _extractSel.ForeColor = Color.White;
 
         _lv.Columns.Add("", 520); _lv.Columns.Add("", 100, HorizontalAlignment.Right); _lv.Columns.Add("", 100, HorizontalAlignment.Right);
         _lv.RetrieveVirtualItem += (_, e) =>
         {
+            // ao trocar de pacote a lista pode pedir uma linha da contagem antiga
+            if (e.ItemIndex >= _view.Count) { e.Item = new ListViewItem(new[] { "", "", "" }); return; }
             var x = _view[e.ItemIndex];
             e.Item = new ListViewItem(new[] { x.Path, Human(x.Size), Human(x.CSize) });
         };
         _lv.SelectedIndexChanged += (_, _) => Preview();
         _lv.VirtualItemsSelectionRangeChanged += (_, _) => UpdateButtons();
-        _lv.ItemActivate += (_, _) => Extract(selectedOnly: true);
 
         var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 760, BackColor = Bg };
         split.Panel1.Controls.Add(_lv);
@@ -71,7 +77,8 @@ internal sealed class PckView : Panel
     {
         _open.Text = Loc.T("pck.open", "Abrir outro .pck…");
         _filter.PlaceholderText = Loc.T("pck.filter", "Filtrar (ex.: .dds, configs\\, skillstr)");
-        _extractAll.Text = Loc.T("pck.extractAll", "Extrair tudo…");
+        _extractAll.Text = Loc.T("pck.extractAll", "Extrair tudo");
+        _destChange.Text = Loc.T("pck.changeDest", "Mudar pasta…");
         _cancel.Text = Loc.T("dlg.cancel", "Cancelar");
         _lv.Columns[0].Text = Loc.T("pck.colPath", "Arquivo"); _lv.Columns[1].Text = Loc.T("pck.colSize", "Tamanho"); _lv.Columns[2].Text = Loc.T("pck.colPacked", "Compactado");
         UpdateButtons(); UpdateInfo();
@@ -105,7 +112,9 @@ internal sealed class PckView : Panel
         try
         {
             _pck?.Dispose(); _pck = null;
+            _view = new(); _lv.VirtualListSize = 0;
             _pck = new PckArchive(path);
+            _dest = path + ".files";
             ApplyFilter();
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("pck.openFail", "Não consegui abrir o pacote"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -127,10 +136,18 @@ internal sealed class PckView : Panel
         : string.Format(Loc.T("pck.info", "{0} · versão {1} · {2:N0} arquivos ({3:N0} no filtro) · {4}"),
             Path.GetFileName(_pck.FilePath), _pck.Version, _pck.Entries.Count, _view.Count, Human(_view.Sum(e => (long)e.Size)));
 
+    void ChangeDest()
+    {
+        using var dlg = new FolderBrowserDialog { Description = Loc.T("pck.dest", "Pasta de destino (as subpastas do pacote são mantidas)"), SelectedPath = _dest ?? "" };
+        if (dlg.ShowDialog(this) == DialogResult.OK) { _dest = dlg.SelectedPath; UpdateButtons(); }
+    }
+
     void UpdateButtons()
     {
         int n = _lv.SelectedIndices.Count;
-        _extractSel.Text = string.Format(Loc.T("pck.extractSel", "Extrair selecionados ({0})…"), n);
+        _destLabel.Text = _dest is null ? "" : Loc.T("pck.to", "Destino: ") + _dest;
+        _destChange.Visible = _pck is not null;
+        _extractSel.Text = string.Format(Loc.T("pck.extractSel", "Extrair selecionados ({0})"), n);
         _extractSel.Enabled = n > 0 && _work is null;
         _extractAll.Enabled = _view.Count > 0 && _work is null;
     }
@@ -178,9 +195,11 @@ internal sealed class PckView : Panel
         if (_pck is null || _work is not null) return;
         var list = selectedOnly ? _lv.SelectedIndices.Cast<int>().Select(i => _view[i]).ToList() : _view.ToList();
         if (list.Count == 0) return;
-        using var dlg = new FolderBrowserDialog { Description = Loc.T("pck.dest", "Pasta de destino (as subpastas do pacote são mantidas)") };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        var root = Path.GetFullPath(dlg.SelectedPath);
+        if (_dest is null) return;
+        var root = Path.GetFullPath(_dest);   // criada se não existir
+        // como o sPCK: interfaces.pck guarda "interfaces\..." e vai para interfaces.pck.files\...
+        var strip = Path.GetFileNameWithoutExtension(_pck.FilePath) + "\\";
+        if (!_pck.Entries.All(e => e.Path.StartsWith(strip, StringComparison.OrdinalIgnoreCase))) strip = "";
         var pck = _pck;
         _work = new CancellationTokenSource();
         var token = _work.Token;
@@ -188,7 +207,7 @@ internal sealed class PckView : Panel
         int done = 0, failed = 0;
         Task.Run(() =>
         {
-            (done, failed) = ExtractTo(pck, root, list, token, n => { if ((n & 31) == 0 || n == list.Count) BeginInvoke(() => _bar.Value = Math.Min(n, _bar.Maximum)); });
+            (done, failed) = ExtractTo(pck, root, list, token, strip: strip, progress: n => { if ((n & 31) == 0 || n == list.Count) BeginInvoke(() => _bar.Value = Math.Min(n, _bar.Maximum)); });
         }).ContinueWith(_ => BeginInvoke(() =>
         {
             _work?.Dispose(); _work = null;
@@ -203,7 +222,7 @@ internal sealed class PckView : Panel
     }
 
     /// <summary>Extrai as entradas para <paramref name="root"/> mantendo as subpastas; nunca grava fora dela.</summary>
-    internal static (int Done, int Failed) ExtractTo(PckArchive pck, string root, IReadOnlyList<PckEntry> list, CancellationToken token, Action<int>? progress = null)
+    internal static (int Done, int Failed) ExtractTo(PckArchive pck, string root, IReadOnlyList<PckEntry> list, CancellationToken token, Action<int>? progress = null, string strip = "")
     {
         root = Path.GetFullPath(root);
         int done = 0, failed = 0;
@@ -213,7 +232,8 @@ internal sealed class PckView : Panel
             try
             {
                 // caminho com .. ou absoluto dentro do pacote não sai da pasta escolhida
-                var target = Path.GetFullPath(Path.Combine(root, e.Path.TrimStart('\\', '/')));
+                var rel = strip.Length > 0 && e.Path.StartsWith(strip, StringComparison.OrdinalIgnoreCase) ? e.Path[strip.Length..] : e.Path;
+                var target = Path.GetFullPath(Path.Combine(root, rel.TrimStart('\\', '/')));
                 if (!target.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) failed++;
                 else
                 {

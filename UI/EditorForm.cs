@@ -240,6 +240,7 @@ public sealed class EditorForm : Form
         tQ.Controls.Add(BuildQuestView());
         tabs.TabPages.Add(tQ);
         var tG = new TabPage() { BackColor = CBg };
+        _tabGShop = tG;
         Bind(() => tG.Text = Loc.T("tab.gshop", "GShop"));
         tG.Controls.Add(_gshop = new GShopView(
             () => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)),   // pasta element
@@ -1165,6 +1166,7 @@ public sealed class EditorForm : Form
     // ---------- procurar erros ----------
     private ErrorsWindow? _errors;
     private GShopView? _gshop;
+    private TabPage? _tabGShop;
     private readonly MyAceEditor.Changes.EditHistory _edits = new();
 
     private void FindErrors()
@@ -1266,7 +1268,9 @@ public sealed class EditorForm : Form
         if (keyData is (Keys.Control | Keys.Z) or (Keys.Control | Keys.Y) or (Keys.Control | Keys.Shift | Keys.Z)
             && ActiveControlDeep() is not TextBoxBase && !_grid.IsCurrentCellInEditMode)
         {
-            UndoRedo(undo: keyData == (Keys.Control | Keys.Z));
+            bool undo = keyData == (Keys.Control | Keys.Z);
+            if (_tabs?.SelectedTab == _tabGShop && _gshop is not null) { if (!(undo ? _gshop.Undo() : _gshop.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
+            UndoRedo(undo);
             return true;
         }
         return base.ProcessCmdKey(ref msg, keyData);
@@ -2587,6 +2591,8 @@ public sealed class EditorForm : Form
         if (_chkClient.Text.Length == 0 && _dataPath is not null)
             _chkClient.Text = Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "";
         if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status("Escolha as pastas do cliente e do servidor."); return; }
+        // aceita element\data, a pasta do jogo, a raiz dos arquivos do servidor... e mostra a pasta que vale
+        _chkClient.Text = VersionCheck.ClientElement(_chkClient.Text); _chkServer.Text = VersionCheck.ServerHome(_chkServer.Text);
         SaveSetting("check_client", _chkClient.Text); SaveSetting("check_server", _chkServer.Text);
         var rows = VersionCheck.Run(_chkClient.Text, _chkServer.Text);
         _chkList.BeginUpdate(); _chkList.Items.Clear();
@@ -2604,9 +2610,11 @@ public sealed class EditorForm : Form
         }
         _chkList.EndUpdate();
         int err = rows.Count(r => r.Nivel == CheckLevel.Erro), warn = rows.Count(r => r.Nivel == CheckLevel.Aviso);
-        _chkSummary.Text = err > 0 ? $"✖ {err} erro(s) que impedem o login · {warn} aviso(s)"
+        bool nothing = rows.All(r => r.Cliente == "não encontrado" && r.Servidor == "não encontrado");
+        _chkSummary.Text = nothing ? "✖ Não achei os arquivos: confira as pastas (cliente = element do jogo; servidor = pasta que tem gamed/)"
+                         : err > 0 ? $"✖ {err} erro(s) que impedem o login · {warn} aviso(s)"
                          : warn > 0 ? $"⚠ Sem erros de login · {warn} aviso(s)" : "✔ Cliente e servidor compatíveis";
-        _chkSummary.ForeColor = err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
+        _chkSummary.ForeColor = nothing || err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
         Status("Verificação concluída");
     }
 

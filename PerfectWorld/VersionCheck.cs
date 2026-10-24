@@ -16,8 +16,38 @@ public static class VersionCheck
 {
     /// <param name="clientElement">pasta element\ do cliente</param>
     /// <param name="serverHome">pasta home/ do servidor (contém gamed/, glinkd/…)</param>
+    /// <summary>Aceita a pasta do jogo, a element ou a element\data e devolve a element.</summary>
+    public static string ClientElement(string p)
+    {
+        p = p.TrimEnd('\\', '/');
+        if (File.Exists(Path.Combine(p, "elements.data")) && Path.GetFileName(p).Equals("data", StringComparison.OrdinalIgnoreCase)) return Path.GetDirectoryName(p)!;
+        if (Directory.Exists(Path.Combine(p, "element", "data"))) return Path.Combine(p, "element");
+        return p;
+    }
+
+    /// <summary>Aceita a raiz dos arquivos do servidor ou a home e devolve a pasta que contém gamed/ (até 2 níveis abaixo).</summary>
+    public static string ServerHome(string p)
+    {
+        p = p.TrimEnd('\\', '/');
+        if (Directory.Exists(Path.Combine(p, "gamed"))) return p;
+        if (Path.GetFileName(p).Equals("gamed", StringComparison.OrdinalIgnoreCase)) return Path.GetDirectoryName(p)!;
+        try
+        {
+            foreach (var d in Directory.EnumerateDirectories(p))
+            {
+                if (Directory.Exists(Path.Combine(d, "gamed"))) return d;
+                foreach (var d2 in Directory.EnumerateDirectories(d))
+                    if (Directory.Exists(Path.Combine(d2, "gamed"))) return d2;
+            }
+        }
+        catch { }
+        return p;
+    }
+
     public static List<CheckRow> Run(string clientElement, string serverHome)
     {
+        clientElement = ClientElement(clientElement);
+        serverHome = ServerHome(serverHome);
         var rows = new List<CheckRow>();
         string cData = Path.Combine(clientElement, "data");
         string sCfg = Path.Combine(serverHome, "gamed", "config");
