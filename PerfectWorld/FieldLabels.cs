@@ -34,7 +34,7 @@ public static class FieldLabels
         // monstro (struct MONSTER_ESSENCE do gs; PW-KB §S26)
         ["id_type"] = "Tipo", ["prop"] = "Propriedade (texto)", ["desc"] = "Descrição (texto)",
         ["faction"] = "Facção", ["monster_faction"] = "Facção de monstro", ["size"] = "Tamanho", ["damage_delay"] = "Atraso do dano",
-        ["id_strategy"] = "Política de IA", ["role_in_war"] = "Papel na guerra", ["show_level"] = "Nível exibido",
+        ["id_strategy"] = "Tipo de combate", ["role_in_war"] = "Papel na guerra", ["show_level"] = "Força exibida (3 = muito forte)",
         ["id_pet_egg_captured"] = "Ovo de pet ao capturar", ["life"] = "HP", ["defence"] = "Defesa física",
         ["exp"] = "EXP", ["skillpoint"] = "SP", ["money_average"] = "Dinheiro (média)", ["money_var"] = "Dinheiro (variação)",
         ["short_range_mode"] = "Modo de alcance", ["sight_range"] = "Alcance de visão", ["attack"] = "Precisão", ["armor"] = "Esquiva",

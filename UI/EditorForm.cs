@@ -1727,6 +1727,8 @@ public sealed class EditorForm : Form
                 return int.TryParse(value, out var qid) && QuestName(qid) is { } qname
                     ? $"{qname}  ({Loc.T("grid.quest", "quest")} {qid})" : Loc.T("grid.quest", "quest");
             default:
+                if (kind == FieldKind.Plain)   // código com significado (tipo de combate, habitat...)
+                    return FieldValues.Text(_owner.TryGetValue(item, out var vb) ? vb.Name : "", field, value) ?? "";
                 if (!FieldKinds.IsReference(kind) || _refs?.Resolve(kind, value) is not { } hit) return "";
                 var name = string.IsNullOrEmpty(hit.Item.Name) ? $"#{hit.Item.Id}" : hit.Item.Name;
                 if (kind == FieldKind.AddonRef && _cfgs?.Addons?.Describe(hit.Item) is { } eff) return $"→ {eff}   ({name})";
