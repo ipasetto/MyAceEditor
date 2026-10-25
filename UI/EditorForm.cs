@@ -1915,10 +1915,13 @@ public sealed class EditorForm : Form
             && _current.Fields.TryGetValue(key, out var of) && of.Type != FieldType.Bool);
 
     // Lista "Escolha um valor": pseudo-itens no seletor comum (ID = valor gravado, Nome = significado).
-    private string? PickValue(string title, IEnumerable<(string Value, string Text, string Desc)> options, string current)
+    // group: filtro do topo (opcional); initialGroup: filtro já escolhido ao abrir
+    private string? PickValue(string title, IEnumerable<(string Value, string Text, string Desc)> options, string current,
+        Func<string, string?>? group = null, string? initialGroup = null)
     {
         var items = options.Select(o => new Item { Id = o.Value, Name = o.Text, Fields = new() { ["desc"] = Field.Of(FieldType.String, o.Desc) } }).ToList();
-        var picked = FieldEditors.Pick(this, title, items, current, _ => -1, _treeIcons, it => it.Fields["desc"].Value, null, false);
+        var picked = FieldEditors.Pick(this, title, items, current, _ => -1, _treeIcons, it => it.Fields["desc"].Value,
+            group is null ? null : it => group(it.Id), false, initialGroup);
         return picked is { Count: > 0 } ? picked[0].Id : null;
     }
 
@@ -2022,7 +2025,18 @@ public sealed class EditorForm : Form
                 }
                 var opts3 = gc.SkillNames.OrderBy(k => k.Key).Select(k => (k.Key.ToString(), TasksFile.SplitColor(k.Value).Text,
                     gc.SkillDescs.TryGetValue(k.Key, out var d) ? Plain(d) : ""));
-                if (PickValue(Loc.T("pick.skill", "Escolher habilidade"), opts3, cur) is { } sv) SetField(item, key, sv);
+                // compatíveis: as já usadas por itens do mesmo bloco (os monstros oficiais usam 379 e nenhuma das 693 de classe);
+                // as de personagem (descrição com "Nv. %d"/"Custo em MP") e as outras ficam num filtro à parte
+                var usedSk = new HashSet<string>();
+                if (_owner.TryGetValue(item, out var skb))
+                    foreach (var it2 in skb.Items)
+                        foreach (var (k2, f2) in it2.Fields)
+                            if (KindOf(it2, k2) == FieldKind.SkillRef && !IsEmpty(f2.Value)) usedSk.Add(f2.Value);
+                string gUsed = Loc.T("pick.skillUsed", "Usadas neste bloco (compatíveis)"), gPlayer = Loc.T("pick.skillPlayer", "De personagem (classes)"), gOther = Loc.T("pick.skillOther", "Outras");
+                string SkGroup(string id) => usedSk.Contains(id) ? gUsed
+                    : int.TryParse(id, out var sid) && gc.SkillDescs.TryGetValue(sid, out var sd)
+                      && System.Text.RegularExpressions.Regex.IsMatch(sd, @"Nv\.\s*%d|Custo em MP|Restri", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ? gPlayer : gOther;
+                if (PickValue(Loc.T("pick.skill", "Escolher habilidade"), opts3, cur, SkGroup, usedSk.Count > 0 ? gUsed : null) is { } sv) SetField(item, key, sv);
                 return true;
             }
             case FieldKind.FoodMask:

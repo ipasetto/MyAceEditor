@@ -1485,5 +1485,8 @@
   "help.discover": "Teleport point the player unlocks by talking to this NPC.",
   "help.model": "3D model (.ecm) the game draws for this item, monster or NPC.",
   "help.attackSpeed": "Seconds between hits (lower = attacks faster).",
-  "help.target": "Destination of this teleport (map point)."
+  "help.target": "Destination of this teleport (map point).",
+  "pick.skillUsed": "Used in this block (compatible)",
+  "pick.skillPlayer": "Player skills (classes)",
+  "pick.skillOther": "Other"
 }

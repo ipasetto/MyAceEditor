@@ -82,7 +82,7 @@ internal static class FieldEditors
     /// group != null mostra um filtro por grupo (ex.: tipo de addon). multi permite escolher vários.
     /// </summary>
     public static List<Item>? Pick(IWin32Window owner, string title, IReadOnlyList<Item> source, string? currentId,
-        Func<Item, int> icon, ImageList images, Func<Item, string> describe, Func<Item, string?>? group, bool multi)
+        Func<Item, int> icon, ImageList images, Func<Item, string> describe, Func<Item, string?>? group, bool multi, string? initialGroup = null)
     {
         using var f = NewDialog(title, 860, 620);
         var search = new TextBox { Dock = DockStyle.Fill, PlaceholderText = Loc.T("dlg.pickSearch", "Pesquisar por nome, ID ou descrição…"), BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f) };
@@ -93,7 +93,7 @@ internal static class FieldEditors
         {
             groupBox.Items.Add(Loc.T("dlg.allTypes", "(todos os tipos)"));
             foreach (var g in source.Select(group).Where(g => g is not null).Distinct().OrderBy(g => g)) groupBox.Items.Add(g!);
-            groupBox.SelectedIndex = 0;
+            groupBox.SelectedIndex = initialGroup is not null && groupBox.Items.IndexOf(initialGroup) is >= 0 and var gi ? gi : 0;
         }
         var lv = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, VirtualMode = true, MultiSelect = multi, HideSelection = false, SmallImageList = images, BorderStyle = BorderStyle.None };
         lv.Columns.Add(Loc.T("list.id", "ID"), 80, HorizontalAlignment.Right); lv.Columns.Add(Loc.T("list.name", "Nome"), 300); lv.Columns.Add(Loc.T("list.description", "Descrição"), 420);

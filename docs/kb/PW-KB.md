@@ -438,6 +438,7 @@ xref: configs\references.txt (lista;campo,campo)
 - [T] file_model = "Models\..." .ecm; no models.pck o caminho e "models\..." minusculo (4628 .ecm no 1.4.4; 390/400 caminhos do elements achados).
 - [T] Pontos de teleporte com nome: element\maps\world\world_targets.txt (UTF-16): ID<TAB>"nome"<TAB>mapa<TAB>"x,y,z"<TAB>regiao (61 no 1.4.4); IDs de id_to_discover (NPC) e targets_N_idTarget (NPC_TRANSMIT_SERVICE); servidor tem world_targets.sev.
 - [T] RECIPE_ESSENCE materials_1..32 podem estar espalhados (ex. receita 27 usa slots 2, 7, 11); a janela de fabricar (interfaces\version01\produce_icon.xml: Btn_Set1..8 paginas, U_01..U_32 receitas, Item_01..08 + Txt_no materiais, Item_out/Txt_out, Txt_Gold, Txt_SkillName/Level) mostra 8 — nossa previa compacta em sequencia [I].
+- [T] Habilidades de monstro (v60): 379 distintas usadas, nenhuma das 693 de classe (descricao de personagem tem "Nv. %d"/"Custo em MP"); ovos de mascote usam 48 (22 com descricao de personagem, sao skills de mascote). Seletor abre nas usadas pelo bloco.
 - [T] skillstr.txt: "ID*10 \"nome\"" e "ID*10+1 \"descricao\"" (descricao pode ter varias linhas; 1789 habilidades com nome no 1.4.4).
 ## §S24 OPERACAO, SEGURANCA, ERROS (PDFs PWDevGroup + Protegendo Servidor + guia andrey.pw; doc analise_arquivos_pw.md §3-6) [W/M]
 classes (mascara, confirmada em sELedit+aipolicy+tasks): BM=1 WIZ=2 PSY=4 VEN=8 BAR=16 AS=32 AR=64 CLE=128 SE=256 MY=512 | modernas: Duskblade 0x400 Stormbringer 0x800 Technician 0x1000 Edgerunner 0x2000 [C]
