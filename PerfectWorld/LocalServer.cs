@@ -125,6 +125,8 @@ public sealed class LocalServer
 
         progress?.Report(("Colocando \"Local\" na lista de servidores do cliente", null));
         AddToServerList(o.ClientElement);
+        progress?.Report(("Desligando a página de anúncios da internet que derruba o cliente", null));
+        FixClientPages(o.ClientElement);
         progress?.Report(("Pronto", 1));
     }
 
@@ -244,6 +246,44 @@ public sealed class LocalServer
     }
 
     public string ServiceLog(string name) => Bash($"pwctl log {name}", timeoutMs: 60_000).Output;
+
+    /// <summary>
+    /// Página de anúncios do login (configs\loginpage.ini no configs.pck): o cliente baixa a URL e o leitor de páginas
+    /// de 2009 quebra o jogo com páginas modernas (pwonline.ru devolve uma "verificação de segurança" com JavaScript;
+    /// crash "Exception occurred in ParsePage thread" ao entrar no mundo). A URL vira http://127.0.0.1:1/ (recusa na
+    /// hora), mesmo tamanho, e o cache BBSPages\temp*.htm baixado volta para a página local temp0.htm. Backup de tudo.
+    /// </summary>
+    public void FixClientPages(string clientElement)
+    {
+        var pck = Path.Combine(clientElement, "configs.pck");
+        if (File.Exists(pck))
+        {
+            byte[]? ini;
+            using (var a = new PckArchive(pck)) ini = a.Find(@"configs\loginpage.ini") is { } e ? a.Read(e) : null;
+            if (ini is not null)
+            {
+                var text = Encoding.Latin1.GetString(ini);
+                var m = System.Text.RegularExpressions.Regex.Match(text, @"(?m)^LoginPage\s*=\s*(https?://\S+)");
+                const string local = "http://127.0.0.1:1/";
+                if (m.Success && !m.Groups[1].Value.StartsWith(local) && m.Groups[1].Value.Length >= local.Length)
+                {
+                    var g = m.Groups[1];
+                    var fixedText = text[..g.Index] + local.PadRight(g.Length) + text[(g.Index + g.Length)..];
+                    PckPatch.ReplaceSameSize(pck, @"configs\loginpage.ini", Encoding.Latin1.GetBytes(fixedText));
+                    Log($"página de anúncios do login: {g.Value} → {local} (configs.pck, backup ao lado)");
+                }
+            }
+        }
+        var bbs = Path.Combine(clientElement, "BBSPages");
+        var safe = Path.Combine(bbs, "temp0.htm");
+        if (File.Exists(safe))
+            foreach (var f in Directory.GetFiles(bbs, "temp*.htm").Where(f => !f.Equals(safe, StringComparison.OrdinalIgnoreCase)))
+            {
+                if (File.ReadAllBytes(f).AsSpan().SequenceEqual(File.ReadAllBytes(safe))) continue;
+                AtomicFileSave.Write(f, File.ReadAllBytes(safe));
+                Log("cache de página trocado pela página local: " + f);
+            }
+    }
 
     /// <summary>Entrada "Local" (127.0.0.1:29000) nas listas de servidores do cliente (UTF-16, com backup).</summary>
     public void AddToServerList(string clientElement)

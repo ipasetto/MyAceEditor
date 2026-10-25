@@ -59,7 +59,8 @@ Trabalhe numa cópia da pasta do jogo/servidor até tudo estar conferido.
 - [ ] Reiniciar o PC uma vez (o WSL só liga depois disso). Na aba **Servidor**, **Estado** não pede mais para reiniciar.
 - [ ] Escolher login e senha (letras e números) → **Instalar / completar** → espera o log terminar com "Pronto".
 - [ ] **Iniciar** → as luzes ficam verdes e aparece "Servidor no ar".
-- [ ] Abrir o jogo → servidor **Local** → entrar com a conta criada; criar personagem.
+- [x] Abrir o jogo → servidor **Local** → entrar (igor/123) e criar personagem (userP) — ok em 25/10.
+- [ ] Entrar no mundo com o personagem sem o jogo fechar (corrigida a página de anúncios que derrubava o cliente).
 - [ ] Mudar algo no editor (ex.: npcgen) → **Enviar meus arquivos e reiniciar** → a mudança aparece no jogo.
 - [ ] Barra de cima: **💾 Salvar e enviar ao servidor** grava tudo (sem perguntar), abre a aba Servidor e reinicia com os arquivos novos.
 
