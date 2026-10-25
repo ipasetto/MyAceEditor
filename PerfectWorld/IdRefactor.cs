@@ -4,15 +4,17 @@ namespace MyAceEditor.PerfectWorld;
 
 /// <summary>O que muda ao trocar o ID de um registro: o próprio ID e cada referência a ele.</summary>
 public sealed record IdChangePlan(ItemList Block, Item Item, string OldId, string NewId,
-    List<RefIndex.Ref> Elements, List<(QuestNode Quest, TaskField Field)> Quests, List<(GShopFile Shop, GShopItem Item, bool Gift)> Shop)
+    List<RefIndex.Ref> Elements, List<(QuestNode Quest, TaskField Field)> Quests, List<(GShopFile Shop, GShopItem Item, bool Gift)> Shop,
+    List<(string Name, NpcGenFile File, int Id)> NpcGen)
 {
-    public int Total => 1 + Elements.Count + Quests.Count + Shop.Count;
+    public int Total => 1 + Elements.Count + Quests.Count + Shop.Count + NpcGen.Count;
 }
 
 /// <summary>
 /// Refatorar ID (como o "Refator" do RAE, código nosso): troca o ID do registro e atualiza quem aponta para ele no
 /// elements.data (pelo índice de referências, respeitando os espaços de ID — PW-KB §S28), nas quests (campos de
-/// item/monstro/NPC do tasks.data) e na loja (item vendido e presente). O npcgen.data ainda não é lido.
+/// item/monstro/NPC do tasks.data), na loja (item vendido e presente) e no npcgen.data (monstros e NPCs nos pontos de
+/// criatura, minas nos pontos de coleta; mundo e instâncias).
 /// </summary>
 public static class IdRefactor
 {
@@ -53,7 +55,8 @@ public static class IdRefactor
         };
     }
 
-    public static IdChangePlan Plan(RefIndex refs, ItemList block, Item item, string newId, TasksFile? tasks, IEnumerable<GShopFile> shops)
+    public static IdChangePlan Plan(RefIndex refs, ItemList block, Item item, string newId, TasksFile? tasks, IEnumerable<GShopFile> shops,
+        IEnumerable<(string Name, NpcGenFile File)>? npcgens = null)
     {
         // o tipo do campo depende do bloco (NPC_MAKE_SERVICE goods = receita): FieldKinds.Of(bloco, campo)
         var elements = refs.UsedBy(item).ToList();
@@ -70,6 +73,32 @@ public static class IdRefactor
                     if (it.ItemId.ToString() == item.Id) shop.Add((s, it, false));
                     if (it.GiftId.ToString() == item.Id) shop.Add((s, it, true));
                 }
-        return new IdChangePlan(block, item, item.Id, newId, elements, quests, shop);
+        var gen = new List<(string, NpcGenFile, int)>();
+        if (int.TryParse(item.Id, out var oldId) && npcgens is not null)
+            foreach (var (name, f) in npcgens)
+                for (int k = CountInNpcGen(f, block.Name, oldId); k > 0; k--) gen.Add((name, f, oldId));
+        return new IdChangePlan(block, item, item.Id, newId, elements, quests, shop, gen);
+    }
+
+    // npcgen: monstros e NPCs nos pontos de criatura (o tipo 0 do mundo 1.4.4 tem 615 NPCs), minas nos pontos de coleta
+    static IEnumerable<Action<int>> NpcGenSlots(NpcGenFile f, string blockName, int id)
+    {
+        if (blockName == "MINE_ESSENCE")
+        {
+            foreach (var r in f.Resources) foreach (var x in r.Items) if (x.Id == id) yield return v => x.Id = v;
+            yield break;
+        }
+        if (blockName is not ("MONSTER_ESSENCE" or "NPC_ESSENCE")) yield break;
+        foreach (var s in f.Spawns) foreach (var c in s.Creatures) if (c.Id == id) yield return v => c.Id = v;
+    }
+
+    public static int CountInNpcGen(NpcGenFile f, string blockName, int id) => NpcGenSlots(f, blockName, id).Count();
+
+    /// <summary>Troca o ID nos pontos do npcgen; devolve quantos mudaram.</summary>
+    public static int ReplaceInNpcGen(NpcGenFile f, string blockName, int from, int to)
+    {
+        var slots = NpcGenSlots(f, blockName, from).ToList();
+        foreach (var set in slots) set(to);
+        return slots.Count;
     }
 }

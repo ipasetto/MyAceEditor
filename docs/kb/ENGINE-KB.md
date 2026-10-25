@@ -24,7 +24,7 @@ itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S
 quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | v93 COMPLETO [T] (§E3c): campos, textos, dialogos, subquests; premios preservados
 IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | pendente; formato COMPLETO (mais pronto p/ implementar)
 loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
-spawns | - | npcgen.data | §S6 §S22 | pendente; formato v7-11 conhecido
+spawns | NpcGenFile.cs + UI/NpcGenView.cs | npcgen.data | §S6 §S22 | [T] leitura/gravacao identica v5/v6/v10 (49 arquivos); aba NPCGen; Mudar ID atualiza
 regioes/portais/terreno | maps/*/region.clt precinct.clt .t2bk | region.sev precinct.sev .hmap .rmap .wmap path.sev | §S6 §S17 §S22 | pendente
 skills | elementskill.dll (CElementSkill) + configs/skillstr.txt | gs (mesmo codigo #ifdef _SKILL_SERVER) | §S17(skills) | pendente; exige recompilar dll+gs -> maior risco
 icones | surfaces.pck iconset/ (.dds+.txt) | - | §S2 §S3 | NATIVO PRONTO [T] (§E4)
@@ -70,7 +70,7 @@ sim/nao (IsFlag) [T]: FlagFields.cs = 253 pares (bloco|campo) ft_bool da lista d
 - [T] Duplo clique (EditFieldSpecial): habilidade (skillstr), "Escolha um valor" (FieldValues.Options: habitat/tipo de combate, monstro e mascote; campos bool ficam na caixinha), comida, servicos combinados, modelo (models.pck), ponto de teleporte. Grade mantem a rolagem ao editar (FillGrid).
 - [T] ChanceEditor (UI) + ProbabilityGroups/AddonGroups (PerfectWorld): barras arrastaveis, cadeado, Σ; editor de addons (equipamento) e de drops (monstro), copia do item + Ctrl+Z proprio; Salvar = 1 passo do historico. Seletor (FieldEditors.Pick) le a selecao no FormClosing (aberto por janela modal voltava vazio).
 - [T] AdvancedSearch (aba Buscar): bloco/todos, campo/qualquer, = ≠ > < ≥ ≤ entre contem nao-contem comeca-com, manter resultados, alterar em lote nos resultados.
-- [T] IdRefactor + EditHistory.Custom: troca ID e referencias em elements (RefIndex.UsedBy por espaco), quests (campos "...: ID", "item que cai", "NPC ...") e gshop (item/presente) num passo so; nao atualiza npcgen nem configs.pck.
+- [T] IdRefactor + EditHistory.Custom: troca ID e referencias em elements (RefIndex.UsedBy por espaco), quests (campos "...: ID", "item que cai", "NPC ..."), gshop (item/presente) e npcgen (mundo + instancias; monstro/NPC em qualquer ponto de criatura, mina nos de coleta; desfazer procura de novo pelo ID) num passo so; nao atualiza configs.pck.
 - [T] MakePreview: NPC_MAKE_SERVICE com produce_icon.xml; cliques por MouseDown + duplo clique proprio (MouseClick/MouseDoubleClick nao disparavam no Panel); dica via SetToolTip (Show() engolia o clique).
 ## §E3c tasks.data (TasksFile.cs + TaskSchema.cs) — v93 COMPLETO [T]
 esquema v93 escrito a partir do estudo do Rody V22 (reducao automatica dos ifs de versao: scratch v93_reduce.py; codigo nosso, declarativo)
@@ -116,6 +116,8 @@ PerfectWorld/VersionCheck.cs | verificacao do par cliente x servidor
 PerfectWorld/TasksFile.cs | tasks.data (arvore, gravacao c/ tabela de offsets)
 PerfectWorld/TaskSchema.cs | esquema v93 (campos, premios, textos, dialogos)
 PerfectWorld/GameConfigs.cs | item_color + item_ext_desc do configs.pck
+PerfectWorld/NpcGenFile.cs | npcgen.data v5-11 (pontos, grupos, coleta, objetos, gatilhos) campo a campo, gravacao identica
+UI/NpcGenView.cs | aba NPCGen: arquivos do servidor (world + aNN), lista de pontos, editor do ponto, desfazer proprio
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
 PerfectWorld/FieldLabels.cs | rotulos PT + grupos (Basico Requisitos Ataque Defesa Durabilidade Economia Atributos/Addons Modelo/Arquivos Outros)
 PerfectWorld/PckArchive.cs | leitor nativo .pck/.pkx
@@ -167,6 +169,8 @@ melhorias de UI (out/2026, ideias de §E9b) [T por print]:
  - titulo da janela com versao e data do elements.data; status com campos e bytes do registro; coluna Nome da lista ocupa o espaco (sem rolagem horizontal)
  - proc_type bits 0,1,2,4 renomeados como restricao ("Nao pode trocar"...) — estavam invertidos (PWKB§S26)
  pendente conhecido: Tests/audit_localization.py procura dicionario Tokens em FieldLabels.cs (foi movido p/ FieldTokens.cs) -> script quebrado, nao relacionado a estas mudancas
+
+- [T] Aba NPCGen (PerfectWorld/NpcGenFile.cs, UI/NpcGenView.cs): acha gamed\config pela pasta do servidor da Verificacao (ou "Abrir pasta"); combo de arquivo (world primeiro, depois aNN/bNN), filtro Pontos de monstro/NPC/Coleta, busca por nome/ID (espera 250 ms); lista virtual com nome+icone do elements, qtde, renascer, posicao, raio, gatilho; painel: posicao, raio, local (chao/livre), gatilho, max vivos, 3 flags, tabela de quem nasce (duplo clique troca pelo seletor com filtro Monstros/NPCs; qtde/renascer/caminho editam na tabela), adicionar/trocar/remover; Ponto novo (copia o selecionado), Clonar, Excluir; desfazer por ponto (Replace/Insert/Remove, Ctrl+Z com a aba aberta); Salvar grava so os arquivos mudados com backup. Teste no programa: trocar 7068->7069 e qtde 1->3 = 2 bytes diferentes; Mudar ID 7068->33115 = 70 pontos, Ctrl+Z volta. Licao de teste: a janela do Claude flutua a direita e engole cliques da automacao (some do print) -> mover a janela de teste (MoveWindow).
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's Angelica Editor faz, com CODIGO NOSSO e interface parecida com a dele.

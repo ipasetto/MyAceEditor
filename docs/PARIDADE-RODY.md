@@ -23,7 +23,7 @@
 [x] seletor de blocos agrupado por categoria | [x] adicionar | [x] clonar | [x] excluir | [x] favoritar | [x] ordenar por ID/nome (coluna)
 [~] A selecao multipla (Ctrl/Shift/Ctrl+A) + lote: [x] clonar (Ctrl+N) [x] excluir (Del) [x] alterar campo [x] copiar IDs [ ] copiar/colar itens
 [ ] B mover itens (cima/baixo/topo/fim) | [ ] B ordenar selecionados (ID/nome/valor, cresc/decr)
-[x] A refatorar ID (elements + quests + gshop, um Ctrl+Z; falta npcgen e configs.pck) | [ ] B definir ID unico | [x] copiar IDs
+[x] A refatorar ID (elements + quests + gshop + npcgen, um Ctrl+Z; falta configs.pck) | [ ] B definir ID unico | [x] copiar IDs
 [ ] B adicionar ao GShop / procurar no GShop | [~] A traduzir itens selecionados (Ctrl+T) (temos: traduzir com outro elements.data)
 [ ] B descricao: anexar texto (ex.: copyright), mudanca avancada, limpar, salvar
 [ ] B criar receita / roupa / quest a partir dos selecionados
@@ -65,7 +65,7 @@
 ## 6. EDITORES SEPARADOS
 [~] Quests (tasks.data) — temos campos/textos/dialogos/listas/premios, clonar/excluir; RAE usa sTASKedit: abas Basic Properties I-V, Special Parameters, Given Requirements I-V, Complete Requirements, Awards (sucesso/falha, Awards I/II), Text Page (talks → janelas → opcoes), Extended Search; falta: mudar qtd de entradas, outras versoes, organizar em abas como o sTASKedit
 [x] GShop (gshop.data + gshopsev) com a tela do jogo | [ ] B GShop: inicio/fim de venda (dia da semana/dia/mes), classe necessaria, preco por 10 moedas, "corrigir bugs automaticamente", mostrar itens nao encontrados/nome igual/ID repetido
-[ ] A NPCGen (npcgen.data) | [ ] B domain2.data (guerra territorial: tempo de batalha, territorios, pontos) | [ ] B path.data (caminhos) | [ ] B dynamicobjects
+[x] A NPCGen (npcgen.data: pontos de monstro/NPC/coleta; falta mapa, objetos e gatilhos) | [ ] B domain2.data (guerra territorial: tempo de batalha, territorios, pontos) | [ ] B path.data (caminhos) | [ ] B dynamicobjects
 [x] AI Policy
 
 ## 7. SERVIDOR

@@ -49,7 +49,7 @@ Cada tarefa tem uma **[issue no GitHub](https://github.com/ipasetto/MyAceEditor/
 
 ### Outros arquivos
 - ⬜ Editor de **GShop** (cliente e servidor juntos; formato em PW-KB §S19)
-- ⬜ Editor de **NPCGen** / spawns (PW-KB §S22)
+- ✅ Editor de **NPCGen** / spawns (pontos de monstro, NPC e coleta; mapa 🔜)
 - ⬜ Editor de **AI Policy** (PW-KB §S18)
 - ⬜ 🔴 Fechar a leitura dos ~1,4% finais do `elements.data` (Guerra Territorial)
 

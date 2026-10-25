@@ -30,7 +30,7 @@
 [ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | outras versoes (so v93 completa)
 [ ] auto-tradutor (quests + elements + configs.pck)
 [x] GShop (cliente+servidor juntos, tela igual a do jogo; falta validar no jogo e desfazer)
-[ ] AI Policy (PW-KB §S18) | NPCGen/spawns (PW-KB §S22)
+[ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [ ] mapa com os pontos | [ ] objetos e gatilhos (hoje so preservados)
 [x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)
 
 ## FASE 4 — engine

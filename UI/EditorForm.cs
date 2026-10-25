@@ -270,6 +270,14 @@ public sealed class EditorForm : Form
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
             PickShopItem));
         tabs.TabPages.Add(tG);
+        var tN = new TabPage() { BackColor = CBg };
+        _tabNpcGen = tN;
+        Bind(() => tN.Text = Loc.T("tab.npcgen", "NPCGen"));
+        tN.Controls.Add(_npcgen = new NpcGenView(
+            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? IconFor(h.Item) : null,
+            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
+            PickSpawn));
+        tabs.TabPages.Add(tN);
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));
         _aiView = new AiPolicyView(CBg, CFg, CTreeBg, CTreeFg, CAccent);
@@ -1475,7 +1483,8 @@ public sealed class EditorForm : Form
     // ---------- procurar erros ----------
     private ErrorsWindow? _errors;
     private GShopView? _gshop;
-    private TabPage? _tabGShop, _tabPck;
+    private NpcGenView? _npcgen;
+    private TabPage? _tabGShop, _tabPck, _tabNpcGen;
     private PckView? _pckView;
     private readonly MyAceEditor.Changes.EditHistory _edits = new();
 
@@ -1506,6 +1515,8 @@ public sealed class EditorForm : Form
     {
         if (_current is not { } item || !_owner.TryGetValue(item, out var block) || _store.Current is not { } module || _refs is null) return;
         var shops = _gshop?.LoadedShops.ToList() ?? new();
+        // npcgen do servidor (mundo e instâncias): só monstros, NPCs e minas nascem nele
+        var npcgens = block.Name is "MONSTER_ESSENCE" or "NPC_ESSENCE" or "MINE_ESSENCE" ? _npcgen?.AllFiles().ToList() ?? new() : new();
         using var f = new Form
         {
             Text = string.Format(Loc.T("chid.title", "Mudar ID — {0} {1}"), item.Id, TasksFile.SplitColor(item.Name).Text),
@@ -1525,11 +1536,12 @@ public sealed class EditorForm : Form
         {
             var nid = box.Text.Trim();
             if (IdRefactor.Validate(module, block, item, nid) is { } err) { plan = null; ok.Enabled = false; info.ForeColor = Color.FromArgb(185, 28, 28); info.Text = "⚠ " + err; return; }
-            plan = IdRefactor.Plan(_refs, block, item, nid, _tasks, shops);
+            plan = IdRefactor.Plan(_refs, block, item, nid, _tasks, shops, npcgens);
             ok.Enabled = true; info.ForeColor = CFg;
             info.Text = string.Format(Loc.T("chid.preview",
-                "Vai mudar:\n  • o ID do item ({0} → {1})\n  • {2} campo(s) no elements.data que apontam para ele\n  • {3} campo(s) em quests (tasks.data)\n  • {4} referência(s) na loja (gshop)\n\nNão atualiza ainda: o npcgen.data (onde monstros e NPCs nascem no mapa) e a descrição/cor do nome no configs.pck (ficam no ID antigo). Ctrl+Z desfaz tudo de uma vez."),
-                item.Id, nid, plan.Elements.Count, plan.Quests.Count, plan.Shop.Count);
+                "Vai mudar:\n  • o ID do item ({0} → {1})\n  • {2} campo(s) no elements.data que apontam para ele\n  • {3} campo(s) em quests (tasks.data)\n  • {4} referência(s) na loja (gshop)\n  • {5} ponto(s) de nascimento no npcgen.data{6}\n\nNão atualiza ainda: a descrição/cor do nome no configs.pck (ficam no ID antigo). Ctrl+Z desfaz tudo de uma vez."),
+                item.Id, nid, plan.Elements.Count, plan.Quests.Count, plan.Shop.Count, plan.NpcGen.Count,
+                plan.NpcGen.Count == 0 ? "" : " (" + string.Join(", ", plan.NpcGen.GroupBy(x => x.Name).Select(g => $"{g.Key} {g.Count()}").Take(8)) + (plan.NpcGen.Select(x => x.Name).Distinct().Count() > 8 ? "…" : "") + ")");
         }
         // a prévia percorre elements e quests: espera a digitação parar (antes cada tecla travava ~1 s)
         var wait = new System.Windows.Forms.Timer { Interval = 300 };
@@ -1546,18 +1558,24 @@ public sealed class EditorForm : Form
             foreach (var (s, it, gift) in p.Shop) { if (gift) it.GiftId = int.Parse(v); else it.ItemId = int.Parse(v); }
             foreach (var s in p.Shop.Select(x => x.Shop).Distinct()) _gshop?.ExternalEdit(s);
         }
+        // procura de novo pelo ID (os pontos podem ter sido trocados por cópias no desfazer da aba NPCGen)
+        void NpcGen(string from, string to)
+        {
+            foreach (var (n, nf, _) in p.NpcGen.DistinctBy(x => x.Name)) { IdRefactor.ReplaceInNpcGen(nf, p.Block.Name, int.Parse(from), int.Parse(to)); _npcgen?.ExternalEdit(n); }
+        }
         using (_edits.Batch(label))
         {
             SetField(item, "ID", p.NewId, refresh: false);   // primeiro: ao desfazer, a tela volta para este item
             foreach (var r in p.Elements) SetField(r.Item, r.Field, p.NewId, refresh: false);
             if (p.Quests.Count > 0) _edits.Custom(label, () => Quests(p.NewId), () => Quests(p.OldId));
             if (p.Shop.Count > 0) _edits.Custom(label, () => Shop(p.NewId), () => Shop(p.OldId));
+            if (p.NpcGen.Count > 0) _edits.Custom(label, () => NpcGen(p.OldId, p.NewId), () => NpcGen(p.NewId, p.OldId));
         }
         _refs = new RefIndex(module);
         RefreshView();
         GoToItem(item);
-        Status(string.Format(Loc.T("status.changeId", "ID {0} → {1}: {2} referência(s) atualizada(s) (elements {3}, quests {4}, loja {5}). Salve os arquivos para gravar."),
-            p.OldId, p.NewId, p.Total - 1, p.Elements.Count, p.Quests.Count, p.Shop.Count));
+        Status(string.Format(Loc.T("status.changeId", "ID {0} → {1}: {2} referência(s) atualizada(s) (elements {3}, quests {4}, loja {5}, npcgen {6}). Salve os arquivos para gravar."),
+            p.OldId, p.NewId, p.Total - 1, p.Elements.Count, p.Quests.Count, p.Shop.Count, p.NpcGen.Count));
     }
 
     // ---------- desfazer / refazer ----------
@@ -1641,6 +1659,7 @@ public sealed class EditorForm : Form
             bool undo = keyData == (Keys.Control | Keys.Z);
             if (_tabs?.SelectedTab == _tabPck && _pckView?.Editor is { } ui) { if (!(undo ? ui.Undo() : ui.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabGShop && _gshop is not null) { if (!(undo ? _gshop.Undo() : _gshop.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
+            if (_tabs?.SelectedTab == _tabNpcGen && _npcgen is not null) { if (!(undo ? _npcgen.Undo() : _npcgen.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             UndoRedo(undo);
             return true;
         }
@@ -2089,6 +2108,24 @@ public sealed class EditorForm : Form
             }
         }
         return false;
+    }
+
+    // NPCGen: escolher o monstro, NPC ou mina de um ponto (mesma janela de escolha)
+    private int? PickSpawn(IWin32Window owner, NpcGenView.Kind kind, int current)
+    {
+        var block = kind switch { NpcGenView.Kind.Npc => "NPC_ESSENCE", NpcGenView.Kind.Mine => "MINE_ESSENCE", _ => "MONSTER_ESSENCE" };
+        // pontos de criatura aceitam monstro e NPC (há NPCs em pontos de monstro); abre no filtro do tipo do ponto
+        var blocks = kind == NpcGenView.Kind.Mine ? new[] { block } : new[] { "MONSTER_ESSENCE", "NPC_ESSENCE" };
+        var src = _store.Current?.Lists.Where(l => blocks.Contains(l.Name)).SelectMany(l => l.Items).ToList() ?? new();
+        if (src.Count == 0) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return null; }
+        var picked = FieldEditors.Pick(owner, kind switch
+            {
+                NpcGenView.Kind.Npc => Loc.T("pick.npc", "Escolher NPC"), NpcGenView.Kind.Mine => Loc.T("pick.mine", "Escolher mina (coleta)"),
+                _ => Loc.T("pick.monster", "Escolher monstro"),
+            }, src, current > 0 ? current.ToString() : null, IconIndexFor, _treeIcons,
+            it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "", it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null, false,
+            blocks.Length > 1 ? Pretty(block) : null);
+        return picked is { Count: > 0 } && int.TryParse(picked[0].Id, out var id) ? id : null;
     }
 
     // Loja: escolher o item vendido (mesma janela de escolha dos campos de item)

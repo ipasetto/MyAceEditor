@@ -121,7 +121,8 @@ Produces `dist\MyAceEditor.exe`, a single file that runs without installing anyt
 | AI Policy | ✅ read, operation editing, clone, search |
 | Interface editor (`interfaces.pck`) | ✅ saves to the sPCK folder (writing `.pck` 🔜) |
 | Client × server check and fix | ✅ |
-| NPCGen, maps, automatic test server | 🔜 formats documented |
+| NPCGen (where monsters, NPCs and mines spawn) | ✅ edit points, quantity, respawn and monster; Change ID updates it |
+| Map with the points, automatic test server | 🔜 formats documented |
 
 Reference version tested: Perfect World 1.4.4 client/server (`elements.data` v60, `tasks.data` v93).
 What's coming next is in the **[roadmap](docs/ROADMAP.md)**.

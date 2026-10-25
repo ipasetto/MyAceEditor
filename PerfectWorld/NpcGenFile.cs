@@ -191,6 +191,17 @@ public sealed class NpcGenResource
         if (v >= 10) { w.Write(Dir1); w.Write(Dir2); w.Write(Rotation); w.Write(Trigger); w.Write(MaxNum); }
         foreach (var i in Items) { w.Write(i.Type); w.Write(i.Id); w.Write(i.Respawn); w.Write(i.Amount); w.Write(i.HeightOffset); }
     }
+
+    public NpcGenResource Clone()
+    {
+        var c = new NpcGenResource
+        {
+            Position = Position, SpreadX = SpreadX, SpreadZ = SpreadZ, InitGen = InitGen, AutoRevive = AutoRevive, ValidOnce = ValidOnce,
+            GenId = GenId, Dir1 = Dir1, Dir2 = Dir2, Rotation = Rotation, Trigger = Trigger, MaxNum = MaxNum,
+        };
+        c.Items.AddRange(Items.Select(x => x.Clone()));
+        return c;
+    }
 }
 
 public sealed class NpcGenResourceItem
