@@ -461,6 +461,8 @@ nomes mob/NPC: npcdb.txt (UTF-16 id<TAB>nome); posicao do player lida da memoria
 
 - [T] crash ao entrar no mundo "Exception occurred in ParsePage thread... mini dumped!" (logs\EC.log, ec_build*.dmp): o cliente baixa configs\loginpage.ini LoginPage (configs.pck; no 1.4.4 do usuario = http://www.pwonline.ru/client-announcement.php) para BBSPages\temp1.htm (logs\bbs.log) e o leitor de paginas de 2009 quebra com a pagina moderna (verificacao de seguranca com JS). Correcao: URL local que recusa (mesmo tamanho, PckPatch) + cache temp*.htm = temp0.htm.
 
+- [T] .bmd malha versao 0x10000006: 1 BYTE A MAIS entre nTriangulos e os vertices (o resto igual). 1.4.4: 4.357 de 40.079 .bmd (11%; ex. regiao inicial dos Abissais/Tideborn, pedaco 70 do mundo). Lidas sem esse byte viravam triangulos infinitos (tela preta/azul). Versoes da 1a malha no 1.4.4: 0x10000004 x19229, 0x10000005 x16493, 0x10000006 x4357; todos os 40.079 leem inteiros.
+
 ## §S23 elements.data — visao do sELedit (doc analise_arquivos_pw.md §1) [C-terceiros] (complementa §S3/§S17)
 header lido como i16 Version + i16 Signature (= u32 0x3000003C -> versao 60, assinatura 0x3000); bytes fixos antes de cada lista = "listOffset" do .cfg (timestamp entra ai) [I forte]
 .cfg: linha1 = n listas | linha2 = indice da lista de conversa | por lista: nome / tamanho do offset ou AUTO / campos ; / tipos ;. Tipos: int16 int32 int64 float double byte:N string:N(GBK) wstring:N(UTF-16LE). Arquivo: configs\PW_*_v{Version}.cfg

@@ -37,12 +37,13 @@ public sealed class PckArchive : IDisposable
     {
         _token = cancellationToken; _token.ThrowIfCancellationRequested();
         FilePath = pckPath;
-        _pck = new FileStream(pckPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        // ReadWrite: o jogo (elementclient) mantém os .pck abertos; com FileShare.Read o editor não abria nada com o jogo aberto
+        _pck = new FileStream(pckPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         try
         {
             var pkxPath = System.IO.Path.ChangeExtension(pckPath, ".pkx");
             if (File.Exists(pkxPath))
-                _pkx = new FileStream(pkxPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                _pkx = new FileStream(pkxPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
             var head = ReadAt(0, 4);
             if (BitConverter.ToInt32(head) != FSig1)

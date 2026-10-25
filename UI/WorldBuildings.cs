@@ -103,7 +103,7 @@ internal sealed class WorldBuildings : IDisposable
                 bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
                 if (!need || _tex is null) continue;
                 byte[]? td; lock (_tex) td = _tex.Find(mesh.Texture.ToLowerInvariant()) is { } te ? _tex.Read(te) : null;
-                try { tex[mesh.Texture] = td is null ? null : DdsDecoder.Decode(td); } catch { tex[mesh.Texture] = null; }
+                try { tex[mesh.Texture] = td is null ? null : DdsDecoder.DecodeMax(td, 512); } catch { tex[mesh.Texture] = null; }
             }
         }
         return (models, tex);
@@ -151,6 +151,18 @@ internal sealed class WorldBuildings : IDisposable
         if (_loaded.Remove(piece, out var list))
             foreach (var p in list) foreach (var part in p.Parts) { GL.DeleteBuffer(part.Vbo); GL.DeleteBuffer(part.Ibo); }
         _requested.Remove(piece);
+        // texturas que nenhuma peça carregada usa saem da placa (andar pelo mapa acumulava todas)
+        if (_textures.Count > 400)
+        {
+            var used = new HashSet<string>(_loaded.Values.SelectMany(l => l).SelectMany(p => p.Parts).Select(x => x.Tex));
+            foreach (var name in _textures.Keys.Where(k => !used.Contains(k)).ToList())
+            {
+                int id = _textures[name];
+                if (id != 0) { GL.DeleteTexture(id); _cutout.Remove(id); }
+                _textures.Remove(name);
+                lock (_texSent) _texSent.Remove(name);   // volta a ser pedida quando precisar
+            }
+        }
     }
 
     /// <summary>Desenha o que está perto e na frente da câmera (cam e forward no espaço do OpenGL).</summary>

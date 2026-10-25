@@ -47,7 +47,7 @@ internal sealed class WorldModels : IDisposable
             {
                 byte[]? d;
                 lock (_pck) d = FindTexture(_pck, dir, name, ref _ddsByName) is { } e ? _pck.Read(e) : null;
-                try { tex.Add(d is null ? null : DdsDecoder.Decode(d)); } catch { tex.Add(null); }
+                try { tex.Add(d is null ? null : DdsDecoder.DecodeMax(d, 512)); } catch { tex.Add(null); }
             }
             return new Cpu(ski, tex);
         }, cpu => { _waiting.Remove(ecm); _models[ecm] = cpu is null ? null : Upload(cpu); }, urgent: true);

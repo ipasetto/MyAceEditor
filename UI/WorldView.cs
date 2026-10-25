@@ -48,6 +48,7 @@ internal sealed class WorldView : Form
     readonly WorldTerrain _terrain;
     readonly WorldModels _models;
     readonly WorldBuildings _buildings;
+    bool _showBuildings = true;
     readonly HashSet<Keys> _keys = new();
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 10 };
     readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -189,6 +190,7 @@ internal sealed class WorldView : Form
             case Keys.M: ShowMap(); return;
             case Keys.H or Keys.F1: _legendOpen = !_legendOpen; _gl.Invalidate(); return;
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
+            case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.Delete:
                 if (_selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
                 return;
@@ -308,7 +310,7 @@ internal sealed class WorldView : Form
             }
             _buildings.Update(pieces);
         }
-        _buildings.Draw(_cam, Forward);
+        if (_showBuildings) _buildings.Draw(_cam, Forward);
         DrawWater();
 
         // pontos perto da câmera (refeitos a cada 100 m andados ou quando algo mudou)

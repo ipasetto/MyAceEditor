@@ -47,7 +47,10 @@ public sealed class BmdModel
         {
             int tex = o + 4 + 64;
             int nv = BitConverter.ToInt32(d, tex + 256), nf = BitConverter.ToInt32(d, tex + 260);
-            int vo = tex + 264, io = vo + nv * 24, end = io + nf * 6;
+            // malha 0x10000006 (região dos abissais, pedaço 70 do mundo 1.4.4): 1 byte a mais antes dos vértices;
+            // sem pular, tudo saía deslocado e virava triângulos infinitos que cobriam a tela de preto/azul
+            int extra = BitConverter.ToUInt32(d, o) >= 0x10000006 ? 1 : 0;
+            int vo = tex + 264 + extra, io = vo + nv * 24, end = io + nf * 6;
             if (nv <= 0 || nf <= 0 || nv > 65536 || end > d.Length) break;
             int z = Array.IndexOf(d, (byte)0, tex, 256);
             var texName = Gbk.GetString(d, tex, (z < 0 ? tex + 256 : z) - tex);
@@ -65,7 +68,15 @@ public sealed class BmdModel
             }
             var idx = new ushort[nf * 3];
             Buffer.BlockCopy(d, io, idx, 0, idx.Length * 2);
-            m.Meshes.Add(new Mesh(texName, verts, idx));
+            // rede de segurança: formato que ainda não conhecemos não pode virar triângulo do tamanho do mundo
+            bool sane = true;
+            for (int i = 0; i < nv && sane; i++)
+                for (int c = 0; c < 3; c++)
+                {
+                    float v = BitConverter.ToSingle(verts, i * 24 + c * 4);
+                    if (!float.IsFinite(v) || Math.Abs(v) > 100_000) { sane = false; break; }
+                }
+            if (sane && idx.All(x => x < nv)) m.Meshes.Add(new Mesh(texName, verts, idx));
             o = k + 1 < m.Declared ? NextMesh(d, end + nv * 12, ver) : -1;
         }
         return m;
@@ -79,7 +90,7 @@ public sealed class BmdModel
             if (BitConverter.ToUInt32(d, o) != ver) continue;
             int tex = o + 4 + 64;
             int nv = BitConverter.ToInt32(d, tex + 256), nf = BitConverter.ToInt32(d, tex + 260);
-            if (nv <= 0 || nf <= 0 || nv > 65536 || tex + 264 + nv * 24 + nf * 6 > d.Length) continue;
+            if (nv <= 0 || nf <= 0 || nv > 65536 || tex + 264 + (ver >= 0x10000006 ? 1 : 0) + nv * 24 + nf * 6 > d.Length) continue;
             if (d[tex] < 0x20) continue;   // textura começa com texto
             return o;
         }

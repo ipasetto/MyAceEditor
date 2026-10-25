@@ -236,7 +236,7 @@ internal sealed class WorldTerrain : IDisposable
                 lock (_decodedNames) need = _decodedNames.Add(l.Texture);
                 if (!need) continue;
                 byte[]? d; lock (_texPck) d = _texPck.Find(l.Texture.ToLowerInvariant()) is { } e ? _texPck.Read(e) : null;
-                try { tex[l.Texture] = d is null ? null : DdsDecoder.Decode(d); } catch { tex[l.Texture] = null; }
+                try { tex[l.Texture] = d is null ? null : DdsDecoder.DecodeMax(d, 512); } catch { tex[l.Texture] = null; }
             }
             (int[], int, int)? light;
             try { light = _t.LightmapDds(ar, ac) is { } ld ? DdsDecoder.Decode(ld) : null; } catch { light = null; }

@@ -22,6 +22,31 @@ public static class DdsDecoder
         return n > 0 && zero > n / 100 && mid < n / 8;
     }
 
+    /// <summary>
+    /// Decodifica e reduz pela metade até caber em max×max (Mundo 3D: as texturas sobem descompactadas para a placa;
+    /// sem limite o 3D chegava a 2 GB de memória de vídeo e, com o jogo aberto, texturas novas saíam pretas).
+    /// Cor = média de 4 pixels; alfa = de 1 pixel, para recortes (folhas, grades) continuarem só 0/255.
+    /// </summary>
+    public static (int[] Pixels, int Width, int Height)? DecodeMax(byte[] d, int max)
+    {
+        if (Decode(d) is not { } img) return null;
+        var (px, w, h) = img;
+        while ((w > max || h > max) && w >= 2 && h >= 2)
+        {
+            int nw = w / 2, nh = h / 2;
+            var o = new int[nw * nh];
+            for (int y = 0; y < nh; y++)
+                for (int x = 0; x < nw; x++)
+                {
+                    int a = px[2 * y * w + 2 * x], b = px[2 * y * w + 2 * x + 1], c = px[(2 * y + 1) * w + 2 * x], e = px[(2 * y + 1) * w + 2 * x + 1];
+                    int Ch(int s) => (((a >> s) & 255) + ((b >> s) & 255) + ((c >> s) & 255) + ((e >> s) & 255)) / 4;
+                    o[y * nw + x] = (int)((uint)a & 0xFF000000) | (Ch(16) << 16) | (Ch(8) << 8) | Ch(0);
+                }
+            px = o; w = nw; h = nh;
+        }
+        return (px, w, h);
+    }
+
     public static (int[] Pixels, int Width, int Height)? Decode(byte[] d, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
