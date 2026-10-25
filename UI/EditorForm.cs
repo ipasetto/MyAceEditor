@@ -277,7 +277,9 @@ public sealed class EditorForm : Form
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? IconFor(h.Item) : null,
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
             PickSpawn,
-            () => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath))));   // pasta element
+            () => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)),   // pasta element
+            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h && h.Item.Fields.FirstOrDefault(f => f.Key.Contains("file_model")).Value is { } fm
+                && fm.Value.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm.Value : null));
         tabs.TabPages.Add(tN);
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));

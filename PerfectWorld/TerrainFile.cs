@@ -79,6 +79,90 @@ public sealed class TerrainFile
         return _blocks[(br, bc)];
     }
 
+    // ---------- texturas do chão (camadas + máscaras) ----------
+    // <mapa>.trn2: +0x48 offset da lista de texturas (i32 n + GBK), +0x50 offset da lista de nomes dos pedaços (fim da lista).
+    // <mapa>_N.t2mk: "BKMT", versão, nÁreas (16 = 4×4 de 256 m, linha 0 ao norte), nCamadas, ?, offsets[nÁreas],
+    // camadas[nCamadas] de 28 B (textura na lista do .trn2, ?, lado da máscara, ?, escala u, escala v, ?);
+    // área: nCamadasUsadas, (camada, offset absoluto, tamanho) — máscara zlib lado×lado bytes (a 1ª camada é a base, sem máscara).
+    public sealed record GroundLayer(string Texture, float UScale, float VScale, byte[]? Mask, int MaskSide);
+
+    List<string>? _texNames;
+    readonly Dictionary<int, (byte[] Data, (int Tex, float U, float V, int Side)[] Layers)?> _maskFiles = new();
+    readonly Dictionary<(int, int), GroundLayer[]?> _areas = new();
+    public const float AreaM = 256;
+
+    public IReadOnlyList<string> TextureNames
+    {
+        get
+        {
+            if (_texNames is not null) return _texNames;
+            _texNames = new();
+            var trn = Path.Combine(Dir, Name + ".trn2");
+            if (!File.Exists(trn)) return _texNames;
+            var d = File.ReadAllBytes(trn);
+            int o = BitConverter.ToInt32(d, 0x48), end = BitConverter.ToInt32(d, 0x50);
+            var gbk = System.Text.Encoding.GetEncoding(936);
+            while (o + 4 <= Math.Min(end, d.Length))
+            {
+                int n = BitConverter.ToInt32(d, o);
+                if (n <= 0 || o + 4 + n > d.Length) break;
+                _texNames.Add(gbk.GetString(d, o + 4, n)); o += 4 + n;
+            }
+            return _texNames;
+        }
+    }
+
+    /// <summary>Camadas do chão da área de 256 m (linha/coluna globais a partir do noroeste); null sem dados.</summary>
+    public GroundLayer[]? Ground(int areaRow, int areaCol)
+    {
+        if (_areas.TryGetValue((areaRow, areaCol), out var a)) return a;
+        int per = (int)(CellsPerPiece * Cell / AreaM);
+        if (areaRow < 0 || areaCol < 0 || areaRow >= Rows * per || areaCol >= Cols * per) return null;
+        int piece = areaRow / per * Cols + areaCol / per + 1, local = areaRow % per * per + areaCol % per;
+        if (!_maskFiles.TryGetValue(piece, out var mf))
+        {
+            mf = null;
+            var p = Path.Combine(Dir, $"{Name}_{piece}.t2mk");
+            if (File.Exists(p))
+            {
+                var d = File.ReadAllBytes(p);
+                if (BitConverter.ToUInt32(d, 0) == 0x544D4B42)   // "BKMT"
+                {
+                    int nAreas = BitConverter.ToInt32(d, 8), nLayers = BitConverter.ToInt32(d, 12), lo = 0x14 + nAreas * 4;
+                    var layers = new (int, float, float, int)[nLayers];
+                    for (int i = 0; i < nLayers; i++, lo += 28)
+                        layers[i] = (BitConverter.ToInt32(d, lo), BitConverter.ToSingle(d, lo + 16), BitConverter.ToSingle(d, lo + 20), BitConverter.ToInt32(d, lo + 8));
+                    mf = (d, layers);
+                }
+            }
+            _maskFiles[piece] = mf;
+        }
+        GroundLayer[]? result = null;
+        if (mf is { } f && local < BitConverter.ToInt32(f.Data, 8))
+        {
+            var d = f.Data;
+            int bo = BitConverter.ToInt32(d, 0x14 + local * 4), n = BitConverter.ToInt32(d, bo);
+            var list = new List<GroundLayer>();
+            for (int i = 0; i < n; i++)
+            {
+                int li = BitConverter.ToInt32(d, bo + 4 + i * 12), mo = BitConverter.ToInt32(d, bo + 8 + i * 12), ms = BitConverter.ToInt32(d, bo + 12 + i * 12);
+                if (li < 0 || li >= f.Layers.Length) continue;
+                var (tex, u, v, side) = f.Layers[li];
+                byte[]? mask = null;
+                if (ms > 2 && side > 0)
+                {
+                    using var z = new DeflateStream(new MemoryStream(d, mo + 2, ms - 2), CompressionMode.Decompress);
+                    mask = new byte[side * side];
+                    int got = 0, r;
+                    while (got < mask.Length && (r = z.Read(mask, got, mask.Length - got)) > 0) got += r;
+                }
+                if (tex >= 0 && tex < TextureNames.Count) list.Add(new GroundLayer(TextureNames[tex], u, v, mask, side));
+            }
+            result = list.Count > 0 ? list.ToArray() : null;
+        }
+        return _areas[(areaRow, areaCol)] = result;
+    }
+
     void LoadPiece(int n)
     {
         var p = Path.Combine(Dir, $"{Name}_{n}.t2bk");

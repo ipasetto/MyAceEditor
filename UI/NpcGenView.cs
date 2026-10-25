@@ -20,6 +20,7 @@ internal sealed class NpcGenView : UserControl
     readonly Func<int, (string Name, Color Color)?> _info;
     readonly Func<IWin32Window, Kind, int, int?> _pick;
     readonly Func<string?> _elementDir;
+    readonly Func<int, string?> _modelOf;   // ID → .ecm do elements (file_model)
 
     // arquivos do servidor: nome curto ("world", "a01"…) → caminho; carregados sob demanda
     readonly Dictionary<string, string> _paths = new(StringComparer.OrdinalIgnoreCase);   // world primeiro, depois as instâncias
@@ -58,9 +59,9 @@ internal sealed class NpcGenView : UserControl
         Minimum = dec ? -100000 : int.MinValue, Maximum = dec ? 100000 : int.MaxValue, DecimalPlaces = dec ? 2 : 0, Width = 100, ThousandsSeparator = !dec,
     };
 
-    public NpcGenView(Func<int, Image?> icon, Func<int, (string, Color)?> info, Func<IWin32Window, Kind, int, int?> pick, Func<string?> elementDir)
+    public NpcGenView(Func<int, Image?> icon, Func<int, (string, Color)?> info, Func<IWin32Window, Kind, int, int?> pick, Func<string?> elementDir, Func<int, string?> modelOf)
     {
-        _icon = icon; _info = info; _pick = pick; _elementDir = elementDir;
+        _icon = icon; _info = info; _pick = pick; _elementDir = elementDir; _modelOf = modelOf;
         BackColor = Bg; Dock = DockStyle.Fill;
         BuildBar(); BuildList(); BuildEditor();
         var split = new Panel { Dock = DockStyle.Fill };
@@ -569,9 +570,13 @@ internal sealed class NpcGenView : UserControl
             {
                 var list = new List<WorldView.Marker>(f.Spawns.Count + f.Resources.Count);
                 foreach (var s in f.Spawns)
-                    list.Add(new(s.Position.X, s.Position.Y, s.Position.Z, s.Type == 1 ? Color.DeepSkyBlue : Color.Red, NameOf(s.Creatures.FirstOrDefault()?.Id ?? 0), s));
+                {
+                    int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
+                    list.Add(new(s.Position.X, s.Position.Y, s.Position.Z, s.Type == 1 ? Color.DeepSkyBlue : Color.Red, NameOf(id0), s,
+                        _modelOf(id0), MathF.Atan2(s.Direction.X, s.Direction.Z) * 180 / MathF.PI));
+                }
                 foreach (var r in f.Resources)
-                    list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(r.Items.FirstOrDefault()?.Id ?? 0), r));
+                    list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(r.Items.FirstOrDefault()?.Id ?? 0), r, _modelOf(r.Items.FirstOrDefault()?.Id ?? 0)));
                 return list;
             }, Sel, SelectObject,
             g => { NewPoint(new Vec3(g.X, g.Y, g.Z)); },

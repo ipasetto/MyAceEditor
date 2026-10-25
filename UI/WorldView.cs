@@ -15,7 +15,8 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed class WorldView : Form
 {
-    public sealed record Marker(float X, float Y, float Z, Color Color, string Name, object Tag);
+    /// <summary>Ponto no mundo; Model = .ecm do elements (modelo parado), Yaw em graus (0 = norte).</summary>
+    public sealed record Marker(float X, float Y, float Z, Color Color, string Name, object Tag, string? Model = null, float Yaw = 0);
 
     const float TileM = 512;          // peça do minimapa
     const int FarStep = 16;           // células por amostra na malha leve (16 × 2 m = 32 m)
@@ -39,7 +40,14 @@ internal sealed class WorldView : Form
     readonly Stopwatch _clock = Stopwatch.StartNew();
     List<Marker> _marks = new();
     Vector3 _cam;
-    float _yaw = -90, _pitch = -25, _speed = 60;
+    float _yaw = -90, _pitch = -25;
+    const float Speed = 40;           // m/s andando; Shift = ×4
+    readonly WorldModels _models;
+    readonly PckArchive? _texPck;                                       // textures.pck (texturas do chão)
+    readonly Dictionary<string, int> _groundTex = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<(int, int, int), int> _maskTex = new();
+    readonly Dictionary<string, (int Tex, int W, int H)> _labels = new();
+    object? _movingTag; Vector3? _movePos;   // arrastando um ponto com o botão esquerdo
     Point _drag, _down; bool _dragging; double _last;
     Vector3? _hover;
     int _built, _findAt = -1;
@@ -58,30 +66,53 @@ internal sealed class WorldView : Form
         _bar.Items.Add(new ToolStripButton(Loc.T("world.next", "Próximo ▶"), null, (_, _) => FindNext()));
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(new ToolStripButton(Loc.T("world.map", "🗺 Mapa (M)"), null, (_, _) => ShowMap()));
-        _bar.Items.Add(new ToolStripLabel(Loc.T("world.help", "   W/A/S/D anda · Q/E desce/sobe · Shift corre · arrastar gira · roda = velocidade")) { ForeColor = Color.DimGray });
+        _bar.Items.Add(new ToolStripLabel(Loc.T("world.help", "   W/A/S/D anda · Q/E desce/sobe · Shift corre · roda aproxima · botão do meio gira · esquerdo arrasta o ponto · direito edita")) { ForeColor = Color.DimGray });
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_status);
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         try { if (element is not null && File.Exists(Path.Combine(element, "surfaces.pck"))) _surf = new PckArchive(Path.Combine(element, "surfaces.pck")); } catch { _surf = null; }
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        _models = new WorldModels(element);
+        try { if (element is not null && File.Exists(Path.Combine(element, "textures.pck"))) _texPck = new PckArchive(Path.Combine(element, "textures.pck")); } catch { _texPck = null; }
         RefreshMarkers();
         LookAt(start);
         _gl.Paint += (_, _) => Render();
         _gl.Resize += (_, _) => _gl.Invalidate();
         // girar: segurar o botão do meio (ou o esquerdo) e arrastar; clique esquerdo parado seleciona o marcador
-        _gl.MouseDown += (_, e) => { _gl.Focus(); if (e.Button is MouseButtons.Left or MouseButtons.Middle) { _dragging = true; _drag = _down = e.Location; } };
-        _gl.MouseUp += (_, e) => { _dragging = false; if (e.Button == MouseButtons.Right) RightClick(e.Location); else if (e.Button == MouseButtons.Left && _down == e.Location) PickMarker(e.Location); };
+        // esquerdo em cima de um ponto: arrasta o ponto; esquerdo no vazio ou botão do meio: gira a câmera
+        _gl.MouseDown += (_, e) =>
+        {
+            _gl.Focus(); _down = _drag = e.Location;
+            if (e.Button == MouseButtons.Left && Ray(e.Location) is { } g && Nearest(g) is { } mk) { _movingTag = mk.Tag; _movePos = null; return; }
+            if (e.Button is MouseButtons.Left or MouseButtons.Middle) _dragging = true;
+        };
+        _gl.MouseUp += (_, e) =>
+        {
+            _dragging = false;
+            if (_movingTag is { } tag)
+            {
+                bool moved = _movePos is not null && (Math.Abs(e.X - _down.X) > 3 || Math.Abs(e.Y - _down.Y) > 3);
+                if (moved && _moveHere is not null) { _moveHere(tag, _movePos!.Value); RefreshMarkers(); }
+                else { _select(tag); _status.Text = _marks.FirstOrDefault(m => m.Tag == tag)?.Name ?? ""; }
+                _movingTag = null; _movePos = null; _gl.Invalidate();
+                return;
+            }
+            if (e.Button == MouseButtons.Right) RightClick(e.Location);
+        };
         Shown += (_, _) => { Activate(); _gl.Focus(); };   // já abre pronta para W/A/S/D
         _gl.MouseMove += (_, e) =>
         {
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; _gl.Invalidate(); return; }
+            if (_movingTag is not null) { if (Ray(e.Location) is { } mp) _movePos = mp; _gl.Invalidate(); return; }
             _hover = Ray(e.Location);
             var near = _hover is { } hv ? Nearest(hv) : null;
             _status.Text = _hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}   ·   botão direito: copiar / novo ponto aqui / mover o selecionado"), h.X, h.Y, h.Z)
                 + (near is null ? "" : "   ·   " + near.Name) : "";
             _gl.Invalidate();
         };
-        _gl.MouseWheel += (_, e) => _speed = Math.Clamp(_speed * (e.Delta > 0 ? 1.25f : 0.8f), 5, 3000);
+        // roda: aproxima/afasta a câmera para onde ela olha (Shift = 4×)
+        _gl.MouseWheel += (_, e) => { _cam += Forward * (e.Delta / 120f) * 12f * ((ModifierKeys & Keys.Shift) != 0 ? 4 : 1); _gl.Invalidate(); };
         KeyDown += (_, e) =>
         {
             if (_find.Focused) return;
@@ -97,7 +128,9 @@ internal sealed class WorldView : Form
             _tick.Dispose(); _gl.MakeCurrent();
             foreach (var v in _near.Values.Concat(_far.Values)) if (v.Vbo != 0) GL.DeleteBuffer(v.Vbo);
             foreach (var x in _tex.Values) if (x != 0) GL.DeleteTexture(x);
-            _surf?.Dispose(); _worldMap?.Dispose();
+            _surf?.Dispose(); _worldMap?.Dispose(); _models.Dispose(); _texPck?.Dispose();
+            foreach (var x in _groundTex.Values.Concat(_maskTex.Values)) if (x != 0) GL.DeleteTexture(x);
+            foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
         };
     }
 
@@ -110,8 +143,8 @@ internal sealed class WorldView : Form
         if (_marks.FirstOrDefault(m => m.Tag == tag) is { } m) { LookAt(new Vector3(m.X, m.Y, m.Z)); _gl.Invalidate(); }
     }
 
-    // câmera 70 m ao sul e 45 m acima, olhando para o ponto
-    void LookAt(Vector3 p) { _cam = Gl(p.X, p.Y + 45, p.Z - 70); _yaw = -90; _pitch = -30; }
+    // câmera 14 m ao sul e 7 m acima, olhando para o ponto
+    void LookAt(Vector3 p) { _cam = Gl(p.X, p.Y + 7, p.Z - 14); _yaw = -90; _pitch = -22; }
 
     Vector3 Forward => new(MathF.Cos(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch)),
         MathF.Sin(MathHelper.DegreesToRadians(_pitch)), MathF.Sin(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch)));
@@ -123,7 +156,7 @@ internal sealed class WorldView : Form
         bool moving = _keys.Count > 0;
         if (moving)
         {
-            float s = _speed * dt * (_keys.Contains(Keys.ShiftKey) ? 4 : 1);
+            float s = Speed * dt * (_keys.Contains(Keys.ShiftKey) ? 4 : 1);
             var f = Forward; var right = Vector3.Normalize(Vector3.Cross(f, Vector3.UnitY));
             if (_keys.Contains(Keys.W)) _cam += f * s;
             if (_keys.Contains(Keys.S)) _cam -= f * s;
@@ -175,7 +208,7 @@ internal sealed class WorldView : Form
                 {
                     for (int br = tr * bpt; br < (tr + 1) * bpt; br++)
                         for (int bc = tc * bpt; bc < (tc + 1) * bpt; bc++)
-                            if (_near[(br, bc)] is { Vbo: not 0 } nb) Draw(nb, tr, tc);
+                            if (_near[(br, bc)] is { Vbo: not 0 } nb && !DrawGround(nb, br, bc)) Draw(nb, tr, tc);
                     continue;
                 }
                 if (!_far.TryGetValue((tr, tc), out var fb))
@@ -189,21 +222,93 @@ internal sealed class WorldView : Form
         GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
         GL.Disable(EnableCap.Texture2D);
 
-        // marcadores: haste + cabeça (selecionado em amarelo, maior), até 1,5 km
+        // modelos parados até 300 m (no máximo 2 carregados por quadro); haste para quem não tem modelo
         var sel = _selected();
+        int loads = 2;
+        GL.Enable(EnableCap.Lighting); GL.Enable(EnableCap.Light0); GL.Enable(EnableCap.Normalize); GL.Enable(EnableCap.ColorMaterial);
+        GL.Light(LightName.Light0, LightParameter.Position, new Vector4(-0.4f, 1f, 0.3f, 0));
+        GL.Light(LightName.Light0, LightParameter.Diffuse, new Color4(0.8f, 0.8f, 0.75f, 1f));
+        GL.Light(LightName.Light0, LightParameter.Ambient, new Color4(0.5f, 0.5f, 0.55f, 1f));
+        GL.Enable(EnableCap.AlphaTest); GL.AlphaFunc(AlphaFunction.Greater, 0.3f);
+        GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.NormalArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
+        var withModel = new HashSet<Marker>();
+        foreach (var m in _marks)
+        {
+            if (m.Model is null || Dist2(m) > 300 * 300) continue;
+            if (!_models.Loaded(m.Model)) { if (loads-- <= 0) { _built++; continue; } _models.Load(m.Model); }
+            GL.Color3(1f, 1f, 1f);
+            if (_models.Draw(m.Model, PosOf(m), m.Yaw)) withModel.Add(m);
+        }
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+        GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.NormalArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
+        GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.ColorMaterial); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.AlphaTest);
+
         GL.LineWidth(3); GL.PointSize(7);
         GL.Begin(PrimitiveType.Lines);
-        foreach (var m in _marks) if (Close(m)) { Col(m.Tag == sel ? Color.Yellow : m.Color); GL.Vertex3(Gl(m.X, m.Y, m.Z)); GL.Vertex3(Gl(m.X, m.Y + (m.Tag == sel ? 16 : 7), m.Z)); }
+        foreach (var m in _marks)
+        {
+            if (!Close(m) || withModel.Contains(m)) continue;
+            var mp = PosOf(m); float top = withModel.Contains(m) ? (_models.Top(m.Model!) ?? 0) + 1 : 0;
+            Col(m.Tag == sel ? Color.Yellow : m.Color); GL.Vertex3(Gl(mp.X, mp.Y + top, mp.Z)); GL.Vertex3(Gl(mp.X, mp.Y + top + (m.Tag == sel ? 6 : 7), mp.Z));
+        }
         if (_hover is { } h) { GL.Color3(1f, 1f, 1f); GL.Vertex3(Gl(h.X, h.Y, h.Z)); GL.Vertex3(Gl(h.X, h.Y + 4, h.Z)); }
         GL.End();
-        GL.Begin(PrimitiveType.Points);
-        foreach (var m in _marks) if (Close(m)) { Col(m.Tag == sel ? Color.Yellow : m.Color); GL.Vertex3(Gl(m.X, m.Y + (m.Tag == sel ? 16 : 7), m.Z)); }
-        GL.End();
+
+        // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
+        GL.Enable(EnableCap.Texture2D); GL.Color3(1f, 1f, 1f);
+        foreach (var m in _marks.Where(m => Dist2(m) < 70 * 70 || m.Tag == sel && Dist2(m) < 400 * 400).OrderBy(Dist2).Take(40))
+        {
+            var lp = PosOf(m);
+            float top = m.Model is not null && _models.Top(m.Model) is { } t ? t + 1.2f : 8f;
+            DrawLabel($"{m.Name}\n{lp.X:0}, {lp.Y:0}, {lp.Z:0}", new Vector3(lp.X, lp.Y + top, lp.Z), m.Tag == sel);
+        }
+        GL.Disable(EnableCap.Texture2D); GL.DepthMask(true); GL.Disable(EnableCap.Blend);
         GL.Disable(EnableCap.Fog);
         _gl.SwapBuffers();
     }
 
     bool Close(Marker m) => Math.Abs(m.X - _cam.X) < 1500 && Math.Abs(-m.Z - _cam.Z) < 1500;
+    float Dist2(Marker m) { float dx = m.X - _cam.X, dz = m.Z + _cam.Z, dy = m.Y - _cam.Y; return dx * dx + dy * dy + dz * dz; }
+    Vector3 PosOf(Marker m) => m.Tag == _movingTag && _movePos is { } mp ? mp : new Vector3(m.X, m.Y, m.Z);
+
+    // texto do nome numa textura (em cache) desenhada de frente para a câmera, do mesmo tamanho na tela
+    void DrawLabel(string text, Vector3 at, bool selected)
+    {
+        if (!_labels.TryGetValue((selected ? "*" : "") + text, out var l))
+        {
+            using var font = new Font("Segoe UI", 11, FontStyle.Bold);
+            var size = TextRenderer.MeasureText(text, font);
+            using var bmp = new Bitmap(size.Width + 8, size.Height + 4, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                using var sf = new StringFormat { Alignment = StringAlignment.Center };
+                var r = new RectangleF(0, 2, bmp.Width, bmp.Height);
+                g.DrawString(text, font, Brushes.Black, new RectangleF(r.X + 1, r.Y + 1, r.Width, r.Height), sf);
+                g.DrawString(text, font, selected ? Brushes.Yellow : Brushes.White, r, sf);
+            }
+            var bd = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
+            int tex = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, tex);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, bd.Scan0);
+            bmp.UnlockBits(bd);
+            l = _labels[(selected ? "*" : "") + text] = (tex, bmp.Width, bmp.Height);
+            if (_labels.Count > 3000) { foreach (var x in _labels.Values) GL.DeleteTexture(x.Tex); _labels.Clear(); }
+        }
+        var right = Vector3.Normalize(Vector3.Cross(Forward, Vector3.UnitY)); var up = Vector3.Cross(right, Forward);
+        var c = Gl(at.X, at.Y, at.Z);
+        float k = (c - _cam).Length * 0.0011f, hw = l.W * k / 2, hh = l.H * k;
+        GL.BindTexture(TextureTarget.Texture2D, l.Tex);
+        GL.Begin(PrimitiveType.Quads);
+        GL.TexCoord2(0f, 1f); GL.Vertex3(c - right * hw);
+        GL.TexCoord2(1f, 1f); GL.Vertex3(c + right * hw);
+        GL.TexCoord2(1f, 0f); GL.Vertex3(c + right * hw + up * hh);
+        GL.TexCoord2(0f, 0f); GL.Vertex3(c - right * hw + up * hh);
+        GL.End();
+    }
     static void Col(Color c) => GL.Color3(c.R / 255f, c.G / 255f, c.B / 255f);
 
     bool NearReady(int tr, int tc, int bpt, ref int budget)
@@ -229,6 +334,109 @@ internal sealed class WorldView : Form
         if (tex != 0) { GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, tex); GL.Color3(1f, 1f, 1f); }
         else { GL.Disable(EnableCap.Texture2D); GL.Color3(0.45f, 0.55f, 0.35f); }
         GL.DrawArrays(PrimitiveType.Triangles, 0, b.Count);
+    }
+
+    // ---------- chão com as texturas do jogo (perto da câmera) ----------
+    // uma passada por camada: unidade 0 = textura repetida (escala da camada), unidade 1 = máscara da área (alfa);
+    // coordenadas geradas pela posição (texgen), então a malha é a mesma do minimapa
+    bool DrawGround((int Vbo, int Count) b, int br, int bc)
+    {
+        if (_texPck is null) return false;
+        float blockM = _t.CellsPerBlock * _t.Cell;
+        int ar = (int)(br * blockM / TerrainFile.AreaM), ac = (int)(bc * blockM / TerrainFile.AreaM);
+        if (_t.Ground(ar, ac) is not { } layers) return false;
+        int baseTex = GroundTex(layers[0].Texture);
+        if (baseTex == 0) return false;
+        float x0 = -_t.Width / 2 + ac * TerrainFile.AreaM, ztop = _t.Height / 2 - ar * TerrainFile.AreaM, inv = 1f / TerrainFile.AreaM;
+
+        GL.BindBuffer(BufferTarget.ArrayBuffer, b.Vbo);
+        GL.VertexPointer(3, VertexPointerType.Float, 20, 0);
+        GL.DisableClientState(ArrayCap.TextureCoordArray);
+        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.Enable(EnableCap.Texture2D);
+        GL.Enable(EnableCap.TextureGenS); GL.Enable(EnableCap.TextureGenT);
+        GL.TexGen(TextureCoordName.S, TextureGenParameter.TextureGenMode, (int)TextureGenMode.ObjectLinear);
+        GL.TexGen(TextureCoordName.T, TextureGenParameter.TextureGenMode, (int)TextureGenMode.ObjectLinear);
+        // cor = textura, alfa = 1 (o alfa vem só da máscara)
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);          // RGB = MODULATE
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8580, 0x1702);          //   textura
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);          //   × cor (sombra leve)
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8572, 0x1E01);          // ALFA = REPLACE
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8588, 0x8577);          //   da cor
+        GL.Color4(0.86f, 0.86f, 0.86f, 1f);
+        for (int i = 0; i < layers.Length; i++)
+        {
+            var l = layers[i];
+            int tex = i == 0 ? baseTex : GroundTex(l.Texture);
+            if (tex == 0) continue;
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, tex);
+            GL.TexGen(TextureCoordName.S, TextureGenParameter.ObjectPlane, new[] { l.UScale, 0, 0, 0 });
+            GL.TexGen(TextureCoordName.T, TextureGenParameter.ObjectPlane, new[] { 0, 0, l.VScale, 0 });
+            bool masked = i > 0 && l.Mask is not null;
+            if (masked)
+            {
+                GL.ActiveTexture(TextureUnit.Texture1);
+                GL.Enable(EnableCap.Texture2D);
+                GL.BindTexture(TextureTarget.Texture2D, MaskTex(ar, ac, i, l));
+                GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
+                GL.Enable(EnableCap.TextureGenS); GL.Enable(EnableCap.TextureGenT);
+                GL.TexGen(TextureCoordName.S, TextureGenParameter.TextureGenMode, (int)TextureGenMode.ObjectLinear);
+                GL.TexGen(TextureCoordName.T, TextureGenParameter.TextureGenMode, (int)TextureGenMode.ObjectLinear);
+                // s = (x − x0)/256, t = (zTopo − zJogo)/256 = (zGL + zTopo)/256
+                GL.TexGen(TextureCoordName.S, TextureGenParameter.ObjectPlane, new[] { inv, 0, 0, -x0 * inv });
+                GL.TexGen(TextureCoordName.T, TextureGenParameter.ObjectPlane, new[] { 0, 0, inv, ztop * inv });
+                GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                GL.DepthFunc(DepthFunction.Lequal); GL.DepthMask(false);
+            }
+            GL.DrawArrays(PrimitiveType.Triangles, 0, b.Count);
+            if (masked)
+            {
+                GL.Disable(EnableCap.TextureGenS); GL.Disable(EnableCap.TextureGenT); GL.Disable(EnableCap.Texture2D);
+                GL.Disable(EnableCap.Blend); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
+            }
+        }
+        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
+        GL.Disable(EnableCap.TextureGenS); GL.Disable(EnableCap.TextureGenT);
+        GL.EnableClientState(ArrayCap.TextureCoordArray);
+        GL.Color4(1f, 1f, 1f, 1f);
+        return true;
+    }
+
+    int GroundTex(string path)
+    {
+        if (_groundTex.TryGetValue(path, out var id)) return id;
+        id = 0;
+        if (_texPck?.Find(path.ToLowerInvariant()) is { } e && DdsDecoder.Decode(_texPck.Read(e)) is { } img)
+        {
+            id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, id);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.Width, img.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Pixels);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+        }
+        return _groundTex[path] = id;
+    }
+
+    int MaskTex(int ar, int ac, int i, TerrainFile.GroundLayer l)
+    {
+        if (_maskTex.TryGetValue((ar, ac, i), out var id)) return id;
+        if (_maskTex.Count > 600) { foreach (var x in _maskTex.Values) GL.DeleteTexture(x); _maskTex.Clear(); }
+        id = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, id);
+        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Alpha8, l.MaskSide, l.MaskSide, 0, PixelFormat.Alpha, PixelType.UnsignedByte, l.Mask!);
+        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 4);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        return _maskTex[(ar, ac, i)] = id;
     }
 
     // malha de (v0, u0) com n células de lado, amostrando a cada `step`; coordenadas de textura na peça (tr, tc)
