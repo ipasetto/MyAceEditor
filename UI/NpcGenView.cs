@@ -21,6 +21,8 @@ internal sealed class NpcGenView : UserControl
     readonly Func<IWin32Window, Kind, int, int?> _pick;
     readonly Func<string?> _elementDir;
     readonly Func<int, string?> _modelOf;   // ID → .ecm do elements (file_model)
+    readonly Func<int, string?> _blockOf;   // ID → bloco do elements (NPC em ponto de monstro = guarda)
+    readonly Action<int> _editItem;         // abre o registro no editor (aba Elements)
 
     // arquivos do servidor: nome curto ("world", "a01"…) → caminho; carregados sob demanda
     readonly Dictionary<string, string> _paths = new(StringComparer.OrdinalIgnoreCase);   // world primeiro, depois as instâncias
@@ -31,7 +33,9 @@ internal sealed class NpcGenView : UserControl
     List<int> _rows = new();          // índices em Spawns (monstros/NPCs) ou Resources (coleta)
     bool _binding;
 
-    readonly FlowLayoutPanel _bar = new() { Dock = DockStyle.Top, Height = 38, BackColor = Bg, WrapContents = false, Padding = new Padding(2, 4, 0, 0) };
+    // quebra linha quando a janela é estreita (antes o botão "Mundo 3D" ficava cortado)
+    readonly FlowLayoutPanel _bar = new() { Dock = DockStyle.Top, Height = 38, BackColor = Bg, WrapContents = true, Padding = new Padding(2, 4, 0, 2) };
+    bool _barSizing;   // altura acompanha as linhas (AutoSize com quebra travava a abertura do programa)
     readonly Label _info2 = new() { Dock = DockStyle.Top, Height = 22, ForeColor = Muted, Padding = new Padding(4, 4, 0, 0) };
     readonly ComboBox _fileBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
     readonly ComboBox _kindBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
@@ -59,8 +63,10 @@ internal sealed class NpcGenView : UserControl
         Minimum = dec ? -100000 : int.MinValue, Maximum = dec ? 100000 : int.MaxValue, DecimalPlaces = dec ? 2 : 0, Width = 100, ThousandsSeparator = !dec,
     };
 
-    public NpcGenView(Func<int, Image?> icon, Func<int, (string, Color)?> info, Func<IWin32Window, Kind, int, int?> pick, Func<string?> elementDir, Func<int, string?> modelOf)
+    public NpcGenView(Func<int, Image?> icon, Func<int, (string, Color)?> info, Func<IWin32Window, Kind, int, int?> pick, Func<string?> elementDir, Func<int, string?> modelOf,
+        Func<int, string?> blockOf, Action<int> editItem)
     {
+        _blockOf = blockOf; _editItem = editItem;
         _icon = icon; _info = info; _pick = pick; _elementDir = elementDir; _modelOf = modelOf;
         BackColor = Bg; Dock = DockStyle.Fill;
         BuildBar(); BuildList(); BuildEditor();
@@ -100,6 +106,12 @@ internal sealed class NpcGenView : UserControl
         _bar.Controls.Add(new Label { Width = 8 });
         B("npcgen.world", "🌐 Mundo 3D", OpenWorld, 110);
         FillKindBox();
+        _bar.Layout += (_, _) =>
+        {
+            if (_barSizing || _bar.Controls.Count == 0) return;
+            int h = _bar.Controls.Cast<Control>().Max(c => c.Bottom) + _bar.Padding.Bottom + 2;
+            if (h != _bar.Height) { _barSizing = true; _bar.Height = h; _barSizing = false; }
+        };
         _fileBox.SelectedIndexChanged += (_, _) => { if (!_binding && _fileBox.SelectedItem is string s) SelectFile(s); };
         _kindBox.SelectedIndexChanged += (_, _) => { if (_binding) return; _kind = (Kind)_kindBox.SelectedIndex; Refill(); };
         _search.PlaceholderText = Loc.T("npcgen.search", "Procurar nome ou ID");
@@ -112,7 +124,7 @@ internal sealed class NpcGenView : UserControl
         _binding = true;
         int sel = (int)_kind;
         _kindBox.Items.Clear();
-        _kindBox.Items.AddRange(new object[] { Loc.T("npcgen.kindMonster", "Pontos de monstro"), Loc.T("npcgen.kindNpc", "Pontos de NPC"), Loc.T("npcgen.kindMine", "Coleta (minas)") });
+        _kindBox.Items.AddRange(new object[] { Loc.T("npcgen.kindMonster", "Pontos de monstro"), Loc.T("npcgen.kindNpc", "Pontos de NPC"), Loc.T("npcgen.kindMine", "Coletáveis") });
         _kindBox.SelectedIndex = sel;
         _search.PlaceholderText = Loc.T("npcgen.search", "Procurar nome ou ID");
         _binding = false;
@@ -547,7 +559,8 @@ internal sealed class NpcGenView : UserControl
     }
 
     // ---------- mundo 3D ----------
-    void OpenWorld()
+    /// <summary>Abre o Mundo 3D do arquivo aberto (ou leva a câmera ao ponto selecionado, se já aberto).</summary>
+    public void OpenWorld()
     {
         if (Cur is not { } f || _cur is null) return;
         var dir = _elementDir() is { } el ? Path.Combine(el, "maps", _cur) : null;
@@ -569,25 +582,50 @@ internal sealed class NpcGenView : UserControl
         var w = _world = new WorldView(t, new OpenTK.Mathematics.Vector3(start.X, start.Y, start.Z), () =>
             {
                 var list = new List<WorldView.Marker>(f.Spawns.Count + f.Resources.Count);
+                // cor do nome (legenda): verde = só em evento (gatilho), vermelho = guarda (NPC em ponto de monstro), ciano = coletável
                 foreach (var s in f.Spawns)
                 {
                     int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
+                    var label = s.Trigger != 0 ? Color.LimeGreen : s.Type == 0 && _blockOf(id0) == "NPC_ESSENCE" ? Color.OrangeRed : Color.White;
                     list.Add(new(s.Position.X, s.Position.Y, s.Position.Z, s.Type == 1 ? Color.DeepSkyBlue : Color.Red, NameOf(id0), s,
-                        _modelOf(id0), MathF.Atan2(s.Direction.X, s.Direction.Z) * 180 / MathF.PI));
+                        _modelOf(id0), MathF.Atan2(s.Direction.X, s.Direction.Z) * 180 / MathF.PI, label, s.Location == 0, id0));
                 }
                 foreach (var r in f.Resources)
-                    list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(r.Items.FirstOrDefault()?.Id ?? 0), r, _modelOf(r.Items.FirstOrDefault()?.Id ?? 0)));
+                {
+                    int id0 = r.Items.FirstOrDefault()?.Id ?? 0;
+                    list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(id0), r, _modelOf(id0), 0,
+                        r.Trigger != 0 ? Color.LimeGreen : Color.Cyan, true, id0));
+                }
                 return list;
             }, Sel, SelectObject,
-            g => { NewPoint(new Vec3(g.X, g.Y, g.Z)); },
+            (g, kind) => { SetKind((Kind)kind); NewPoint(new Vec3(g.X, g.Y, g.Z)); },
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
         w.Tag = _cur;
+        w.CloneHere = (o, g) =>
+        {
+            SelectObject(o);
+            if (Cur is not { } cf || SelectedIndex() is not { } ci) return;
+            var copy = CloneOf(ListOf(cf)[ci]!);
+            if (copy is NpcGenSpawn cs) cs.Position = new Vec3(g.X, g.Y, g.Z); else if (copy is NpcGenResource cr) cr.Position = new Vec3(g.X, g.Y, g.Z);
+            InsertPoint(ci + 1, copy);
+        };
+        w.EditPoint = o => { SelectObject(o); int id = o is NpcGenSpawn es ? es.Creatures.FirstOrDefault()?.Id ?? 0 : ((NpcGenResource)o).Items.FirstOrDefault()?.Id ?? 0; if (id > 0) _editItem(id); };
+        w.UndoAction = Undo; w.RedoAction = Redo;
+        w.Maps = _paths.Keys.ToList();
+        w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(); } };
         if (_configDir is not null) w.WaterDir = Path.Combine(_configDir, _cur, "watermap");
         w.FormClosed += (_, _) => { if (_world == w) _world = null; };
         w.Show(FindForm());
     }
 
     WorldView? _world;
+
+    void SetKind(Kind k)
+    {
+        if (k == _kind) return;
+        _kind = k; _binding = true; _kindBox.SelectedIndex = (int)k; _binding = false;
+        Refill(-1);
+    }
 
     // seleciona na lista o ponto clicado no mundo (troca o filtro se precisar)
     void SelectObject(object o)
@@ -664,7 +702,7 @@ internal sealed class NpcGenView : UserControl
         if (_rows.Count > 0) { _list.SelectedIndices.Clear(); int k = Math.Min(next, _rows.Count - 1); _list.SelectedIndices.Add(k); _list.EnsureVisible(k); }
     }
 
-    void Touch() { if (_cur is not null) _dirty.Add(_cur); UpdateInfo(); _list.Invalidate(); }
+    void Touch() { if (_cur is not null) _dirty.Add(_cur); UpdateInfo(); _list.Invalidate(); _world?.MarkDirty(); }
 
     // ---------- desfazer / refazer ----------
     // cada passo diz como voltar: trocar o ponto pela cópia, inserir de volta ou remover

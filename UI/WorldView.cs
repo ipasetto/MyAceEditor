@@ -16,7 +16,23 @@ namespace MyAceEditor.UI;
 internal sealed class WorldView : Form
 {
     /// <summary>Ponto no mundo; Model = .ecm do elements (modelo parado), Yaw em graus (0 = norte).</summary>
-    public sealed record Marker(float X, float Y, float Z, Color Color, string Name, object Tag, string? Model = null, float Yaw = 0);
+    /// <summary>LabelColor = cor do nome (legenda: evento, guarda, coletável…); OnGround = nasce no chão (desenha na altura do terreno).</summary>
+    public sealed record Marker(float X, float Y, float Z, Color Color, string Name, object Tag, string? Model = null, float Yaw = 0,
+        Color LabelColor = default, bool OnGround = false, int Id = 0);
+
+    // ações extras ligadas pela aba NPCGen (definidas depois de criar a janela)
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Action<object, Vector3>? CloneHere { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Action<object>? EditPoint { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<bool>? UndoAction { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<bool>? RedoAction { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public IReadOnlyList<string> Maps { get; set; } = Array.Empty<string>();
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Action<string>? SwitchMap { get; set; }
 
     const float TileM = 512;          // peça do minimapa
     const int FarStep = 16;           // células por amostra na malha leve (16 × 2 m = 32 m)
@@ -24,7 +40,7 @@ internal sealed class WorldView : Form
 
     readonly TerrainFile _t;
     readonly Func<IReadOnlyList<Marker>> _markerSrc;
-    readonly Action<Vector3> _newHere;
+    readonly Action<Vector3, int> _newHere;
     readonly Action<object, Vector3>? _moveHere;
     readonly Func<object?> _selected;
     readonly Action<object> _select;
@@ -32,6 +48,11 @@ internal sealed class WorldView : Form
     readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0) };
     readonly ToolStrip _bar = new() { GripStyle = ToolStripGripStyle.Hidden };
     readonly ToolStripTextBox _find = new() { Width = 220 };
+    readonly ToolStripComboBox _mapBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
+    List<Marker> _nearMarks = new();          // pontos a até 1,5 km da câmera (refeito quando a câmera anda 100 m)
+    Vector3 _nearAt = new(float.MaxValue);
+    bool _marksDirty; double _marksAt;
+    int _legendTex, _legendW, _legendH;
     readonly Dictionary<(int, int), (int Vbo, int Count)> _near = new(), _far = new();
     readonly Dictionary<(int, int), int> _tex = new();
     readonly PckArchive? _surf;
@@ -87,7 +108,7 @@ internal sealed class WorldView : Form
     Bitmap? _worldMap;
 
     public WorldView(TerrainFile t, Vector3 start, Func<IReadOnlyList<Marker>> markers, Func<object?> selected, Action<object> select,
-        Action<Vector3> newHere, Action<object, Vector3>? moveHere)
+        Action<Vector3, int> newHere, Action<object, Vector3>? moveHere)
     {
         _t = t; _markerSrc = markers; _selected = selected; _select = select; _newHere = newHere; _moveHere = moveHere;
         Text = string.Format(Loc.T("world.title", "Mundo 3D — {0}"), t.Name);
@@ -99,7 +120,16 @@ internal sealed class WorldView : Form
         _bar.Items.Add(new ToolStripButton(Loc.T("world.next", "Próximo ▶"), null, (_, _) => FindNext()));
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(new ToolStripButton(Loc.T("world.map", "🗺 Mapa (M)"), null, (_, _) => ShowMap()));
-        _bar.Items.Add(new ToolStripLabel(Loc.T("world.help", "   W/A/S/D anda · Q/E desce/sobe · Shift corre · roda aproxima · botão do meio gira · esquerdo arrasta o ponto · direito edita")) { ForeColor = Color.DimGray });
+        _bar.Items.Add(new ToolStripSeparator());
+        _bar.Items.Add(new ToolStripLabel(Loc.T("world.mapPick", "Mapa:")));
+        _bar.Items.Add(_mapBox);
+        _bar.Items.Add(new ToolStripLabel(Loc.T("world.help", "   W/A/S/D anda · Espaço/Z sobe/desce · Shift corre · roda aproxima · botão do meio gira · esquerdo arrasta · direito edita · Ctrl+Z desfaz")) { ForeColor = Color.DimGray });
+        Shown += (_, _) =>
+        {
+            _mapBox.Items.AddRange(Maps.Cast<object>().ToArray());
+            _mapBox.SelectedItem = Tag as string;
+            _mapBox.SelectedIndexChanged += (_, _) => { if (_mapBox.SelectedItem is string m && m != Tag as string) BeginInvoke(() => SwitchMap?.Invoke(m)); };
+        };
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_status);
@@ -150,11 +180,19 @@ internal sealed class WorldView : Form
         KeyDown += (_, e) =>
         {
             if (_find.Focused) return;
+            if (e.Control && e.KeyCode is Keys.Z or Keys.Y)
+            {
+                bool ok = (e.KeyCode == Keys.Z ? UndoAction : RedoAction)?.Invoke() ?? false;
+                _status.Text = ok ? "" : Loc.T(e.KeyCode == Keys.Z ? "status.nothingUndo" : "status.nothingRedo", e.KeyCode == Keys.Z ? "Nada para desfazer" : "Nada para refazer");
+                RefreshMarkers(); e.Handled = true; return;
+            }
             if (e.KeyCode == Keys.M) { ShowMap(); return; }
+            if (e.KeyCode == Keys.Space) e.SuppressKeyPress = true;
             _keys.Add(e.KeyCode);
         };
         KeyUp += (_, e) => _keys.Remove(e.KeyCode);
         Deactivate += (_, _) => _keys.Clear();
+        Activated += (_, _) => RefreshMarkers();   // mudanças feitas no editor aparecem ao voltar
         _tick.Tick += (_, _) => Step();
         _tick.Start();
         FormClosed += (_, _) =>
@@ -165,11 +203,15 @@ internal sealed class WorldView : Form
             _surf?.Dispose(); _worldMap?.Dispose(); _models.Dispose(); _buildings.Dispose(); _texPck?.Dispose();
             foreach (var x in _groundTex.Values.Concat(_maskTex.Values).Concat(_lightTex.Values)) if (x != 0) GL.DeleteTexture(x);
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
+            if (_legendTex != 0) GL.DeleteTexture(_legendTex);
         };
     }
 
     /// <summary>Relê os pontos (depois de criar, mover ou trocar o arquivo).</summary>
-    public void RefreshMarkers() { _marks = _markerSrc().ToList(); _gl?.Invalidate(); }
+    public void RefreshMarkers() { _marks = _markerSrc().ToList(); _nearAt = new(float.MaxValue); _marksDirty = false; _marksAt = _clock.Elapsed.TotalSeconds; _gl?.Invalidate(); }
+
+    /// <summary>Algo mudou na aba NPCGen: relê os pontos no próximo quadro (no máximo ~3 vezes por segundo).</summary>
+    public void MarkDirty() { _marksDirty = true; _gl?.Invalidate(); }
 
     /// <summary>Leva a câmera até o ponto (lista da aba NPCGen ou "Ir para").</summary>
     public void GoTo(object tag)
@@ -196,8 +238,8 @@ internal sealed class WorldView : Form
             if (_keys.Contains(Keys.S)) _cam -= f * s;
             if (_keys.Contains(Keys.D)) _cam += right * s;
             if (_keys.Contains(Keys.A)) _cam -= right * s;
-            if (_keys.Contains(Keys.E)) _cam.Y += s;
-            if (_keys.Contains(Keys.Q)) _cam.Y -= s;
+            if (_keys.Contains(Keys.E) || _keys.Contains(Keys.Space)) _cam.Y += s;
+            if (_keys.Contains(Keys.Q) || (_keys.Contains(Keys.Z) && !_keys.Contains(Keys.ControlKey))) _cam.Y -= s;
             // não atravessa o chão
             if (_t.HeightAt(_cam.X, -_cam.Z) is { } ground && _cam.Y < ground + 2) _cam.Y = ground + 2;
         }
@@ -264,7 +306,7 @@ internal sealed class WorldView : Form
             for (int r = pr - 1; r <= pr + 1; r++)
                 for (int c = pc - 1; c <= pc + 1; c++)
                     if (r >= 0 && c >= 0 && r < _t.Rows && c < _t.Cols) pieces.Add(r * _t.Cols + c + 1);
-            if (_buildings.Update(pieces, 6)) _built++;
+            if (_buildings.Update(pieces, 3)) _built++;
             _buildings.Draw();
         }
 
@@ -282,9 +324,13 @@ internal sealed class WorldView : Form
             GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color4(1f, 1f, 1f, 1f);
         }
 
-        // modelos parados até 300 m (no máximo 2 carregados por quadro); haste para quem não tem modelo
+        // pontos perto da câmera (refeitos a cada 100 m andados ou quando algo mudou)
+        if (_marksDirty && _clock.Elapsed.TotalSeconds - _marksAt > 0.3) RefreshMarkers();
+        if ((_cam - _nearAt).LengthSquared > 100 * 100) { _nearAt = _cam; _nearMarks = _marks.Where(Close).ToList(); }
+
+        // modelos parados até 300 m (carrega no máximo ~6 ms por quadro); haste para quem não tem modelo
         var sel = _selected();
-        int loads = 2;
+        var loadClock = Stopwatch.StartNew();
         GL.Enable(EnableCap.Lighting); GL.Enable(EnableCap.Light0); GL.Enable(EnableCap.Normalize); GL.Enable(EnableCap.ColorMaterial);
         GL.Light(LightName.Light0, LightParameter.Position, new Vector4(-0.4f, 1f, 0.3f, 0));
         GL.Light(LightName.Light0, LightParameter.Diffuse, new Color4(0.8f, 0.8f, 0.75f, 1f));
@@ -292,10 +338,10 @@ internal sealed class WorldView : Form
         GL.Enable(EnableCap.AlphaTest); GL.AlphaFunc(AlphaFunction.Greater, 0.3f);
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.NormalArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
         var withModel = new HashSet<Marker>();
-        foreach (var m in _marks)
+        foreach (var m in _nearMarks)
         {
             if (m.Model is null || Dist2(m) > 300 * 300) continue;
-            if (!_models.Loaded(m.Model)) { if (loads-- <= 0) { _built++; continue; } _models.Load(m.Model); }
+            if (!_models.Loaded(m.Model)) { if (loadClock.ElapsedMilliseconds > 6) { _built++; continue; } _models.Load(m.Model); }
             GL.Color3(1f, 1f, 1f);
             if (_models.Draw(m.Model, PosOf(m), m.Yaw)) withModel.Add(m);
         }
@@ -305,9 +351,9 @@ internal sealed class WorldView : Form
 
         GL.LineWidth(3); GL.PointSize(7);
         GL.Begin(PrimitiveType.Lines);
-        foreach (var m in _marks)
+        foreach (var m in _nearMarks)
         {
-            if (!Close(m) || withModel.Contains(m)) continue;
+            if (withModel.Contains(m)) continue;
             var mp = PosOf(m); float top = withModel.Contains(m) ? (_models.Top(m.Model!) ?? 0) + 1 : 0;
             Col(m.Tag == sel ? Color.Yellow : m.Color); GL.Vertex3(Gl(mp.X, mp.Y + top, mp.Z)); GL.Vertex3(Gl(mp.X, mp.Y + top + (m.Tag == sel ? 6 : 7), mp.Z));
         }
@@ -317,12 +363,13 @@ internal sealed class WorldView : Form
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
         GL.Enable(EnableCap.Texture2D); GL.Color3(1f, 1f, 1f);
-        foreach (var m in _marks.Where(m => Dist2(m) < 70 * 70 || m.Tag == sel && Dist2(m) < 400 * 400).OrderBy(Dist2).Take(40))
+        foreach (var m in _nearMarks.Where(m => Dist2(m) < 70 * 70 || m.Tag == sel && Dist2(m) < 400 * 400).OrderBy(Dist2).Take(40))
         {
             var lp = PosOf(m);
             float top = m.Model is not null && _models.Top(m.Model) is { } t ? t + 1.2f : 8f;
-            DrawLabel($"{m.Name}\n{lp.X:0}, {lp.Y:0}, {lp.Z:0}", new Vector3(lp.X, lp.Y + top, lp.Z), m.Tag == sel);
+            DrawLabel($"{m.Name}\n{lp.X:0}, {lp.Y:0}, {lp.Z:0}", new Vector3(lp.X, lp.Y + top, lp.Z), m.Tag == sel ? Color.Yellow : m.LabelColor.IsEmpty ? Color.White : m.LabelColor);
         }
+        DrawLegend();
         GL.Disable(EnableCap.Texture2D); GL.DepthMask(true); GL.Disable(EnableCap.Blend);
         GL.Disable(EnableCap.Fog);
         _gl.SwapBuffers();
@@ -330,12 +377,14 @@ internal sealed class WorldView : Form
 
     bool Close(Marker m) => Math.Abs(m.X - _cam.X) < 1500 && Math.Abs(-m.Z - _cam.Z) < 1500;
     float Dist2(Marker m) { float dx = m.X - _cam.X, dz = m.Z + _cam.Z, dy = m.Y - _cam.Y; return dx * dx + dy * dy + dz * dz; }
-    Vector3 PosOf(Marker m) => m.Tag == _movingTag && _movePos is { } mp ? mp : new Vector3(m.X, m.Y, m.Z);
+    // "no chão": o servidor põe na altura do terreno, então desenha ali (antes alguns flutuavam)
+    Vector3 PosOf(Marker m) => m.Tag == _movingTag && _movePos is { } mp ? mp
+        : new Vector3(m.X, m.OnGround && _t.HeightAt(m.X, m.Z) is { } h ? h : m.Y, m.Z);
 
     // texto do nome numa textura (em cache) desenhada de frente para a câmera, do mesmo tamanho na tela
-    void DrawLabel(string text, Vector3 at, bool selected)
+    void DrawLabel(string text, Vector3 at, Color color)
     {
-        if (!_labels.TryGetValue((selected ? "*" : "") + text, out var l))
+        if (!_labels.TryGetValue(color.ToArgb() + text, out var l))
         {
             using var font = new Font("Segoe UI", 11, FontStyle.Bold);
             var size = TextRenderer.MeasureText(text, font);
@@ -346,7 +395,8 @@ internal sealed class WorldView : Form
                 using var sf = new StringFormat { Alignment = StringAlignment.Center };
                 var r = new RectangleF(0, 2, bmp.Width, bmp.Height);
                 g.DrawString(text, font, Brushes.Black, new RectangleF(r.X + 1, r.Y + 1, r.Width, r.Height), sf);
-                g.DrawString(text, font, selected ? Brushes.Yellow : Brushes.White, r, sf);
+                using var brush = new SolidBrush(color);
+                g.DrawString(text, font, brush, r, sf);
             }
             var bd = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
             int tex = GL.GenTexture();
@@ -355,7 +405,7 @@ internal sealed class WorldView : Form
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, bd.Scan0);
             bmp.UnlockBits(bd);
-            l = _labels[(selected ? "*" : "") + text] = (tex, bmp.Width, bmp.Height);
+            l = _labels[color.ToArgb() + text] = (tex, bmp.Width, bmp.Height);
             if (_labels.Count > 3000) { foreach (var x in _labels.Values) GL.DeleteTexture(x.Tex); _labels.Clear(); }
         }
         var right = Vector3.Normalize(Vector3.Cross(Forward, Vector3.UnitY)); var up = Vector3.Cross(right, Forward);
@@ -601,8 +651,58 @@ internal sealed class WorldView : Form
         return null;
     }
 
+    // legenda no canto superior esquerdo (fundo preto translúcido)
+    void DrawLegend()
+    {
+        if (_legendTex == 0)
+        {
+            var rows = new (Color C, string T)[]
+            {
+                (Color.White, Loc.T("legend.normal", "Branco — monstro ou NPC normal (nasce sempre)")),
+                (Color.LimeGreen, Loc.T("legend.event", "Verde — só surge em evento (gatilho)")),
+                (Color.OrangeRed, Loc.T("legend.guard", "Vermelho — guarda (NPC em ponto de monstro)")),
+                (Color.Cyan, Loc.T("legend.gather", "Ciano — coletável")),
+                (Color.Yellow, Loc.T("legend.selected", "Amarelo — selecionado")),
+                (Color.DarkGray, Loc.T("legend.sticks", "Hastes: vermelha monstro · azul NPC · verde coletável")),
+            };
+            using var font = new Font("Segoe UI", 9.5f);
+            int w = rows.Max(r => TextRenderer.MeasureText(r.T, font).Width) + 34, h = rows.Length * 19 + 12;
+            using var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                using var bg = new SolidBrush(Color.FromArgb(140, 0, 0, 0));
+                g.FillRectangle(bg, 0, 0, w, h);
+                for (int i = 0; i < rows.Length; i++)
+                {
+                    using var b = new SolidBrush(rows[i].C);
+                    g.FillRectangle(b, 8, 8 + i * 19 + 4, 10, 10);
+                    g.DrawString(rows[i].T, font, b, 24, 6 + i * 19);
+                }
+            }
+            var bd = bmp.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadOnly, bmp.PixelFormat);
+            _legendTex = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, _legendTex);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, w, h, 0, PixelFormat.Bgra, PixelType.UnsignedByte, bd.Scan0);
+            bmp.UnlockBits(bd);
+            _legendW = w; _legendH = h;
+        }
+        GL.MatrixMode(MatrixMode.Projection); GL.PushMatrix(); GL.LoadIdentity(); GL.Ortho(0, _gl.Width, _gl.Height, 0, -1, 1);
+        GL.MatrixMode(MatrixMode.Modelview); GL.PushMatrix(); GL.LoadIdentity();
+        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Fog);
+        GL.BindTexture(TextureTarget.Texture2D, _legendTex); GL.Color4(1f, 1f, 1f, 1f);
+        GL.Begin(PrimitiveType.Quads);
+        GL.TexCoord2(0f, 0f); GL.Vertex2(10, 10); GL.TexCoord2(1f, 0f); GL.Vertex2(10 + _legendW, 10);
+        GL.TexCoord2(1f, 1f); GL.Vertex2(10 + _legendW, 10 + _legendH); GL.TexCoord2(0f, 1f); GL.Vertex2(10, 10 + _legendH);
+        GL.End();
+        GL.Enable(EnableCap.DepthTest);
+        GL.MatrixMode(MatrixMode.Projection); GL.PopMatrix(); GL.MatrixMode(MatrixMode.Modelview); GL.PopMatrix();
+    }
+
     // marcador a até 6 m do ponto do chão
-    Marker? Nearest(Vector3 g) => _marks.Where(m => Math.Abs(m.X - g.X) < 6 && Math.Abs(m.Z - g.Z) < 6)
+    Marker? Nearest(Vector3 g) => _nearMarks.Where(m => Math.Abs(m.X - g.X) < 6 && Math.Abs(m.Z - g.Z) < 6)
         .OrderBy(m => (m.X - g.X) * (m.X - g.X) + (m.Z - g.Z) * (m.Z - g.Z)).FirstOrDefault();
 
     void PickMarker(Point p)
@@ -629,9 +729,25 @@ internal sealed class WorldView : Form
         var menu = new ContextMenuStrip();
         menu.Items.Add(string.Format(Loc.T("world.copy", "Copiar coordenada ({0:0.0}, {1:0.0}, {2:0.0})"), g.X, g.Y, g.Z), null,
             (_, _) => Clipboard.SetText(FormattableString.Invariant($"{g.X:0.##}, {g.Y:0.##}, {g.Z:0.##}")));
-        menu.Items.Add(Loc.T("world.newHere", "Novo ponto aqui…"), null, (_, _) => { _newHere(g); RefreshMarkers(); });
-        if (_moveHere is not null && _selected() is { } s)
-            menu.Items.Add(Loc.T("world.moveHere", "Mover o ponto selecionado para cá"), null, (_, _) => { _moveHere(s, g); RefreshMarkers(); });
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(Loc.T("world.newMob", "Novo monstro aqui…"), null, (_, _) => { _newHere(g, 0); RefreshMarkers(); });
+        menu.Items.Add(Loc.T("world.newNpc", "Novo NPC aqui…"), null, (_, _) => { _newHere(g, 1); RefreshMarkers(); });
+        menu.Items.Add(Loc.T("world.newGather", "Novo coletável aqui…"), null, (_, _) => { _newHere(g, 2); RefreshMarkers(); });
+        // em cima de um ponto: ele vira o selecionado e dá para editar no software
+        if (Nearest(g) is { } under)
+        {
+            _select(under.Tag);
+            menu.Items.Add(new ToolStripSeparator());
+            if (EditPoint is not null)
+                menu.Items.Add(string.Format(Loc.T("world.edit", "Editar {0} no software…"), under.Name), null, (_, _) => EditPoint(under.Tag));
+        }
+        if (_selected() is { } s)
+        {
+            if (_moveHere is not null)
+                menu.Items.Add(Loc.T("world.moveHere", "Mover o ponto selecionado para cá"), null, (_, _) => { _moveHere(s, g); RefreshMarkers(); });
+            if (CloneHere is not null)
+                menu.Items.Add(Loc.T("world.cloneHere", "Clonar o ponto selecionado aqui"), null, (_, _) => { CloneHere(s, g); RefreshMarkers(); });
+        }
         menu.Show(_gl, p);
     }
 

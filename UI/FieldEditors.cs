@@ -82,9 +82,10 @@ internal static class FieldEditors
     /// group != null mostra um filtro por grupo (ex.: tipo de addon). multi permite escolher vários.
     /// </summary>
     public static List<Item>? Pick(IWin32Window owner, string title, IReadOnlyList<Item> source, string? currentId,
-        Func<Item, int> icon, ImageList images, Func<Item, string> describe, Func<Item, string?>? group, bool multi, string? initialGroup = null)
+        Func<Item, int> icon, ImageList images, Func<Item, string> describe, Func<Item, string?>? group, bool multi, string? initialGroup = null,
+        Func<Item, Image?>? preview = null)
     {
-        using var f = NewDialog(title, 860, 620);
+        using var f = NewDialog(title, preview is null ? 860 : 1130, 620);
         var search = new TextBox { Dock = DockStyle.Fill, PlaceholderText = Loc.T("dlg.pickSearch", "Pesquisar por nome, ID ou descrição…"), BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f) };
         var groupBox = new ComboBox { Dock = DockStyle.Right, Width = 280, DropDownStyle = ComboBoxStyle.DropDownList, Visible = group is not null };
         var top = new Panel { Dock = DockStyle.Top, Height = 34, Padding = new Padding(6, 4, 6, 2) };
@@ -123,7 +124,22 @@ internal static class FieldEditors
             Text = multi ? Loc.T("dlg.hintMulti", "Ctrl/Shift para escolher vários: preenchem este campo e os seguintes do mesmo tipo.")
                          : Loc.T("dlg.hintSingle", "Duplo clique ou OK para escolher. Escolha \"0\" no campo para limpar.") };
         lv.DoubleClick += (_, _) => { if (lv.SelectedIndices.Count > 0) { f.DialogResult = DialogResult.OK; f.Close(); } };
+        // prévia (modelo 3D do monstro/NPC) à direita, atualizada ao escolher na lista
+        PictureBox? pic = null;
+        if (preview is not null)
+        {
+            pic = new PictureBox { Dock = DockStyle.Right, Width = 270, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(32, 38, 46) };
+            var wait = new System.Windows.Forms.Timer { Interval = 120 };
+            wait.Tick += (_, _) =>
+            {
+                wait.Stop();
+                pic!.Image = lv.SelectedIndices.Count > 0 && lv.SelectedIndices[0] < view.Count ? preview(view[lv.SelectedIndices[0]]) : null;
+            };
+            lv.SelectedIndexChanged += (_, _) => { wait.Stop(); wait.Start(); };
+            f.FormClosed += (_, _) => wait.Dispose();
+        }
         f.Controls.Add(lv); f.Controls.Add(top); f.Controls.Add(hint); f.Controls.Add(bottom);
+        if (pic is not null) f.Controls.Add(pic);   // por último: encaixa à direita antes da lista ocupar o resto
         f.Shown += (_, _) =>
         {
             Refresh();

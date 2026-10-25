@@ -238,6 +238,8 @@ public sealed class EditorForm : Form
         tb.Items.Add(new ToolStripSeparator());
         tb.Items.Add(B(AddItem, b => b.Text = Loc.T("tb.add", "＋ Adicionar")));
         tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
+        tb.Items.Add(B(() => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorld()); },
+            b => b.Text = Loc.T("tb.world", "🌐 Mundo 3D")));
         return tb;
     }
 
@@ -279,7 +281,16 @@ public sealed class EditorForm : Form
             PickSpawn,
             () => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)),   // pasta element
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h && h.Item.Fields.FirstOrDefault(f => f.Key.Contains("file_model")).Value is { } fm
-                && fm.Value.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm.Value : null));
+                && fm.Value.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm.Value : null,
+            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } hb ? hb.Block.Name : null,
+            id =>
+            {
+                // "Editar no software": mostra o registro na aba Elements e traz a janela principal
+                if (_refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not { } he) return;
+                if (_tabs is not null) _tabs.SelectedIndex = 0;
+                GoToItem(he.Item);
+                Activate();
+            }));
         tabs.TabPages.Add(tN);
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));
@@ -2113,7 +2124,18 @@ public sealed class EditorForm : Form
         return false;
     }
 
-    // NPCGen: escolher o monstro, NPC ou mina de um ponto (mesma janela de escolha)
+    // prévia 3D dos modelos no seletor (models.pck da pasta do jogo aberta)
+    private ModelPreview? _modelPreview;
+    private string? _modelPreviewDir;
+    private ModelPreview? ModelPreviewer()
+    {
+        var el = _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath));
+        if (el is null) return null;
+        if (_modelPreview is null || _modelPreviewDir != el) { _modelPreview?.Dispose(); _modelPreview = new ModelPreview(el); _modelPreviewDir = el; }
+        return _modelPreview;
+    }
+
+    // NPCGen: escolher o monstro, NPC ou coletável de um ponto (mesma janela de escolha, com prévia do modelo)
     private int? PickSpawn(IWin32Window owner, NpcGenView.Kind kind, int current)
     {
         var block = kind switch { NpcGenView.Kind.Npc => "NPC_ESSENCE", NpcGenView.Kind.Mine => "MINE_ESSENCE", _ => "MONSTER_ESSENCE" };
@@ -2123,11 +2145,12 @@ public sealed class EditorForm : Form
         if (src.Count == 0) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return null; }
         var picked = FieldEditors.Pick(owner, kind switch
             {
-                NpcGenView.Kind.Npc => Loc.T("pick.npc", "Escolher NPC"), NpcGenView.Kind.Mine => Loc.T("pick.mine", "Escolher mina (coleta)"),
+                NpcGenView.Kind.Npc => Loc.T("pick.npc", "Escolher NPC"), NpcGenView.Kind.Mine => Loc.T("pick.mine", "Escolher coletável"),
                 _ => Loc.T("pick.monster", "Escolher monstro"),
             }, src, current > 0 ? current.ToString() : null, IconIndexFor, _treeIcons,
             it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "", it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null, false,
-            blocks.Length > 1 ? Pretty(block) : null);
+            blocks.Length > 1 ? Pretty(block) : null,
+            it => ModelPreviewer()?.Render(it.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value is { } fm && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm : null));
         return picked is { Count: > 0 } && int.TryParse(picked[0].Id, out var id) ? id : null;
     }
 

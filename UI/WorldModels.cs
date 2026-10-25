@@ -40,16 +40,7 @@ internal sealed class WorldModels : IDisposable
         if (_pck is null) return;
         try
         {
-            var ecmEntry = _pck.Find(ecm.ToLowerInvariant());
-            if (ecmEntry is null) return;
-            var text = System.Text.Encoding.GetEncoding(936).GetString(_pck.Read(ecmEntry));
-            var smd = Regex.Match(text, @"SkinModelPath:\s*(\S[^\r\n]*)").Groups[1].Value.Trim().ToLowerInvariant();
-            if (smd.Length == 0) return;
-            var dir = Path.GetDirectoryName(smd) ?? "";
-            var skiEntry = _pck.Find(Path.ChangeExtension(smd, ".ski"))
-                ?? _pck.Entries.FirstOrDefault(e => e.Path.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".ski", StringComparison.OrdinalIgnoreCase)
-                    && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
-            if (skiEntry is null || SkiModel.Read(_pck.Read(skiEntry)) is not { } ski) return;
+            if (ResolveSki(_pck, ecm) is not var (ski, dir)) return;
             var parts = new List<Part>();
             float top = 0;
             foreach (var m in ski.Meshes)
@@ -70,20 +61,43 @@ internal sealed class WorldModels : IDisposable
         catch { _models[ecm] = null; }
     }
 
+    /// <summary>.ecm → SkinModelPath (.SMD) → .ski de mesmo nome (ou o primeiro da pasta); devolve a malha e a pasta.</summary>
+    internal static (SkiModel Ski, string Dir)? ResolveSki(PckArchive pck, string ecm)
+    {
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        var ecmEntry = pck.Find(ecm.ToLowerInvariant());
+        if (ecmEntry is null) return null;
+        var text = System.Text.Encoding.GetEncoding(936).GetString(pck.Read(ecmEntry));
+        var smd = Regex.Match(text, @"SkinModelPath:\s*(\S[^\r\n]*)").Groups[1].Value.Trim().ToLowerInvariant();
+        if (smd.Length == 0) return null;
+        var dir = Path.GetDirectoryName(smd) ?? "";
+        var skiEntry = pck.Find(Path.ChangeExtension(smd, ".ski"))
+            ?? pck.Entries.FirstOrDefault(e => e.Path.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".ski", StringComparison.OrdinalIgnoreCase)
+                && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
+        return skiEntry is not null && SkiModel.Read(pck.Read(skiEntry)) is { } ski ? (ski, dir) : null;
+    }
+
+    /// <summary>Textura do modelo: na pasta, em "textures\" dela ou pelo nome em todo o pck.</summary>
+    internal static PckEntry? FindTexture(PckArchive pck, string dir, string name, ref Dictionary<string, PckEntry>? byName)
+    {
+        var file = Path.GetFileName(name).ToLowerInvariant();
+        var e = pck.Find(Path.Combine(dir, file)) ?? pck.Find(Path.Combine(dir, "textures", file));
+        if (e is null)
+        {
+            byName ??= pck.Entries.Where(x => x.Path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(x => Path.GetFileName(x.Path), StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            byName.TryGetValue(file, out e);
+        }
+        return e;
+    }
+
     int Texture(string dir, string name)
     {
         var key = dir + "|" + name;
         if (_textures.TryGetValue(key, out var id)) return id;
         id = 0;
-        var file = Path.GetFileName(name).ToLowerInvariant();
-        var e = _pck!.Find(Path.Combine(dir, file)) ?? _pck.Find(Path.Combine(dir, "textures", file));
-        if (e is null)
-        {
-            _ddsByName ??= _pck.Entries.Where(x => x.Path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
-                .GroupBy(x => Path.GetFileName(x.Path), StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-            _ddsByName.TryGetValue(file, out e);
-        }
-        if (e is not null && DdsDecoder.Decode(_pck.Read(e)) is { } img)
+        var e = FindTexture(_pck!, dir, name, ref _ddsByName);
+        if (e is not null && DdsDecoder.Decode(_pck!.Read(e)) is { } img)
         {
             id = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, id);
