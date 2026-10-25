@@ -35,7 +35,8 @@ internal sealed class WorldView : Form
     {
         _t = t; _markers = markers; _selected = selected; _select = select; _newHere = newHere; _moveHere = moveHere;
         Text = string.Format(Loc.T("world.title", "Mundo 3D — {0}"), t.Name);
-        Size = new Size(1100, 750); StartPosition = FormStartPosition.CenterParent; KeyPreview = true;
+        var wa = Screen.FromPoint(Cursor.Position).WorkingArea;
+        Size = new Size(Math.Min(1280, wa.Width - 40), Math.Min(860, wa.Height - 40)); StartPosition = FormStartPosition.CenterScreen; KeyPreview = true;
         _gl = new GLControl(new GLControlSettings { Profile = OpenTK.Windowing.Common.ContextProfile.Compatability, APIVersion = new Version(3, 3) }) { Dock = DockStyle.Fill };
         Controls.Add(_gl); Controls.Add(_status);
         _cam = Gl(start.X, start.Y + 60, start.Z) + new Vector3(0, 0, 80);
@@ -47,7 +48,9 @@ internal sealed class WorldView : Form
         {
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; }
             _hover = Ray(e.Location);
-            _status.Text = _hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}   ·   botão direito: copiar / novo ponto aqui / mover o selecionado"), h.X, h.Y, h.Z) : "";
+            var near = _hover is { } hv ? Nearest(hv) : null;
+            _status.Text = _hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}   ·   botão direito: copiar / novo ponto aqui / mover o selecionado"), h.X, h.Y, h.Z)
+                + (near is null ? "" : "   ·   " + near.Name) : "";
             _gl.Invalidate();
         };
         _gl.MouseWheel += (_, e) => _speed = Math.Clamp(_speed * (e.Delta > 0 ? 1.25f : 0.8f), 5, 2000);
@@ -171,11 +174,13 @@ internal sealed class WorldView : Form
         return null;
     }
 
+    // marcador a até 6 m do ponto do chão
+    Marker? Nearest(Vector3 g) => _markers().Where(m => Math.Abs(m.X - g.X) < 6 && Math.Abs(m.Z - g.Z) < 6)
+        .OrderBy(m => (m.X - g.X) * (m.X - g.X) + (m.Z - g.Z) * (m.Z - g.Z)).FirstOrDefault();
+
     void PickMarker(Point p)
     {
-        if (Ray(p) is not { } g) return;
-        var best = _markers().OrderBy(m => (m.X - g.X) * (m.X - g.X) + (m.Z - g.Z) * (m.Z - g.Z)).FirstOrDefault();
-        if (best is not null && Math.Abs(best.X - g.X) < 8 && Math.Abs(best.Z - g.Z) < 8) { _select(best.Tag); _status.Text = best.Name; _gl.Invalidate(); }
+        if (Ray(p) is { } g && Nearest(g) is { } best) { _select(best.Tag); _status.Text = best.Name; _gl.Invalidate(); }
     }
 
     void RightClick(Point p)

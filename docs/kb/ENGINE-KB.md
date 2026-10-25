@@ -117,6 +117,8 @@ PerfectWorld/TasksFile.cs | tasks.data (arvore, gravacao c/ tabela de offsets)
 PerfectWorld/TaskSchema.cs | esquema v93 (campos, premios, textos, dialogos)
 PerfectWorld/GameConfigs.cs | item_color + item_ext_desc do configs.pck
 PerfectWorld/NpcGenFile.cs | npcgen.data v5-11 (pontos, grupos, coleta, objetos, gatilhos) campo a campo, gravacao identica
+PerfectWorld/TerrainFile.cs | alturas do terreno do cliente (.trn2 + .t2bk sob demanda), HeightAt interpolado
+UI/WorldView.cs | Mundo 3D (OpenTK.GLControl 4.0.2, perfil compatibilidade 3.3): camera livre, marcadores do npcgen, botao direito copiar/novo ponto/mover
 UI/NpcGenView.cs | aba NPCGen: arquivos do servidor (world + aNN), lista de pontos, editor do ponto, desfazer proprio
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
 PerfectWorld/FieldLabels.cs | rotulos PT + grupos (Basico Requisitos Ataque Defesa Durabilidade Economia Atributos/Addons Modelo/Arquivos Outros)

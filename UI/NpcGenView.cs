@@ -608,7 +608,7 @@ internal sealed class NpcGenView : UserControl
             c.Id = id; c.Amount = 1; if (c.Respawn <= 0) c.Respawn = 30;
             s.Creatures.Clear(); s.Creatures.Add(c);
             s.Trigger = 0;
-            if (at is { } a2) s.Position = a2;
+            if (at is { } a2) { s.Position = a2; s.Location = 0; }   // clicado no chão: nasce no chão
             p = s;
         }
         InsertPoint(ListOf(f).Count, p);
