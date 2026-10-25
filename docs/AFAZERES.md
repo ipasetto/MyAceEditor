@@ -90,3 +90,11 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] 3D sem selecao: centro do mapa, do alto; instancia: perto do 1o NPC (entrada aproximada)
 - [ ] arvores/grama "do jogo": .spt e SpeedTree procedural (precisa do runtime), .tbh e so casca de colisao; usuario escolher o caminho
 - [ ] instancias: a26 (Nirvana) texturas, a19 cor, b30 catapultas abaixo do chao; entrada exata da instancia (tabela de entradas do servidor)
+
+## CODIGO-FONTE 1.5.3 (25/10/2026) — PW-KB §S13 §S18 §S22
+- [x] npcgen: limiares de versao do oficial (coleta v6/v7, objeto v9/v10); 49/49 identicos
+- [x] region.sev lido; Mundo 3D abre a instancia na entrada (26 de 45 mapas)
+- [ ] a26: mostrar so a copia do mapa do cliente (x -512..512) ou dobrar x a cada 1024 m
+- [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp e dar nome aos campos
+- [ ] path.sev (pathman.cpp): desenhar no 3D o caminho de patrulha dos grupos (iPathID)
+- [ ] arvores/grama (depois): leitor do .ecwld = EC_SceneBlock.cpp; arvores reais = SpeedTreeRT.h + speedtreert.dll

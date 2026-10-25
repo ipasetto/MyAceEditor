@@ -22,7 +22,7 @@ restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | i
 capacidade | client | server | PWKB | status
 itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; ESCRITA PRONTA byte-identica [T] (§E3)
 quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | v93 COMPLETO [T] (§E3c): campos, textos, dialogos, subquests; premios preservados
-IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | pendente; formato COMPLETO (mais pronto p/ implementar)
+IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | [T] aba AI Policy + round-trip identico (1.4.4, v9); layouts de 16 operacoes ainda inferidos -> conferir com Policy.cpp oficial
 loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
 spawns | NpcGenFile.cs + UI/NpcGenView.cs | npcgen.data | §S6 §S22 | [T] leitura/gravacao identica v5/v6/v10 (49 arquivos); aba NPCGen; Mudar ID atualiza
 regioes/portais/terreno | maps/*/region.clt precinct.clt .t2bk | region.sev precinct.sev .hmap .rmap .wmap path.sev | §S6 §S17 §S22 | pendente
@@ -116,7 +116,8 @@ PerfectWorld/VersionCheck.cs | verificacao do par cliente x servidor
 PerfectWorld/TasksFile.cs | tasks.data (arvore, gravacao c/ tabela de offsets)
 PerfectWorld/TaskSchema.cs | esquema v93 (campos, premios, textos, dialogos)
 PerfectWorld/GameConfigs.cs | item_color + item_ext_desc do configs.pck
-PerfectWorld/NpcGenFile.cs | npcgen.data v5-11 (pontos, grupos, coleta, objetos, gatilhos) campo a campo, gravacao identica
+PerfectWorld/NpcGenFile.cs | npcgen.data v5-11 (pontos, grupos, coleta, objetos, gatilhos) campo a campo, gravacao identica; limiares de versao conferidos com npcgendata.cpp oficial
+PerfectWorld/RegionFile.cs | region.sev do servidor (regioes + portais); EntranceOf(config, mapa) = entrada da instancia p/ o Mundo 3D
 PerfectWorld/TerrainFile.cs | alturas do terreno do cliente (.trn2 + .t2bk sob demanda), HeightAt interpolado
 PerfectWorld/SkiModel.cs | malhas .ski (modelos de monstro/NPC/mina) na pose de ligacao
 PerfectWorld/BmdModel.cs | construcoes .bmd (litmodels), 2 versoes
