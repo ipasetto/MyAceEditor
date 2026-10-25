@@ -40,7 +40,7 @@ internal sealed class WorldView : Form
     List<Marker> _marks = new();
     Vector3 _cam;
     float _yaw = -90, _pitch = -25, _speed = 60;
-    Point _drag; bool _dragging; double _last;
+    Point _drag, _down; bool _dragging; double _last;
     Vector3? _hover;
     int _built, _findAt = -1;
     Bitmap? _worldMap;
@@ -68,8 +68,10 @@ internal sealed class WorldView : Form
         LookAt(start);
         _gl.Paint += (_, _) => Render();
         _gl.Resize += (_, _) => _gl.Invalidate();
-        _gl.MouseDown += (_, e) => { _gl.Focus(); if (e.Button == MouseButtons.Left) { _dragging = true; _drag = e.Location; } };
-        _gl.MouseUp += (_, e) => { _dragging = false; if (e.Button == MouseButtons.Right) RightClick(e.Location); else if (e.Button == MouseButtons.Left && _drag == e.Location) PickMarker(e.Location); };
+        // girar: segurar o botão do meio (ou o esquerdo) e arrastar; clique esquerdo parado seleciona o marcador
+        _gl.MouseDown += (_, e) => { _gl.Focus(); if (e.Button is MouseButtons.Left or MouseButtons.Middle) { _dragging = true; _drag = _down = e.Location; } };
+        _gl.MouseUp += (_, e) => { _dragging = false; if (e.Button == MouseButtons.Right) RightClick(e.Location); else if (e.Button == MouseButtons.Left && _down == e.Location) PickMarker(e.Location); };
+        Shown += (_, _) => { Activate(); _gl.Focus(); };   // já abre pronta para W/A/S/D
         _gl.MouseMove += (_, e) =>
         {
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; _gl.Invalidate(); return; }
@@ -334,28 +336,35 @@ internal sealed class WorldView : Form
         menu.Show(_gl, p);
     }
 
-    // ---------- mapa-múndi (M) ----------
-    const int MapTilePx = 48;
+    // ---------- mapa-múndi (M): o mapa pintado do jogo ----------
+    // surfaces\maps\LLC.dds = peças de 1 km (LL linha a partir do norte, C coluna); sem ele, o minimapa
+    const int MapTilePx = 256;
 
     Bitmap WorldMap()
     {
         if (_worldMap is not null) return _worldMap;
-        var bmp = new Bitmap(TileCols * MapTilePx, TileRows * MapTilePx);
+        bool painted = _t.Name == "world" && _surf?.Find(@"surfaces\maps\000.dds") is not null;
+        float tileM = painted ? 1024 : TileM;
+        int rows = (int)Math.Ceiling(_t.Height / tileM), cols = (int)Math.Ceiling(_t.Width / tileM);
+        var bmp = new Bitmap(cols * MapTilePx, rows * MapTilePx);
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.FromArgb(40, 52, 64));
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
-        for (int r = 0; r < TileRows; r++)
-            for (int c = 0; c < TileCols; c++)
-                if (TileImage(r, c) is { } img)
-                {
-                    using var tile = new Bitmap(img.Width, img.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                    var bd = tile.LockBits(new Rectangle(0, 0, img.Width, img.Height), System.Drawing.Imaging.ImageLockMode.WriteOnly, tile.PixelFormat);
-                    System.Runtime.InteropServices.Marshal.Copy(img.Pixels, 0, bd.Scan0, img.Pixels.Length);
-                    tile.UnlockBits(bd);
-                    g.DrawImage(tile, c * MapTilePx, r * MapTilePx, MapTilePx, MapTilePx);
-                }
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++)
+            {
+                var img = painted ? (_surf!.Find($@"surfaces\maps\{r:00}{c}.dds") is { } e ? DdsDecoder.Decode(_surf.Read(e)) : null) : TileImage(r, c);
+                if (img is not { } im) continue;
+                using var tile = new Bitmap(im.Width, im.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                var bd = tile.LockBits(new Rectangle(0, 0, im.Width, im.Height), System.Drawing.Imaging.ImageLockMode.WriteOnly, tile.PixelFormat);
+                System.Runtime.InteropServices.Marshal.Copy(im.Pixels, 0, bd.Scan0, im.Pixels.Length);
+                tile.UnlockBits(bd);
+                g.DrawImage(tile, c * MapTilePx, r * MapTilePx, MapTilePx, MapTilePx);
+            }
+        _mapMPerPx = tileM / MapTilePx;
         return _worldMap = bmp;
     }
+    float _mapMPerPx = 2;
 
     void ShowMap()
     {
@@ -364,34 +373,64 @@ internal sealed class WorldView : Form
         var img = WorldMap();
         Cursor = Cursors.Default;
         var wa = Screen.FromControl(this).WorkingArea;
-        float scale = Math.Min((wa.Height - 80f) / img.Height, (wa.Width - 80f) / img.Width);
-        using var f = new Form { Text = Loc.T("world.mapTitle", "Mapa — botão direito leva a câmera · M ou Esc fecha"), StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size((int)(img.Width * scale), (int)(img.Height * scale)), FormBorderStyle = FormBorderStyle.FixedToolWindow, KeyPreview = true };
-        float mPerPx = TileM / MapTilePx / scale;
-        PointF ToPx(float x, float z) => new((x + _t.Width / 2) / mPerPx, (_t.Height / 2 - z) / mPerPx);
-        var pic = new DoubleBufferedPanel { Dock = DockStyle.Fill };
+        using var f = new Form { StartPosition = FormStartPosition.CenterParent, Size = new Size(Math.Min(1000, wa.Width - 60), Math.Min(900, wa.Height - 60)), KeyPreview = true,
+            FormBorderStyle = FormBorderStyle.SizableToolWindow, Text = Loc.T("world.mapTitle", "Mapa — roda: zoom · arrastar: mover · botão direito leva a câmera · M ou Esc fecha") };
+        var pic = new DoubleBufferedPanel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(40, 52, 64) };
+        f.Controls.Add(pic);
+        // abre com zoom no ponto selecionado (senão na câmera)
+        var sel = _marks.FirstOrDefault(m => m.Tag == _selected());
+        float cx = sel?.X ?? _cam.X, cz = sel?.Z ?? -_cam.Z;
+        float zoom = 1.5f;                              // px de tela por px do mapa
+        PointF center = new((cx + _t.Width / 2) / _mapMPerPx, (_t.Height / 2 - cz) / _mapMPerPx);   // em px do mapa
+        PointF ToScreen(float x, float z) => new((((x + _t.Width / 2) / _mapMPerPx) - center.X) * zoom + pic.Width / 2f, (((_t.Height / 2 - z) / _mapMPerPx) - center.Y) * zoom + pic.Height / 2f);
+        (float X, float Z) World(Point p) => (((p.X - pic.Width / 2f) / zoom + center.X) * _mapMPerPx - _t.Width / 2, _t.Height / 2 - ((p.Y - pic.Height / 2f) / zoom + center.Y) * _mapMPerPx);
         pic.Paint += (_, e) =>
         {
-            e.Graphics.DrawImage(img, 0, 0, img.Width * scale, img.Height * scale);
-            var c = ToPx(_cam.X, -_cam.Z);
-            e.Graphics.FillEllipse(Brushes.Red, c.X - 6, c.Y - 6, 12, 12);
-            e.Graphics.DrawEllipse(Pens.White, c.X - 6, c.Y - 6, 12, 12);
-            if (_marks.FirstOrDefault(m => m.Tag == _selected()) is { } s) { var q = ToPx(s.X, s.Z); e.Graphics.FillRectangle(Brushes.Yellow, q.X - 4, q.Y - 4, 8, 8); }
+            var gr = e.Graphics;
+            gr.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Bilinear;
+            gr.DrawImage(img, pic.Width / 2f - center.X * zoom, pic.Height / 2f - center.Y * zoom, img.Width * zoom, img.Height * zoom);
+            var c = ToScreen(_cam.X, -_cam.Z);
+            gr.FillEllipse(Brushes.Red, c.X - 6, c.Y - 6, 12, 12); gr.DrawEllipse(Pens.White, c.X - 6, c.Y - 6, 12, 12);
+            if (sel is not null)
+            {
+                var q = ToScreen(sel.X, sel.Z);
+                gr.FillEllipse(Brushes.Yellow, q.X - 5, q.Y - 5, 10, 10); gr.DrawEllipse(Pens.Black, q.X - 5, q.Y - 5, 10, 10);
+                using var font = new Font("Segoe UI", 9, FontStyle.Bold);
+                var txt = $"{sel.Name}  ({sel.X:0}, {sel.Z:0})";
+                gr.DrawString(txt, font, Brushes.Black, q.X + 9, q.Y - 7); gr.DrawString(txt, font, Brushes.Yellow, q.X + 8, q.Y - 8);
+            }
+        };
+        Point drag = Point.Empty; bool panning = false;
+        pic.MouseDown += (_, e) => { if (e.Button is MouseButtons.Left or MouseButtons.Middle) { panning = true; drag = e.Location; } };
+        pic.MouseMove += (_, e) =>
+        {
+            if (panning) { center = new(center.X - (e.X - drag.X) / zoom, center.Y - (e.Y - drag.Y) / zoom); drag = e.Location; pic.Invalidate(); }
+            var (x, z) = World(e.Location);
+            f.Text = string.Format(Loc.T("world.mapCoord", "Mapa — X {0:0}  Z {1:0} · roda: zoom · arrastar: mover · botão direito leva a câmera · M ou Esc fecha"), x, z);
         };
         pic.MouseUp += (_, e) =>
         {
+            panning = false;
             if (e.Button != MouseButtons.Right) return;
-            float x = e.X * mPerPx - _t.Width / 2, z = _t.Height / 2 - e.Y * mPerPx;
+            var (x, z) = World(e.Location);
             if (_t.HeightAt(x, z) is not { } h) return;
             LookAt(new Vector3(x, h, z));
             f.Close();
         };
-        pic.MouseMove += (_, e) => f.Text = string.Format(Loc.T("world.mapCoord", "Mapa — X {0:0}  Z {1:0} · botão direito leva a câmera · M ou Esc fecha"), e.X * mPerPx - _t.Width / 2, _t.Height / 2 - e.Y * mPerPx);
+        pic.MouseWheel += (_, e) =>
+        {
+            var before = World(e.Location);
+            zoom = Math.Clamp(zoom * (e.Delta > 0 ? 1.25f : 0.8f), 0.15f, 6f);
+            // mantém o ponto embaixo do mouse no lugar
+            var after = World(e.Location);
+            center = new(center.X - (after.X - before.X) / _mapMPerPx, center.Y + (after.Z - before.Z) / _mapMPerPx);
+            pic.Invalidate();
+        };
         f.KeyDown += (_, e) => { if (e.KeyCode is Keys.M or Keys.Escape) f.Close(); };
-        f.Controls.Add(pic);
+        f.Shown += (_, _) => pic.Focus();
         f.ShowDialog(this);
         _gl.Invalidate();
     }
 
-    sealed class DoubleBufferedPanel : Panel { public DoubleBufferedPanel() { DoubleBuffered = true; } }
+    sealed class DoubleBufferedPanel : Panel { public DoubleBufferedPanel() { DoubleBuffered = true; SetStyle(ControlStyles.Selectable, true); } }
 }

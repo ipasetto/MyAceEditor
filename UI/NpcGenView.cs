@@ -557,6 +557,13 @@ internal sealed class NpcGenView : UserControl
         }
         object? Sel() => SelectedIndex() is { } i ? ListOf(f)[i] : null;
         var start = Sel() switch { NpcGenSpawn s => s.Position, NpcGenResource r => r.Position, _ => f.Spawns.FirstOrDefault()?.Position ?? default };
+        // já aberto (mesmo mapa): só leva a câmera ao ponto selecionado
+        if (_world is { IsDisposed: false } open && open.Tag as string == _cur)
+        {
+            if (SelectedIndex() is { } si) open.GoTo(ListOf(f)[si]!);
+            open.Activate();
+            return;
+        }
         if (_world is { IsDisposed: false }) _world.Close();
         var w = _world = new WorldView(t, new OpenTK.Mathematics.Vector3(start.X, start.Y, start.Z), () =>
             {
@@ -569,6 +576,7 @@ internal sealed class NpcGenView : UserControl
             }, Sel, SelectObject,
             g => { NewPoint(new Vec3(g.X, g.Y, g.Z)); },
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
+        w.Tag = _cur;
         w.FormClosed += (_, _) => { if (_world == w) _world = null; };
         w.Show(FindForm());
     }
