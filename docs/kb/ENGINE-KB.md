@@ -118,6 +118,10 @@ PerfectWorld/TaskSchema.cs | esquema v93 (campos, premios, textos, dialogos)
 PerfectWorld/GameConfigs.cs | item_color + item_ext_desc do configs.pck
 PerfectWorld/NpcGenFile.cs | npcgen.data v5-11 (pontos, grupos, coleta, objetos, gatilhos) campo a campo, gravacao identica
 PerfectWorld/TerrainFile.cs | alturas do terreno do cliente (.trn2 + .t2bk sob demanda), HeightAt interpolado
+PerfectWorld/SkiModel.cs | malhas .ski (modelos de monstro/NPC/mina) na pose de ligacao
+PerfectWorld/BmdModel.cs | construcoes .bmd (litmodels), 2 versoes
+UI/WorldModels.cs | modelos parados no Mundo 3D (.ecm -> .SMD -> .ski + .dds)
+UI/WorldBuildings.cs | construcoes dos pedacos em volta da camera (luz embutida x2)
 UI/WorldView.cs | Mundo 3D (OpenTK.GLControl 4.0.2, perfil compatibilidade 3.3): camera livre, marcadores do npcgen, botao direito copiar/novo ponto/mover
 UI/NpcGenView.cs | aba NPCGen: arquivos do servidor (world + aNN), lista de pontos, editor do ponto, desfazer proprio
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)

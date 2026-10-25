@@ -582,6 +582,7 @@ internal sealed class NpcGenView : UserControl
             g => { NewPoint(new Vec3(g.X, g.Y, g.Z)); },
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
         w.Tag = _cur;
+        if (_configDir is not null) w.WaterDir = Path.Combine(_configDir, _cur, "watermap");
         w.FormClosed += (_, _) => { if (_world == w) _world = null; };
         w.Show(FindForm());
     }

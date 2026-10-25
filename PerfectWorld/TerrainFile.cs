@@ -163,6 +163,30 @@ public sealed class TerrainFile
         return _areas[(areaRow, areaCol)] = result;
     }
 
+    // <mapa>_N.t2lm (luz do dia; .t2lm1 = noite): "T2LM", versão, nÁreas (16), lado (256), ?, tamanho de cada, offsets[nÁreas];
+    // cada área de 256 m é um .dds de lado×lado (1 m por pixel)
+    readonly Dictionary<int, byte[]?> _lightFiles = new();
+
+    /// <summary>DDS da luz da área de 256 m (linha/coluna globais), ou null.</summary>
+    public byte[]? LightmapDds(int areaRow, int areaCol)
+    {
+        int per = (int)(CellsPerPiece * Cell / AreaM);
+        if (areaRow < 0 || areaCol < 0 || areaRow >= Rows * per || areaCol >= Cols * per) return null;
+        int piece = areaRow / per * Cols + areaCol / per + 1, local = areaRow % per * per + areaCol % per;
+        if (!_lightFiles.TryGetValue(piece, out var d))
+        {
+            var p = Path.Combine(Dir, $"{Name}_{piece}.t2lm");
+            d = File.Exists(p) ? File.ReadAllBytes(p) : null;
+            if (d is not null && BitConverter.ToUInt32(d, 0) != 0x54324C4D) d = null;   // "ML2T"
+            _lightFiles[piece] = d;
+        }
+        if (d is null) return null;
+        int n = BitConverter.ToInt32(d, 8);
+        if (local >= n) return null;
+        int o = BitConverter.ToInt32(d, 0x18 + local * 4), end = local + 1 < n ? BitConverter.ToInt32(d, 0x18 + (local + 1) * 4) : d.Length;
+        return o > 0 && end > o && end <= d.Length ? d.AsSpan(o, end - o).ToArray() : null;
+    }
+
     void LoadPiece(int n)
     {
         var p = Path.Combine(Dir, $"{Name}_{n}.t2bk");

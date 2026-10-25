@@ -30,7 +30,7 @@
 [ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | outras versoes (so v93 completa)
 [ ] auto-tradutor (quests + elements + configs.pck)
 [x] GShop (cliente+servidor juntos, tela igual a do jogo; falta validar no jogo e desfazer)
-[ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [ ] texturas/luz do chao, construcoes e arvores | [ ] objetos e gatilhos (hoje so preservados)
+[ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [x] modelos de monstro/NPC, construcoes, texturas e luz do chao, agua, mapa pintado (M) | [ ] arvores e grama (.ecwld/.spt), animacao | [ ] objetos e gatilhos (hoje so preservados)
 [x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)
 
 ## FASE 4 — engine

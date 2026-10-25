@@ -44,9 +44,41 @@ internal sealed class WorldView : Form
     const float Speed = 40;           // m/s andando; Shift = ×4
     readonly WorldModels _models;
     readonly WorldBuildings _buildings;
+    List<(float X0, float Z0, float X1, float Z1, float Y)>? _water;
+
+    /// <summary>Pasta watermap do servidor (gamed\config\&lt;mapa&gt;\watermap): N.wmap = i32 versão, 2f lado, i32 n,
+    /// n × (centro x, z relativos ao centro do pedaço, meia-largura x, z, altura).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public string? WaterDir { get; set; }
+
+    List<(float, float, float, float, float)> Water()
+    {
+        if (_water is not null) return _water;
+        _water = new();
+        if (WaterDir is null || !Directory.Exists(WaterDir)) return _water;
+        float pieceM = _t.CellsPerPiece * _t.Cell;
+        for (int r = 0; r < _t.Rows; r++)
+            for (int c = 0; c < _t.Cols; c++)
+            {
+                var f = Path.Combine(WaterDir, $"{r * _t.Cols + c + 1}.wmap");
+                if (!File.Exists(f)) continue;
+                var d = File.ReadAllBytes(f);
+                if (d.Length < 16) continue;
+                int n = BitConverter.ToInt32(d, 12);
+                float cx = -_t.Width / 2 + (c + 0.5f) * pieceM, cz = _t.Height / 2 - (r + 0.5f) * pieceM;
+                for (int i = 0; i < n && 16 + i * 20 + 20 <= d.Length; i++)
+                {
+                    int o = 16 + i * 20;
+                    float x = cx + BitConverter.ToSingle(d, o), z = cz + BitConverter.ToSingle(d, o + 4), hx = BitConverter.ToSingle(d, o + 8), hz = BitConverter.ToSingle(d, o + 12), y = BitConverter.ToSingle(d, o + 16);
+                    _water.Add((x - hx, z - hz, x + hx, z + hz, y));
+                }
+            }
+        return _water;
+    }
     readonly PckArchive? _texPck;                                       // textures.pck (texturas do chão)
     readonly Dictionary<string, int> _groundTex = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<(int, int, int), int> _maskTex = new();
+    readonly Dictionary<(int, int), int> _lightTex = new();
     readonly Dictionary<string, (int Tex, int W, int H)> _labels = new();
     object? _movingTag; Vector3? _movePos;   // arrastando um ponto com o botão esquerdo
     Point _drag, _down; bool _dragging; double _last;
@@ -131,7 +163,7 @@ internal sealed class WorldView : Form
             foreach (var v in _near.Values.Concat(_far.Values)) if (v.Vbo != 0) GL.DeleteBuffer(v.Vbo);
             foreach (var x in _tex.Values) if (x != 0) GL.DeleteTexture(x);
             _surf?.Dispose(); _worldMap?.Dispose(); _models.Dispose(); _buildings.Dispose(); _texPck?.Dispose();
-            foreach (var x in _groundTex.Values.Concat(_maskTex.Values)) if (x != 0) GL.DeleteTexture(x);
+            foreach (var x in _groundTex.Values.Concat(_maskTex.Values).Concat(_lightTex.Values)) if (x != 0) GL.DeleteTexture(x);
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
         };
     }
@@ -234,6 +266,20 @@ internal sealed class WorldView : Form
                     if (r >= 0 && c >= 0 && r < _t.Rows && c < _t.Cols) pieces.Add(r * _t.Cols + c + 1);
             if (_buildings.Update(pieces, 6)) _built++;
             _buildings.Draw();
+        }
+
+        // água (superfícies do watermap do servidor), translúcida
+        if (Water() is { Count: > 0 } water)
+        {
+            GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
+            GL.Color4(0.18f, 0.42f, 0.55f, 0.62f);
+            GL.Begin(PrimitiveType.Quads);
+            foreach (var (x0, z0, x1, z1, y) in water)
+            {
+                GL.Vertex3(x0, y, -z0); GL.Vertex3(x1, y, -z0); GL.Vertex3(x1, y, -z1); GL.Vertex3(x0, y, -z1);
+            }
+            GL.End();
+            GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color4(1f, 1f, 1f, 1f);
         }
 
         // modelos parados até 300 m (no máximo 2 carregados por quadro); haste para quem não tem modelo
@@ -378,7 +424,7 @@ internal sealed class WorldView : Form
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);          //   × cor (sombra leve)
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8572, 0x1E01);          // ALFA = REPLACE
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8588, 0x8577);          //   da cor
-        GL.Color4(0.86f, 0.86f, 0.86f, 1f);
+        GL.Color4(1f, 1f, 1f, 1f);
         for (int i = 0; i < layers.Length; i++)
         {
             var l = layers[i];
@@ -411,12 +457,43 @@ internal sealed class WorldView : Form
                 GL.Disable(EnableCap.Blend); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
             }
         }
+        // luz e sombra do terreno (.t2lm): cor do chão × luz × 2
+        if (LightTex(ar, ac) is var lt && lt != 0)
+        {
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, lt);
+            GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Replace);
+            GL.TexGen(TextureCoordName.S, TextureGenParameter.ObjectPlane, new[] { inv, 0, 0, -x0 * inv });
+            GL.TexGen(TextureCoordName.T, TextureGenParameter.ObjectPlane, new[] { 0, 0, inv, ztop * inv });
+            GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.DstColor, BlendingFactor.SrcColor);
+            GL.DepthFunc(DepthFunction.Lequal); GL.DepthMask(false);
+            GL.DrawArrays(PrimitiveType.Triangles, 0, b.Count);
+            GL.Disable(EnableCap.Blend); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
+        }
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
         GL.Disable(EnableCap.TextureGenS); GL.Disable(EnableCap.TextureGenT);
         GL.EnableClientState(ArrayCap.TextureCoordArray);
         GL.Color4(1f, 1f, 1f, 1f);
         return true;
+    }
+
+    int LightTex(int ar, int ac)
+    {
+        if (_lightTex.TryGetValue((ar, ac), out var id)) return id;
+        if (_lightTex.Count > 400) { foreach (var x in _lightTex.Values) if (x != 0) GL.DeleteTexture(x); _lightTex.Clear(); }
+        id = 0;
+        if (_t.LightmapDds(ar, ac) is { } dds && DdsDecoder.Decode(dds) is { } img)
+        {
+            id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, id);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgb, img.Width, img.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Pixels);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        }
+        return _lightTex[(ar, ac)] = id;
     }
 
     int GroundTex(string path)
