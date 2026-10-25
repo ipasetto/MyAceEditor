@@ -26,7 +26,8 @@ public static class PairFixer
         {
             var c = Path.Combine(cData, name); var s = Path.Combine(sCfg, name);
             if (!File.Exists(c)) continue;
-            if (File.Exists(s) && SameHeader(c, s, name == "tasks.data" ? 12 : 4) && new FileInfo(c).Length == new FileInfo(s).Length) continue;
+            // conteúdo inteiro: mudar HP/drops de um monstro não muda versão nem tamanho (antes só cabeçalho + tamanho)
+            if (File.Exists(s) && SameContent(c, s)) continue;
             fixes.Add(new($"{name}: copiar o do cliente para o servidor",
                 File.Exists(s) ? $"Diferentes ({why}). O do servidor fica salvo como backup." : "Não existe no servidor.",
                 true, () => AtomicFileSave.Write(s, File.ReadAllBytes(c))));
@@ -56,13 +57,19 @@ public static class PairFixer
         return fixes;
     }
 
-    static bool SameHeader(string a, string b, int n)
+    static bool SameContent(string a, string b)
     {
         try
         {
+            if (new FileInfo(a).Length != new FileInfo(b).Length) return false;
             using var fa = File.OpenRead(a); using var fb = File.OpenRead(b);
-            var ba = new byte[n]; var bb = new byte[n];
-            return fa.Read(ba, 0, n) == n && fb.Read(bb, 0, n) == n && ba.AsSpan().SequenceEqual(bb);
+            var ba = new byte[1 << 20]; var bb = new byte[1 << 20];
+            while (true)
+            {
+                int na = fa.ReadAtLeast(ba, ba.Length, false), nb = fb.ReadAtLeast(bb, bb.Length, false);
+                if (na != nb || !ba.AsSpan(0, na).SequenceEqual(bb.AsSpan(0, nb))) return false;
+                if (na == 0) return true;
+            }
         }
         catch { return false; }
     }
