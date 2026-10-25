@@ -31,7 +31,7 @@ public sealed class NpcGenFile
         {
             for (int i = 0; i < nc; i++) f.Spawns.Add(NpcGenSpawn.Read(r, v));
             for (int i = 0; i < nr; i++) f.Resources.Add(NpcGenResource.Read(r, v));
-            for (int i = 0; i < nd; i++) f.Dynamics.Add(NpcGenDynamic.Read(r));
+            for (int i = 0; i < nd; i++) f.Dynamics.Add(NpcGenDynamic.Read(r, v));
             for (int i = 0; i < nt; i++) f.Triggers.Add(NpcGenTrigger.Read(r, v));
         }
         catch (EndOfStreamException) { throw new InvalidDataException("npcgen.data: o arquivo acabou antes do esperado (versão ou formato diferente)"); }
@@ -50,7 +50,7 @@ public sealed class NpcGenFile
         if (v >= 7) w.Write(Triggers.Count);
         foreach (var s in Spawns) s.Write(w, v);
         foreach (var s in Resources) s.Write(w, v);
-        if (v >= 6) foreach (var s in Dynamics) s.Write(w);
+        if (v >= 6) foreach (var s in Dynamics) s.Write(w, v);
         if (v >= 7) foreach (var s in Triggers) s.Write(w, v);
         return ms.ToArray();
     }
@@ -160,14 +160,14 @@ public sealed class NpcGenCreature
     public NpcGenCreature Clone() => (NpcGenCreature)MemberwiseClone();
 }
 
-/// <summary>Ponto de coleta (ResourceSet): 31 B (v&lt;10) ou 42 B + grupos de 20 B.</summary>
+/// <summary>Ponto de coleta (ResourceSet): 31 B (v&lt;6), 34 B (v6, + direção/raio) ou 42 B (v>=7, + gatilho/máximo) + grupos de 20 B (npcgendata.h oficial).</summary>
 public sealed class NpcGenResource
 {
     public Vec3 Position;
     public float SpreadX, SpreadZ;
     public byte InitGen = 1, AutoRevive = 1, ValidOnce;
     public int GenId;
-    public byte Dir1, Dir2, Rotation; public int Trigger, MaxNum;   // v>=10
+    public byte Dir1, Dir2, Rotation; public int Trigger, MaxNum;   // v>=6 / v>=7
     public List<NpcGenResourceItem> Items { get; } = new();
 
     internal static NpcGenResource Read(BinaryReader r, int v)
@@ -177,7 +177,8 @@ public sealed class NpcGenResource
         if (n < 0 || n > 10000) throw new InvalidDataException($"npcgen.data: recurso com {n} grupos");
         s.InitGen = r.ReadByte(); s.AutoRevive = r.ReadByte(); s.ValidOnce = r.ReadByte();
         s.GenId = r.ReadInt32();
-        if (v >= 10) { s.Dir1 = r.ReadByte(); s.Dir2 = r.ReadByte(); s.Rotation = r.ReadByte(); s.Trigger = r.ReadInt32(); s.MaxNum = r.ReadInt32(); }
+        if (v >= 6) { s.Dir1 = r.ReadByte(); s.Dir2 = r.ReadByte(); s.Rotation = r.ReadByte(); }
+        if (v >= 7) { s.Trigger = r.ReadInt32(); s.MaxNum = r.ReadInt32(); }
         for (int i = 0; i < n; i++)
             s.Items.Add(new NpcGenResourceItem { Type = r.ReadInt32(), Id = r.ReadInt32(), Respawn = r.ReadInt32(), Amount = r.ReadInt32(), HeightOffset = r.ReadSingle() });
         return s;
@@ -188,7 +189,8 @@ public sealed class NpcGenResource
         Position.Write(w); w.Write(SpreadX); w.Write(SpreadZ); w.Write(Items.Count);
         w.Write(InitGen); w.Write(AutoRevive); w.Write(ValidOnce);
         w.Write(GenId);
-        if (v >= 10) { w.Write(Dir1); w.Write(Dir2); w.Write(Rotation); w.Write(Trigger); w.Write(MaxNum); }
+        if (v >= 6) { w.Write(Dir1); w.Write(Dir2); w.Write(Rotation); }
+        if (v >= 7) { w.Write(Trigger); w.Write(MaxNum); }
         foreach (var i in Items) { w.Write(i.Type); w.Write(i.Id); w.Write(i.Respawn); w.Write(i.Amount); w.Write(i.HeightOffset); }
     }
 
@@ -211,15 +213,25 @@ public sealed class NpcGenResourceItem
     public NpcGenResourceItem Clone() => (NpcGenResourceItem)MemberwiseClone();
 }
 
-/// <summary>Objeto do cenário ligado/desligado por gatilho (24 B).</summary>
+/// <summary>Objeto do cenário ligado/desligado por gatilho: 19 B (v&lt;9), 23 B (v9, + gatilho) ou 24 B (v>=10, + escala).</summary>
 public sealed class NpcGenDynamic
 {
     public int Id; public Vec3 Position; public byte Dir1, Dir2, Rotation; public int Trigger; public byte Scale;
 
-    internal static NpcGenDynamic Read(BinaryReader r) => new()
-    { Id = r.ReadInt32(), Position = Vec3.Read(r), Dir1 = r.ReadByte(), Dir2 = r.ReadByte(), Rotation = r.ReadByte(), Trigger = r.ReadInt32(), Scale = r.ReadByte() };
+    internal static NpcGenDynamic Read(BinaryReader r, int v)
+    {
+        var d = new NpcGenDynamic { Id = r.ReadInt32(), Position = Vec3.Read(r), Dir1 = r.ReadByte(), Dir2 = r.ReadByte(), Rotation = r.ReadByte() };
+        if (v >= 9) d.Trigger = r.ReadInt32();
+        if (v >= 10) d.Scale = r.ReadByte();
+        return d;
+    }
 
-    internal void Write(BinaryWriter w) { w.Write(Id); Position.Write(w); w.Write(Dir1); w.Write(Dir2); w.Write(Rotation); w.Write(Trigger); w.Write(Scale); }
+    internal void Write(BinaryWriter w, int v)
+    {
+        w.Write(Id); Position.Write(w); w.Write(Dir1); w.Write(Dir2); w.Write(Rotation);
+        if (v >= 9) w.Write(Trigger);
+        if (v >= 10) w.Write(Scale);
+    }
 }
 
 /// <summary>Gatilho (agenda por data/hora): 195 B (v7) ou 199 B (v>=8, com duração).</summary>

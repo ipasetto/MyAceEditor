@@ -577,12 +577,14 @@ internal sealed class NpcGenView : UserControl
             return;
         }
         object? Sel() => SelectedIndex() is { } i ? ListOf(f)[i] : null;
-        // sem seleção: mundo = centro do mapa visto de cima; instância = entrada (o 1º NPC costuma ser o teleporte da entrada)
+        // sem seleção: mundo = centro do mapa visto de cima; instância = entrada (portais dos region.sev do servidor;
+        // sem eles, o 1º NPC, que costuma ser o teleporte da entrada)
         var selected = fromSwitch ? null : Sel();
         Vec3? overview = null;
         if (selected is null)
             overview = _cur.Equals("world", StringComparison.OrdinalIgnoreCase) ? new Vec3(0, 0, 0)
-                : (f.Spawns.FirstOrDefault(s => s.Type == 1) ?? f.Spawns.FirstOrDefault())?.Position ?? new Vec3(0, 0, 0);
+                : (_configDir is null ? null : RegionFile.EntranceOf(_configDir, _cur))
+                  ?? (f.Spawns.FirstOrDefault(s => s.Type == 1) ?? f.Spawns.FirstOrDefault())?.Position ?? new Vec3(0, 0, 0);
         var start = selected switch { NpcGenSpawn s => s.Position, NpcGenResource r => r.Position, _ => overview ?? default };
         // já aberto (mesmo mapa): só leva a câmera ao ponto selecionado
         if (_world is { IsDisposed: false } open && open.Tag as string == _cur)
