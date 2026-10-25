@@ -311,6 +311,13 @@ public sealed class EditorForm : Form
         Bind(() => tChk.Text = Loc.T("tab.verify", "Verificação"));
         tChk.Controls.Add(BuildCheckView());
         tabs.TabPages.Add(tChk);
+        var tSrv = new TabPage() { BackColor = CBg };
+        Bind(() => tSrv.Text = Loc.T("tab.server", "Servidor"));
+        tSrv.Controls.Add(new ServerView(CBg, CFg, CAccent,
+            () => _chkClient.Text.Length > 0 ? VersionCheck.ClientElement(_chkClient.Text)
+                : _dataPath is null ? "" : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "",
+            () => _chkServer.Text, LoadSetting, SaveSetting));
+        tabs.TabPages.Add(tSrv);
         var tPck = new TabPage() { BackColor = CBg };
         _tabPck = tPck;
         Bind(() => tPck.Text = Loc.T("tab.pck", "Extrator PCK"));

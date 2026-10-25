@@ -1,0 +1,240 @@
+using System.Diagnostics;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace MyAceEditor.PerfectWorld;
+
+/// <summary>
+/// Servidor local sem mão do usuário (ENGINE-KB plano #27, PW-KB §S5 §S30): uma distro WSL própria ("PWServer", Ubuntu
+/// 22.04 oficial importado numa pasta do usuário) recebe o pacote de servidor (pasta "server files" + SQL), instalado por
+/// Server/provision.sh e controlado por pwctl (iniciar/parar/estado/conta). O par cliente × servidor é corrigido na
+/// cópia do servidor (PairFixer) e o cliente ganha a entrada "Local" na lista de servidores. Nada nos arquivos
+/// originais do servidor é alterado.
+/// </summary>
+public sealed class LocalServer
+{
+    public const string Distro = "PWServer";
+    const string RootfsUrl = "https://cloud-images.ubuntu.com/wsl/releases/22.04/current/ubuntu-jammy-wsl-amd64-wsl.rootfs.tar.gz";
+    const string SumsUrl = "https://cloud-images.ubuntu.com/wsl/releases/22.04/current/SHA256SUMS";
+
+    /// <summary>Pasta da distro e do cache (ex.: D:\PWServer).</summary>
+    public string BaseDir { get; }
+    public Action<string> Log { get; set; } = _ => { };
+
+    public LocalServer(string baseDir) { BaseDir = baseDir; }
+
+    // ---------- WSL ----------
+    public sealed record RunResult(int Code, string Output);
+
+    /// <summary>wsl.exe com argumentos; WSL_UTF8=1 faz o próprio wsl responder em UTF-8, como os comandos do Linux.</summary>
+    static RunResult Wsl(string args, string? stdin = null, Action<string>? line = null, int timeoutMs = 3_600_000)
+    {
+        var psi = new ProcessStartInfo("wsl.exe", args)
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = stdin is not null,
+            UseShellExecute = false, CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+        };
+        psi.Environment["WSL_UTF8"] = "1";
+        using var p = Process.Start(psi)!;
+        var sb = new StringBuilder();
+        void On(string? s) { if (s is null) return; s = s.Replace("\0", ""); lock (sb) sb.AppendLine(s); line?.Invoke(s); }
+        p.OutputDataReceived += (_, e) => On(e.Data); p.ErrorDataReceived += (_, e) => On(e.Data);
+        p.BeginOutputReadLine(); p.BeginErrorReadLine();
+        if (stdin is not null) { p.StandardInput.Write(stdin.Replace("\r\n", "\n")); p.StandardInput.Close(); }
+        if (!p.WaitForExit(timeoutMs)) { try { p.Kill(true); } catch { } return new(-1, sb + "\n(tempo esgotado)"); }
+        p.WaitForExit();
+        return new(p.ExitCode, sb.ToString());
+    }
+
+    /// <summary>Comando bash como root dentro da distro.</summary>
+    public RunResult Bash(string command, Action<string>? line = null, string? stdin = null, int timeoutMs = 3_600_000) =>
+        Wsl($"-d {Distro} -u root -- bash -c \"{command.Replace("\"", "\\\"")}\"", stdin, line, timeoutMs);
+
+    /// <summary>null = WSL pronto; senão, o que falta (texto para o usuário).</summary>
+    public static string? WslProblem()
+    {
+        try
+        {
+            var r = Wsl("--status", timeoutMs: 60_000);
+            var t = r.Output;
+            if (t.Contains("virtualiza", StringComparison.OrdinalIgnoreCase) && (t.Contains("não está habilitada") || t.Contains("not enabled") || t.Contains("n\u00e3o est\u00e1")))
+                return "O WSL está instalado, mas a virtualização ainda não está ativa. Reinicie o computador (a \"Plataforma de Máquina Virtual\" só vale depois de reiniciar).";
+            if (t.Contains("não está instalado") || t.Contains("is not installed"))
+                return "O WSL não está instalado. Rode \"wsl --install --no-distribution\" como administrador e reinicie.";
+            return null;
+        }
+        catch (Exception ex) { return "Não consegui rodar o wsl.exe: " + ex.Message; }
+    }
+
+    public static bool DistroExists()
+    {
+        var r = Wsl("-l -q", timeoutMs: 60_000);
+        return r.Output.Split('\n').Any(l => l.Trim().Equals(Distro, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ---------- instalação ----------
+    public sealed record InstallOptions(string ServerFiles, string SqlDir, string ClientElement, string Login, string Password, bool Gm);
+
+    /// <summary>Instala ou completa a instalação. Cada etapa vai para Log; exceção = parou (mensagem para o usuário).</summary>
+    public async Task InstallAsync(InstallOptions o, IProgress<(string Step, double? Fraction)>? progress, CancellationToken ct)
+    {
+        if (WslProblem() is { } problem) throw new InvalidOperationException(problem);
+        Directory.CreateDirectory(BaseDir);
+
+        if (!DistroExists())
+        {
+            var tar = await DownloadRootfsAsync(progress, ct);
+            progress?.Report(("Criando o Linux do servidor (" + Distro + ")", null));
+            var vm = Path.Combine(BaseDir, "vm");
+            Directory.CreateDirectory(vm);
+            var r = Wsl($"--import {Distro} \"{vm}\" \"{tar}\" --version 2", line: Log);
+            if (r.Code != 0) throw new InvalidOperationException("wsl --import falhou:\n" + r.Output);
+        }
+
+        // scripts do programa → /root/pw na distro
+        progress?.Report(("Preparando a instalação", null));
+        var here = Path.Combine(AppContext.BaseDirectory, "Server");
+        foreach (var f in new[] { "provision.sh", "pwctl.sh" })
+        {
+            var text = File.ReadAllText(Path.Combine(here, f));
+            var w = Bash($"mkdir -p /root/pw && cat > /root/pw/{f} && chmod +x /root/pw/{f}", stdin: text, timeoutMs: 120_000);
+            if (w.Code != 0) throw new InvalidOperationException("Não consegui copiar " + f + " para o Linux:\n" + w.Output);
+        }
+
+        var pass = DbPassword();
+        string? error = null;
+        var res = Bash($"/root/pw/provision.sh '{ToWslPath(o.ServerFiles)}' '{ToWslPath(o.SqlDir)}' '{pass}'", line =>
+        {
+            Log(line);
+            if (line.StartsWith("##PASSO ")) progress?.Report((line[8..], null));
+            else if (line.StartsWith("##ERRO ")) error = line[7..];
+        });
+        if (res.Code != 0 || error is not null) throw new InvalidOperationException("A instalação parou: " + (error ?? "código " + res.Code));
+
+        // par cliente × servidor na CÓPIA do servidor (elements, tasks e loja iguais ao cliente; senão o login é recusado)
+        progress?.Report(("Igualando o servidor ao seu cliente (elements, tasks, loja)", null));
+        FixPair(o.ClientElement);
+
+        progress?.Report(("Criando a sua conta", null));
+        var acc = Account(o.Login, o.Password, o.Gm);
+        if (acc is not null) throw new InvalidOperationException(acc);
+
+        progress?.Report(("Colocando \"Local\" na lista de servidores do cliente", null));
+        AddToServerList(o.ClientElement);
+        progress?.Report(("Pronto", 1));
+    }
+
+    async Task<string> DownloadRootfsAsync(IProgress<(string, double?)>? progress, CancellationToken ct)
+    {
+        var dir = Path.Combine(BaseDir, "download");
+        Directory.CreateDirectory(dir);
+        var tar = Path.Combine(dir, "ubuntu-jammy-wsl-amd64-wsl.rootfs.tar.gz");
+        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("MyAceEditor");
+        var sums = await http.GetStringAsync(SumsUrl, ct);
+        var expected = sums.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.EndsWith(Path.GetFileName(tar)))?.Split(' ')[0];
+        if (expected is null) throw new InvalidOperationException("Não achei o SHA-256 da imagem do Ubuntu.");
+        if (File.Exists(tar) && Sha256(tar) == expected) return tar;
+
+        progress?.Report(("Baixando o Ubuntu 22.04 oficial (~234 MB)", 0));
+        var part = tar + ".part";
+        using (var resp = await http.GetAsync(RootfsUrl, HttpCompletionOption.ResponseHeadersRead, ct))
+        {
+            resp.EnsureSuccessStatusCode();
+            long total = resp.Content.Headers.ContentLength ?? 0, got = 0;
+            await using var src = await resp.Content.ReadAsStreamAsync(ct);
+            await using var dst = File.Create(part);
+            var buf = new byte[1 << 20]; int n; long last = 0;
+            while ((n = await src.ReadAsync(buf, ct)) > 0)
+            {
+                await dst.WriteAsync(buf.AsMemory(0, n), ct); got += n;
+                if (total > 0 && got - last > 4 << 20) { last = got; progress?.Report(($"Baixando o Ubuntu 22.04 oficial ({got >> 20} de {total >> 20} MB)", (double)got / total)); }
+            }
+        }
+        if (Sha256(part) != expected) { File.Delete(part); throw new InvalidOperationException("O arquivo baixado não confere com o SHA-256 oficial; apaguei e nada foi instalado."); }
+        File.Move(part, tar, true);
+        return tar;
+    }
+
+    static string Sha256(string path) { using var s = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(s)).ToLowerInvariant(); }
+
+    /// <summary>C:\x\y → /mnt/c/x/y</summary>
+    public static string ToWslPath(string win)
+    {
+        var full = Path.GetFullPath(win);
+        return "/mnt/" + char.ToLowerInvariant(full[0]) + full[2..].Replace('\\', '/');
+    }
+
+    /// <summary>Senha do banco: gerada uma vez e guardada na pasta do servidor local (só letras e números).</summary>
+    string DbPassword()
+    {
+        var f = Path.Combine(BaseDir, "db-password.txt");
+        if (File.Exists(f) && File.ReadAllText(f).Trim() is { Length: >= 12 } saved) return saved;
+        const string abc = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var pass = new string(RandomNumberGenerator.GetItems<char>(abc, 20));
+        File.WriteAllText(f, pass);
+        return pass;
+    }
+
+    // ---------- uso ----------
+    /// <summary>
+    /// PairFixer na cópia do servidor: os arquivos que o login confere (elements, tasks, gshopsev, gshopsev1) vêm do
+    /// Linux para uma pasta de trabalho no Windows, são corrigidos ali (escrita atômica não é confiável em \\wsl) e voltam.
+    /// </summary>
+    public void FixPair(string clientElement)
+    {
+        var stage = Path.Combine(BaseDir, "par", "home");
+        var cfg = Path.Combine(stage, "gamed", "config");
+        if (Directory.Exists(Path.Combine(BaseDir, "par"))) Directory.Delete(Path.Combine(BaseDir, "par"), true);
+        Directory.CreateDirectory(cfg);
+        const string files = "elements.data tasks.data gshopsev.data gshopsev1.data";
+        Bash($"cd /home/gamed/config && for f in {files}; do [ -f $f ] && cp $f '{ToWslPath(cfg)}/'; done", Log, timeoutMs: 300_000);
+        var fixes = PairFixer.Plan(clientElement, stage).Where(f => f.Recommended).ToList();
+        foreach (var fix in fixes) { Log("corrigindo: " + fix.Title); fix.Apply(); }
+        if (fixes.Count > 0)
+            Bash($"cd '{ToWslPath(cfg)}' && for f in {files}; do [ -f $f ] && cp $f /home/gamed/config/; done; chmod a+rw /home/gamed/config/*.data", Log, timeoutMs: 300_000);
+    }
+
+    /// <summary>null = ok; senão, o erro.</summary>
+    public string? Account(string login, string password, bool gm)
+    {
+        var r = Bash($"pwctl account '{login}' '{password}'{(gm ? " gm" : "")}", Log, timeoutMs: 120_000);
+        return r.Output.Contains("##ERRO") || r.Code != 0 ? "Não consegui criar a conta:\n" + r.Output : null;
+    }
+
+    public RunResult Start(IEnumerable<string>? maps = null) => Bash("pwctl start " + string.Join(' ', maps ?? new[] { "gs01" }), Log, timeoutMs: 600_000);
+    public RunResult Stop() => Bash("pwctl stop", Log, timeoutMs: 120_000);
+
+    /// <summary>Estado de cada serviço (nome → ligado).</summary>
+    public Dictionary<string, bool> Status()
+    {
+        var r = Bash("pwctl status", timeoutMs: 60_000);
+        var d = new Dictionary<string, bool>();
+        foreach (var l in r.Output.Split('\n'))
+        {
+            var p = l.Trim().Split(' ');
+            if (p.Length == 2) d[p[0]] = p[1] == "on";
+        }
+        return d;
+    }
+
+    public string ServiceLog(string name) => Bash($"pwctl log {name}", timeoutMs: 60_000).Output;
+
+    /// <summary>Entrada "Local" (127.0.0.1:29000) nas listas de servidores do cliente (UTF-16, com backup).</summary>
+    public void AddToServerList(string clientElement)
+    {
+        var root = Path.GetDirectoryName(Path.GetFullPath(clientElement).TrimEnd('\\'))!;
+        foreach (var f in new[] { Path.Combine(clientElement, "userdata", "server", "serverlist.txt"), Path.Combine(root, "patcher", "server", "serverlist.txt") })
+        {
+            if (!File.Exists(f)) continue;
+            var text = File.ReadAllText(f, Encoding.Unicode);
+            if (text.Contains("29000:127.0.0.1")) continue;
+            var nl = text.Contains("\r\n") ? "\r\n" : "\n";
+            var add = "Servidor local" + nl + "Local\t\t29000:127.0.0.1" + nl;
+            AtomicFileSave.Write(f, Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes(add + text.TrimStart('\uFEFF'))).ToArray());
+            Log("lista de servidores: " + f);
+        }
+    }
+}
