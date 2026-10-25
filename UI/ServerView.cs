@@ -25,6 +25,9 @@ public sealed class ServerView : UserControl
     readonly FlowLayoutPanel _lights = new() { Dock = DockStyle.Top, Height = 34, WrapContents = false, AutoScroll = true };
     readonly List<Button> _buttons = new();
     bool _busy;
+    /// <summary>aipolicy.data aberto na aba AI Policy (é o que vai para o servidor ao enviar).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<string?>? AiPolicyPath { get; set; }
 
     public ServerView(Color bg, Color fg, Color accent, Func<string> client, Func<string> serverHome, Func<string, string?> load, Action<string, string> save)
     {
@@ -176,15 +179,9 @@ public sealed class ServerView : UserControl
         Fill();
         var pkg = _pkg.Text.Trim(); var client = _client();
         if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(L("Escolha a pasta \"server files\" na aba Servidor.", "Pick the \"server files\" folder in the Server tab.")); return; }
-        Run(L("Enviando seus arquivos e reiniciando…", "Sending your files and restarting…"), s =>
-        {
-            // o que o editor grava no servidor (npcgen, aipolicy, gshopsev, elements, tasks…) → cópia no Linux (só o que é
-            // mais novo; a pasta config é grande); par igualado com o cliente; reinicia
-            s.Stop();
-            s.Bash($"cp -a -u '{LocalServer.ToWslPath(Path.Combine(pkg, "home", "gamed", "config"))}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", s.Log);
-            s.FixPair(client);
-            return s.Start();
-        });
+        var ai = AiPolicyPath?.Invoke();
+        // tudo, sempre: config inteira do servidor + elements/tasks/loja/IA do cliente (LocalServer.SendAll)
+        Run(L("Enviando todos os arquivos e reiniciando…", "Sending all files and restarting…"), s => s.SendAll(pkg, client, ai));
     }
 
     void CreateAccount()

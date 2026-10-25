@@ -62,7 +62,9 @@ Trabalhe numa cópia da pasta do jogo/servidor até tudo estar conferido.
 - [x] Abrir o jogo → servidor **Local** → entrar (igor/123) e criar personagem (userP) — ok em 25/10.
 - [ ] Entrar no mundo com o personagem sem o jogo fechar (corrigida a página de anúncios que derrubava o cliente).
 - [ ] Mudar algo no editor (ex.: npcgen) → **Enviar meus arquivos e reiniciar** → a mudança aparece no jogo.
-- [ ] Barra de cima: **💾 Salvar e enviar ao servidor** grava tudo (sem perguntar), abre a aba Servidor e reinicia com os arquivos novos.
+- [ ] Barra de cima: **💾 Salvar e enviar ao servidor** grava tudo (inclusive a aba AI Policy), abre a aba Servidor e envia TUDO (config inteira do servidor + elements/tasks/loja/IA do cliente), sem pular nada; ~1 min.
+- [ ] Mudar HP/drop de um monstro → Salvar e enviar → reentrar no jogo → valor novo aparece.
+- [ ] Mudar algo na aba AI Policy → Salvar e enviar → o servidor usa a IA nova.
 
 ## 7. No jogo (quando o servidor estiver pronto)
 - [ ] Ponto criado, movido, clonado e excluído aparece/some no lugar certo.

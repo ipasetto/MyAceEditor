@@ -719,6 +719,11 @@ public sealed class AiPolicyView : UserControl
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Erro ao salvar", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
+    /// <summary>Salvar tudo / Salvar e enviar ao servidor.</summary>
+    public bool HasUnsaved => _dirty;
+    public string? FilePath => _file is { Ok: true } ? _path : null;
+    public string? SaveIfDirty() { if (!_dirty) return null; SaveFile(); return _dirty ? null : _path; }
+
     void MarkDirty() { _dirty = true; UpdateButtons(); SetStatus(L("Alterado — não salvo.", "Changed — not saved.")); }
 
     void UpdateButtons()

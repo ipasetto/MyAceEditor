@@ -117,7 +117,7 @@ public sealed class LocalServer
 
         // par cliente × servidor na CÓPIA do servidor (elements, tasks e loja iguais ao cliente; senão o login é recusado)
         progress?.Report(("Igualando o servidor ao seu cliente (elements, tasks, loja)", null));
-        FixPair(o.ClientElement);
+        FixPair(o.ClientElement, null, Path.Combine(o.ServerFiles, "home", "gamed", "config"));
 
         progress?.Report(("Criando a sua conta", null));
         var acc = Account(o.Login, o.Password, o.Gm);
@@ -184,21 +184,42 @@ public sealed class LocalServer
 
     // ---------- uso ----------
     /// <summary>
-    /// PairFixer na cópia do servidor: os arquivos que o login confere (elements, tasks, gshopsev, gshopsev1) vêm do
-    /// Linux para uma pasta de trabalho no Windows, são corrigidos ali (escrita atômica não é confiável em \\wsl) e voltam.
+    /// Leva SEMPRE para o servidor os arquivos que têm de ser iguais aos do cliente, sem comparar nada (comparar já
+    /// deixou mudança de HP de fora): elements.data e tasks.data do cliente, gshopsev/gshopsev1 refeitos do gshop do
+    /// cliente (mesmo timestamp) e o aipolicy.data (o aberto na aba AI Policy, senão o mais novo entre cliente e servidor).
+    /// Montados numa pasta de trabalho no Windows e copiados para /home/gamed/config.
     /// </summary>
-    public void FixPair(string clientElement)
+    public void FixPair(string clientElement, string? aiPolicy = null, string? serverConfig = null)
     {
-        var stage = Path.Combine(BaseDir, "par", "home");
-        var cfg = Path.Combine(stage, "gamed", "config");
-        if (Directory.Exists(Path.Combine(BaseDir, "par"))) Directory.Delete(Path.Combine(BaseDir, "par"), true);
-        Directory.CreateDirectory(cfg);
-        const string files = "elements.data tasks.data gshopsev.data gshopsev1.data";
-        Bash($"cd /home/gamed/config && for f in {files}; do [ -f $f ] && cp $f '{ToWslPath(cfg)}/'; done", Log, timeoutMs: 300_000);
-        var fixes = PairFixer.Plan(clientElement, stage).Where(f => f.Recommended).ToList();
-        foreach (var fix in fixes) { Log("corrigindo: " + fix.Title); fix.Apply(); }
-        if (fixes.Count > 0)
-            Bash($"cd '{ToWslPath(cfg)}' && for f in {files}; do [ -f $f ] && cp $f /home/gamed/config/; done; chmod a+rw /home/gamed/config/*.data", Log, timeoutMs: 300_000);
+        var stage = Path.Combine(BaseDir, "envio");
+        if (Directory.Exists(stage)) Directory.Delete(stage, true);
+        Directory.CreateDirectory(stage);
+        var data = Path.Combine(clientElement, "data");
+        foreach (var f in new[] { "elements.data", "tasks.data" })
+            if (File.Exists(Path.Combine(data, f))) { File.Copy(Path.Combine(data, f), Path.Combine(stage, f)); Log("enviando " + f + " do cliente"); }
+        foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
+            if (File.Exists(Path.Combine(data, cn)))
+                try { File.WriteAllBytes(Path.Combine(stage, sn), GShopFile.ReadClient(File.ReadAllBytes(Path.Combine(data, cn))).WriteServer()); Log($"enviando {sn} (refeito do {cn} do cliente)"); }
+                catch (Exception ex) { Log($"não consegui refazer {sn}: {ex.Message}"); }
+        // IA: a aberta no editor; senão a mais nova entre cliente e servidor original (o servidor é quem usa)
+        var ai = new[] { aiPolicy, Path.Combine(data, "aipolicy.data"), serverConfig is null ? null : Path.Combine(serverConfig, "aipolicy.data") }
+            .Where(p => p is not null && File.Exists(p)).Select(p => p!).ToList();
+        var pick = aiPolicy is not null && File.Exists(aiPolicy) ? aiPolicy : ai.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
+        if (pick is not null) { File.Copy(pick, Path.Combine(stage, "aipolicy.data")); Log("enviando aipolicy.data de " + pick); }
+        Bash($"cp -f '{ToWslPath(stage)}'/*.data /home/gamed/config/ && chmod a+rw /home/gamed/config/*.data", Log, timeoutMs: 300_000);
+    }
+
+    /// <summary>
+    /// "Salvar e enviar ao servidor": para, copia a pasta gamed\config INTEIRA do servidor original (npcgen, mapas,
+    /// regiões…), põe por cima os arquivos que vêm do cliente (FixPair) e inicia. Nada é pulado por data ou tamanho.
+    /// </summary>
+    public RunResult SendAll(string serverFiles, string clientElement, string? aiPolicy = null)
+    {
+        Stop();
+        var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
+        Bash($"cp -a '{ToWslPath(cfg)}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", Log, timeoutMs: 1_800_000);
+        FixPair(clientElement, aiPolicy, cfg);
+        return Start();
     }
 
     /// <summary>null = ok; senão, o erro.</summary>

@@ -318,7 +318,7 @@ public sealed class EditorForm : Form
         tSrv.Controls.Add(_serverView = new ServerView(CBg, CFg, CAccent,
             () => _chkClient.Text.Length > 0 ? VersionCheck.ClientElement(_chkClient.Text)
                 : _dataPath is null ? "" : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "",
-            () => _chkServer.Text, LoadSetting, SaveSetting));
+            () => _chkServer.Text, LoadSetting, SaveSetting) { AiPolicyPath = () => _aiView?.FilePath });
         tabs.TabPages.Add(tSrv);
         var tPck = new TabPage() { BackColor = CBg };
         _tabPck = tPck;
@@ -976,6 +976,7 @@ public sealed class EditorForm : Form
         if (_tasksDirty && _tasksPath is not null) pending.Add(_tasksPath);
         if (_gshop?.HasUnsaved == true) pending.Add("gshop / gshopsev");
         if (_npcgen?.HasUnsaved == true) pending.Add("npcgen.data");
+        if (_aiView?.HasUnsaved == true) pending.Add(_aiView.FilePath ?? "aipolicy.data");
         if (pending.Count == 0) { if (!quiet) Status(Loc.T("status.nothingToSave", "Nada para salvar.")); return; }
         if (!quiet && MessageBox.Show(string.Format(Loc.T("save.allAsk", "Gravar as alterações (com cópia de segurança ao lado de cada arquivo)?\n\n{0}"), string.Join("\n", pending)),
                 Loc.T("save.allTitle", "Salvar tudo"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
@@ -984,6 +985,7 @@ public sealed class EditorForm : Form
         if (_tasksDirty && _tasksPath is not null && SaveTasksCore()) done.Add(Path.GetFileName(_tasksPath));
         if (_gshop is not null) done.AddRange(_gshop.SaveAll(quiet).Select(Path.GetFileName)!);
         if (_npcgen is not null) done.AddRange(_npcgen.SaveAll(quiet).Select(p => Path.GetFileName(Path.GetDirectoryName(p)) + "\\npcgen.data"));
+        if (_aiView?.SaveIfDirty() is { } ai) done.Add(Path.GetFileName(ai));
         Status((quiet ? Loc.T("status.autoSaved", "Salvo automaticamente: ") : Loc.T("status.savedAll", "Salvo: ")) + (done.Count == 0 ? "—" : string.Join(", ", done)) + $" ({DateTime.Now:HH:mm})");
     }
 
@@ -1001,7 +1003,7 @@ public sealed class EditorForm : Form
     // fechar com mudanças: oferece salvar tudo
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _npcgen?.HasUnsaved == true;
+        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _npcgen?.HasUnsaved == true || _aiView?.HasUnsaved == true;
         if (dirty && e.CloseReason == CloseReason.UserClosing)
         {
             var r = MessageBox.Show(this, Loc.T("save.onClose", "Há alterações não salvas. Salvar tudo antes de sair?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
