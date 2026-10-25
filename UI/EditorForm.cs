@@ -283,18 +283,19 @@ public sealed class EditorForm : Form
         var tN = new TabPage() { BackColor = CBg };
         _tabNpcGen = tN;
         Bind(() => tN.Text = Loc.T("tab.npcgen", "NPCGen"));
+        _edits.Changed += () => _creatureCache = null;   // nome/modelo mudados no editor aparecem no 3D na hora
         tN.Controls.Add(_npcgen = new NpcGenView(
-            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? IconFor(h.Item) : null,
-            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
+            id => CreatureItem(id) is { } c ? IconFor(c.Item) : null,
+            id => CreatureItem(id) is { } c ? (TasksFile.SplitColor(c.Item.Name).Text, NameColor(c.Item)) : null,
             PickSpawn,
             () => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)),   // pasta element
-            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h && h.Item.Fields.FirstOrDefault(f => f.Key.Contains("file_model")).Value is { } fm
+            id => CreatureItem(id) is { } c && c.Item.Fields.TryGetValue("file_model", out var fm)
                 && fm.Value.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm.Value : null,
-            id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } hb ? hb.Block.Name : null,
+            id => CreatureItem(id)?.Block.Name,
             id =>
             {
                 // "Editar no software": mostra o registro na aba Elements e traz a janela principal
-                if (_refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not { } he) return;
+                if (CreatureItem(id) is not { } he) return;
                 if (_tabs is not null) _tabs.SelectedIndex = 0;
                 GoToItem(he.Item);
                 Activate();
@@ -333,6 +334,9 @@ public sealed class EditorForm : Form
             cb.DrawItem += DrawDarkCombo;
         }
         _blockCombo.SelectedIndexChanged += (_, _) => OnBlockChanged();
+        // abrir a lista de blocos mostra o seletor com busca, categorias e ícones (mais fácil de achar)
+        _blockCombo.DropDownHeight = 1;
+        _blockCombo.DropDown += (_, _) => BeginInvoke(() => { _blockCombo.DroppedDown = false; ShowBlockPicker(); });
         _typeCombo.SelectedIndexChanged += (_, _) => RefreshView();
 
         var searchRow = new Panel { Dock = DockStyle.Top, Height = 30, Padding = new Padding(0, 4, 0, 0), BackColor = CTreeBg };
@@ -895,7 +899,7 @@ public sealed class EditorForm : Form
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _aiView?.LoadRememberedIfNeeded();
         _atlasPck = r.AtlasPck; _atlas = r.Atlas;          // ícones: cache novo para este pacote
-        _iconIdx.Clear(); _treeIcons.Images.Clear(); _thumbs?.Dispose(); _thumbs = null;
+        _iconIdx.Clear(); _treeIcons.Images.Clear(); _thumbs?.Dispose(); _thumbs = null; _thumbBatch.Clear();
         _cfgs = r.Cfgs;
         if (r.Tasks is { } t)
         {
@@ -1032,9 +1036,14 @@ public sealed class EditorForm : Form
             UseWaitCursor = true;
             (string? Block, string Id)? keep = _current is null ? null : (BlockContaining(_current)?.Name, _current.Id);
             var backup = ElementsWriter.Save(_store.Current, target);
-            LoadElements(target);                      // recarrega: o layout passa a refletir o arquivo novo
-            if (keep is { } k && _store.Current?.FindListByName(k.Block ?? "")?.FindById(k.Id) is { } again)
-            { _current = again; SelectItem(again); ShowItem(again); }
+            // mesmo arquivo: não relê — o gravador sempre parte do original lido + itens atuais, e assim o
+            // histórico (Ctrl+Z) continua valendo depois de salvar. Outro arquivo (Salvar como): passa a ser o aberto.
+            if (!string.Equals(Path.GetFullPath(target), Path.GetFullPath(_dataPath ?? ""), StringComparison.OrdinalIgnoreCase))
+            {
+                LoadElements(target);
+                if (keep is { } k && _store.Current?.FindListByName(k.Block ?? "")?.FindById(k.Id) is { } again)
+                { _current = again; SelectItem(again); ShowItem(again); }
+            }
             Status($"Salvo em {Path.GetFileName(target)}" + (backup is null ? "" : $" · backup: {Path.GetFileName(backup)}"));
             MarkElementsSaved();
             return true;
@@ -1164,6 +1173,73 @@ public sealed class EditorForm : Form
         _typeCombo.EndUpdate();
     }
 
+    // ---------- seletor de blocos (busca + categorias + ícone de cada bloco) ----------
+    private void ShowBlockPicker()
+    {
+        if (_store.Current is null || _blockCombo.Items.Count == 0) return;
+        var screen = _blockCombo.PointToScreen(new Point(0, _blockCombo.Height));
+        var f = new Form
+        {
+            FormBorderStyle = FormBorderStyle.None, ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, KeyPreview = true,
+            Location = screen, Size = new Size(Math.Max(_blockCombo.Width, 440), Math.Min(620, Screen.FromControl(this).WorkingArea.Bottom - screen.Y - 10)),
+            BackColor = CTreeBg, Padding = new Padding(1),
+        };
+        var search = new TextBox { Dock = DockStyle.Top, BackColor = CTreeInput, ForeColor = CTreeFg, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f),
+            PlaceholderText = Loc.T("blockPick.search", "Procurar bloco (ex.: arma, pet, receita, npc)…") };
+        var lv = new ListView
+        {
+            Dock = DockStyle.Fill, View = View.Details, HeaderStyle = ColumnHeaderStyle.None, FullRowSelect = true, MultiSelect = false, HideSelection = false,
+            BackColor = CTreeBg, ForeColor = CTreeFg, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10), SmallImageList = _treeIcons, ShowGroups = true,
+        };
+        lv.Columns.Add("", f.Width - 24);
+        f.Controls.Add(lv); f.Controls.Add(search);
+        // ícone do bloco: o de um item dele (ou a miniatura do modelo 3D)
+        int BlockIcon(ItemList b)
+        {
+            foreach (var it in b.Items.Take(40)) if (IconIndexFor(it) is var i && i >= 0) return i;
+            return -1;
+        }
+        void Fill()
+        {
+            var q = search.Text.Trim();
+            lv.BeginUpdate(); lv.Items.Clear(); lv.Groups.Clear();
+            var groups = new Dictionary<string, ListViewGroup>();
+            ListViewGroup G(string key, string text) { if (!groups.TryGetValue(key, out var g)) { g = new ListViewGroup(key, text); groups[key] = g; lv.Groups.Add(g); } return g; }
+            for (int i = 0; i < _blockCombo.Items.Count; i++)
+            {
+                if (_blockCombo.Items[i] is not BlockEntry e || e.Header) continue;
+                var text = e.ToString().Trim();
+                if (q.Length > 0 && !text.Contains(q, StringComparison.OrdinalIgnoreCase) && !(e.Block?.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)) continue;
+                var cat = e.Block is null ? Loc.T("blockPick.top", "Atalhos") : CategoryName(BlockCategory(e.Block.Name));
+                var item = new ListViewItem(text, e.Block is null ? -1 : BlockIcon(e.Block), G(cat, cat)) { Tag = i };
+                if (i == _blockCombo.SelectedIndex) { item.Selected = true; item.Focused = true; }
+                lv.Items.Add(item);
+            }
+            lv.EndUpdate();
+            if (lv.SelectedItems.Count > 0) lv.SelectedItems[0].EnsureVisible();
+            else if (lv.Items.Count > 0 && q.Length > 0) lv.Items[0].Selected = true;
+        }
+        void Choose()
+        {
+            if (lv.SelectedItems.Count > 0 && lv.SelectedItems[0].Tag is int idx) _blockCombo.SelectedIndex = idx;
+            f.Close();
+        }
+        search.TextChanged += (_, _) => Fill();
+        lv.ItemActivate += (_, _) => Choose();
+        lv.MouseUp += (_, e) => { if (e.Button == MouseButtons.Left && lv.GetItemAt(e.X, e.Y) is not null) Choose(); };
+        f.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Escape) f.Close();
+            else if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Choose(); }
+            else if (e.KeyCode is Keys.Down or Keys.Up && search.Focused) { lv.Focus(); }
+        };
+        f.Deactivate += (_, _) => f.Close();
+        f.FormClosed += (_, _) => f.Dispose();
+        Fill();
+        f.Show(this);
+        search.Focus();
+    }
+
     private void DrawDarkCombo(object? s, DrawItemEventArgs e)
     {
         if (s is not ComboBox cb) return;
@@ -1221,6 +1297,9 @@ public sealed class EditorForm : Form
 
     // sem ícone no jogo (monstros, NPCs…): miniatura do modelo 3D, feita em segundo plano
     private ModelThumbs? _thumbs;
+    private readonly List<(string Ecm, Image? Img)> _thumbBatch = new();
+    private readonly System.Windows.Forms.Timer _thumbFlush = new() { Interval = 300 };
+    private bool _thumbFlushHooked;
     private string? _thumbsDir;
     private int ThumbIndexFor(Item it)
     {
@@ -1232,13 +1311,24 @@ public sealed class EditorForm : Form
         if (_thumbs is null || _thumbsDir != el)
         {
             _thumbs?.Dispose(); _thumbsDir = el;
-            _thumbs = new ModelThumbs(el, this, 48, (ecm, img) =>
+            // chegam uma a uma do segundo plano; entram na lista de imagens em lote (cada adição refaz a lista na tela)
+            _thumbs = new ModelThumbs(el, this, 48, (ecm, img) => { _thumbBatch.Add((ecm, img)); if (!_thumbFlush.Enabled) _thumbFlush.Start(); });
+            if (!_thumbFlushHooked)
             {
-                int i = -1;
-                if (img is not null) { _treeIcons.Images.Add(img); i = _treeIcons.Images.Count - 1; }
-                _iconIdx["ecm:" + ecm] = i;
-                _list.Invalidate();
-            });
+                _thumbFlushHooked = true;
+                _thumbFlush.Tick += (_, _) =>
+                {
+                    _thumbFlush.Stop();
+                    if (_thumbBatch.Count == 0) return;
+                    var imgs = _thumbBatch.Where(t => t.Img is not null).Select(t => t.Img!).ToArray();
+                    int first = _treeIcons.Images.Count;
+                    if (imgs.Length > 0) _treeIcons.Images.AddRange(imgs);
+                    int k = 0;
+                    foreach (var (ecm, img) in _thumbBatch) _iconIdx["ecm:" + ecm] = img is null ? -1 : first + k++;
+                    _thumbBatch.Clear();
+                    _list.Refresh();
+                };
+            }
         }
         _thumbs.Request(fm.Value);
         return -1;
@@ -2221,6 +2311,24 @@ public sealed class EditorForm : Form
         return _modelPreview;
     }
 
+    // Monstro/NPC/coletável pelo ID, procurando só nesses blocos (o índice geral pode achar outro item com o mesmo
+    // número num bloco diferente); refeito a cada mudança no histórico e ao trocar de arquivo.
+    private Dictionary<string, (ItemList Block, Item Item)>? _creatureCache;
+    private Module? _creatureCacheFor;
+    private (ItemList Block, Item Item)? CreatureItem(int id)
+    {
+        if (_store.Current is not { } m) return null;
+        if (_creatureCache is null || _creatureCacheFor != m)
+        {
+            _creatureCacheFor = m;
+            _creatureCache = new();
+            foreach (var bn in new[] { "MONSTER_ESSENCE", "NPC_ESSENCE", "MINE_ESSENCE" })
+                if (m.FindListByName(bn) is { } l)
+                    foreach (var it in l.Items) _creatureCache.TryAdd(it.Id, (l, it));
+        }
+        return _creatureCache.TryGetValue(id.ToString(), out var r) ? r : (_refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? h : null);
+    }
+
     // ---------- assistente: monstro/NPC novo a partir de um modelo ----------
     // Copia um monstro/NPC existente (modelo 3D, atributos, habilidades…) com ID novo — o primeiro livre em todos os
     // blocos que dividem IDs, para não colidir — e nome novo. O resto se ajusta depois no editor (abre no item novo).
@@ -2243,7 +2351,7 @@ public sealed class EditorForm : Form
         L("wiz.name", "Nome:", 16, 100);
         var nameBox = new TextBox { Location = new Point(120, 96), Width = 230 };
         L("wiz.id", "ID novo:", 16, 138);
-        var idBox = new NumericUpDown { Location = new Point(120, 134), Width = 110, Maximum = int.MaxValue };
+        var idBox = new NumericUpDown { Location = new Point(120, 134), Width = 110, Maximum = int.MaxValue, Enabled = false };   // automático: o próximo livre
         var hint = new Label
         {
             Location = new Point(16, 180), Size = new Size(340, 150), ForeColor = CMuted,

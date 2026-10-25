@@ -564,7 +564,10 @@ internal sealed class NpcGenView : UserControl
 
     // ---------- mundo 3D ----------
     /// <summary>Abre o Mundo 3D do arquivo aberto (ou leva a câmera ao ponto selecionado, se já aberto).</summary>
-    public void OpenWorld()
+    public void OpenWorld() => OpenWorld(false);
+
+    // fromSwitch: veio da troca de mapa no 3D — a câmera vai para a entrada, não para o ponto selecionado da lista
+    void OpenWorld(bool fromSwitch)
     {
         if (Cur is not { } f || _cur is null) return;
         var dir = _elementDir() is { } el ? Path.Combine(el, "maps", _cur) : null;
@@ -574,7 +577,13 @@ internal sealed class NpcGenView : UserControl
             return;
         }
         object? Sel() => SelectedIndex() is { } i ? ListOf(f)[i] : null;
-        var start = Sel() switch { NpcGenSpawn s => s.Position, NpcGenResource r => r.Position, _ => f.Spawns.FirstOrDefault()?.Position ?? default };
+        // sem seleção: mundo = centro do mapa visto de cima; instância = entrada (o 1º NPC costuma ser o teleporte da entrada)
+        var selected = fromSwitch ? null : Sel();
+        Vec3? overview = null;
+        if (selected is null)
+            overview = _cur.Equals("world", StringComparison.OrdinalIgnoreCase) ? new Vec3(0, 0, 0)
+                : (f.Spawns.FirstOrDefault(s => s.Type == 1) ?? f.Spawns.FirstOrDefault())?.Position ?? new Vec3(0, 0, 0);
+        var start = selected switch { NpcGenSpawn s => s.Position, NpcGenResource r => r.Position, _ => overview ?? default };
         // já aberto (mesmo mapa): só leva a câmera ao ponto selecionado
         if (_world is { IsDisposed: false } open && open.Tag as string == _cur)
         {
@@ -639,7 +648,8 @@ internal sealed class NpcGenView : UserControl
         };
         w.DeletePoint = o => { SelectObject(o); DeletePoint(); };
         w.Maps = _paths.Keys.ToList();
-        w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(); } };
+        w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
+        if (overview is { } ov) w.Overview(new OpenTK.Mathematics.Vector3(ov.X, ov.Y, ov.Z), _cur.Equals("world", StringComparison.OrdinalIgnoreCase));
         if (_configDir is not null) w.WaterDir = Path.Combine(_configDir, _cur, "watermap");
         w.FormClosed += (_, _) => { if (_world == w) _world = null; };
         // sem dono: "Editar no software" consegue trazer o editor para a frente; fecha junto com o editor

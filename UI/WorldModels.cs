@@ -7,7 +7,7 @@ namespace MyAceEditor.UI;
 
 /// <summary>
 /// Modelos parados dos monstros, NPCs e coletáveis no Mundo 3D. Caminho do jogo: file_model do elements (.ecm, texto) →
-/// SkinModelPath (.SMD) → o .ski de mesmo nome na pasta (senão o primeiro .ski dela) → malhas na pose de ligação,
+/// SkinModelPath (.SMD) → o .ski de mesmo nome + os AddiSkinPath do .ecm (sem nenhum, um .ski da pasta) → malhas na pose de ligação,
 /// texturas .dds da pasta (ou de "textures\"). Lidos e decodificados em segundo plano (WorldLoader); aqui só sobem à GPU.
 /// </summary>
 internal sealed class WorldModels : IDisposable
@@ -94,18 +94,39 @@ internal sealed class WorldModels : IDisposable
         var smd = Regex.Match(text, @"SkinModelPath:\s*(\S[^\r\n]*)").Groups[1].Value.Trim().ToLowerInvariant();
         if (smd.Length == 0) return null;
         var dir = Path.GetDirectoryName(smd) ?? "";
-        var skiEntry = pck.Find(Path.ChangeExtension(smd, ".ski"))
-            ?? pck.Entries.FirstOrDefault(e => e.Path.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".ski", StringComparison.OrdinalIgnoreCase)
-                && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
-        if (skiEntry is null || SkiModel.Read(pck.Read(skiEntry)) is not { } ski) return null;
-        // malhas rígidas: pose do esqueleto (.bon de mesmo nome do .SMD, senão o da pasta)
-        if (ski.Meshes.Any(m => m.Bone >= 0))
+        // skins: o de mesmo nome do .SMD + os "AddiSkinPath" do .ecm (relativos a Models\); sem nenhum, o primeiro não vazio da pasta
+        var skins = new List<PckEntry>();
+        if (pck.Find(Path.ChangeExtension(smd, ".ski")) is { } own) skins.Add(own);
+        foreach (Match a in Regex.Matches(text, @"AddiSkinPath:\s*(\S[^\r\n]*)"))
         {
-            var bonEntry = pck.Find(Path.ChangeExtension(smd, ".bon"))
-                ?? pck.Entries.FirstOrDefault(e => e.Path.EndsWith(".bon", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
-            ski.PlaceRigid(bonEntry is null ? null : BonFile.Read(pck.Read(bonEntry)));
+            var p = a.Groups[1].Value.Trim().ToLowerInvariant();
+            if ((pck.Find(p) ?? pck.Find("models\\" + p)) is { } e && !skins.Any(s => s.Path.Equals(e.Path, StringComparison.OrdinalIgnoreCase))) skins.Add(e);
         }
-        return (ski, dir);
+        bool fromDir = skins.Count == 0;
+        if (fromDir)
+            skins.AddRange(pck.Entries.Where(e => e.Path.EndsWith(".ski", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(e => Path.GetFileNameWithoutExtension(e.Path).Equals(Path.GetFileNameWithoutExtension(ecm), StringComparison.OrdinalIgnoreCase)));
+        // malhas rígidas: pose do esqueleto (.bon de mesmo nome do .SMD, senão o da pasta)
+        BonFile? bon = null; bool bonRead = false;
+        SkiModel? ski = null;
+        foreach (var se in skins)
+        {
+            if (SkiModel.Read(pck.Read(se)) is not { Meshes.Count: > 0 } s) continue;
+            if (s.Meshes.Any(m => m.Bone >= 0))
+            {
+                if (!bonRead)
+                {
+                    bonRead = true;
+                    var bonEntry = pck.Find(Path.ChangeExtension(smd, ".bon"))
+                        ?? pck.Entries.FirstOrDefault(e => e.Path.EndsWith(".bon", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
+                    bon = bonEntry is null ? null : BonFile.Read(pck.Read(bonEntry));
+                }
+                s.PlaceRigid(bon);
+            }
+            if (ski is null) ski = s; else ski.Append(s);
+            if (fromDir) break;
+        }
+        return ski is null ? null : (ski, dir);
     }
 
     /// <summary>Textura do modelo: na pasta, em "textures\" dela ou pelo nome em todo o pck.</summary>

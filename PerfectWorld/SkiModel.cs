@@ -86,6 +86,14 @@ public sealed class SkiModel
         }
     }
 
+    /// <summary>Junta as malhas de outro skin do mesmo modelo (AddiSkinPath do .ecm); chame depois do PlaceRigid dos dois.</summary>
+    public void Append(SkiModel other)
+    {
+        int t0 = Textures.Count;
+        Textures.AddRange(other.Textures);
+        foreach (var m in other.Meshes) Meshes.Add(m with { Texture = m.Texture < 0 ? m.Texture : m.Texture + t0, Bone = -1 });
+    }
+
     static void StandUp(float[] v)
     {
         float minY = float.MaxValue, maxY = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;

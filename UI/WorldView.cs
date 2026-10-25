@@ -205,6 +205,15 @@ internal sealed class WorldView : Form
         if (_marks.FirstOrDefault(m => m.Tag == tag) is { } m) { LookAt(PosOf(m)); _gl.Invalidate(); }
     }
 
+    /// <summary>Câmera acima do ponto, olhando para baixo (abrir sem nada selecionado). high: vista alta do mapa inteiro.</summary>
+    public void Overview(Vector3 p, bool high)
+    {
+        float ground = _t.HeightAt(p.X, p.Z) ?? p.Y;
+        if (high) { _cam = Gl(p.X, ground + 400, p.Z - 400); _pitch = -40; }
+        else { _cam = Gl(p.X, Math.Max(p.Y, ground) + 25, p.Z - 35); _pitch = -30; }
+        _yaw = -90; ClampCamera(); _gl.Invalidate();
+    }
+
     // câmera 14 m ao sul e 7 m acima, olhando para o ponto
     void LookAt(Vector3 p) { _cam = Gl(p.X, p.Y + 7, p.Z - 14); _yaw = -90; _pitch = -22; ClampCamera(); }
 
