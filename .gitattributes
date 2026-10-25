@@ -1,0 +1,3 @@
+
+# scripts do servidor local rodam no Linux (WSL): sempre LF
+*.sh text eol=lf
