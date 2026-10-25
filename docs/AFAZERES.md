@@ -94,7 +94,15 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 ## CODIGO-FONTE 1.5.3 (25/10/2026) — PW-KB §S13 §S18 §S22
 - [x] npcgen: limiares de versao do oficial (coleta v6/v7, objeto v9/v10); 49/49 identicos
 - [x] region.sev lido; Mundo 3D abre a instancia na entrada (26 de 45 mapas)
-- [ ] a26: mostrar so a copia do mapa do cliente (x -512..512) ou dobrar x a cada 1024 m
+- [x] a26: so a copia do mapa do cliente; terreno-tampa escondido; entrada na altura do piso
 - [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp e dar nome aos campos
 - [ ] path.sev (pathman.cpp): desenhar no 3D o caminho de patrulha dos grupos (iPathID)
 - [ ] arvores/grama (depois): leitor do .ecwld = EC_SceneBlock.cpp; arvores reais = SpeedTreeRT.h + speedtreert.dll
+
+## BUGS + SERVIDOR LOCAL (25/10/2026 tarde)
+- [x] b31..b35 usam o terreno b30 (MapTags); a19 cores das construcoes (cor de dia); catapultas/bandeiras de pe (pele na pose padrao)
+- [x] seletor de mapa so troca ao confirmar; rodape com a coordenada do jogo
+- [x] aba Servidor (WSL): instalar, iniciar, parar, estado, conta, enviar arquivos e reiniciar
+- [ ] testar a instalacao de verdade (depois de reiniciar o PC para o WSL ligar)
+- [ ] instancias no servidor local (hoje sobe so gs01, como o start.sh do pacote)
+- [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp

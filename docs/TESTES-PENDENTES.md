@@ -47,6 +47,21 @@ Trabalhe numa cópia da pasta do jogo/servidor até tudo estar conferido.
 - [ ] Mudar o nome no editor e voltar ao 3D → o nome novo aparece.
 - [ ] Botão direito → Novo monstro/NPC/coletável → o seletor fica na frente do 3D.
 
+## 6b. Mundo 3D — correções de 25/10 (tarde)
+- [ ] Instâncias b31…b35 abrem (usam o chão da b30).
+- [ ] a19: pontes e casas com cor de madeira (sem faixas verdes/roxas).
+- [ ] a26: abre no palácio (pedra entalhada, fundo azul-escuro), sem o "chão" escuro por cima; tecla T mostra a tampa.
+- [ ] b30: catapultas e bandeiras em cima do chão.
+- [ ] Seletor **Mapa:** setas andam pela lista; troca só com Enter/clique.
+- [ ] Rodapé mostra "(no jogo: X Y)" igual ao que o jogo exibe.
+
+## 6c. Servidor local (aba Servidor)
+- [ ] Reiniciar o PC uma vez (o WSL só liga depois disso). Na aba **Servidor**, **Estado** não pede mais para reiniciar.
+- [ ] Escolher login e senha (letras e números) → **Instalar / completar** → espera o log terminar com "Pronto".
+- [ ] **Iniciar** → as luzes ficam verdes e aparece "Servidor no ar".
+- [ ] Abrir o jogo → servidor **Local** → entrar com a conta criada; criar personagem.
+- [ ] Mudar algo no editor (ex.: npcgen) → **Enviar meus arquivos e reiniciar** → a mudança aparece no jogo.
+
 ## 7. No jogo (quando o servidor estiver pronto)
 - [ ] Ponto criado, movido, clonado e excluído aparece/some no lugar certo.
 - [ ] NPC novo e coletável novo funcionam (clicar, coletar).
