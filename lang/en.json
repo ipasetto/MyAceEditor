@@ -1539,5 +1539,19 @@
   "npcgen.titleMine": "Resource point no. {0}",
   "npcgen.titleMob": "Monster point no. {0}",
   "npcgen.titleNpc": "NPC point no. {0}",
-  "npcgen.lastOne": "A point needs at least one. To remove the whole point use \"Delete\"."
+  "npcgen.lastOne": "A point needs at least one. To remove the whole point use \"Delete\".",
+  "npcgen.world": "🌐 3D World",
+  "world.title": "3D World — {0}",
+  "world.goto": "Go to:",
+  "world.next": "Next ▶",
+  "world.map": "🗺 Map (M)",
+  "world.help": "   W/A/S/D move · Q/E down/up · Shift runs · drag to turn · wheel = speed",
+  "world.coord": "X {0:0.0}   height {1:0.0}   Z {2:0.0}   ·   right click: copy / new point here / move the selected one",
+  "world.notFound": "No point with that name or ID.",
+  "world.copy": "Copy coordinate ({0:0.0}, {1:0.0}, {2:0.0})",
+  "world.newHere": "New point here…",
+  "world.moveHere": "Move the selected point here",
+  "world.mapTitle": "Map — right click moves the camera · M or Esc closes",
+  "world.mapCoord": "Map — X {0:0}  Z {1:0} · right click moves the camera · M or Esc closes",
+  "world.noMap": "Terrain of map \"{0}\" not found in the client (element\\maps\\{0}). Open the game folder in the Elements tab."
 }

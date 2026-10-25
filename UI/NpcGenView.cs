@@ -255,6 +255,8 @@ internal sealed class NpcGenView : UserControl
         Col("npcgen.colIndex", "Nº", 55, HorizontalAlignment.Right);
         _list.RetrieveVirtualItem += (_, e) => e.Item = RowItem(e.ItemIndex);
         _list.SelectedIndexChanged += (_, _) => ShowPoint();
+        // com o Mundo 3D aberto, duplo clique leva a câmera até o ponto
+        _list.DoubleClick += (_, _) => { if (_world is { IsDisposed: false } w && Cur is { } f && SelectedIndex() is { } i) { w.GoTo(ListOf(f)[i]!); w.Activate(); } };
     }
 
     (int Id, int Amount, int Respawn, int Groups)? First(int i)
@@ -324,6 +326,7 @@ internal sealed class NpcGenView : UserControl
         if (at >= 0) { _list.SelectedIndices.Add(at); _list.EnsureVisible(at); }
         _list.Invalidate();
         ShowPoint(); UpdateInfo();
+        if (_world is { IsDisposed: false }) _world.RefreshMarkers();
     }
 
     int? SelectedIndex() => _list.SelectedIndices.Count > 0 && _list.SelectedIndices[0] < _rows.Count ? _rows[_list.SelectedIndices[0]] : null;
@@ -332,7 +335,7 @@ internal sealed class NpcGenView : UserControl
     void BuildEditor()
     {
         int y = 8;
-        void Add(Control c, int x, int w = 0) { c.Location = new Point(x, y); if (w > 0) c.Width = w; _edit.Controls.Add(c); }
+        void Add(Control c, int x, int w = 0) { c.Location = new Point(x + 12, y);  /* 12 px da borda */ if (w > 0) c.Width = w; _edit.Controls.Add(c); }
         Label L(string key, string pt) { var l = new Label { AutoSize = true, ForeColor = Muted }; AppLang.Changed += () => l.Text = Loc.T(key, pt); l.Text = Loc.T(key, pt); return l; }
         Add(_title, 0); y += 34;
         Add(L("npcgen.pos", "Posição  X / altura / Z"), 0); y += 20;
@@ -344,7 +347,7 @@ internal sealed class NpcGenView : UserControl
         Add(_autoRevive, 0); y += 24; Add(_initGen, 0); y += 24; Add(_validOnce, 0); y += 32;
         Add(L("npcgen.group", "Quem nasce aqui"), 0); y += 20;
         Add(_grid, 0); y += 226;
-        var bar = new FlowLayoutPanel { Location = new Point(0, y), Width = 440, Height = 34, WrapContents = false };
+        var bar = new FlowLayoutPanel { Location = new Point(12, y), Width = 440, Height = 34, WrapContents = false };
         Button B(string key, string pt, Action a, int w)
         {
             var b = new Button { Width = w, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Fg };
@@ -554,7 +557,8 @@ internal sealed class NpcGenView : UserControl
         }
         object? Sel() => SelectedIndex() is { } i ? ListOf(f)[i] : null;
         var start = Sel() switch { NpcGenSpawn s => s.Position, NpcGenResource r => r.Position, _ => f.Spawns.FirstOrDefault()?.Position ?? default };
-        var w = new WorldView(t, new OpenTK.Mathematics.Vector3(start.X, start.Y, start.Z), () =>
+        if (_world is { IsDisposed: false }) _world.Close();
+        var w = _world = new WorldView(t, new OpenTK.Mathematics.Vector3(start.X, start.Y, start.Z), () =>
             {
                 var list = new List<WorldView.Marker>(f.Spawns.Count + f.Resources.Count);
                 foreach (var s in f.Spawns)
@@ -565,8 +569,11 @@ internal sealed class NpcGenView : UserControl
             }, Sel, SelectObject,
             g => { NewPoint(new Vec3(g.X, g.Y, g.Z)); },
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
+        w.FormClosed += (_, _) => { if (_world == w) _world = null; };
         w.Show(FindForm());
     }
+
+    WorldView? _world;
 
     // seleciona na lista o ponto clicado no mundo (troca o filtro se precisar)
     void SelectObject(object o)
