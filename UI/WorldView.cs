@@ -95,6 +95,7 @@ internal sealed class WorldView : Form
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
         RefreshMarkers();
+        HideLidTerrain(start.Y);
         LookAt(start);
         Shown += (_, _) =>
         {
@@ -102,7 +103,10 @@ internal sealed class WorldView : Form
             _mapBox.Items.AddRange(Maps.Select(m => (object)new MapItem(m)).ToArray());
             _mapBox.SelectedItem = _mapBox.Items.Cast<MapItem>().FirstOrDefault(i => i.Key == Tag as string);
             _mapBox.DropDownWidth = 300;
-            _mapBox.SelectedIndexChanged += (_, _) => { if (_mapBox.SelectedItem is MapItem m && m.Key != Tag as string) BeginInvoke(() => SwitchMap?.Invoke(m.Key)); };
+            // troca só quando a escolha é confirmada (clique, Enter ou lista fechada): com a lista aberta, as setas só andam
+            void Commit() { if (!IsDisposed && _mapBox.SelectedItem is MapItem m && m.Key != Tag as string) SwitchMap?.Invoke(m.Key); }
+            _mapBox.ComboBox.SelectionChangeCommitted += (_, _) => { if (!_mapBox.DroppedDown) BeginInvoke(Commit); };
+            _mapBox.DropDownClosed += (_, _) => BeginInvoke(Commit);
         };
         _gl.Paint += (_, _) => Render();
         _gl.Resize += (_, _) => _gl.Invalidate();
@@ -137,7 +141,9 @@ internal sealed class WorldView : Form
             }
             _hover = Ray(e.Location);
             var near = PickScreen(e.Location);
+            // o jogo mostra ((int)x + 4000) / 10 e ((int)z + 5500) / 10 (CECUIHelper::GetShowPos)
             _status.Text = _hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), h.X, h.Y, h.Z)
+                + string.Format(Loc.T("world.gamePos", "   (no jogo: {0} {1})"), ((int)h.X + 4000) / 10, ((int)h.Z + 5500) / 10)
                 + (near is null ? "" : "   ·   " + near.Name) : "";
         };
         // roda: aproxima/afasta a câmera para onde ela olha (Shift = 4×)
@@ -208,7 +214,8 @@ internal sealed class WorldView : Form
     /// <summary>Câmera acima do ponto, olhando para baixo (abrir sem nada selecionado). high: vista alta do mapa inteiro.</summary>
     public void Overview(Vector3 p, bool high)
     {
-        float ground = _t.HeightAt(p.X, p.Z) ?? p.Y;
+        if (!high) HideLidTerrain(p.Y);
+        float ground = _terrain.Visible ? _t.HeightAt(p.X, p.Z) ?? p.Y : p.Y;
         if (high) { _cam = Gl(p.X, ground + 400, p.Z - 400); _pitch = -40; }
         else { _cam = Gl(p.X, Math.Max(p.Y, ground) + 25, p.Z - 35); _pitch = -30; }
         _yaw = -90; ClampCamera(); _gl.Invalidate();
@@ -216,6 +223,21 @@ internal sealed class WorldView : Form
 
     // câmera 14 m ao sul e 7 m acima, olhando para o ponto
     void LookAt(Vector3 p) { _cam = Gl(p.X, p.Y + 7, p.Z - 14); _yaw = -90; _pitch = -22; ClampCamera(); }
+
+    // "terreno tampa": mapas internos cujo terreno é uma placa plana ACIMA de tudo (a26, Palácio do Nirvana: 82% a 800 m,
+    // construções e portal entre -33 e 384 m). O jogo não mostra; aqui ele começa escondido (T mostra) e o clique usa um
+    // piso na altura de referência (entrada ou ponto escolhido).
+    float? _floorY;
+    void HideLidTerrain(float refY)
+    {
+        var count = new Dictionary<int, int>(); int n = 0;
+        for (float x = -_t.Width / 2 + 8; x < _t.Width / 2; x += 32)
+            for (float z = -_t.Height / 2 + 8; z < _t.Height / 2; z += 32)
+                if (_t.HeightAt(x, z) is float h) { n++; int k = (int)MathF.Round(h); count[k] = count.GetValueOrDefault(k) + 1; }
+        if (n == 0) return;
+        var mode = count.MaxBy(c => c.Value);
+        if (mode.Value * 2 >= n && mode.Key > refY + 50) { _terrain.Visible = false; _floorY = refY; }
+    }
 
     // dentro do mapa e acima do chão
     void ClampCamera()
@@ -524,6 +546,15 @@ internal sealed class WorldView : Form
         var inv = Matrix4.Invert(View * Proj);
         var a = new Vector4(nx, ny, -1, 1) * inv; var b = new Vector4(nx, ny, 1, 1) * inv;
         var o = a.Xyz / a.W; var d = Vector3.Normalize(b.Xyz / b.W - o);
+        // terreno escondido (tampa): o clique cai no piso de referência
+        if (!_terrain.Visible && _floorY is float fy)
+        {
+            if (MathF.Abs(d.Y) < 1e-4f) return null;
+            float s0 = (fy - o.Y) / d.Y;
+            if (s0 <= 0) return null;
+            var r0 = o + d * s0;
+            return new Vector3(r0.X, fy, -r0.Z);
+        }
         float prev = 0;
         for (float s = 0; s < 4000; s += 4)
         {

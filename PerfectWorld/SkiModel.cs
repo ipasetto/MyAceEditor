@@ -11,7 +11,7 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public sealed class SkiModel
 {
-    public sealed record Mesh(string Name, int Texture, float[] Vertices, ushort[] Indices, int Bone = -1);   // vértice: x y z nx ny nz u v; Bone ≥ 0 = rígida
+    public sealed record Mesh(string Name, int Texture, float[] Vertices, ushort[] Indices, int Bone = -1, float[]? Weights = null, byte[]? Bones = null);   // vértice: x y z nx ny nz u v; Bone ≥ 0 = rígida; pele: 4 pesos + 4 ossos por vértice
     public List<string> BoneNames { get; } = new();   // v≥9: nomes dos ossos usados (índice da malha rígida → nome no .bon)
 
     public int Version { get; private set; }
@@ -50,15 +50,23 @@ public sealed class SkiModel
             int nv = r.ReadInt32(), ni = r.ReadInt32();
             if (nv < 0 || ni < 0 || nv > 1_000_000 || ni > 3_000_000) throw new InvalidDataException();
             var v = new float[nv * 8];
+            float[]? w = rigid ? null : new float[nv * 4];
+            byte[]? bi = rigid ? null : new byte[nv * 4];
             for (int i = 0; i < nv; i++)
             {
                 v[i * 8] = r.ReadSingle(); v[i * 8 + 1] = r.ReadSingle(); v[i * 8 + 2] = r.ReadSingle();
-                if (!rigid) r.BaseStream.Position += 16;   // 3 pesos + índices dos ossos
+                if (!rigid)
+                {
+                    // 3 pesos (o 4º = 1 − soma) + 4 índices de osso u8
+                    float a = r.ReadSingle(), b = r.ReadSingle(), c = r.ReadSingle();
+                    w![i * 4] = a; w[i * 4 + 1] = b; w[i * 4 + 2] = c; w[i * 4 + 3] = Math.Max(0, 1 - a - b - c);
+                    r.Read(bi!, i * 4, 4);
+                }
                 for (int j = 3; j < 8; j++) v[i * 8 + j] = r.ReadSingle();
             }
             var idx = new ushort[ni];
             for (int i = 0; i < ni; i++) idx[i] = r.ReadUInt16();
-            m.Meshes.Add(new Mesh(name, tex, v, idx, bone));
+            m.Meshes.Add(new Mesh(name, tex, v, idx, bone, w, bi));
         }
         return r.BaseStream.Position == d.Length ? m : null;
     }
@@ -84,6 +92,53 @@ public sealed class SkiModel
                 v[i] = p.X; v[i + 1] = p.Y; v[i + 2] = p.Z; v[i + 3] = n.X; v[i + 4] = n.Y; v[i + 5] = n.Z;
             }
         }
+    }
+
+    /// <summary>
+    /// Malhas com pele na pose padrão do esqueleto (sem animação): cada vértice = Σ peso × (pos × Init × Absoluta do osso).
+    /// Só para erguer modelos feitos centrados na origem que o esqueleto põe de pé (catapulta da b30 +1,25 m, bandeiras de
+    /// guerra +8,8 m): aplicada quando a malha estava afundada e a pose leva a base para o chão; senão fica como veio.
+    /// </summary>
+    public void PlaceSkin(BonFile? bones)
+    {
+        if (bones is null || bones.Bones.Count == 0) return;
+        var mats = new System.Numerics.Matrix4x4[bones.Bones.Count];
+        for (int b = 0; b < mats.Length; b++) mats[b] = bones.Bones[b].Init * bones.Absolute(b);
+        // índice do osso no .ski → no .bon (v9 traz os nomes; v8 usa o índice do esqueleto)
+        int Map(int i) => BoneNames.Count > 0 ? (i < BoneNames.Count ? bones.IndexOf(BoneNames[i]) : -1) : (i < mats.Length ? i : -1);
+        var map = new int[256];
+        for (int i = 0; i < 256; i++) map[i] = Map(i);
+        var placed = new List<(Mesh Mesh, float[] V)>();
+        float oMin = float.MaxValue, oMax = float.MinValue, nMin = float.MaxValue, nMax = float.MinValue;
+        foreach (var mesh in Meshes)
+        {
+            if (mesh.Bone >= 0 || mesh.Weights is not { } w || mesh.Bones is not { } bi) continue;
+            var v = mesh.Vertices; var nv = (float[])v.Clone();
+            for (int i = 0, k = 0; i < v.Length; i += 8, k += 4)
+            {
+                var p = new System.Numerics.Vector3(v[i], v[i + 1], v[i + 2]); var n = new System.Numerics.Vector3(v[i + 3], v[i + 4], v[i + 5]);
+                System.Numerics.Vector3 sp = default, sn = default; float sw = 0;
+                for (int j = 0; j < 4; j++)
+                {
+                    float wj = w[k + j];
+                    if (wj <= 0 || map[bi[k + j]] is var b && b < 0) continue;
+                    sp += wj * System.Numerics.Vector3.Transform(p, mats[b]);
+                    sn += wj * System.Numerics.Vector3.TransformNormal(n, mats[b]);
+                    sw += wj;
+                }
+                if (sw > 0.001f) { sp /= sw; sn = System.Numerics.Vector3.Normalize(sn); } else { sp = p; sn = n; }
+                nv[i] = sp.X; nv[i + 1] = sp.Y; nv[i + 2] = sp.Z; nv[i + 3] = sn.X; nv[i + 4] = sn.Y; nv[i + 5] = sn.Z;
+                oMin = Math.Min(oMin, p.Y); oMax = Math.Max(oMax, p.Y); nMin = Math.Min(nMin, sp.Y); nMax = Math.Max(nMax, sp.Y);
+            }
+            placed.Add((mesh, nv));
+        }
+        if (placed.Count == 0) return;
+        // só corrige modelo AFUNDADO (mais de 1/4 abaixo da origem) que a pose padrão põe de pé no chão; nos outros a pose
+        // padrão não é a mostrada no jogo (lá vale a animação "parado") e pode afundar bichos que estavam certos
+        float oh = oMax - oMin, nh = nMax - nMin;
+        if (oh <= 0.01f || float.IsNaN(nh) || nh > oh * 1.5f || nh < oh * 0.67f) return;
+        if (oMin >= -0.25f * oh || MathF.Abs(nMin) > 0.1f * nh) return;
+        foreach (var (mesh, nv) in placed) Array.Copy(nv, mesh.Vertices, nv.Length);
     }
 
     /// <summary>Junta as malhas de outro skin do mesmo modelo (AddiSkinPath do .ecm); chame depois do PlaceRigid dos dois.</summary>

@@ -6,7 +6,8 @@ namespace MyAceEditor.PerfectWorld;
 /// Construção do cenário (litmodels.pck: litmodels\&lt;mapa&gt;\&lt;pedaço&gt;\litmodel_N.bmd), já iluminada (cor nos vértices).
 /// "MOXB" | u32 versão | escala 3f | direção 3f | cima 3f | posição no mundo 3f | u32 nMalhas |
 /// malha: u32 versão, nome[64], textura[256], nVértices, nTriângulos, vértices de 24 B (pos local 3f, cor BGRA, uv 2f),
-/// índices u16 ×3 por triângulo, depois normais e dados extras de tamanho variável — a próxima malha é achada pela versão.
+/// índices u16 ×3 por triângulo, normais 3f, cores de dia e de noite (BGRA, 1 por vértice) e dados extras de tamanho
+/// variável — a próxima malha é achada pela versão. Desenho usa a cor de dia (a do vértice pode ser outra, ex.: a19).
 /// Versão 0x80000001 (metade dos arquivos do 1.4.4): 1 byte + 0x10000002 depois da versão, resto 5 bytes adiante, malhas 0x10000005.
 /// </summary>
 public sealed class BmdModel
@@ -52,6 +53,16 @@ public sealed class BmdModel
             var texName = Gbk.GetString(d, tex, (z < 0 ? tex + 256 : z) - tex);
             var verts = new byte[nv * 24];
             Buffer.BlockCopy(d, vo, verts, 0, verts.Length);
+            // depois dos índices: normais (nv × 12) e as cores de DIA e de NOITE (nv × 4 cada; A3DLitMesh). A cor dentro do
+            // vértice nem sempre é a iluminada (a19: tons verde/roxo); a de dia é a que o jogo mostra. Só usa se for opaca.
+            int day = end + nv * 12;
+            if (day + nv * 8 <= d.Length)
+            {
+                int opaque = 0;
+                for (int i = 0; i < nv; i++) if (d[day + i * 4 + 3] == 0xFF) opaque++;
+                if (opaque >= nv * 9 / 10)
+                    for (int i = 0; i < nv; i++) Buffer.BlockCopy(d, day + i * 4, verts, i * 24 + 12, 3);   // BGR; alfa do vértice fica
+            }
             var idx = new ushort[nf * 3];
             Buffer.BlockCopy(d, io, idx, 0, idx.Length * 2);
             m.Meshes.Add(new Mesh(texName, verts, idx));

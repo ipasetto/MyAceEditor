@@ -570,7 +570,8 @@ internal sealed class NpcGenView : UserControl
     void OpenWorld(bool fromSwitch)
     {
         if (Cur is not { } f || _cur is null) return;
-        var dir = _elementDir() is { } el ? Path.Combine(el, "maps", _cur) : null;
+        // pasta do servidor → mapa do cliente (b31..b35 usam o terreno b30: gs.conf tag → configs\instance.txt)
+        var dir = _elementDir() is { } el ? Path.Combine(el, "maps", MapTags.ClientMapFor(_configDir, el, _cur)) : null;
         if (dir is null || TerrainFile.Open(dir) is not { } t)
         {
             MessageBox.Show(this, string.Format(Loc.T("world.noMap", "Não achei o terreno do mapa \"{0}\" no cliente (element\\maps\\{0}). Abra a pasta do jogo na aba Elements."), _cur), "NPCGen");
@@ -585,6 +586,14 @@ internal sealed class NpcGenView : UserControl
             overview = _cur.Equals("world", StringComparison.OrdinalIgnoreCase) ? new Vec3(0, 0, 0)
                 : (_configDir is null ? null : RegionFile.EntranceOf(_configDir, _cur))
                   ?? (f.Spawns.FirstOrDefault(s => s.Type == 1) ?? f.Spawns.FirstOrDefault())?.Position ?? new Vec3(0, 0, 0);
+        // altura: a do ponto de criatura mais perto na horizontal (portal de saída pode ficar no alto; a26: portal a 366 m,
+        // piso do palácio a 22 m)
+        if (overview is { } ov0 && f.Spawns.Count > 0)
+        {
+            var near = f.Spawns.MinBy(s => (s.Position.X - ov0.X) * (s.Position.X - ov0.X) + (s.Position.Z - ov0.Z) * (s.Position.Z - ov0.Z))!.Position;
+            float dx = near.X - ov0.X, dz = near.Z - ov0.Z;
+            if (dx * dx + dz * dz < 600 * 600 && MathF.Abs(near.Y - ov0.Y) > 30) overview = new Vec3(ov0.X, near.Y, ov0.Z);
+        }
         var start = selected switch { NpcGenSpawn s => s.Position, NpcGenResource r => r.Position, _ => overview ?? default };
         // já aberto (mesmo mapa): só leva a câmera ao ponto selecionado
         if (_world is { IsDisposed: false } open && open.Tag as string == _cur)
@@ -604,8 +613,12 @@ internal sealed class NpcGenView : UserControl
                 Color TriggerColor(int id, Color normal) => id == 0 || !triggers.TryGetValue(id, out var tg) ? normal
                     : tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? Color.LimeGreen
                     : tg.AutoStart != 0 ? normal : Color.Violet;
+                // só o que cai no terreno do cliente: a a26 do servidor tem 8 cópias do mapa de 1 km lado a lado (x a cada
+                // 1024 m) e só a do meio coincide com o mapa do cliente (PW-KB §S22)
+                bool Inside(Vec3 p) => MathF.Abs(p.X) <= t.Width / 2 + 16 && MathF.Abs(p.Z) <= t.Height / 2 + 16;
                 foreach (var s in f.Spawns)
                 {
+                    if (!Inside(s.Position)) continue;
                     int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
                     var label = TriggerColor(s.Trigger, s.Type == 0 && _blockOf(id0) == "NPC_ESSENCE" ? Color.OrangeRed : Color.White);
                     list.Add(new(s.Position.X, s.Position.Y, s.Position.Z, s.Type == 1 ? Color.DeepSkyBlue : Color.Red, NameOf(id0), s,
@@ -613,6 +626,7 @@ internal sealed class NpcGenView : UserControl
                 }
                 foreach (var r in f.Resources)
                 {
+                    if (!Inside(r.Position)) continue;
                     int id0 = r.Items.FirstOrDefault()?.Id ?? 0;
                     list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(id0), r, _modelOf(id0), 0,
                         TriggerColor(r.Trigger, Color.Cyan), true, id0));

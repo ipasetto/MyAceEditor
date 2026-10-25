@@ -106,23 +106,21 @@ internal sealed class WorldModels : IDisposable
         if (fromDir)
             skins.AddRange(pck.Entries.Where(e => e.Path.EndsWith(".ski", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(e => Path.GetFileNameWithoutExtension(e.Path).Equals(Path.GetFileNameWithoutExtension(ecm), StringComparison.OrdinalIgnoreCase)));
-        // malhas rígidas: pose do esqueleto (.bon de mesmo nome do .SMD, senão o da pasta)
+        // esqueleto (.bon de mesmo nome do .SMD, senão o da pasta): pose das malhas rígidas e deslocamento das com pele
         BonFile? bon = null; bool bonRead = false;
         SkiModel? ski = null;
         foreach (var se in skins)
         {
             if (SkiModel.Read(pck.Read(se)) is not { Meshes.Count: > 0 } s) continue;
-            if (s.Meshes.Any(m => m.Bone >= 0))
+            if (!bonRead)
             {
-                if (!bonRead)
-                {
-                    bonRead = true;
-                    var bonEntry = pck.Find(Path.ChangeExtension(smd, ".bon"))
-                        ?? pck.Entries.FirstOrDefault(e => e.Path.EndsWith(".bon", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
-                    bon = bonEntry is null ? null : BonFile.Read(pck.Read(bonEntry));
-                }
-                s.PlaceRigid(bon);
+                bonRead = true;
+                var bonEntry = pck.Find(Path.ChangeExtension(smd, ".bon"))
+                    ?? pck.Entries.FirstOrDefault(e => e.Path.EndsWith(".bon", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
+                bon = bonEntry is null ? null : BonFile.Read(pck.Read(bonEntry));
             }
+            if (s.Meshes.Any(m => m.Bone >= 0)) s.PlaceRigid(bon);
+            if (s.Meshes.Any(m => m.Bone < 0)) s.PlaceSkin(bon);
             if (ski is null) ski = s; else ski.Append(s);
             if (fromDir) break;
         }
