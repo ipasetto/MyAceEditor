@@ -30,7 +30,7 @@ skills | elementskill.dll (CElementSkill) + configs/skillstr.txt | gs (mesmo cod
 icones | surfaces.pck iconset/ (.dds+.txt) | - | §S2 §S3 | NATIVO PRONTO [T] (§E4)
 janelas do jogo | interfaces.pck (XML, ex: qshop bag character) | - | §S2 §S20 | pendente; render: controles + moldura 9-slice + surfaces
 inventario/personagem | - | gamedbd (GetRoleData 8003, PutRole 3024) | §S8 §S9 §S10 | pendente; blobs opacos (PWKB§Q3)
-deploy/servidor | LocalServer.cs, ServerView.cs, Server/*.sh | daemons, gs.conf, gamesys.conf, start.sh | §S4 §S5 §S6 §S24 | [T parcial] aba Servidor (WSL); falta testar a instalacao (WSL precisa reiniciar o PC)
+deploy/servidor | LocalServer.cs, ServerView.cs, Server/*.sh | daemons, gs.conf, gamesys.conf, start.sh | §S4 §S5 §S6 §S24 | [T] aba Servidor (WSL): instalado e no ar em 25/10 (todos os servicos, porta 29000 no Windows, sobrevive ao editor fechado); botao 'Salvar e enviar ao servidor' na barra; falta o teste dentro do jogo
 regras hardcoded (cla, TW, correio) | - | ELF gdeliveryd/gfactiond | §S25 | pendente; patch por simbolo DWARF + hash, nunca offset fixo
 skills (textos) | configs.pck skillstr.txt | - | §S25 | pendente
 regra de ouro: mudar dado de um lado sem o outro = erro/comportamento estranho (PWKB§S7). Engine deve editar o PAR client+server junto.

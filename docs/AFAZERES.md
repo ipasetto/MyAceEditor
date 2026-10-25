@@ -103,6 +103,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] b31..b35 usam o terreno b30 (MapTags); a19 cores das construcoes (cor de dia); catapultas/bandeiras de pe (pele na pose padrao)
 - [x] seletor de mapa so troca ao confirmar; rodape com a coordenada do jogo
 - [x] aba Servidor (WSL): instalar, iniciar, parar, estado, conta, enviar arquivos e reiniciar
-- [ ] testar a instalacao de verdade (depois de reiniciar o PC para o WSL ligar)
+- [x] instalacao testada de verdade (25/10): servidor no ar, conta igor/123 GM
+- [ ] entrar no jogo pelo servidor Local (usuario)
 - [ ] instancias no servidor local (hoje sobe so gs01, como o start.sh do pacote)
 - [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp
