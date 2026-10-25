@@ -97,7 +97,15 @@ internal sealed class WorldModels : IDisposable
         var skiEntry = pck.Find(Path.ChangeExtension(smd, ".ski"))
             ?? pck.Entries.FirstOrDefault(e => e.Path.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".ski", StringComparison.OrdinalIgnoreCase)
                 && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
-        return skiEntry is not null && SkiModel.Read(pck.Read(skiEntry)) is { } ski ? (ski, dir) : null;
+        if (skiEntry is null || SkiModel.Read(pck.Read(skiEntry)) is not { } ski) return null;
+        // malhas rígidas: pose do esqueleto (.bon de mesmo nome do .SMD, senão o da pasta)
+        if (ski.Meshes.Any(m => m.Bone >= 0))
+        {
+            var bonEntry = pck.Find(Path.ChangeExtension(smd, ".bon"))
+                ?? pck.Entries.FirstOrDefault(e => e.Path.EndsWith(".bon", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(e.Path)!.Equals(dir, StringComparison.OrdinalIgnoreCase));
+            ski.PlaceRigid(bonEntry is null ? null : BonFile.Read(pck.Read(bonEntry)));
+        }
+        return (ski, dir);
     }
 
     /// <summary>Textura do modelo: na pasta, em "textures\" dela ou pelo nome em todo o pck.</summary>

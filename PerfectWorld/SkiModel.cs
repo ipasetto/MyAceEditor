@@ -11,7 +11,8 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public sealed class SkiModel
 {
-    public sealed record Mesh(string Name, int Texture, float[] Vertices, ushort[] Indices);   // vértice: x y z nx ny nz u v
+    public sealed record Mesh(string Name, int Texture, float[] Vertices, ushort[] Indices, int Bone = -1);   // vértice: x y z nx ny nz u v; Bone ≥ 0 = rígida
+    public List<string> BoneNames { get; } = new();   // v≥9: nomes dos ossos usados (índice da malha rígida → nome no .bon)
 
     public int Version { get; private set; }
     public List<string> Textures { get; } = new();
@@ -33,7 +34,7 @@ public sealed class SkiModel
         int nTex = r.ReadInt32(), nMat = r.ReadInt32(), nBone = r.ReadInt32();
         r.BaseStream.Position = 108;
         string Str() { int n = r.ReadInt32(); if (n < 0 || n > 4096) throw new InvalidDataException(); return Gbk.GetString(r.ReadBytes(n)); }
-        if (m.Version >= 9) for (int i = 0; i < nBone; i++) Str();
+        if (m.Version >= 9) for (int i = 0; i < nBone; i++) m.BoneNames.Add(Str());
         for (int i = 0; i < nTex; i++) m.Textures.Add(Str());
         for (int i = 0; i < nMat; i++)
         {
@@ -44,7 +45,7 @@ public sealed class SkiModel
         {
             bool rigid = k >= nSkin;
             var name = Str();
-            if (rigid) r.ReadInt32();   // osso
+            int bone = rigid ? r.ReadInt32() : -1;   // osso da malha rígida
             int tex = r.ReadInt32(); r.ReadInt32();
             int nv = r.ReadInt32(), ni = r.ReadInt32();
             if (nv < 0 || ni < 0 || nv > 1_000_000 || ni > 3_000_000) throw new InvalidDataException();
@@ -57,14 +58,34 @@ public sealed class SkiModel
             }
             var idx = new ushort[ni];
             for (int i = 0; i < ni; i++) idx[i] = r.ReadUInt16();
-            if (rigid) StandUp(v);
-            m.Meshes.Add(new Mesh(name, tex, v, idx));
+            m.Meshes.Add(new Mesh(name, tex, v, idx, bone));
         }
         return r.BaseStream.Position == d.Length ? m : null;
     }
 
-    // Malha rígida vem no espaço do osso; quando o osso é a raiz do 3ds Max (Z para cima) ela fica deitada.
-    // Sem ler o .bon ainda: se a altura está claramente em Z e nasce em z≈0, gira para Y para cima [?] (caixa de correio).
+    /// <summary>
+    /// Põe as malhas rígidas (que vêm no espaço do osso) no espaço do modelo, pela pose de ligação do esqueleto.
+    /// Sem .bon: se a altura está claramente em Z e nasce em z≈0, gira para Y para cima (raiz do 3ds Max) [?].
+    /// </summary>
+    public void PlaceRigid(BonFile? bones)
+    {
+        foreach (var mesh in Meshes)
+        {
+            if (mesh.Bone < 0) continue;
+            int b = mesh.Bone;
+            if (bones is not null && BoneNames.Count > b) b = bones.IndexOf(BoneNames[b]);
+            if (bones is null || b < 0 || b >= bones.Bones.Count) { StandUp(mesh.Vertices); continue; }
+            var abs = bones.Absolute(b);
+            var v = mesh.Vertices;
+            for (int i = 0; i < v.Length; i += 8)
+            {
+                var p = System.Numerics.Vector3.Transform(new System.Numerics.Vector3(v[i], v[i + 1], v[i + 2]), abs);
+                var n = System.Numerics.Vector3.TransformNormal(new System.Numerics.Vector3(v[i + 3], v[i + 4], v[i + 5]), abs);
+                v[i] = p.X; v[i + 1] = p.Y; v[i + 2] = p.Z; v[i + 3] = n.X; v[i + 4] = n.Y; v[i + 5] = n.Z;
+            }
+        }
+    }
+
     static void StandUp(float[] v)
     {
         float minY = float.MaxValue, maxY = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
