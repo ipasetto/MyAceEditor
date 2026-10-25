@@ -473,7 +473,7 @@ internal sealed class WorldView : Form
                 rows.Add((Color.Yellow, Loc.T("legend.selected", "Amarelo — selecionado")));
                 rows.Add((Color.Empty, ""));
                 rows.Add((Color.Silver, Loc.T("legend.keys1", "W/A/S/D andar · Espaço/Z subir/descer · Shift correr")));
-                rows.Add((Color.Silver, Loc.T("legend.keys2", "Roda aproxima · botão do meio gira · M mapa · T esconde o terreno")));
+                rows.Add((Color.Silver, Loc.T("legend.keys2", "Roda aproxima · botão do meio gira · M mapa · T esconde o terreno · B as construções")));
                 rows.Add((Color.Silver, Loc.T("legend.keys3", "Esquerdo no ponto arrasta · direito: novo, clonar, mover, excluir, editar")));
                 rows.Add((Color.Silver, Loc.T("legend.keys4", "Ctrl+C/Ctrl+V copia e cola o ponto · Delete exclui · Ctrl+Z/Ctrl+Y")));
             }
