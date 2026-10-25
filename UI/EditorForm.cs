@@ -276,7 +276,8 @@ public sealed class EditorForm : Form
         tN.Controls.Add(_npcgen = new NpcGenView(
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? IconFor(h.Item) : null,
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
-            PickSpawn));
+            PickSpawn,
+            () => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath))));   // pasta element
         tabs.TabPages.Add(tN);
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));

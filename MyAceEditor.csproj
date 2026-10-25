@@ -16,6 +16,7 @@
     <!-- Modo mcp: servidor MCP por stdio para um agente de IA (igual ao Angelica Core) -->
     <PackageReference Include="ModelContextProtocol" Version="0.4.0-preview.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="OpenTK.GLControl" Version="4.0.2" />
   </ItemGroup>
 
   <ItemGroup>
