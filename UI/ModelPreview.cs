@@ -11,6 +11,7 @@ internal sealed class ModelPreview : IDisposable
     readonly PckArchive? _pck;
     readonly Dictionary<string, Bitmap?> _cache = new(StringComparer.OrdinalIgnoreCase);
     Dictionary<string, PckEntry>? _ddsByName;
+    readonly Dictionary<string, (int[] Px, int W, int H)?> _texCache = new(StringComparer.OrdinalIgnoreCase);   // texturas já decodificadas
 
     public ModelPreview(string? elementDir)
     {
@@ -20,24 +21,24 @@ internal sealed class ModelPreview : IDisposable
     readonly Dictionary<string, (SkiModel Ski, string Dir)?> _skis = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Imagem do modelo girado yaw graus (arrastar na prévia gira). Guarda as imagens por ângulo de 10°.</summary>
-    public Image? Render(string? ecm, int size = 240, float yaw = 0)
+    public Image? Render(string? ecm, int size = 240, float yaw = 0, bool transparent = false)
     {
         if (ecm is null || _pck is null) return null;
         int step = ((int)MathF.Round(yaw / 10f) % 36 + 36) % 36;
-        var key = ecm + "|" + step + "|" + size;
+        var key = ecm + "|" + step + "|" + size + (transparent ? "|t" : "");
         if (_cache.TryGetValue(key, out var b)) return b;
         Bitmap? bmp = null;
         try
         {
             if (!_skis.TryGetValue(ecm, out var s)) _skis[ecm] = s = WorldModels.ResolveSki(_pck, ecm);
-            if (s is var (ski, dir)) bmp = Draw(ski, dir, size, step * 10);
+            if (s is var (ski, dir)) bmp = Draw(ski, dir, size, step * 10, transparent);
         }
         catch { bmp = null; }
         if (_cache.Count > 400) { foreach (var x in _cache.Values) x?.Dispose(); _cache.Clear(); }
         return _cache[key] = bmp;
     }
 
-    Bitmap Draw(SkiModel ski, string dir, int size, float extraYaw)
+    Bitmap Draw(SkiModel ski, string dir, int size, float extraYaw, bool transparent)
     {
         // de frente (os modelos olham para −Z), giro de 35° e leve inclinação; projeção ortográfica ajustada ao tamanho
         float yaw = (215 + extraYaw) * MathF.PI / 180, pitch = 12 * MathF.PI / 180;
@@ -59,12 +60,18 @@ internal sealed class ModelPreview : IDisposable
         var color = new int[size * size];
         var depth = new float[size * size];
         Array.Fill(depth, float.MaxValue);
-        Array.Fill(color, unchecked((int)0xFF20262E));
+        Array.Fill(color, transparent ? 0 : unchecked((int)0xFF20262E));   // miniatura da lista: fundo transparente
         foreach (var m in ski.Meshes)
         {
             (int[] Px, int W, int H)? tex = null;
-            if (m.Texture >= 0 && m.Texture < ski.Textures.Count && WorldModels.FindTexture(_pck!, dir, ski.Textures[m.Texture], ref _ddsByName) is { } te
-                && DdsDecoder.Decode(_pck!.Read(te)) is { } img) tex = (img.Pixels, img.Width, img.Height);
+            if (m.Texture >= 0 && m.Texture < ski.Textures.Count && WorldModels.FindTexture(_pck!, dir, ski.Textures[m.Texture], ref _ddsByName) is { } te)
+            {
+                if (!_texCache.TryGetValue(te.Path, out tex))
+                {
+                    if (_texCache.Count > 128) _texCache.Clear();
+                    tex = _texCache[te.Path] = DdsDecoder.Decode(_pck!.Read(te)) is { } img ? (img.Pixels, img.Width, img.Height) : null;
+                }
+            }
             var v = m.Vertices;
             for (int t = 0; t + 2 < m.Indices.Length; t += 3)
             {

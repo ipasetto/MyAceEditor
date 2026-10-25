@@ -895,7 +895,7 @@ public sealed class EditorForm : Form
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _aiView?.LoadRememberedIfNeeded();
         _atlasPck = r.AtlasPck; _atlas = r.Atlas;          // ícones: cache novo para este pacote
-        _iconIdx.Clear(); _treeIcons.Images.Clear();
+        _iconIdx.Clear(); _treeIcons.Images.Clear(); _thumbs?.Dispose(); _thumbs = null;
         _cfgs = r.Cfgs;
         if (r.Tasks is { } t)
         {
@@ -1219,10 +1219,35 @@ public sealed class EditorForm : Form
         e.Item.SubItems.Add("");
     }
 
+    // sem ícone no jogo (monstros, NPCs…): miniatura do modelo 3D, feita em segundo plano
+    private ModelThumbs? _thumbs;
+    private string? _thumbsDir;
+    private int ThumbIndexFor(Item it)
+    {
+        if (!it.Fields.TryGetValue("file_model", out var fm) || !fm.Value.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase)) return -1;
+        var key = "ecm:" + fm.Value;
+        if (_iconIdx.TryGetValue(key, out var idx)) return idx;
+        var el = _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath));
+        if (el is null || !File.Exists(Path.Combine(el, "models.pck"))) return -1;
+        if (_thumbs is null || _thumbsDir != el)
+        {
+            _thumbs?.Dispose(); _thumbsDir = el;
+            _thumbs = new ModelThumbs(el, this, 48, (ecm, img) =>
+            {
+                int i = -1;
+                if (img is not null) { _treeIcons.Images.Add(img); i = _treeIcons.Images.Count - 1; }
+                _iconIdx["ecm:" + ecm] = i;
+                _list.Invalidate();
+            });
+        }
+        _thumbs.Request(fm.Value);
+        return -1;
+    }
+
     private int IconIndexFor(Item it)
     {
+        if (!it.Fields.TryGetValue("file_icon", out var fi) || string.IsNullOrEmpty(fi.Value)) return ThumbIndexFor(it);
         if (_atlas is null && _iconsRoot is null) return -1;
-        if (!it.Fields.TryGetValue("file_icon", out var fi) || string.IsNullOrEmpty(fi.Value)) return -1;
         if (_iconIdx.TryGetValue(fi.Value, out var idx)) return idx;
         var img = IconFor(it);
         if (img is null) { _iconIdx[fi.Value] = -1; return -1; }
