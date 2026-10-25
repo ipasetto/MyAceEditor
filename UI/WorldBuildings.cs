@@ -6,24 +6,29 @@ namespace MyAceEditor.UI;
 
 /// <summary>
 /// Construções do cenário no Mundo 3D: litmodels\&lt;mapa&gt;\&lt;pedaço&gt;\*.bmd (BmdModel) dos pedaços de 1 km em volta da
-/// câmera, com as texturas do building.pck e a luz que já vem nos vértices (cor ×2, como o jogo faz com a luz embutida).
-/// Carrega poucos arquivos por quadro; pedaços longe são descarregados.
+/// câmera, com as texturas do building.pck e a luz que já vem nos vértices (cor ×2). Leitura e decodificação em segundo
+/// plano (WorldLoader), em lotes; só desenha o que está a até 1,1 km, na frente da câmera e grande o bastante para aparecer.
 /// </summary>
 internal sealed class WorldBuildings : IDisposable
 {
-    sealed record Part(int Vbo, int Ibo, int Count, int Tex);
-    sealed record Placed(Matrix4 World, List<Part> Parts);
+    sealed record Part(int Vbo, int Ibo, int Count, string Tex);
+    sealed record Placed(Matrix4 World, List<Part> Parts, Vector3 Center, float Radius);
+    sealed record Cpu(Matrix4 World, List<BmdModel.Mesh> Meshes, Vector3 Center, float Radius);
 
     readonly PckArchive? _lit, _tex;
+    readonly WorldLoader _load;
     readonly string _map;
     readonly Dictionary<int, List<PckEntry>> _byPiece = new();
     readonly Dictionary<int, List<Placed>> _loaded = new();
-    readonly Dictionary<int, int> _progress = new();   // pedaço → quantos arquivos já carregados
+    readonly HashSet<int> _wanted = new(), _requested = new();
+    readonly Dictionary<int, int> _gen = new();   // pedaço → geração (lote de um pedido antigo é descartado)
     readonly Dictionary<string, int> _textures = new(StringComparer.OrdinalIgnoreCase);
+    readonly HashSet<string> _texSent = new(StringComparer.OrdinalIgnoreCase);
+    const int Batch = 16;
 
-    public WorldBuildings(string? elementDir, string map)
+    public WorldBuildings(string? elementDir, string map, WorldLoader load)
     {
-        _map = map.ToLowerInvariant();
+        _map = map.ToLowerInvariant(); _load = load;
         try
         {
             if (elementDir is null) return;
@@ -46,72 +51,103 @@ internal sealed class WorldBuildings : IDisposable
         }
     }
 
-    /// <summary>Carrega (aos poucos) os pedaços pedidos e solta os outros. Devolve true se ainda falta carregar.</summary>
-    public bool Update(IReadOnlyCollection<int> pieces, int budget)
+    /// <summary>Pede os pedaços em volta da câmera e solta os outros.</summary>
+    public void Update(IReadOnlyCollection<int> pieces)
     {
-        if (_lit is null) return false;
+        if (_lit is null) return;
         foreach (var p in _loaded.Keys.Where(k => !pieces.Contains(k)).ToList()) Unload(p);
-        bool pending = false;
+        _wanted.Clear(); _wanted.UnionWith(pieces);
         foreach (var p in pieces)
         {
-            if (!_byPiece.TryGetValue(p, out var files)) continue;
-            if (!_loaded.TryGetValue(p, out var list)) _loaded[p] = list = new();
-            int done = _progress.GetValueOrDefault(p);
-            while (done < files.Count && budget-- > 0) { Load(files[done++], list); }
-            _progress[p] = done;
-            if (done < files.Count) pending = true;
+            if (!_byPiece.TryGetValue(p, out var files) || !_requested.Add(p)) continue;
+            if (!_loaded.ContainsKey(p)) _loaded[p] = new();
+            int gen = _gen[p] = _gen.GetValueOrDefault(p) + 1;
+            for (int i = 0; i < files.Count; i += Batch)
+            {
+                var batch = files.Skip(i).Take(Batch).ToList();
+                int piece = p;
+                _load.Work(() => Parse(batch), r => Arrive(piece, gen, r));
+            }
         }
-        return pending;
     }
 
-    void Load(PckEntry e, List<Placed> into)
+    (List<Cpu> Models, Dictionary<string, (int[] Px, int W, int H)?> Textures) Parse(List<PckEntry> files)
     {
-        if (BmdModel.Read(_lit!.Read(e)) is not { } m || m.Meshes.Count == 0) return;
-        var dir = new Vector3(m.Dir[0], m.Dir[1], m.Dir[2]); var up = new Vector3(m.Up[0], m.Up[1], m.Up[2]);
-        if (dir.LengthSquared < 1e-6f || up.LengthSquared < 1e-6f) { dir = Vector3.UnitZ; up = Vector3.UnitY; }
-        var right = Vector3.Cross(up, dir);
-        float s = m.Scale is > 0 and < 1000 ? m.Scale : 1;
-        // jogo: local × (direita, cima, frente)·escala + posição; depois espelha Z para o OpenGL
-        var world = new Matrix4(new Vector4(right * s, 0), new Vector4(up * s, 0), new Vector4(dir * s, 0), new Vector4(m.Pos[0], m.Pos[1], m.Pos[2], 1))
-            * Matrix4.CreateScale(1, 1, -1);
-        var parts = new List<Part>();
-        foreach (var mesh in m.Meshes)
+        var models = new List<Cpu>();
+        var tex = new Dictionary<string, (int[], int, int)?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in files)
         {
-            int vbo = GL.GenBuffer(), ibo = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, mesh.Vertices.Length, mesh.Vertices, BufferUsageHint.StaticDraw);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, ibo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, mesh.Indices.Length * 2, mesh.Indices, BufferUsageHint.StaticDraw);
-            parts.Add(new Part(vbo, ibo, mesh.Indices.Length, Texture(mesh.Texture)));
+            byte[] d; lock (_lit!) d = _lit.Read(e);
+            if (BmdModel.Read(d) is not { } m || m.Meshes.Count == 0) continue;
+            var dir = new Vector3(m.Dir[0], m.Dir[1], m.Dir[2]); var up = new Vector3(m.Up[0], m.Up[1], m.Up[2]);
+            if (dir.LengthSquared < 1e-6f || up.LengthSquared < 1e-6f) { dir = Vector3.UnitZ; up = Vector3.UnitY; }
+            var right = Vector3.Cross(up, dir);
+            float s = m.Scale is > 0 and < 1000 ? m.Scale : 1;
+            // jogo: local × (direita, cima, frente)·escala + posição; depois espelha Z para o OpenGL
+            var world = new Matrix4(new Vector4(right * s, 0), new Vector4(up * s, 0), new Vector4(dir * s, 0), new Vector4(m.Pos[0], m.Pos[1], m.Pos[2], 1))
+                * Matrix4.CreateScale(1, 1, -1);
+            // esfera envolvente (para cortar o que está longe ou atrás)
+            var min = new Vector3(float.MaxValue); var max = new Vector3(float.MinValue);
+            foreach (var mesh in m.Meshes)
+                for (int o = 0; o + 12 <= mesh.Vertices.Length; o += 24)
+                {
+                    var v = new Vector3(BitConverter.ToSingle(mesh.Vertices, o), BitConverter.ToSingle(mesh.Vertices, o + 4), BitConverter.ToSingle(mesh.Vertices, o + 8));
+                    min = Vector3.ComponentMin(min, v); max = Vector3.ComponentMax(max, v);
+                }
+            var center = Vector3.TransformPosition((min + max) / 2, world);
+            models.Add(new Cpu(world, m.Meshes, center, (max - min).Length / 2 * s));
+            foreach (var mesh in m.Meshes)
+            {
+                bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
+                if (!need || _tex is null) continue;
+                byte[]? td; lock (_tex) td = _tex.Find(mesh.Texture.ToLowerInvariant()) is { } te ? _tex.Read(te) : null;
+                tex[mesh.Texture] = td is null ? null : DdsDecoder.Decode(td);
+            }
+        }
+        return (models, tex);
+    }
+
+    void Arrive(int piece, int gen, (List<Cpu> Models, Dictionary<string, (int[] Px, int W, int H)?> Textures) r)
+    {
+        foreach (var (name, img) in r.Textures) _textures[name] = img is { } i ? UploadTexture(i) : 0;
+        if (!_wanted.Contains(piece) || _gen.GetValueOrDefault(piece) != gen || !_loaded.TryGetValue(piece, out var list)) return;   // a câmera já saiu de lá
+        foreach (var c in r.Models)
+        {
+            var parts = new List<Part>();
+            foreach (var mesh in c.Meshes)
+            {
+                int vbo = GL.GenBuffer(), ibo = GL.GenBuffer();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, mesh.Vertices.Length, mesh.Vertices, BufferUsageHint.StaticDraw);
+                GL.BindBuffer(BufferTarget.ElementArrayBuffer, ibo);
+                GL.BufferData(BufferTarget.ElementArrayBuffer, mesh.Indices.Length * 2, mesh.Indices, BufferUsageHint.StaticDraw);
+                parts.Add(new Part(vbo, ibo, mesh.Indices.Length, mesh.Texture));
+            }
+            list.Add(new Placed(c.World, parts, c.Center, c.Radius));
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-        into.Add(new Placed(world, parts));
     }
 
-    int Texture(string path)
+    static int UploadTexture((int[] Px, int W, int H) img)
     {
-        if (_textures.TryGetValue(path, out var id)) return id;
-        id = 0;
-        if (_tex?.Find(path.ToLowerInvariant()) is { } e && DdsDecoder.Decode(_tex.Read(e)) is { } img)
-        {
-            id = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, id);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.Width, img.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Pixels);
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-        }
-        return _textures[path] = id;
+        int id = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, id);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.W, img.H, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Px);
+        GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        return id;
     }
 
     void Unload(int piece)
     {
         if (_loaded.Remove(piece, out var list))
             foreach (var p in list) foreach (var part in p.Parts) { GL.DeleteBuffer(part.Vbo); GL.DeleteBuffer(part.Ibo); }
-        _progress.Remove(piece);
+        _requested.Remove(piece);
     }
 
-    public void Draw()
+    /// <summary>Desenha o que está perto e na frente da câmera (cam e forward no espaço do OpenGL).</summary>
+    public void Draw(Vector3 cam, Vector3 forward)
     {
         if (_loaded.Count == 0) return;
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
@@ -127,6 +163,9 @@ internal sealed class WorldBuildings : IDisposable
         foreach (var list in _loaded.Values)
             foreach (var p in list)
             {
+                var d = p.Center - cam;
+                float dist = d.Length;
+                if (dist - p.Radius > 1100 || Vector3.Dot(d, forward) < -p.Radius || p.Radius / Math.Max(dist, 1) < 0.004f) continue;
                 GL.PushMatrix();
                 var w = p.World; GL.MultMatrix(ref w);
                 foreach (var part in p.Parts)
@@ -135,7 +174,8 @@ internal sealed class WorldBuildings : IDisposable
                     GL.VertexPointer(3, VertexPointerType.Float, 24, 0);
                     GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);   // GL_BGRA
                     GL.TexCoordPointer(2, TexCoordPointerType.Float, 24, 16);
-                    if (part.Tex != 0) { GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, part.Tex); }
+                    int tex = _textures.GetValueOrDefault(part.Tex);
+                    if (tex != 0) { GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, tex); }
                     else GL.Disable(EnableCap.Texture2D);
                     GL.BindBuffer(BufferTarget.ElementArrayBuffer, part.Ibo);
                     GL.DrawElements(PrimitiveType.Triangles, part.Count, DrawElementsType.UnsignedShort, 0);

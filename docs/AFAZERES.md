@@ -59,3 +59,12 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] botao direito no NPC: "Editar" leva ao item no editor; mudancas no editor atualizam o 3D na hora (e vice-versa)
 - [x] DESCARTADO: animacao dos modelos
 - [ ] a26 do servidor 1.4.4 nao bate com a a26 do cliente (pontos de x -4286 a 4453 num mapa de 1 km): descobrir qual mapa do cliente corresponde
+
+## MUNDO 3D — rodada 2 (25/10/2026 tarde)
+- [x] clique preciso (escolha pela tela, 12-40 px do modelo); Delete/menu Excluir; Ctrl+C/Ctrl+V; janela sem dono (Editar traz o editor); seletor aberto pelo 3D fica na frente do 3D
+- [x] previa 3D gira arrastando (seletor de ponto e duplo clique em file_model no editor)
+- [x] barra escura, campos pretos; legenda + atalhos recolhivel (H); sem hastes (ponto pequeno so p/ quem nao tem modelo)
+- [x] verde = evento agendado, lilas = gatilho sem agenda (fases de DG); mapa preso as bordas, sem nome do selecionado, aviso "botao direito para teleportar"
+- [x] carga em segundo plano (WorldLoader): alturas, chao, mascaras, luz, minimapa, modelos, construcoes; terreno em malhas por area/peca com indices; corte do que esta atras/longe; teleporte para a cidade carrega em ~1 s
+- [x] terreno longe mais fino (16 m) para nao parecer que objetos flutuam; T esconde o terreno (ver dentro de cavernas); "no chao" so segue o terreno a ate 3 m
+- [ ] confirmar com o usuario: objetos ainda flutuando? NPCs embaixo da terra no b30? travadas na Cidade do Dragao?

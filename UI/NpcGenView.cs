@@ -518,7 +518,7 @@ internal sealed class NpcGenView : UserControl
     {
         if (Cur is not { } f || SelectedIndex() is not { } i || row < 0) return;
         int cur = _kind == Kind.Mine ? f.Resources[i].Items[row].Id : f.Spawns[i].Creatures[row].Id;
-        if (_pick(FindForm() ?? (IWin32Window)this, _kind, cur) is not { } id || id == cur) return;
+        if (_pick(PickOwner, _kind, cur) is not { } id || id == cur) return;
         Snapshot("swap");
         if (_kind == Kind.Mine) f.Resources[i].Items[row].Id = id; else f.Spawns[i].Creatures[row].Id = id;
         Touch(); ShowPoint();
@@ -528,7 +528,7 @@ internal sealed class NpcGenView : UserControl
     void AddCreature()
     {
         if (Cur is not { } f || SelectedIndex() is not { } i) return;
-        if (_pick(FindForm() ?? (IWin32Window)this, _kind, 0) is not { } id) return;
+        if (_pick(PickOwner, _kind, 0) is not { } id) return;
         Snapshot("add");
         if (_kind == Kind.Mine)
         {
@@ -582,11 +582,15 @@ internal sealed class NpcGenView : UserControl
         var w = _world = new WorldView(t, new OpenTK.Mathematics.Vector3(start.X, start.Y, start.Z), () =>
             {
                 var list = new List<WorldView.Marker>(f.Spawns.Count + f.Resources.Count);
-                // cor do nome (legenda): verde = só em evento (gatilho), vermelho = guarda (NPC em ponto de monstro), ciano = coletável
+                // cor do nome (legenda): verde = evento com data/hora, lilás = gatilho sem agenda (fase de DG, GM),
+                // vermelho = guarda (NPC em ponto de monstro), ciano = coletável
+                var triggers = f.Triggers.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+                Color TriggerColor(int id, Color normal) => id == 0 ? normal
+                    : triggers.TryGetValue(id, out var tg) && tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? Color.LimeGreen : Color.Violet;
                 foreach (var s in f.Spawns)
                 {
                     int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
-                    var label = s.Trigger != 0 ? Color.LimeGreen : s.Type == 0 && _blockOf(id0) == "NPC_ESSENCE" ? Color.OrangeRed : Color.White;
+                    var label = TriggerColor(s.Trigger, s.Type == 0 && _blockOf(id0) == "NPC_ESSENCE" ? Color.OrangeRed : Color.White);
                     list.Add(new(s.Position.X, s.Position.Y, s.Position.Z, s.Type == 1 ? Color.DeepSkyBlue : Color.Red, NameOf(id0), s,
                         _modelOf(id0), MathF.Atan2(s.Direction.X, s.Direction.Z) * 180 / MathF.PI, label, s.Location == 0, id0));
                 }
@@ -594,11 +598,16 @@ internal sealed class NpcGenView : UserControl
                 {
                     int id0 = r.Items.FirstOrDefault()?.Id ?? 0;
                     list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(id0), r, _modelOf(id0), 0,
-                        r.Trigger != 0 ? Color.LimeGreen : Color.Cyan, true, id0));
+                        TriggerColor(r.Trigger, Color.Cyan), true, id0));
                 }
                 return list;
             }, Sel, SelectObject,
-            (g, kind) => { SetKind((Kind)kind); NewPoint(new Vec3(g.X, g.Y, g.Z)); },
+            (g, kind) =>
+            {
+                _pickOwner = _world;
+                try { SetKind((Kind)kind); NewPoint(new Vec3(g.X, g.Y, g.Z)); }
+                finally { _pickOwner = null; _world?.Activate(); }
+            },
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
         w.Tag = _cur;
         w.CloneHere = (o, g) =>
@@ -611,14 +620,19 @@ internal sealed class NpcGenView : UserControl
         };
         w.EditPoint = o => { SelectObject(o); int id = o is NpcGenSpawn es ? es.Creatures.FirstOrDefault()?.Id ?? 0 : ((NpcGenResource)o).Items.FirstOrDefault()?.Id ?? 0; if (id > 0) _editItem(id); };
         w.UndoAction = Undo; w.RedoAction = Redo;
+        w.DeletePoint = o => { SelectObject(o); DeletePoint(); };
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(); } };
         if (_configDir is not null) w.WaterDir = Path.Combine(_configDir, _cur, "watermap");
         w.FormClosed += (_, _) => { if (_world == w) _world = null; };
-        w.Show(FindForm());
+        // sem dono: "Editar no software" consegue trazer o editor para a frente; fecha junto com o editor
+        if (FindForm() is { } host) host.FormClosed += (_, _) => { if (!w.IsDisposed) w.Close(); };
+        w.Show();
     }
 
     WorldView? _world;
+    IWin32Window? _pickOwner;   // seletor aberto pelo Mundo 3D: fica na frente dele (e não traz o editor)
+    IWin32Window PickOwner => _pickOwner ?? FindForm() ?? (IWin32Window)this;
 
     void SetKind(Kind k)
     {
@@ -649,7 +663,7 @@ internal sealed class NpcGenView : UserControl
     void NewPoint(Vec3? at)
     {
         if (Cur is not { } f) return;
-        if (_pick(FindForm() ?? (IWin32Window)this, _kind, 0) is not { } id) return;
+        if (_pick(PickOwner, _kind, 0) is not { } id) return;
         object p;
         var near = SelectedIndex() is { } si ? ListOf(f)[si] : null;   // nasce no mesmo lugar do selecionado
         if (_kind == Kind.Mine)

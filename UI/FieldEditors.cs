@@ -83,7 +83,7 @@ internal static class FieldEditors
     /// </summary>
     public static List<Item>? Pick(IWin32Window owner, string title, IReadOnlyList<Item> source, string? currentId,
         Func<Item, int> icon, ImageList images, Func<Item, string> describe, Func<Item, string?>? group, bool multi, string? initialGroup = null,
-        Func<Item, Image?>? preview = null)
+        Func<Item, float, Image?>? preview = null)
     {
         using var f = NewDialog(title, preview is null ? 860 : 1130, 620);
         var search = new TextBox { Dock = DockStyle.Fill, PlaceholderText = Loc.T("dlg.pickSearch", "Pesquisar por nome, ID ou descrição…"), BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f) };
@@ -128,14 +128,24 @@ internal static class FieldEditors
         PictureBox? pic = null;
         if (preview is not null)
         {
-            pic = new PictureBox { Dock = DockStyle.Right, Width = 270, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(32, 38, 46) };
+            pic = new PictureBox { Dock = DockStyle.Right, Width = 270, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(32, 38, 46), Cursor = Cursors.SizeWE };
+            var tip = new Label { Dock = DockStyle.Bottom, Height = 20, ForeColor = Color.Silver, BackColor = Color.FromArgb(32, 38, 46), TextAlign = ContentAlignment.MiddleCenter,
+                Text = Loc.T("dlg.previewDrag", "arraste para girar") };
+            pic.Controls.Add(tip);
+            float yaw = 0; int dragX = 0; bool dragging = false;
+            Item? Cur() => lv.SelectedIndices.Count > 0 && lv.SelectedIndices[0] < view.Count ? view[lv.SelectedIndices[0]] : null;
             var wait = new System.Windows.Forms.Timer { Interval = 120 };
-            wait.Tick += (_, _) =>
+            wait.Tick += (_, _) => { wait.Stop(); pic!.Image = Cur() is { } c ? preview(c, yaw) : null; };
+            lv.SelectedIndexChanged += (_, _) => { yaw = 0; wait.Stop(); wait.Start(); };
+            // arrastar gira o modelo (10° por passo)
+            pic.MouseDown += (_, e) => { dragging = true; dragX = e.X; };
+            pic.MouseUp += (_, _) => dragging = false;
+            pic.MouseMove += (_, e) =>
             {
-                wait.Stop();
-                pic!.Image = lv.SelectedIndices.Count > 0 && lv.SelectedIndices[0] < view.Count ? preview(view[lv.SelectedIndices[0]]) : null;
+                if (!dragging || Math.Abs(e.X - dragX) < 6 || Cur() is not { } c) return;
+                yaw += (e.X - dragX) * 1.5f; dragX = e.X;
+                pic.Image = preview(c, yaw);
             };
-            lv.SelectedIndexChanged += (_, _) => { wait.Stop(); wait.Start(); };
             f.FormClosed += (_, _) => wait.Dispose();
         }
         f.Controls.Add(lv); f.Controls.Add(top); f.Controls.Add(hint); f.Controls.Add(bottom);

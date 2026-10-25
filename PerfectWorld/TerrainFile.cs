@@ -25,8 +25,9 @@ public sealed class TerrainFile
     public int BlocksPerPiece => CellsPerPiece / CellsPerBlock;
 
     // bloco (linha, coluna globais) -> alturas 33×33; null = já tentado e sem dados
-    readonly Dictionary<(int, int), float[]?> _blocks = new();
-    readonly HashSet<int> _loadedPieces = new();
+    // pedaço → blocos; cada pedaço é lido uma vez só, mesmo pedido ao mesmo tempo pelo desenho e pela carga em segundo plano
+    readonly Dictionary<int, Lazy<Dictionary<(int, int), float[]>>> _pieces = new();
+    readonly object _areaSync = new();
 
     TerrainFile(string dir, string name) { Dir = dir; Name = name; }
 
@@ -72,11 +73,30 @@ public sealed class TerrainFile
 
     float[]? Block(int br, int bc)
     {
-        if (_blocks.TryGetValue((br, bc), out var h)) return h;
         int piece = br / BlocksPerPiece * Cols + bc / BlocksPerPiece + 1;
-        if (_loadedPieces.Add(piece)) LoadPiece(piece);
-        _blocks.TryAdd((br, bc), null);
-        return _blocks[(br, bc)];
+        return PieceData(piece).Value.GetValueOrDefault((br, bc));
+    }
+
+    Lazy<Dictionary<(int, int), float[]>> PieceData(int n)
+    {
+        lock (_pieces)
+        {
+            if (!_pieces.TryGetValue(n, out var l)) _pieces[n] = l = new(() => LoadPiece(n), LazyThreadSafetyMode.ExecutionAndPublication);
+            return l;
+        }
+    }
+
+    /// <summary>Lê as alturas do pedaço (1..Rows×Cols) agora — para a carga em segundo plano.</summary>
+    public void Prefetch(int piece) { if (piece >= 1 && piece <= Rows * Cols) _ = PieceData(piece).Value; }
+
+    public bool PieceReady(int piece) { lock (_pieces) return _pieces.TryGetValue(piece, out var l) && l.IsValueCreated; }
+
+    /// <summary>Pedaço (1..Rows×Cols) de uma posição do mundo; 0 fora do mapa.</summary>
+    public int PieceAt(float x, float z)
+    {
+        float pm = CellsPerPiece * Cell;
+        int c = (int)MathF.Floor((x + Width / 2) / pm), r = (int)MathF.Floor((Height / 2 - z) / pm);
+        return r < 0 || c < 0 || r >= Rows || c >= Cols ? 0 : r * Cols + c + 1;
     }
 
     // ---------- texturas do chão (camadas + máscaras) ----------
@@ -114,6 +134,11 @@ public sealed class TerrainFile
 
     /// <summary>Camadas do chão da área de 256 m (linha/coluna globais a partir do noroeste); null sem dados.</summary>
     public GroundLayer[]? Ground(int areaRow, int areaCol)
+    {
+        lock (_areaSync) return GroundCore(areaRow, areaCol);
+    }
+
+    GroundLayer[]? GroundCore(int areaRow, int areaCol)
     {
         if (_areas.TryGetValue((areaRow, areaCol), out var a)) return a;
         int per = (int)(CellsPerPiece * Cell / AreaM);
@@ -170,6 +195,11 @@ public sealed class TerrainFile
     /// <summary>DDS da luz da área de 256 m (linha/coluna globais), ou null.</summary>
     public byte[]? LightmapDds(int areaRow, int areaCol)
     {
+        lock (_areaSync) return LightmapCore(areaRow, areaCol);
+    }
+
+    byte[]? LightmapCore(int areaRow, int areaCol)
+    {
         int per = (int)(CellsPerPiece * Cell / AreaM);
         if (areaRow < 0 || areaCol < 0 || areaRow >= Rows * per || areaCol >= Cols * per) return null;
         int piece = areaRow / per * Cols + areaCol / per + 1, local = areaRow % per * per + areaCol % per;
@@ -187,12 +217,13 @@ public sealed class TerrainFile
         return o > 0 && end > o && end <= d.Length ? d.AsSpan(o, end - o).ToArray() : null;
     }
 
-    void LoadPiece(int n)
+    Dictionary<(int, int), float[]> LoadPiece(int n)
     {
+        var blocks = new Dictionary<(int, int), float[]>();
         var p = Path.Combine(Dir, $"{Name}_{n}.t2bk");
-        if (!File.Exists(p)) return;
+        if (!File.Exists(p)) return blocks;
         var d = File.ReadAllBytes(p);
-        if (BitConverter.ToUInt32(d, 0) != 0x54424B42) return;   // "BKBT"
+        if (BitConverter.ToUInt32(d, 0) != 0x54424B42) return blocks;   // "BKBT"
         int count = BitConverter.ToInt32(d, 8), side = CellsPerBlock + 1;
         for (int i = 0; i < count; i++)
         {
@@ -205,7 +236,8 @@ public sealed class TerrainFile
             while (got < raw.Length && (r = z.Read(raw, got, raw.Length - got)) > 0) got += r;
             var h = new float[side * side];
             Buffer.BlockCopy(raw, 0, h, 0, raw.Length);
-            _blocks[(row, col)] = h;
+            blocks[(row, col)] = h;
         }
+        return blocks;
     }
 }

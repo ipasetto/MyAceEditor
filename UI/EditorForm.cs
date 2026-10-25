@@ -1950,11 +1950,11 @@ public sealed class EditorForm : Form
     // Lista "Escolha um valor": pseudo-itens no seletor comum (ID = valor gravado, Nome = significado).
     // group: filtro do topo (opcional); initialGroup: filtro já escolhido ao abrir
     private string? PickValue(string title, IEnumerable<(string Value, string Text, string Desc)> options, string current,
-        Func<string, string?>? group = null, string? initialGroup = null)
+        Func<string, string?>? group = null, string? initialGroup = null, Func<string, float, Image?>? preview = null)
     {
         var items = options.Select(o => new Item { Id = o.Value, Name = o.Text, Fields = new() { ["desc"] = Field.Of(FieldType.String, o.Desc) } }).ToList();
         var picked = FieldEditors.Pick(this, title, items, current, _ => -1, _treeIcons, it => it.Fields["desc"].Value,
-            group is null ? null : it => group(it.Id), false, initialGroup);
+            group is null ? null : it => group(it.Id), false, initialGroup, preview is null ? null : (it, yaw) => preview(it.Id, yaw));
         return picked is { Count: > 0 } ? picked[0].Id : null;
     }
 
@@ -2031,7 +2031,9 @@ public sealed class EditorForm : Form
             var opts2 = models.Select((mp, i) => (i.ToString(), mp,
                 uses.TryGetValue(mp, out var n) ? string.Format(Loc.T("pick.modelUses", "usado por {0}"), n) : Loc.T("pick.modelFree", "sem uso")));
             int curIdx = models.FindIndex(mp => mp.Equals(cur, StringComparison.OrdinalIgnoreCase));
-            if (PickValue(Loc.T("pick.model", "Escolher modelo (.ecm do models.pck)"), opts2, curIdx.ToString()) is { } mv && int.TryParse(mv, out var mi))
+            // prévia 3D do modelo à direita (arrastar gira)
+            if (PickValue(Loc.T("pick.model", "Escolher modelo (.ecm do models.pck)"), opts2, curIdx.ToString(), null, null,
+                    (id, yaw) => int.TryParse(id, out var pi) && pi >= 0 && pi < models.Count ? ModelPreviewer()?.Render(models[pi], 240, yaw) : null) is { } mv && int.TryParse(mv, out var mi))
                 SetField(item, key, models[mi]);
             return true;
         }
@@ -2150,7 +2152,7 @@ public sealed class EditorForm : Form
             }, src, current > 0 ? current.ToString() : null, IconIndexFor, _treeIcons,
             it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "", it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null, false,
             blocks.Length > 1 ? Pretty(block) : null,
-            it => ModelPreviewer()?.Render(it.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value is { } fm && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm : null));
+            (it, yaw) => ModelPreviewer()?.Render(it.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value is { } fm && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm : null, 240, yaw));
         return picked is { Count: > 0 } && int.TryParse(picked[0].Id, out var id) ? id : null;
     }
 

@@ -6,59 +6,80 @@ using OpenTK.Mathematics;
 namespace MyAceEditor.UI;
 
 /// <summary>
-/// Modelos parados dos monstros, NPCs e minas no Mundo 3D. Caminho do jogo: file_model do elements (.ecm, texto) →
+/// Modelos parados dos monstros, NPCs e coletáveis no Mundo 3D. Caminho do jogo: file_model do elements (.ecm, texto) →
 /// SkinModelPath (.SMD) → o .ski de mesmo nome na pasta (senão o primeiro .ski dela) → malhas na pose de ligação,
-/// texturas .dds da pasta (ou de "textures\"). Tudo do models.pck, carregado aos poucos e guardado por caminho.
+/// texturas .dds da pasta (ou de "textures\"). Lidos e decodificados em segundo plano (WorldLoader); aqui só sobem à GPU.
 /// </summary>
 internal sealed class WorldModels : IDisposable
 {
     sealed record Part(int Vbo, int Ibo, int Count, int Tex);
     sealed record Model(List<Part> Parts, float Top);
+    sealed record Cpu(SkiModel Ski, List<(int[] Px, int W, int H)?> Textures);
 
     readonly PckArchive? _pck;
+    readonly WorldLoader _load;
     readonly Dictionary<string, Model?> _models = new(StringComparer.OrdinalIgnoreCase);
-    readonly Dictionary<string, int> _textures = new(StringComparer.OrdinalIgnoreCase);
+    readonly HashSet<string> _waiting = new(StringComparer.OrdinalIgnoreCase);
+    readonly List<int> _textures = new();
     Dictionary<string, PckEntry>? _ddsByName;
 
-    public WorldModels(string? elementDir)
+    public WorldModels(string? elementDir, WorldLoader load)
     {
+        _load = load;
         try { if (elementDir is not null && File.Exists(Path.Combine(elementDir, "models.pck"))) _pck = new PckArchive(Path.Combine(elementDir, "models.pck")); } catch { _pck = null; }
     }
-
-    public bool Available => _pck is not null;
 
     /// <summary>Altura do topo do modelo (para o nome ficar em cima); null se ainda não carregado ou sem modelo.</summary>
     public float? Top(string ecm) => _models.TryGetValue(ecm, out var m) && m is not null ? m.Top : null;
 
-    public bool Loaded(string ecm) => _models.ContainsKey(ecm);
-
-    /// <summary>Carrega (uma vez) o modelo do .ecm. Precisa do contexto GL atual.</summary>
-    public void Load(string ecm)
+    /// <summary>Pede o modelo (uma vez); fica pronto alguns quadros depois.</summary>
+    public void Request(string ecm)
     {
-        if (_models.ContainsKey(ecm)) return;
-        _models[ecm] = null;
-        if (_pck is null) return;
-        try
+        if (_pck is null || _models.ContainsKey(ecm) || !_waiting.Add(ecm)) return;
+        _load.Work(() =>
         {
-            if (ResolveSki(_pck, ecm) is not var (ski, dir)) return;
-            var parts = new List<Part>();
-            float top = 0;
-            foreach (var m in ski.Meshes)
+            (SkiModel, string)? s;
+            lock (_pck) s = ResolveSki(_pck, ecm);
+            if (s is not var (ski, dir)) return null;
+            var tex = new List<(int[], int, int)?>();
+            foreach (var name in ski.Textures)
             {
-                if (m.Indices.Length == 0) continue;
-                for (int i = 1; i < m.Vertices.Length; i += 8) top = Math.Max(top, m.Vertices[i]);
-                int vbo = GL.GenBuffer(), ibo = GL.GenBuffer();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, m.Vertices.Length * 4, m.Vertices, BufferUsageHint.StaticDraw);
-                GL.BindBuffer(BufferTarget.ElementArrayBuffer, ibo);
-                GL.BufferData(BufferTarget.ElementArrayBuffer, m.Indices.Length * 2, m.Indices, BufferUsageHint.StaticDraw);
-                int tex = m.Texture >= 0 && m.Texture < ski.Textures.Count ? Texture(dir, ski.Textures[m.Texture]) : 0;
-                parts.Add(new Part(vbo, ibo, m.Indices.Length, tex));
+                byte[]? d;
+                lock (_pck) d = FindTexture(_pck, dir, name, ref _ddsByName) is { } e ? _pck.Read(e) : null;
+                tex.Add(d is null ? null : DdsDecoder.Decode(d));
             }
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-            if (parts.Count > 0) _models[ecm] = new Model(parts, top);
+            return new Cpu(ski, tex);
+        }, cpu => { _waiting.Remove(ecm); _models[ecm] = cpu is null ? null : Upload(cpu); }, urgent: true);
+    }
+
+    Model? Upload(Cpu cpu)
+    {
+        var texIds = cpu.Textures.Select(t =>
+        {
+            if (t is not { } img) return 0;
+            int id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, id);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.W, img.H, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Px);
+            _textures.Add(id);
+            return id;
+        }).ToList();
+        var parts = new List<Part>();
+        float top = 0;
+        foreach (var m in cpu.Ski.Meshes)
+        {
+            if (m.Indices.Length == 0) continue;
+            for (int i = 1; i < m.Vertices.Length; i += 8) top = Math.Max(top, m.Vertices[i]);
+            int vbo = GL.GenBuffer(), ibo = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, m.Vertices.Length * 4, m.Vertices, BufferUsageHint.StaticDraw);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, ibo);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, m.Indices.Length * 2, m.Indices, BufferUsageHint.StaticDraw);
+            parts.Add(new Part(vbo, ibo, m.Indices.Length, m.Texture >= 0 && m.Texture < texIds.Count ? texIds[m.Texture] : 0));
         }
-        catch { _models[ecm] = null; }
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+        return parts.Count > 0 ? new Model(parts, top) : null;
     }
 
     /// <summary>.ecm → SkinModelPath (.SMD) → .ski de mesmo nome (ou o primeiro da pasta); devolve a malha e a pasta.</summary>
@@ -91,27 +112,11 @@ internal sealed class WorldModels : IDisposable
         return e;
     }
 
-    int Texture(string dir, string name)
-    {
-        var key = dir + "|" + name;
-        if (_textures.TryGetValue(key, out var id)) return id;
-        id = 0;
-        var e = FindTexture(_pck!, dir, name, ref _ddsByName);
-        if (e is not null && DdsDecoder.Decode(_pck!.Read(e)) is { } img)
-        {
-            id = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, id);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.Width, img.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Pixels);
-        }
-        return _textures[key] = id;
-    }
-
-    /// <summary>Desenha o modelo em pos (espaço do jogo), virado para yaw (graus, 0 = +Z/norte).</summary>
+    /// <summary>Desenha o modelo em pos (espaço do jogo), virado para yaw (graus, 0 = +Z/norte); false se ainda não carregou.</summary>
     public bool Draw(string ecm, Vector3 pos, float yaw)
     {
-        if (!_models.TryGetValue(ecm, out var m) || m is null) return false;
+        if (!_models.TryGetValue(ecm, out var m)) { Request(ecm); return false; }
+        if (m is null) return false;
         GL.PushMatrix();
         GL.Translate(pos.X, pos.Y, -pos.Z);   // jogo → GL (Z espelhado)
         GL.Scale(1f, 1f, -1f);
@@ -134,7 +139,7 @@ internal sealed class WorldModels : IDisposable
     public void Dispose()
     {
         foreach (var m in _models.Values) if (m is not null) foreach (var p in m.Parts) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
-        foreach (var t in _textures.Values) if (t != 0) GL.DeleteTexture(t);
+        foreach (var t in _textures) GL.DeleteTexture(t);
         _pck?.Dispose();
     }
 }

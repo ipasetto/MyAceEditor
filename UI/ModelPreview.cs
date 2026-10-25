@@ -17,20 +17,30 @@ internal sealed class ModelPreview : IDisposable
         try { if (elementDir is not null && File.Exists(Path.Combine(elementDir, "models.pck"))) _pck = new PckArchive(Path.Combine(elementDir, "models.pck")); } catch { _pck = null; }
     }
 
-    public Image? Render(string? ecm, int size = 240)
+    readonly Dictionary<string, (SkiModel Ski, string Dir)?> _skis = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Imagem do modelo girado yaw graus (arrastar na prévia gira). Guarda as imagens por ângulo de 10°.</summary>
+    public Image? Render(string? ecm, int size = 240, float yaw = 0)
     {
         if (ecm is null || _pck is null) return null;
-        if (_cache.TryGetValue(ecm, out var b)) return b;
+        int step = ((int)MathF.Round(yaw / 10f) % 36 + 36) % 36;
+        var key = ecm + "|" + step + "|" + size;
+        if (_cache.TryGetValue(key, out var b)) return b;
         Bitmap? bmp = null;
-        try { if (WorldModels.ResolveSki(_pck, ecm) is var (ski, dir)) bmp = Draw(ski, dir, size); } catch { bmp = null; }
-        if (_cache.Count > 200) { foreach (var x in _cache.Values) x?.Dispose(); _cache.Clear(); }
-        return _cache[ecm] = bmp;
+        try
+        {
+            if (!_skis.TryGetValue(ecm, out var s)) _skis[ecm] = s = WorldModels.ResolveSki(_pck, ecm);
+            if (s is var (ski, dir)) bmp = Draw(ski, dir, size, step * 10);
+        }
+        catch { bmp = null; }
+        if (_cache.Count > 400) { foreach (var x in _cache.Values) x?.Dispose(); _cache.Clear(); }
+        return _cache[key] = bmp;
     }
 
-    Bitmap Draw(SkiModel ski, string dir, int size)
+    Bitmap Draw(SkiModel ski, string dir, int size, float extraYaw)
     {
         // de frente (os modelos olham para −Z), giro de 35° e leve inclinação; projeção ortográfica ajustada ao tamanho
-        float yaw = 215 * MathF.PI / 180, pitch = 12 * MathF.PI / 180;
+        float yaw = (215 + extraYaw) * MathF.PI / 180, pitch = 12 * MathF.PI / 180;
         float cy = MathF.Cos(yaw), sy = MathF.Sin(yaw), cp = MathF.Cos(pitch), sp = MathF.Sin(pitch);
         (float X, float Y, float Z) T(float x, float y, float z)
         {
