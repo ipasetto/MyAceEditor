@@ -227,10 +227,13 @@ internal sealed class NpcGenView : UserControl
             _dirty.Count > 0 ? "  ·  " + string.Format(Loc.T("npcgen.unsaved", "{0} arquivo(s) não salvo(s)"), _dirty.Count) : "");
     }
 
-    void Save()
+    void Save() { if (_dirty.Count == 0) MessageBox.Show(this, Loc.T("npcgen.nothing", "Nada mudou no npcgen."), "NPCGen"); else SaveAll(false); }
+
+    /// <summary>Grava todos os npcgen alterados (Salvar tudo / salvar automático); devolve os arquivos gravados.</summary>
+    public List<string> SaveAll(bool quiet)
     {
-        if (_dirty.Count == 0) { MessageBox.Show(this, Loc.T("npcgen.nothing", "Nada mudou no npcgen."), "NPCGen"); return; }
         var saved = new List<string>();
+        if (_dirty.Count == 0) return saved;
         try
         {
             foreach (var k in _dirty.ToList())
@@ -238,10 +241,11 @@ internal sealed class NpcGenView : UserControl
                 AtomicFileSave.Write(_paths[k], _files[k].Write());
                 _dirty.Remove(k); saved.Add(_paths[k]);
             }
-            MessageBox.Show(this, string.Format(Loc.T("npcgen.saved", "Salvo (com backup):\n{0}\n\nCopie para o servidor e reinicie o mapa (gs) para valer."), string.Join("\n", saved)), "NPCGen");
+            if (!quiet) MessageBox.Show(this, string.Format(Loc.T("npcgen.saved", "Salvo (com backup):\n{0}\n\nCopie para o servidor e reinicie o mapa (gs) para valer."), string.Join("\n", saved)), "NPCGen");
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("npcgen.saveFail", "Falha ao salvar o npcgen"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { if (!quiet) MessageBox.Show(this, ex.Message, Loc.T("npcgen.saveFail", "Falha ao salvar o npcgen"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
         UpdateInfo();
+        return saved;
     }
 
     static string SettingFile(string k) => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", k + ".txt");
@@ -622,6 +626,17 @@ internal sealed class NpcGenView : UserControl
         };
         w.EditPoint = o => { SelectObject(o); int id = o is NpcGenSpawn es ? es.Creatures.FirstOrDefault()?.Id ?? 0 : ((NpcGenResource)o).Items.FirstOrDefault()?.Id ?? 0; if (id > 0) _editItem(id); };
         w.UndoAction = Undo; w.RedoAction = Redo;
+        w.CreateNewHere = (g, kind) =>
+        {
+            if (CreateCreature is null) return;
+            _pickOwner = w;
+            try
+            {
+                if (CreateCreature(w, (Kind)kind) is not int id) return;
+                SetKind((Kind)kind); NewPoint(new Vec3(g.X, g.Y, g.Z), id);
+            }
+            finally { _pickOwner = null; w.Activate(); w.RefreshMarkers(); }
+        };
         w.DeletePoint = o => { SelectObject(o); DeletePoint(); };
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(); } };
@@ -633,6 +648,10 @@ internal sealed class NpcGenView : UserControl
     }
 
     WorldView? _world;
+
+    /// <summary>Assistente do editor: cria um monstro/NPC novo no elements e devolve o ID (null = cancelado).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<IWin32Window, Kind, int?>? CreateCreature { get; set; }
     IWin32Window? _pickOwner;   // seletor aberto pelo Mundo 3D: fica na frente dele (e não traz o editor)
     IWin32Window PickOwner => _pickOwner ?? FindForm() ?? (IWin32Window)this;
 
@@ -661,11 +680,11 @@ internal sealed class NpcGenView : UserControl
 
     void NewPoint() => NewPoint(null);
 
-    // at: posição escolhida no mundo 3D (senão nasce no lugar do selecionado)
-    void NewPoint(Vec3? at)
+    // at: posição escolhida no mundo 3D (senão nasce no lugar do selecionado); givenId: já escolhido (assistente)
+    void NewPoint(Vec3? at, int? givenId = null)
     {
         if (Cur is not { } f) return;
-        if (_pick(PickOwner, _kind, 0) is not { } id) return;
+        if ((givenId ?? _pick(PickOwner, _kind, 0)) is not { } id) return;
         object p;
         var near = SelectedIndex() is { } si ? ListOf(f)[si] : null;   // nasce no mesmo lugar do selecionado
         if (_kind == Kind.Mine)

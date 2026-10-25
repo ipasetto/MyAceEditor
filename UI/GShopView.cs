@@ -173,14 +173,30 @@ internal sealed class GShopView : UserControl
             _dirty[_which] ? "  ·  " + Loc.T("gshop.unsaved", "não salvo") : "");
     }
 
-    void Save()
+    void Save() => SaveCore(false);
+
+    public bool HasUnsaved => _dirty.Any(d => d);
+
+    /// <summary>Grava as lojas alteradas (Salvar tudo / salvar automático); devolve os arquivos gravados.</summary>
+    public List<string> SaveAll(bool quiet)
+    {
+        var saved = new List<string>();
+        int keep = _which;
+        for (int i = 0; i < _shops.Length; i++)
+            if (_dirty[i] && _shops[i] is not null) { _which = i; if (SaveCore(quiet)) saved.Add(_clientPath[i]!); }
+        _which = keep; UpdateInfo();
+        return saved;
+    }
+
+    bool SaveCore(bool quiet)
     {
         var f = _shops[_which];
-        if (f is null || _clientPath[_which] is not { } cp) return;
+        if (f is null || _clientPath[_which] is not { } cp) return false;
         if (_serverPath[_which] is null)
         {
+            if (quiet) return false;   // sem o gshopsev não grava sozinho (o par precisa sair igual)
             using var dlg = new FolderBrowserDialog { Description = Loc.T("gshop.pickServer", "Pasta do servidor com o gshopsev.data (home/gamed/config)") };
-            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            if (dlg.ShowDialog(this) != DialogResult.OK) return false;
             SaveSetting("gshop_server", dlg.SelectedPath);
             _serverPath[_which] = Path.Combine(dlg.SelectedPath, _which == 0 ? "gshopsev.data" : "gshopsev1.data");
         }
@@ -192,9 +208,11 @@ internal sealed class GShopView : UserControl
             AtomicFileSave.Write(_serverPath[_which]!, f.WriteServer());
             _dirty[_which] = false;
             UpdateInfo();
+            if (quiet) return true;
             MessageBox.Show(this, string.Format(Loc.T("gshop.saved", "Loja salva:\n{0}\n{1}\n\nCliente e servidor com o mesmo timestamp. Envie o gshopsev ao servidor e o gshop aos jogadores."), cp, _serverPath[_which]), "GShop");
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("gshop.saveFail", "Falha ao salvar a loja"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { if (!quiet) MessageBox.Show(this, ex.Message, Loc.T("gshop.saveFail", "Falha ao salvar a loja"), MessageBoxButtons.OK, MessageBoxIcon.Error); return false; }
+        return true;
     }
 
     static string SettingFile(string k) => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", k + ".txt");

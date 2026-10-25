@@ -172,7 +172,13 @@ public sealed class EditorForm : Form
         var exportCsv = new ToolStripMenuItem { ForeColor = CFg }; exportCsv.Click += (_, _) => ExportBlockCsv();
         var convert = new ToolStripMenuItem { ForeColor = CFg }; convert.Click += (_, _) => SaveOtherVersion();
         Bind(() => convert.Text = Loc.T("menu.convert", "Salvar em &outra versão…"));
-        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, convert, new ToolStripSeparator(), exportCsv, exit });
+        // salvar automático: grava tudo o que mudou a cada 5 minutos, sem perguntar (cada arquivo ganha cópia de segurança)
+        var autoSave = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = LoadSetting("autosave") == "1" };
+        autoSave.CheckedChanged += (_, _) => { SaveSetting("autosave", autoSave.Checked ? "1" : "0"); _autoSave.Enabled = autoSave.Checked; };
+        _autoSave.Tick += (_, _) => SaveAll(quiet: true);
+        _autoSave.Enabled = autoSave.Checked;
+        Bind(() => autoSave.Text = Loc.T("menu.autoSave", "Salvar &automaticamente (a cada 5 min)"));
+        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, convert, autoSave, new ToolStripSeparator(), exportCsv, exit });
         Bind(() => exportCsv.Text = Loc.T("menu.exportCsv", "&Exportar bloco atual (planilha CSV)…"));
         var newItem = new ToolStripMenuItem { ForeColor = CFg }; newItem.Click += (_, _) => AddItem();
         var removeItem = new ToolStripMenuItem { ForeColor = CFg }; removeItem.Click += (_, _) => RemoveItem();
@@ -206,7 +212,7 @@ public sealed class EditorForm : Form
             arq.Text = Loc.T("menu.file", "&Arquivo");
             openPw.Text = Loc.T("menu.openPw", "Abrir &pasta do Perfect World…");
             openEl.Text = Loc.T("menu.openElements", "Abrir &elements.data…");
-            save.Text = Loc.T("menu.save", "&Salvar");
+            save.Text = Loc.T("menu.saveAll", "&Salvar tudo (elements, quests, loja, npcgen)");
             saveAs.Text = Loc.T("menu.saveAs", "Salvar &como…");
             exit.Text = Loc.T("menu.exit", "Sa&ir");
             ed.Text = Loc.T("menu.edit", "&Editar");
@@ -238,6 +244,8 @@ public sealed class EditorForm : Form
         tb.Items.Add(new ToolStripSeparator());
         tb.Items.Add(B(AddItem, b => b.Text = Loc.T("tb.add", "＋ Adicionar")));
         tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
+        tb.Items.Add(B(() => { if (_tabs is not null) _tabs.SelectedIndex = 0; CreateCreatureWizard(this, NpcGenView.Kind.Monster); },
+            b => b.Text = Loc.T("tb.newCreature", "✚ Monstro/NPC novo")));
         tb.Items.Add(B(() => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorld()); },
             b => b.Text = Loc.T("tb.world", "🌐 Mundo 3D")));
         return tb;
@@ -292,6 +300,7 @@ public sealed class EditorForm : Form
                 Activate();
             }));
         tabs.TabPages.Add(tN);
+        _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));
         _aiView = new AiPolicyView(CBg, CFg, CTreeBg, CTreeFg, CAccent);
@@ -935,9 +944,51 @@ public sealed class EditorForm : Form
 
 
     // Salvar: grava o elements.data no próprio arquivo (backup com data/hora + escrita atômica).
-    private void SaveAs() => SaveElements(saveAs: false);
+    private void SaveAs() => SaveAll(quiet: false);
     // Salvar do menu/Ctrl+S/barra: grava o arquivo da aba aberta (Quests → tasks.data, senão elements.data).
-    private void SaveCurrent() { if (_tabs?.SelectedTab == _tabQuests) SaveTasks(); else SaveAs(); }
+    private void SaveCurrent() => SaveAll(quiet: false);
+
+    // ---------- salvar tudo ----------
+    // elements.data alterado = o passo mais recente do histórico não é o do último salvar/abrir
+    private MyAceEditor.Changes.EditHistory.Step? _savedStep;
+    private bool ElementsDirty => _store.Current is not null && !ReferenceEquals(_edits.UndoSteps.FirstOrDefault(), _savedStep);
+    private void MarkElementsSaved() => _savedStep = _edits.UndoSteps.FirstOrDefault();
+
+    /// <summary>Grava de uma vez tudo o que mudou: elements.data, tasks.data, lojas (cliente + servidor) e npcgen.</summary>
+    private void SaveAll(bool quiet)
+    {
+        _grid.EndEdit(); _qGrid.EndEdit();
+        var pending = new List<string>();
+        if (ElementsDirty && _dataPath is not null) pending.Add(_dataPath);
+        if (_tasksDirty && _tasksPath is not null) pending.Add(_tasksPath);
+        if (_gshop?.HasUnsaved == true) pending.Add("gshop / gshopsev");
+        if (_npcgen?.HasUnsaved == true) pending.Add("npcgen.data");
+        if (pending.Count == 0) { if (!quiet) Status(Loc.T("status.nothingToSave", "Nada para salvar.")); return; }
+        if (!quiet && MessageBox.Show(string.Format(Loc.T("save.allAsk", "Gravar as alterações (com cópia de segurança ao lado de cada arquivo)?\n\n{0}"), string.Join("\n", pending)),
+                Loc.T("save.allTitle", "Salvar tudo"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        var done = new List<string>();
+        if (ElementsDirty && _dataPath is not null && SaveElementsCore(_dataPath)) done.Add(Path.GetFileName(_dataPath));
+        if (_tasksDirty && _tasksPath is not null && SaveTasksCore()) done.Add(Path.GetFileName(_tasksPath));
+        if (_gshop is not null) done.AddRange(_gshop.SaveAll(quiet).Select(Path.GetFileName)!);
+        if (_npcgen is not null) done.AddRange(_npcgen.SaveAll(quiet).Select(p => Path.GetFileName(Path.GetDirectoryName(p)) + "\\npcgen.data"));
+        Status((quiet ? Loc.T("status.autoSaved", "Salvo automaticamente: ") : Loc.T("status.savedAll", "Salvo: ")) + (done.Count == 0 ? "—" : string.Join(", ", done)) + $" ({DateTime.Now:HH:mm})");
+    }
+
+    // fechar com mudanças: oferece salvar tudo
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _npcgen?.HasUnsaved == true;
+        if (dirty && e.CloseReason == CloseReason.UserClosing)
+        {
+            var r = MessageBox.Show(this, Loc.T("save.onClose", "Há alterações não salvas. Salvar tudo antes de sair?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+            if (r == DialogResult.Cancel) { e.Cancel = true; return; }
+            if (r == DialogResult.Yes) SaveAll(quiet: true);
+        }
+        base.OnFormClosing(e);
+    }
+
+    // salvar automático (Arquivo → Salvar automaticamente a cada 5 minutos)
+    private readonly System.Windows.Forms.Timer _autoSave = new() { Interval = 5 * 60 * 1000 };
     private void SaveElementsAs() => SaveElements(saveAs: true);
 
     // Exporta o bloco aberto (ou o bloco do item selecionado) como planilha CSV: ID, nome e todos os campos.
@@ -970,6 +1021,12 @@ public sealed class EditorForm : Form
         }
         else if (MessageBox.Show($"Gravar as alterações em:\n{target}\n\nUma cópia de segurança do arquivo atual será criada ao lado dele.",
                      "Salvar elements.data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        SaveElementsCore(target);
+    }
+
+    private bool SaveElementsCore(string target)
+    {
+        if (_store.Current?.Source is not ElementsLayout) return false;
         try
         {
             UseWaitCursor = true;
@@ -979,8 +1036,10 @@ public sealed class EditorForm : Form
             if (keep is { } k && _store.Current?.FindListByName(k.Block ?? "")?.FindById(k.Id) is { } again)
             { _current = again; SelectItem(again); ShowItem(again); }
             Status($"Salvo em {Path.GetFileName(target)}" + (backup is null ? "" : $" · backup: {Path.GetFileName(backup)}"));
+            MarkElementsSaved();
+            return true;
         }
-        catch (Exception ex) { Error("Falha ao salvar", ex); }
+        catch (Exception ex) { Error("Falha ao salvar", ex); return false; }
         finally { UseWaitCursor = false; }
     }
 
@@ -2137,6 +2196,69 @@ public sealed class EditorForm : Form
         return _modelPreview;
     }
 
+    // ---------- assistente: monstro/NPC novo a partir de um modelo ----------
+    // Copia um monstro/NPC existente (modelo 3D, atributos, habilidades…) com ID novo — o primeiro livre em todos os
+    // blocos que dividem IDs, para não colidir — e nome novo. O resto se ajusta depois no editor (abre no item novo).
+    private int? CreateCreatureWizard(IWin32Window owner, NpcGenView.Kind kind)
+    {
+        if (_store.Current is not { } module || _refs is null) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return null; }
+        using var f = new Form
+        {
+            Text = Loc.T("wiz.title", "Novo monstro ou NPC"), Size = new Size(620, 430), StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog, MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, Font = new Font("Segoe UI", 9.5f),
+        };
+        Label L(string key, string pt, int x, int y) { var l = new Label { Text = Loc.T(key, pt), AutoSize = true, Location = new Point(x, y) }; f.Controls.Add(l); return l; }
+        L("wiz.type", "Tipo:", 16, 20);
+        var typeBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(120, 16), Width = 160 };
+        typeBox.Items.AddRange(new object[] { Loc.T("wiz.monster", "Monstro"), Loc.T("wiz.npc", "NPC") });
+        typeBox.SelectedIndex = kind == NpcGenView.Kind.Npc ? 1 : 0;
+        L("wiz.base", "Modelo de base:", 16, 58);
+        var pickBtn = new Button { Text = Loc.T("wiz.pick", "Escolher…"), Location = new Point(120, 52), Width = 110, Height = 28 };
+        var baseLbl = new Label { Location = new Point(240, 58), AutoSize = true, ForeColor = CMuted, Text = Loc.T("wiz.noBase", "(nenhum)") };
+        L("wiz.name", "Nome:", 16, 100);
+        var nameBox = new TextBox { Location = new Point(120, 96), Width = 230 };
+        L("wiz.id", "ID novo:", 16, 138);
+        var idBox = new NumericUpDown { Location = new Point(120, 134), Width = 110, Maximum = int.MaxValue };
+        var hint = new Label
+        {
+            Location = new Point(16, 180), Size = new Size(340, 150), ForeColor = CMuted,
+            Text = Loc.T("wiz.hint", "Copia tudo do modelo de base (aparência, nível, vida, ataques, habilidades, drops) com o ID e o nome novos. Depois do OK o item novo abre no editor para você ajustar o resto.\n\nO mesmo ID pode nascer em muitos pontos do mapa sem conflito; um ID novo é só para quando você quer um monstro/NPC diferente."),
+        };
+        var pic = new PictureBox { Location = new Point(370, 16), Size = new Size(220, 300), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(32, 38, 46) };
+        var ok = new Button { Text = Loc.T("wiz.create", "Criar"), Location = new Point(390, 340), Size = new Size(95, 30), DialogResult = DialogResult.OK, Enabled = false, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
+        var cancel = new Button { Text = Loc.T("dlg.cancel", "Cancelar"), Location = new Point(495, 340), Size = new Size(95, 30), DialogResult = DialogResult.Cancel };
+        f.Controls.AddRange(new Control[] { typeBox, pickBtn, baseLbl, nameBox, idBox, hint, pic, ok, cancel });
+        f.AcceptButton = ok; f.CancelButton = cancel;
+        Item? baseItem = null;
+        pickBtn.Click += (_, _) =>
+        {
+            var k = typeBox.SelectedIndex == 1 ? NpcGenView.Kind.Npc : NpcGenView.Kind.Monster;
+            if (PickSpawn(f, k, baseItem is null ? 0 : int.Parse(baseItem.Id)) is not int id || _refs.Resolve(FieldKind.ItemRef, id.ToString()) is not { } h) return;
+            baseItem = h.Item;
+            var nm = TasksFile.SplitColor(h.Item.Name).Text;
+            baseLbl.Text = $"{id} — {nm} ({Pretty(h.Block.Name)})";
+            if (nameBox.Text.Length == 0 || nameBox.Tag as string == nameBox.Text) nameBox.Text = nameBox.Tag as string ?? "";
+            nameBox.Text = nm + " " + Loc.T("wiz.newSuffix", "(novo)"); nameBox.Tag = nameBox.Text;
+            idBox.Value = Math.Min(idBox.Maximum, IdRefactor.NextFreeId(module, h.Block));
+            var fm = h.Item.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value;
+            pic.Image = ModelPreviewer()?.Render(fm is not null && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm : null, 220, 0);
+            ok.Enabled = true;
+        };
+        if (f.ShowDialog(owner) != DialogResult.OK || baseItem is null || !_owner.TryGetValue(baseItem, out var block)) return null;
+        var newId = ((long)idBox.Value).ToString();
+        if (IdRefactor.Validate(module, block, baseItem, newId) is { } err) { MessageBox.Show(this, err, f.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return null; }
+        var ni = new Item
+        {
+            Id = newId, Name = nameBox.Text.Trim().Length > 0 ? nameBox.Text.Trim() : baseItem.Name,
+            Fields = baseItem.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)),
+            Raw = baseItem.Raw?.ToArray(),
+        };
+        SetIdName(ni);
+        InsertNewItem(block, ni);
+        Status(string.Format(Loc.T("wiz.done", "{0} criado com ID {1} — ajuste os campos e salve."), ni.Name, ni.Id));
+        return int.Parse(ni.Id);
+    }
+
     // NPCGen: escolher o monstro, NPC ou coletável de um ponto (mesma janela de escolha, com prévia do modelo)
     private int? PickSpawn(IWin32Window owner, NpcGenView.Kind kind, int current)
     {
@@ -3202,6 +3324,14 @@ public sealed class EditorForm : Form
         if (!_tasksDirty) { _qStatus.Text = Loc.T("quest.nothing", "Nada alterado."); return; }
         if (MessageBox.Show(string.Format(Loc.T("quest.confirmSave", "Gravar as alterações em:\n{0}\n\nUma cópia de segurança será criada ao lado.\nLembre: o servidor precisa do MESMO tasks.data (aba Verificação)."), _tasksPath),
                 "tasks.data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        SaveTasksCore();
+    }
+
+    private bool SaveTasksCore()
+    {
+        if (_tasks is null || _tasksPath is null || !_tasks.CanWrite) return false;
+        ApplyTalkText();
+        for (int i = 0; i < 4; i++) ApplyQuestText(i);
         try
         {
             var keep = _qCur?.Id;
@@ -3209,8 +3339,9 @@ public sealed class EditorForm : Form
             LoadTasks(_tasksPath);
             _qStatus.Text = string.Format(Loc.T("quest.saved", "Salvo · backup: {0}"), Path.GetFileName(backup));
             if (keep is { } id) foreach (TreeNode n in _qTree.Nodes) if (n.Tag is QuestNode qn && qn.Id == id) { _qTree.SelectedNode = n; break; }
+            return true;
         }
-        catch (Exception ex) { Error(Loc.T("quest.saveFail", "Falha ao salvar tasks.data"), ex); }
+        catch (Exception ex) { Error(Loc.T("quest.saveFail", "Falha ao salvar tasks.data"), ex); return false; }
     }
 
     // ---------- aba Verificação (par cliente × servidor) ----------

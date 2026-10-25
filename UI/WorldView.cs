@@ -22,6 +22,7 @@ internal sealed class WorldView : Form
     const System.ComponentModel.DesignerSerializationVisibility Hidden = System.ComponentModel.DesignerSerializationVisibility.Hidden;
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, Vector3>? CloneHere { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? EditPoint { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<Vector3, int>? CreateNewHere { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? DeletePoint { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? UndoAction { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? RedoAction { get; set; }
@@ -567,6 +568,8 @@ internal sealed class WorldView : Form
         menu.Items.Add(Loc.T("world.newMob", "Novo monstro aqui…"), null, (_, _) => { _newHere(at, 0); RefreshMarkers(); });
         menu.Items.Add(Loc.T("world.newNpc", "Novo NPC aqui…"), null, (_, _) => { _newHere(at, 1); RefreshMarkers(); });
         menu.Items.Add(Loc.T("world.newGather", "Novo coletável aqui…"), null, (_, _) => { _newHere(at, 2); RefreshMarkers(); });
+        if (CreateNewHere is not null)
+            menu.Items.Add(Loc.T("world.createHere", "Criar monstro/NPC NOVO (a partir de um modelo) aqui…"), null, (_, _) => CreateNewHere(at, 0));
         // em cima de um ponto: ele vira o selecionado e dá para editar no software ou excluir
         if (under is not null)
         {
