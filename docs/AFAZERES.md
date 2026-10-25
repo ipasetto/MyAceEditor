@@ -44,3 +44,17 @@ repo PUBLICO github.com/ipasetto/MyAceEditor (GPL-3.0), branch main. Usuario faz
 
 ## REGRAS RAPIDAS
 recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round-trip antes de editar formato | editar o PAR cliente+servidor | codigo nosso (Rody = referencia de estudo) | atualizar este arquivo ao concluir/iniciar etapa
+
+## MUNDO 3D / NPCGEN — pedidos do usuario (25/10/2026, retomar apos 11:40)
+- [ ] botao "Mundo 3D" tambem na barra de cima (ao lado de Excluir); na aba NPCGen o botao aparece cortado (ajustar barra)
+- [ ] Ctrl+Z nao funciona dentro da janela do Mundo 3D
+- [ ] trocar "Coleta (minas)" por "Coletaveis"
+- [ ] "Novo ponto aqui" tambem para NPC (nao so monstro); seletor com icones e previa 3D do modelo para escolher
+- [ ] seletor de mapa no topo (mundo, instancias, DGs…)
+- [ ] Espaco sobe e Z desce a camera (como voo no jogo)
+- [ ] objetos flutuando no ar (alguns .bmd/modelos com posicao errada) — investigar
+- [ ] clonar ponto/NPC direto no 3D
+- [ ] travadas perto da Cidade do Dragao (muitos NPCs): otimizar (instancias por modelo, limitar nomes/modelos, carregar em segundo plano)
+- [ ] indice/legenda no canto superior esquerdo (fundo preto translucido): verde = ligado a evento/gatilho, branco = NPC de missao/venda ou monstro normal, vermelho = guardas, etc.
+- [ ] botao direito no NPC: "Editar" leva ao item no editor; mudancas no editor atualizam o 3D na hora (e vice-versa)
+- [x] DESCARTADO: animacao dos modelos
