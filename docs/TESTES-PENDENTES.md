@@ -14,8 +14,12 @@ Trabalhe numa cópia da pasta do jogo/servidor até tudo estar conferido.
 - [ ] No Mundo 3D, botão direito no chão → **Criar monstro/NPC NOVO aqui** → depois de criar, o ponto já aparece no lugar.
 - [ ] Salvar e conferir no jogo que o monstro novo nasce (precisa do servidor com o elements e o npcgen novos).
 
+- [ ] Assistente: o **ID novo** já aparece preenchido (bloqueado) ao abrir e muda ao trocar Monstro/NPC.
+- [ ] Mudar algo, **Ctrl+S**, depois **Ctrl+Z** → desfaz normalmente (o histórico não some ao salvar).
+
 ## 3. Listas e prévias
-- [ ] Lista de monstros/NPCs mostra miniaturas do modelo 3D (aparecem aos poucos, sem travar a rolagem).
+- [ ] Lista de monstros/NPCs mostra miniaturas do modelo 3D sem precisar passar o mouse (aparecem em lotes, sem travar a rolagem); os besouros-rei (1009–1011) também.
+- [ ] Clicar na lista de blocos (em cima, à esquerda) → janela com **busca**, **categorias** e **ícone** de cada bloco; digitar "pet", Enter abre o 1º.
 - [ ] Duplo clique no campo **file_model** de qualquer item → lista de modelos com prévia 3D; arrastar gira.
 - [ ] Seletor de monstro/NPC/coletável (novo ponto, trocar) → prévia gira arrastando.
 
@@ -26,6 +30,9 @@ Trabalhe numa cópia da pasta do jogo/servidor até tudo estar conferido.
 - [ ] Instância **b30**: o chão aparece e os NPCs estão em cima dele (tecla **T** esconde/mostra o terreno — confira se não ficou escondido).
 - [ ] Cores dos nomes: cidade em branco; verde = evento com data; lilás = gatilho manual/fase de DG; vermelho = guarda; ciano = coletável.
 - [ ] Seletor **Mapa:** mostra os nomes (world — Mainland, a05 — Firecrag Grotto…) e troca de mapa.
+- [ ] Abrir o Mundo 3D sem nada selecionado → câmera no alto, sobre o centro do mapa.
+- [ ] Trocar para uma instância → câmera perto da entrada (anotar as que caírem longe dela).
+- [ ] Trocar o modelo/nome de um monstro no editor (sem salvar) → o 3D mostra o novo.
 
 ## 5. Mundo 3D — fluidez
 - [ ] Cidade do Dragão (muitos NPCs): andar e girar sem travadas.

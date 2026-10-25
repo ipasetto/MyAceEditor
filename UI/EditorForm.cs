@@ -2363,6 +2363,14 @@ public sealed class EditorForm : Form
         f.Controls.AddRange(new Control[] { typeBox, pickBtn, baseLbl, nameBox, idBox, hint, pic, ok, cancel });
         f.AcceptButton = ok; f.CancelButton = cancel;
         Item? baseItem = null;
+        // o próximo ID livre já aparece ao abrir (e ao trocar o tipo), antes de escolher a base
+        void SuggestId()
+        {
+            if (module.FindListByName(typeBox.SelectedIndex == 1 ? "NPC_ESSENCE" : "MONSTER_ESSENCE") is { } l)
+                idBox.Value = Math.Min(idBox.Maximum, IdRefactor.NextFreeId(module, l));
+        }
+        SuggestId();
+        typeBox.SelectedIndexChanged += (_, _) => { if (baseItem is null) SuggestId(); };
         pickBtn.Click += (_, _) =>
         {
             var k = typeBox.SelectedIndex == 1 ? NpcGenView.Kind.Npc : NpcGenView.Kind.Monster;

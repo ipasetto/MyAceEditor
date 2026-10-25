@@ -80,3 +80,13 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] Salvar tudo (Ctrl+S) + salvar automatico a cada 5 min (Arquivo) + aviso ao fechar
 - [ ] servidor: o software faz o maximo (para testar no jogo)
 - [ ] arvores e grama: fechar o layout do world.ecwld (posicoes) e ler SpeedTree .spt (ou desenhar substitutos)
+
+## MUNDO 3D / LISTAS — rodada 3 (25/10/2026 noite)
+- [x] assistente: ID novo automatico (proximo livre, ja ao abrir), campo bloqueado
+- [x] Ctrl+Z depois de salvar (salvar no mesmo arquivo nao recarrega)
+- [x] nome/modelo mudados no editor aparecem no 3D sem salvar
+- [x] miniaturas entram em lote e aparecem sem passar o mouse; .ecm com AddiSkinPath (besouros-rei) agora tem modelo
+- [x] seletor de blocos com busca, categorias e icones
+- [x] 3D sem selecao: centro do mapa, do alto; instancia: perto do 1o NPC (entrada aproximada)
+- [ ] arvores/grama "do jogo": .spt e SpeedTree procedural (precisa do runtime), .tbh e so casca de colisao; usuario escolher o caminho
+- [ ] instancias: a26 (Nirvana) texturas, a19 cor, b30 catapultas abaixo do chao; entrada exata da instancia (tabela de entradas do servidor)
