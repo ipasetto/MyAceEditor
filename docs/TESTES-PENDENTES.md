@@ -61,6 +61,7 @@ Trabalhe numa cópia da pasta do jogo/servidor até tudo estar conferido.
 - [ ] **Iniciar** → as luzes ficam verdes e aparece "Servidor no ar".
 - [ ] Abrir o jogo → servidor **Local** → entrar com a conta criada; criar personagem.
 - [ ] Mudar algo no editor (ex.: npcgen) → **Enviar meus arquivos e reiniciar** → a mudança aparece no jogo.
+- [ ] Barra de cima: **💾 Salvar e enviar ao servidor** grava tudo (sem perguntar), abre a aba Servidor e reinicia com os arquivos novos.
 
 ## 7. No jogo (quando o servidor estiver pronto)
 - [ ] Ponto criado, movido, clonado e excluído aparece/some no lugar certo.

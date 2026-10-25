@@ -16,6 +16,8 @@
   "tb.openPw": "Open PW folder",
   "tb.openElements": "Open elements.data",
   "tb.save": "Save",
+  "tb.saveSend": "💾 Save and send to server",
+  "tb.saveSendTip": "Saves everything that changed and sends it to the local server (Server tab), restarting it",
   "tb.add": "＋ Add",
   "tb.delete": "🗑 Delete",
   "tab.elements": "Elements",

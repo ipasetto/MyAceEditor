@@ -11,7 +11,7 @@ mkdir -p $L
 svc() {   # nome processo pasta comando...
     local name=$1 proc=$2 dir=$3; shift 3
     if pgrep -f "$proc" >/dev/null; then echo "##JA $name"; return; fi
-    (cd "$P/$dir" && nohup "$@" > "$L/$name.log" 2>&1 &)
+    (cd "$P/$dir" && setsid nohup "$@" > "$L/$name.log" 2>&1 < /dev/null &)   # setsid: sobrevive ao fim do comando do wsl
     echo "##SUBIU $name"
 }
 
@@ -23,7 +23,7 @@ start)
     service mariadb start >/dev/null 2>&1 || service mysql start >/dev/null 2>&1
     svc logservice "logservice logservice.conf" logservice ./logservice logservice.conf; sleep 2
     svc uniquenamed "uniquenamed gamesys.conf" uniquenamed ./uniquenamed gamesys.conf; sleep 2
-    if ! pgrep -f "authd /etc/table.xml" >/dev/null; then (cd $P/mauthd/build && ./authd.sh start > $L/authd.log 2>&1); echo "##SUBIU authd"; else echo "##JA authd"; fi
+    if ! pgrep -f "authd /etc/table.xml" >/dev/null; then (cd $P/mauthd/build && ./authd.sh start >/dev/null 2>&1); echo "##SUBIU authd"; else echo "##JA authd"; fi
     wait_port 29200 30 || echo "##AVISO authd não abriu a porta 29200"
     svc gamedbd "gamedbd gamesys.conf" gamedbd ./gamedbd gamesys.conf; sleep 3
     svc gacd "gacd gamesys.conf" gacd ./gacd gamesys.conf; sleep 2
@@ -50,7 +50,8 @@ status)
     if (echo > /dev/tcp/127.0.0.1/29000) 2>/dev/null; then echo "porta29000 on"; else echo "porta29000 off"; fi
     ;;
 account)
-    login="$2"; pass="$3"
+    # o cliente põe o login em minúsculas antes de calcular a senha (EC_LoginSwitch.cpp, MakeLower) -> grava igual
+    login=$(printf '%s' "$2" | tr 'A-Z' 'a-z'); pass="$3"
     [ -n "$login" ] && [ -n "$pass" ] || { echo "##ERRO login e senha"; exit 1; }
     case "$login$pass" in *[\'\"\\\;\ ]*) echo "##ERRO use só letras e números"; exit 1;; esac
     service mariadb start >/dev/null 2>&1 || service mysql start >/dev/null 2>&1
@@ -61,10 +62,18 @@ account)
         mysql pw -e "CALL adduser('$login', '$hash', '0', '0', '0', '0', '', '0', '0', '0', '0', '0', '0', '0', '', '', '$hash')" || { echo "##ERRO adduser"; exit 1; }
         echo "##OK conta criada"
     fi
+    # conta antiga com maiúsculas (a comparação do banco ignora caixa): nome fica em minúsculas
+    mysql pw -e "UPDATE users SET name='$login' WHERE name='$login'"
     if [ "$4" = "gm" ]; then
         uid=$(mysql -N pw -e "SELECT id FROM users WHERE name='$login'")
-        mysql pw -e "CALL addGM($uid, 1)" 2>/dev/null && echo "##OK GM"
+        # addGM grava os direitos na tabela auth; repetir daria chave duplicada
+        if [ "$(mysql -N pw -e "SELECT COUNT(*) FROM auth WHERE userid=$uid")" = "0" ]; then
+            mysql pw -e "CALL addGM($uid, 1)" && echo "##OK GM" || { echo "##ERRO addGM"; exit 1; }
+        else
+            echo "##OK GM (já era)"
+        fi
     fi
+    exit 0
     ;;
 log)
     tail -n 60 "$L/$2.log" 2>/dev/null

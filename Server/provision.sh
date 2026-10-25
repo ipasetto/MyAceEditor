@@ -9,6 +9,8 @@ export DEBIAN_FRONTEND=noninteractive
 step() { echo "##PASSO $*"; }
 fail() { echo "##ERRO $*"; exit 1; }
 [ -d "$SRC/home" ] || fail "não achei $SRC/home"
+# reinstalação: para o servidor antes de copiar por cima dos programas (senão "Text file busy")
+[ -x /usr/local/bin/pwctl ] && /usr/local/bin/pwctl stop >/dev/null 2>&1
 
 step "Rede e nomes do servidor"
 # o WSL regera /etc/hosts a cada início; os serviços do PW se acham por apelidos (dbserver, link1, game1...)
@@ -53,7 +55,7 @@ cd /home/mauthd/build
 AULIB=/home/mauthd/lib
 cp=$AULIB/mysql-connector-java-5.1.10-bin.jar:.:$AULIB/jio.jar:$AULIB/application.jar:$AULIB/commons-collections-3.1.jar:$AULIB/commons-dbcp-1.2.1.jar:$AULIB/commons-pool-1.2.jar:$AULIB/commons-logging-1.0.4.jar:$AULIB/log4j-1.2.9.jar:.
 case $1 in
-  start) java -Dcom.wanmei.au.HitEncoding=GBK -cp $cp authd /etc/table.xml Enthrallment & echo $! > service.pid ;;
+  start) setsid nohup java -Dcom.wanmei.au.HitEncoding=GBK -cp $cp authd /etc/table.xml Enthrallment > /home/logs/authd.log 2>&1 < /dev/null & echo $! > service.pid ;;
   stop) [ -f service.pid ] && kill -9 "$(cat service.pid)"; rm -f service.pid ;;
 esac
 EOF
@@ -70,8 +72,10 @@ if ! mysql -e "USE pw" >/dev/null 2>&1; then
 fi
 mysql -e "CREATE USER IF NOT EXISTS 'pw'@'localhost' IDENTIFIED BY '$DBPASS'; ALTER USER 'pw'@'localhost' IDENTIFIED BY '$DBPASS';
           CREATE USER IF NOT EXISTS 'pw'@'127.0.0.1' IDENTIFIED BY '$DBPASS'; ALTER USER 'pw'@'127.0.0.1' IDENTIFIED BY '$DBPASS';
-          GRANT ALL ON pw.* TO 'pw'@'localhost'; GRANT ALL ON pw.* TO 'pw'@'127.0.0.1'; FLUSH PRIVILEGES;" || fail "usuário do banco"
+          GRANT ALL ON pw.* TO 'pw'@'localhost'; GRANT ALL ON pw.* TO 'pw'@'127.0.0.1';
+          GRANT SELECT ON mysql.proc TO 'pw'@'localhost'; GRANT SELECT ON mysql.proc TO 'pw'@'127.0.0.1'; FLUSH PRIVILEGES;" || fail "usuário do banco"
+# o conector JDBC do authd (5.1.10, 2009) lê mysql.proc para chamar os procedimentos de login
 
 step "Controle do servidor"
-cp "$(dirname "$0")/pwctl.sh" /usr/local/bin/pwctl && chmod +x /usr/local/bin/pwctl
+tr -d '\r' < "$(dirname "$0")/pwctl.sh" | sed '1s/^\xEF\xBB\xBF//' > /usr/local/bin/pwctl && chmod +x /usr/local/bin/pwctl
 echo "##OK instalado"

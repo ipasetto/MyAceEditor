@@ -44,13 +44,15 @@ public sealed class LocalServer
         p.BeginOutputReadLine(); p.BeginErrorReadLine();
         if (stdin is not null) { p.StandardInput.Write(stdin.Replace("\r\n", "\n")); p.StandardInput.Close(); }
         if (!p.WaitForExit(timeoutMs)) { try { p.Kill(true); } catch { } return new(-1, sb + "\n(tempo esgotado)"); }
-        p.WaitForExit();
+        // terminar de ler a saída, com prazo: um serviço iniciado que herde a saída não pode prender o programa
+        Task.Run(() => p.WaitForExit()).Wait(5000);
         return new(p.ExitCode, sb.ToString());
     }
 
-    /// <summary>Comando bash como root dentro da distro.</summary>
+    /// <summary>Comando bash como root dentro da distro. --exec: sem ele o wsl passa a linha por um sh antes, que
+    /// expande $variáveis do comando (ficavam vazias).</summary>
     public RunResult Bash(string command, Action<string>? line = null, string? stdin = null, int timeoutMs = 3_600_000) =>
-        Wsl($"-d {Distro} -u root -- bash -c \"{command.Replace("\"", "\\\"")}\"", stdin, line, timeoutMs);
+        Wsl($"-d {Distro} -u root --exec bash -c \"{command.Replace("\"", "\\\"")}\"", stdin, line, timeoutMs);
 
     /// <summary>null = WSL pronto; senão, o que falta (texto para o usuário).</summary>
     public static string? WslProblem()
@@ -204,8 +206,29 @@ public sealed class LocalServer
         return r.Output.Contains("##ERRO") || r.Code != 0 ? "Não consegui criar a conta:\n" + r.Output : null;
     }
 
-    public RunResult Start(IEnumerable<string>? maps = null) => Bash("pwctl start " + string.Join(' ', maps ?? new[] { "gs01" }), Log, timeoutMs: 600_000);
-    public RunResult Stop() => Bash("pwctl stop", Log, timeoutMs: 120_000);
+    public RunResult Start(IEnumerable<string>? maps = null)
+    {
+        KeepAlive();
+        return Bash("pwctl start " + string.Join(' ', maps ?? new[] { "gs01" }), Log, timeoutMs: 600_000);
+    }
+
+    public RunResult Stop()
+    {
+        var r = Bash("pwctl stop", Log, timeoutMs: 120_000);
+        Bash("pkill -f 'sleep 214748364[7]'", timeoutMs: 60_000);   // solta o Linux (o WSL desliga sozinho depois)
+        return r;
+    }
+
+    /// <summary>
+    /// O WSL desliga a distro quando nenhum wsl.exe está ligado a ela, e os serviços morreriam. Um "sleep" infinito, num
+    /// wsl.exe sem janela e independente do editor (fica mesmo se o programa fechar), segura o Linux enquanto o servidor roda.
+    /// </summary>
+    void KeepAlive()
+    {
+        // [7]: o padrão não casa com a própria linha de comando do pgrep
+        if (Bash("pgrep -f 'sleep 214748364[7]' >/dev/null && echo SIM", timeoutMs: 60_000).Output.Contains("SIM")) return;
+        Process.Start(new ProcessStartInfo("wsl.exe", $"-d {Distro} -u root --exec sleep 2147483647") { UseShellExecute = false, CreateNoWindow = true });
+    }
 
     /// <summary>Estado de cada serviço (nome → ligado).</summary>
     public Dictionary<string, bool> Status()

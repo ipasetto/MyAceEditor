@@ -169,15 +169,19 @@ public sealed class ServerView : UserControl
         });
     }
 
-    void SendFiles()
+    /// <summary>Envia ao servidor local o que o editor gravou e reinicia (botão desta aba e "Salvar e enviar" da barra de cima).</summary>
+    public void SendFiles()
     {
+        if (_busy) return;
+        Fill();
         var pkg = _pkg.Text.Trim(); var client = _client();
-        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(L("Escolha a pasta \"server files\".", "Pick the \"server files\" folder.")); return; }
+        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(L("Escolha a pasta \"server files\" na aba Servidor.", "Pick the \"server files\" folder in the Server tab.")); return; }
         Run(L("Enviando seus arquivos e reiniciando…", "Sending your files and restarting…"), s =>
         {
-            // o que o editor grava no servidor (npcgen, aipolicy, gshopsev, elements, tasks…) → cópia no Linux; par igualado; reinicia
+            // o que o editor grava no servidor (npcgen, aipolicy, gshopsev, elements, tasks…) → cópia no Linux (só o que é
+            // mais novo; a pasta config é grande); par igualado com o cliente; reinicia
             s.Stop();
-            s.Bash($"cp -a '{LocalServer.ToWslPath(Path.Combine(pkg, "home", "gamed", "config"))}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", s.Log);
+            s.Bash($"cp -a -u '{LocalServer.ToWslPath(Path.Combine(pkg, "home", "gamed", "config"))}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", s.Log);
             s.FixPair(client);
             return s.Start();
         });

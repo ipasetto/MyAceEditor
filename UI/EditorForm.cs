@@ -241,6 +241,7 @@ public sealed class EditorForm : Form
         tb.Items.Add(B(OpenPwFolder, b => b.Text = Loc.T("tb.openPw", "Abrir pasta do PW")));
         tb.Items.Add(B(OpenElements, b => b.Text = Loc.T("tb.openElements", "Abrir elements.data")));
         tb.Items.Add(B(SaveCurrent, b => b.Text = Loc.T("tb.save", "Salvar")));
+        tb.Items.Add(B(SaveAndSend, b => { b.Text = Loc.T("tb.saveSend", "💾 Salvar e enviar ao servidor"); b.ToolTipText = Loc.T("tb.saveSendTip", "Grava tudo o que mudou e leva para o servidor local (aba Servidor), reiniciando-o"); }));
         tb.Items.Add(new ToolStripSeparator());
         tb.Items.Add(B(AddItem, b => b.Text = Loc.T("tb.add", "＋ Adicionar")));
         tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
@@ -312,8 +313,9 @@ public sealed class EditorForm : Form
         tChk.Controls.Add(BuildCheckView());
         tabs.TabPages.Add(tChk);
         var tSrv = new TabPage() { BackColor = CBg };
+        _tabServer = tSrv;
         Bind(() => tSrv.Text = Loc.T("tab.server", "Servidor"));
-        tSrv.Controls.Add(new ServerView(CBg, CFg, CAccent,
+        tSrv.Controls.Add(_serverView = new ServerView(CBg, CFg, CAccent,
             () => _chkClient.Text.Length > 0 ? VersionCheck.ClientElement(_chkClient.Text)
                 : _dataPath is null ? "" : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "",
             () => _chkServer.Text, LoadSetting, SaveSetting));
@@ -983,6 +985,17 @@ public sealed class EditorForm : Form
         if (_gshop is not null) done.AddRange(_gshop.SaveAll(quiet).Select(Path.GetFileName)!);
         if (_npcgen is not null) done.AddRange(_npcgen.SaveAll(quiet).Select(p => Path.GetFileName(Path.GetDirectoryName(p)) + "\\npcgen.data"));
         Status((quiet ? Loc.T("status.autoSaved", "Salvo automaticamente: ") : Loc.T("status.savedAll", "Salvo: ")) + (done.Count == 0 ? "—" : string.Join(", ", done)) + $" ({DateTime.Now:HH:mm})");
+    }
+
+    // "Salvar e enviar ao servidor": grava tudo sem perguntar e leva para o servidor local (aba Servidor mostra o andamento)
+    private ServerView? _serverView;
+    private TabPage? _tabServer;
+    private void SaveAndSend()
+    {
+        SaveAll(quiet: true);
+        if (_serverView is null) return;
+        if (_tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;
+        _serverView.SendFiles();
     }
 
     // fechar com mudanças: oferece salvar tudo
