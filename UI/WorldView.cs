@@ -23,6 +23,10 @@ internal sealed class WorldView : Form
     readonly GLControl _gl;
     readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0) };
     readonly Dictionary<(int, int), (int Vbo, int Count)> _vbos = new();
+    // minimapa do jogo estendido sobre o chão: surfaces\minimaps\<mapa>\LLCC.dds, peças de 512 m (linha 0 ao norte)
+    readonly PckArchive? _surf;
+    readonly Dictionary<(int, int), int> _tex = new();
+    const float TileM = 512;
     readonly HashSet<Keys> _keys = new();
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 16 };
     Vector3 _cam;
@@ -39,6 +43,8 @@ internal sealed class WorldView : Form
         Size = new Size(Math.Min(1280, wa.Width - 40), Math.Min(860, wa.Height - 40)); StartPosition = FormStartPosition.CenterScreen; KeyPreview = true;
         _gl = new GLControl(new GLControlSettings { Profile = OpenTK.Windowing.Common.ContextProfile.Compatability, APIVersion = new Version(3, 3) }) { Dock = DockStyle.Fill };
         Controls.Add(_gl); Controls.Add(_status);
+        var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
+        try { if (element is not null && File.Exists(Path.Combine(element, "surfaces.pck"))) _surf = new PckArchive(Path.Combine(element, "surfaces.pck")); } catch { _surf = null; }
         _cam = Gl(start.X, start.Y + 60, start.Z) + new Vector3(0, 0, 80);
         _gl.Paint += (_, _) => Render();
         _gl.Resize += (_, _) => _gl.Invalidate();
@@ -58,7 +64,13 @@ internal sealed class WorldView : Form
         KeyUp += (_, e) => _keys.Remove(e.KeyCode);
         _tick.Tick += (_, _) => Move();
         _tick.Start();
-        FormClosed += (_, _) => { _tick.Dispose(); _gl.MakeCurrent(); foreach (var v in _vbos.Values) GL.DeleteBuffer(v.Vbo); };
+        FormClosed += (_, _) =>
+        {
+            _tick.Dispose(); _gl.MakeCurrent();
+            foreach (var v in _vbos.Values) GL.DeleteBuffer(v.Vbo);
+            foreach (var x in _tex.Values) if (x != 0) GL.DeleteTexture(x);
+            _surf?.Dispose();
+        };
     }
 
     Vector3 Forward => new(MathF.Cos(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch)),
@@ -104,10 +116,18 @@ internal sealed class WorldView : Form
             {
                 if (br < 0 || bc < 0 || br >= _t.Rows * _t.BlocksPerPiece || bc >= _t.Cols * _t.BlocksPerPiece) continue;
                 if (BlockVbo(br, bc) is not { } b) continue;
+                int tex = TileTex((int)(br * cpb * _t.Cell / TileM), (int)(bc * cpb * _t.Cell / TileM));
                 GL.BindBuffer(BufferTarget.ArrayBuffer, b.Vbo);
-                GL.VertexPointer(3, VertexPointerType.Float, 24, 0);
-                GL.ColorPointer(3, ColorPointerType.Float, 24, 12);
+                GL.VertexPointer(3, VertexPointerType.Float, 32, 0);
+                if (tex != 0)
+                {
+                    GL.DisableClientState(ArrayCap.ColorArray); GL.Color3(1f, 1f, 1f);
+                    GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, tex);
+                    GL.EnableClientState(ArrayCap.TextureCoordArray); GL.TexCoordPointer(2, TexCoordPointerType.Float, 32, 24);
+                }
+                else GL.ColorPointer(3, ColorPointerType.Float, 32, 12);
                 GL.DrawArrays(PrimitiveType.Triangles, 0, b.Count);
+                if (tex != 0) { GL.Disable(EnableCap.Texture2D); GL.DisableClientState(ArrayCap.TextureCoordArray); GL.EnableClientState(ArrayCap.ColorArray); }
             }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.ColorArray);
@@ -142,7 +162,9 @@ internal sealed class WorldView : Form
             float shade = Math.Clamp(0.85f - (dx - dz) * 0.06f, 0.45f, 1.15f);
             float k = Math.Clamp((h - 50) / 600, 0, 1);
             var c = new Vector3(0.32f + 0.4f * k, 0.5f + 0.2f * k - 0.15f * k * k, 0.25f + 0.45f * k * k) * shade;
-            data.AddRange(new[] { x, h, -z, c.X, c.Y, c.Z });
+            // posição dentro da peça do minimapa deste bloco
+            float tileCells = TileM / _t.Cell, u0 = MathF.Floor(bc * cpb / tileCells) * tileCells, v0 = MathF.Floor(br * cpb / tileCells) * tileCells;
+            data.AddRange(new[] { x, h, -z, c.X, c.Y, c.Z, (u - u0) / tileCells, (v - v0) / tileCells });
         }
         if (_t.Sample(bc * cpb, br * cpb) is null) { _vbos[(br, bc)] = (0, 0); return null; }
         for (int r = 0; r < cpb; r++)
@@ -155,7 +177,24 @@ internal sealed class WorldView : Form
         int vbo = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
         GL.BufferData(BufferTarget.ArrayBuffer, data.Count * 4, data.ToArray(), BufferUsageHint.StaticDraw);
-        return _vbos[(br, bc)] = (vbo, data.Count / 6);
+        return _vbos[(br, bc)] = (vbo, data.Count / 8);
+    }
+
+    int TileTex(int row, int col)
+    {
+        if (_tex.TryGetValue((row, col), out var id)) return id;
+        id = 0;
+        if (_surf?.Find($@"surfaces\minimaps\{_t.Name}\{row:00}{col:00}.dds") is { } e && DdsDecoder.Decode(_surf.Read(e)) is { } img)
+        {
+            id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, id);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.Width, img.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Pixels);
+        }
+        return _tex[(row, col)] = id;
     }
 
     // raio do mouse até o chão (passos de 1 m, até 2 km)
