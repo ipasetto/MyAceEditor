@@ -43,6 +43,7 @@ internal sealed class WorldView : Form
     float _yaw = -90, _pitch = -25;
     const float Speed = 40;           // m/s andando; Shift = ×4
     readonly WorldModels _models;
+    readonly WorldBuildings _buildings;
     readonly PckArchive? _texPck;                                       // textures.pck (texturas do chão)
     readonly Dictionary<string, int> _groundTex = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<(int, int, int), int> _maskTex = new();
@@ -74,6 +75,7 @@ internal sealed class WorldView : Form
         try { if (element is not null && File.Exists(Path.Combine(element, "surfaces.pck"))) _surf = new PckArchive(Path.Combine(element, "surfaces.pck")); } catch { _surf = null; }
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
         _models = new WorldModels(element);
+        _buildings = new WorldBuildings(element, t.Name);
         try { if (element is not null && File.Exists(Path.Combine(element, "textures.pck"))) _texPck = new PckArchive(Path.Combine(element, "textures.pck")); } catch { _texPck = null; }
         RefreshMarkers();
         LookAt(start);
@@ -128,7 +130,7 @@ internal sealed class WorldView : Form
             _tick.Dispose(); _gl.MakeCurrent();
             foreach (var v in _near.Values.Concat(_far.Values)) if (v.Vbo != 0) GL.DeleteBuffer(v.Vbo);
             foreach (var x in _tex.Values) if (x != 0) GL.DeleteTexture(x);
-            _surf?.Dispose(); _worldMap?.Dispose(); _models.Dispose(); _texPck?.Dispose();
+            _surf?.Dispose(); _worldMap?.Dispose(); _models.Dispose(); _buildings.Dispose(); _texPck?.Dispose();
             foreach (var x in _groundTex.Values.Concat(_maskTex.Values)) if (x != 0) GL.DeleteTexture(x);
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
         };
@@ -221,6 +223,18 @@ internal sealed class WorldView : Form
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
         GL.Disable(EnableCap.Texture2D);
+
+        // construções dos pedaços de 1 km em volta da câmera (até 6 arquivos por quadro)
+        {
+            float pieceM = _t.CellsPerPiece * _t.Cell;
+            int pr = (int)MathF.Floor((_t.Height / 2 + _cam.Z) / pieceM), pc = (int)MathF.Floor((_cam.X + _t.Width / 2) / pieceM);
+            var pieces = new List<int>();
+            for (int r = pr - 1; r <= pr + 1; r++)
+                for (int c = pc - 1; c <= pc + 1; c++)
+                    if (r >= 0 && c >= 0 && r < _t.Rows && c < _t.Cols) pieces.Add(r * _t.Cols + c + 1);
+            if (_buildings.Update(pieces, 6)) _built++;
+            _buildings.Draw();
+        }
 
         // modelos parados até 300 m (no máximo 2 carregados por quadro); haste para quem não tem modelo
         var sel = _selected();
