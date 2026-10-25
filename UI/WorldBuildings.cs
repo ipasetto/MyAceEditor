@@ -23,6 +23,7 @@ internal sealed class WorldBuildings : IDisposable
     readonly HashSet<int> _wanted = new(), _requested = new();
     readonly Dictionary<int, int> _gen = new();   // pedaço → geração (lote de um pedido antigo é descartado)
     readonly Dictionary<string, int> _textures = new(StringComparer.OrdinalIgnoreCase);
+    readonly HashSet<int> _cutout = new();   // texturas com recorte de verdade (o resto desenha sem teste de alfa)
     readonly HashSet<string> _texSent = new(StringComparer.OrdinalIgnoreCase);
     const int Batch = 16;
 
@@ -66,7 +67,7 @@ internal sealed class WorldBuildings : IDisposable
             {
                 var batch = files.Skip(i).Take(Batch).ToList();
                 int piece = p;
-                _load.Work(() => Parse(batch), r => Arrive(piece, gen, r));
+                _load.Work(() => Parse(batch), r => Arrive(piece, gen, r), urgent: true);
             }
         }
     }
@@ -77,7 +78,8 @@ internal sealed class WorldBuildings : IDisposable
         var tex = new Dictionary<string, (int[], int, int)?>(StringComparer.OrdinalIgnoreCase);
         foreach (var e in files)
         {
-            byte[] d; lock (_lit!) d = _lit.Read(e);
+            byte[] d;
+            try { lock (_lit!) d = _lit.Read(e); } catch { continue; }
             if (BmdModel.Read(d) is not { } m || m.Meshes.Count == 0) continue;
             var dir = new Vector3(m.Dir[0], m.Dir[1], m.Dir[2]); var up = new Vector3(m.Up[0], m.Up[1], m.Up[2]);
             if (dir.LengthSquared < 1e-6f || up.LengthSquared < 1e-6f) { dir = Vector3.UnitZ; up = Vector3.UnitY; }
@@ -101,7 +103,7 @@ internal sealed class WorldBuildings : IDisposable
                 bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
                 if (!need || _tex is null) continue;
                 byte[]? td; lock (_tex) td = _tex.Find(mesh.Texture.ToLowerInvariant()) is { } te ? _tex.Read(te) : null;
-                tex[mesh.Texture] = td is null ? null : DdsDecoder.Decode(td);
+                try { tex[mesh.Texture] = td is null ? null : DdsDecoder.Decode(td); } catch { tex[mesh.Texture] = null; }
             }
         }
         return (models, tex);
@@ -109,7 +111,12 @@ internal sealed class WorldBuildings : IDisposable
 
     void Arrive(int piece, int gen, (List<Cpu> Models, Dictionary<string, (int[] Px, int W, int H)?> Textures) r)
     {
-        foreach (var (name, img) in r.Textures) _textures[name] = img is { } i ? UploadTexture(i) : 0;
+        foreach (var (name, img) in r.Textures)
+        {
+            int id = img is { } i ? UploadTexture(i) : 0;
+            _textures[name] = id;
+            if (id != 0 && DdsDecoder.IsCutout(img!.Value.Px)) _cutout.Add(id);
+        }
         if (!_wanted.Contains(piece) || _gen.GetValueOrDefault(piece) != gen || !_loaded.TryGetValue(piece, out var list)) return;   // a câmera já saiu de lá
         foreach (var c in r.Models)
         {
@@ -151,7 +158,7 @@ internal sealed class WorldBuildings : IDisposable
     {
         if (_loaded.Count == 0) return;
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
-        GL.Enable(EnableCap.AlphaTest); GL.AlphaFunc(AlphaFunction.Greater, 0.4f);
+        GL.AlphaFunc(AlphaFunction.Greater, 0.4f);
         // textura × cor do vértice × 2 (luz embutida)
         GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);          // RGB = MODULATE
@@ -175,6 +182,7 @@ internal sealed class WorldBuildings : IDisposable
                     GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);   // GL_BGRA
                     GL.TexCoordPointer(2, TexCoordPointerType.Float, 24, 16);
                     int tex = _textures.GetValueOrDefault(part.Tex);
+                    if (_cutout.Contains(tex)) GL.Enable(EnableCap.AlphaTest); else GL.Disable(EnableCap.AlphaTest);
                     if (tex != 0) { GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, tex); }
                     else GL.Disable(EnableCap.Texture2D);
                     GL.BindBuffer(BufferTarget.ElementArrayBuffer, part.Ibo);

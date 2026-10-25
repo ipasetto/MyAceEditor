@@ -1581,5 +1581,6 @@
   "legend.keys3": "Left on a point drags · right: new, clone, move, delete, edit",
   "legend.keys4": "Ctrl+C/Ctrl+V copy and paste a point · Delete · Ctrl+Z/Ctrl+Y",
   "legend.closed": "▸ Legend and shortcuts (H)",
-  "dlg.previewDrag": "drag to rotate"
+  "dlg.previewDrag": "drag to rotate",
+  "world.wentTo": "Camera at X {0:0} Z {1:0}"
 }

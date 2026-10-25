@@ -42,7 +42,7 @@ internal sealed class WorldView : Form
     readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.Gainsboro };
     readonly ToolStrip _bar = new() { GripStyle = ToolStripGripStyle.Hidden, RenderMode = ToolStripRenderMode.System, BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Padding = new Padding(4, 3, 4, 3) };
     readonly ToolStripTextBox _find = new() { Width = 220, BackColor = Color.Black, ForeColor = Color.White };
-    readonly ToolStripComboBox _mapBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90, BackColor = Color.Black, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+    readonly ToolStripComboBox _mapBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, BackColor = Color.Black, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
     readonly WorldLoader _load = new();
     readonly WorldTerrain _terrain;
     readonly WorldModels _models;
@@ -63,6 +63,7 @@ internal sealed class WorldView : Form
     Bitmap? _worldMap; float _mapMPerPx = 2;
     object? _movingTag; Vector3? _movePos;   // arrastando um ponto com o botão esquerdo
     object? _clip;                            // Ctrl+C
+    int _newLabels;
     bool _legendOpen = true; int _legendTex, _legendW, _legendH; bool _legendState;
     List<(float X0, float Z0, float X1, float Z1, float Y)>? _water;
 
@@ -97,9 +98,10 @@ internal sealed class WorldView : Form
         Shown += (_, _) =>
         {
             Activate(); _gl.Focus();   // já abre pronta para W/A/S/D
-            _mapBox.Items.AddRange(Maps.Cast<object>().ToArray());
-            _mapBox.SelectedItem = Tag as string;
-            _mapBox.SelectedIndexChanged += (_, _) => { if (_mapBox.SelectedItem is string m && m != Tag as string) BeginInvoke(() => SwitchMap?.Invoke(m)); };
+            _mapBox.Items.AddRange(Maps.Select(m => (object)new MapItem(m)).ToArray());
+            _mapBox.SelectedItem = _mapBox.Items.Cast<MapItem>().FirstOrDefault(i => i.Key == Tag as string);
+            _mapBox.DropDownWidth = 300;
+            _mapBox.SelectedIndexChanged += (_, _) => { if (_mapBox.SelectedItem is MapItem m && m.Key != Tag as string) BeginInvoke(() => SwitchMap?.Invoke(m.Key)); };
         };
         _gl.Paint += (_, _) => Render();
         _gl.Resize += (_, _) => _gl.Invalidate();
@@ -307,6 +309,7 @@ internal sealed class WorldView : Form
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
         GL.Enable(EnableCap.Texture2D); GL.Color3(1f, 1f, 1f);
+        _newLabels = 0;
         foreach (var m in _nearMarks.Where(m => Dist2(m) < 70 * 70 || m.Tag == sel && Dist2(m) < 400 * 400).OrderBy(Dist2).Take(40))
         {
             var lp = PosOf(m);
@@ -375,6 +378,8 @@ internal sealed class WorldView : Form
         var key = color.ToArgb() + text;
         if (!_labels.TryGetValue(key, out var l))
         {
+            // poucas texturas de nome novas por quadro (muitos NPCs juntos não travam)
+            if (_newLabels++ >= 4) { _busy = true; return; }
             if (_labels.Count > 3000) { foreach (var x in _labels.Values) GL.DeleteTexture(x.Tex); _labels.Clear(); }
             using var font = new Font("Segoe UI", 11, FontStyle.Bold);
             var size = TextRenderer.MeasureText(text, font);
@@ -529,6 +534,18 @@ internal sealed class WorldView : Form
     {
         var q = _find.Text.Trim();
         if (q.Length == 0) return;
+        // coordenadas: "x z" ou "x y z" (com vírgula, ponto e vírgula ou espaço)
+        var nums = q.Split(new[] { ' ', ';', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+            .SelectMany(part => part.Split(", ", StringSplitOptions.RemoveEmptyEntries)).ToList();
+        if (nums.Count is 2 or 3 && nums.All(n => float.TryParse(n.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)))
+        {
+            var f = nums.Select(n => float.Parse(n.Replace(',', '.'), System.Globalization.CultureInfo.InvariantCulture)).ToList();
+            float x = f[0], z = f[^1];
+            float y = f.Count == 3 ? f[1] : _t.HeightAt(x, z) ?? 0;
+            LookAt(new Vector3(x, y, z)); _gl.Invalidate();
+            _status.Text = string.Format(Loc.T("world.wentTo", "Câmera em X {0:0} Z {1:0}"), x, z);
+            return;
+        }
         var hits = _marks.Where(m => m.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
         if (hits.Count == 0) { _status.Text = Loc.T("world.notFound", "Nenhum ponto com esse nome ou ID."); return; }
         _findAt = (_findAt + 1) % hits.Count;
@@ -675,6 +692,21 @@ internal sealed class WorldView : Form
         f.ShowDialog(this);
         _gl.Invalidate();
     }
+
+    // nome das instâncias (lista da comunidade; a numeração do servidor pode variar entre versões)
+    static readonly Dictionary<string, string> MapNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["world"] = "Mainland", ["a01"] = "City of Abominations", ["a02"] = "Secret Passage", ["a03"] = "Silk Cave", ["a04"] = "Earth Cave",
+        ["a05"] = "Firecrag Grotto", ["a06"] = "Den of Rabid Wolves", ["a07"] = "Cave of the Vicious", ["a08"] = "Hall of Deception",
+        ["a09"] = "Gate of Delirium", ["a10"] = "Secret Frostcover Grounds", ["a11"] = "Valley of Disaster", ["a12"] = "Forest Ruins",
+        ["a13"] = "Cave of Sadistic Glee", ["a14"] = "Wraithgate", ["a15"] = "Hallucinatory Trench", ["a16"] = "Eden", ["a17"] = "Brimstone Pit",
+        ["a18"] = "Temple of the Dragon", ["a19"] = "Nightscream Island", ["a20"] = "Snake Isle", ["a21"] = "Lothranis (Heaven)",
+        ["a22"] = "Momaganon (Hell)", ["a23"] = "Seat of Torment", ["a24"] = "Abaddon", ["a25"] = "Warsong City", ["a26"] = "Palace of Nirvana",
+        ["a27"] = "Lunar Glade", ["a28"] = "Valley of Reciprocity", ["a29"] = "Frostcover City", ["a31"] = "Twilight Temple", ["a32"] = "Cube of Fate",
+        ["a33"] = "Chrono City", ["a34"] = "Perfect Chapel", ["a35"] = "Faction Base", ["a37"] = "Morai", ["a38"] = "Phoenix Valley",
+        ["a39"] = "Endless Universe", ["a40"] = "Rat Lurk Pits",
+    };
+    sealed record MapItem(string Key) { public override string ToString() => MapNames.TryGetValue(Key, out var n) ? $"{Key} — {n}" : Key; }
 
     sealed class DoubleBufferedPanel : Panel { public DoubleBufferedPanel() { DoubleBuffered = true; SetStyle(ControlStyles.Selectable, true); } }
 }

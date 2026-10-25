@@ -226,7 +226,8 @@ internal sealed class WorldTerrain : IDisposable
         if (!_groundWait.Add((ar, ac))) return;
         _load.Work(() =>
         {
-            var layers = _t.Ground(ar, ac);
+            TerrainFile.GroundLayer[]? layers;
+            try { layers = _t.Ground(ar, ac); } catch { layers = null; }
             if (layers is null) return null;
             var tex = new Dictionary<string, (int[], int, int)?>(StringComparer.OrdinalIgnoreCase);
             foreach (var l in layers)
@@ -235,9 +236,10 @@ internal sealed class WorldTerrain : IDisposable
                 lock (_decodedNames) need = _decodedNames.Add(l.Texture);
                 if (!need) continue;
                 byte[]? d; lock (_texPck) d = _texPck.Find(l.Texture.ToLowerInvariant()) is { } e ? _texPck.Read(e) : null;
-                tex[l.Texture] = d is null ? null : DdsDecoder.Decode(d);
+                try { tex[l.Texture] = d is null ? null : DdsDecoder.Decode(d); } catch { tex[l.Texture] = null; }
             }
-            var light = _t.LightmapDds(ar, ac) is { } ld ? DdsDecoder.Decode(ld) : null;
+            (int[], int, int)? light;
+            try { light = _t.LightmapDds(ar, ac) is { } ld ? DdsDecoder.Decode(ld) : null; } catch { light = null; }
             return new GroundCpu(layers, tex, light);
         }, cpu =>
         {

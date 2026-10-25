@@ -585,8 +585,10 @@ internal sealed class NpcGenView : UserControl
                 // cor do nome (legenda): verde = evento com data/hora, lilás = gatilho sem agenda (fase de DG, GM),
                 // vermelho = guarda (NPC em ponto de monstro), ciano = coletável
                 var triggers = f.Triggers.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
-                Color TriggerColor(int id, Color normal) => id == 0 ? normal
-                    : triggers.TryGetValue(id, out var tg) && tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? Color.LimeGreen : Color.Violet;
+                // gatilho que liga sozinho com o mapa e sem agenda = sempre presente (cidades); agenda = evento; senão = fase/GM
+                Color TriggerColor(int id, Color normal) => id == 0 || !triggers.TryGetValue(id, out var tg) ? normal
+                    : tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? Color.LimeGreen
+                    : tg.AutoStart != 0 ? normal : Color.Violet;
                 foreach (var s in f.Spawns)
                 {
                     int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;

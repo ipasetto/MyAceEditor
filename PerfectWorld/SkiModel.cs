@@ -57,8 +57,23 @@ public sealed class SkiModel
             }
             var idx = new ushort[ni];
             for (int i = 0; i < ni; i++) idx[i] = r.ReadUInt16();
+            if (rigid) StandUp(v);
             m.Meshes.Add(new Mesh(name, tex, v, idx));
         }
         return r.BaseStream.Position == d.Length ? m : null;
+    }
+
+    // Malha rígida vem no espaço do osso; quando o osso é a raiz do 3ds Max (Z para cima) ela fica deitada.
+    // Sem ler o .bon ainda: se a altura está claramente em Z e nasce em z≈0, gira para Y para cima [?] (caixa de correio).
+    static void StandUp(float[] v)
+    {
+        float minY = float.MaxValue, maxY = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+        for (int i = 0; i < v.Length; i += 8) { minY = Math.Min(minY, v[i + 1]); maxY = Math.Max(maxY, v[i + 1]); minZ = Math.Min(minZ, v[i + 2]); maxZ = Math.Max(maxZ, v[i + 2]); }
+        if (v.Length == 0 || maxZ - minZ < 1.5f * (maxY - minY) || Math.Abs(minZ) > 0.2f * (maxZ - minZ)) return;
+        for (int i = 0; i < v.Length; i += 8)
+        {
+            (v[i + 1], v[i + 2]) = (v[i + 2], -v[i + 1]);       // posição
+            (v[i + 4], v[i + 5]) = (v[i + 5], -v[i + 4]);       // normal
+        }
     }
 }

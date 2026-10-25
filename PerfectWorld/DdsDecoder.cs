@@ -6,6 +6,22 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public static class DdsDecoder
 {
+    /// <summary>
+    /// O alfa da textura é recorte (folhas, grades: quase só 0 ou 255, com buracos) e não brilho/especular?
+    /// Muitas texturas do cenário guardam outra coisa no alfa; testar recorte nelas apaga faces inteiras.
+    /// </summary>
+    public static bool IsCutout(int[] px)
+    {
+        int zero = 0, full = 0, mid = 0;
+        for (int i = 0; i < px.Length; i += 7)
+        {
+            int a = (px[i] >> 24) & 0xFF;
+            if (a < 24) zero++; else if (a > 232) full++; else mid++;
+        }
+        int n = zero + full + mid;
+        return n > 0 && zero > n / 100 && mid < n / 8;
+    }
+
     public static (int[] Pixels, int Width, int Height)? Decode(byte[] d, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

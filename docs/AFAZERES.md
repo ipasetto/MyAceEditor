@@ -67,4 +67,16 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] verde = evento agendado, lilas = gatilho sem agenda (fases de DG); mapa preso as bordas, sem nome do selecionado, aviso "botao direito para teleportar"
 - [x] carga em segundo plano (WorldLoader): alturas, chao, mascaras, luz, minimapa, modelos, construcoes; terreno em malhas por area/peca com indices; corte do que esta atras/longe; teleporte para a cidade carrega em ~1 s
 - [x] terreno longe mais fino (16 m) para nao parecer que objetos flutuam; T esconde o terreno (ver dentro de cavernas); "no chao" so segue o terreno a ate 3 m
-- [ ] confirmar com o usuario: objetos ainda flutuando? NPCs embaixo da terra no b30? travadas na Cidade do Dragao?
+- [x] objetos flutuando: o teste de alfa apagava faces de pilares (textura com especular no alfa); agora so recorte de verdade (DdsDecoder.IsCutout) — paredoes de canion inteiros
+- [x] caixa de correio deitada: malha rigida em Z para cima, girada por regra (SkiModel.StandUp) ate ler o .bon
+- [x] gatilho que liga sozinho com o mapa (AutoStart) = branco; lilas so p/ gatilho manual/fase
+- [x] "Ir para" aceita coordenadas (x z ou x y z); nomes das instancias no seletor de mapa
+- [x] lote de construcoes/modelos/chao nao se perde por um arquivo ruim; construcoes na fila prioritaria
+- [ ] b30: dados batem (pontos 196,8 m, chao 196,0 m); conferir no programa se o chao aparece (T esconde o terreno)
+- [ ] travadas na Cidade do Dragao: nomes novos limitados a 4/quadro; usuario confirmar
+- [ ] ler o esqueleto (.bon) para malhas rigidas (em vez da regra)
+- [ ] icones nas listas de monstros/NPCs (o jogo nao tem icone para eles): usar miniatura do modelo 3D ou icone generico
+- [ ] assistente "novo monstro/NPC": criar o registro no elements a partir de um modelo, janela para preencher, e ja posicionar no 3D
+- [ ] salvar automatico (elements + npcgen + par cliente/servidor)
+- [ ] servidor: o software faz o maximo (para testar no jogo)
+

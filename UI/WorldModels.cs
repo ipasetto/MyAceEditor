@@ -21,6 +21,7 @@ internal sealed class WorldModels : IDisposable
     readonly Dictionary<string, Model?> _models = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> _waiting = new(StringComparer.OrdinalIgnoreCase);
     readonly List<int> _textures = new();
+    readonly HashSet<int> _cutout = new();   // alfa de recorte (cabelo, folhas); o resto sem teste de alfa
     Dictionary<string, PckEntry>? _ddsByName;
 
     public WorldModels(string? elementDir, WorldLoader load)
@@ -39,14 +40,14 @@ internal sealed class WorldModels : IDisposable
         _load.Work(() =>
         {
             (SkiModel, string)? s;
-            lock (_pck) s = ResolveSki(_pck, ecm);
+            try { lock (_pck) s = ResolveSki(_pck, ecm); } catch { s = null; }
             if (s is not var (ski, dir)) return null;
             var tex = new List<(int[], int, int)?>();
             foreach (var name in ski.Textures)
             {
                 byte[]? d;
                 lock (_pck) d = FindTexture(_pck, dir, name, ref _ddsByName) is { } e ? _pck.Read(e) : null;
-                tex.Add(d is null ? null : DdsDecoder.Decode(d));
+                try { tex.Add(d is null ? null : DdsDecoder.Decode(d)); } catch { tex.Add(null); }
             }
             return new Cpu(ski, tex);
         }, cpu => { _waiting.Remove(ecm); _models[ecm] = cpu is null ? null : Upload(cpu); }, urgent: true);
@@ -63,6 +64,7 @@ internal sealed class WorldModels : IDisposable
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.W, img.H, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Px);
             _textures.Add(id);
+            if (DdsDecoder.IsCutout(img.Px)) _cutout.Add(id);
             return id;
         }).ToList();
         var parts = new List<Part>();
@@ -129,6 +131,7 @@ internal sealed class WorldModels : IDisposable
             GL.TexCoordPointer(2, TexCoordPointerType.Float, 32, 24);
             if (p.Tex != 0) { GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, p.Tex); }
             else GL.Disable(EnableCap.Texture2D);
+            if (_cutout.Contains(p.Tex)) GL.Enable(EnableCap.AlphaTest); else GL.Disable(EnableCap.AlphaTest);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, p.Ibo);
             GL.DrawElements(PrimitiveType.Triangles, p.Count, DrawElementsType.UnsignedShort, 0);
         }
