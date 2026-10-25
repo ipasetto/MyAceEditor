@@ -74,9 +74,9 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] lote de construcoes/modelos/chao nao se perde por um arquivo ruim; construcoes na fila prioritaria
 - [ ] b30: dados batem (pontos 196,8 m, chao 196,0 m); conferir no programa se o chao aparece (T esconde o terreno)
 - [ ] travadas na Cidade do Dragao: nomes novos limitados a 4/quadro; usuario confirmar
-- [ ] ler o esqueleto (.bon) para malhas rigidas (em vez da regra)
-- [ ] icones nas listas de monstros/NPCs (o jogo nao tem icone para eles): usar miniatura do modelo 3D ou icone generico
-- [ ] assistente "novo monstro/NPC": criar o registro no elements a partir de um modelo, janela para preencher, e ja posicionar no 3D
-- [ ] salvar automatico (elements + npcgen + par cliente/servidor)
+- [x] ler o esqueleto (.bon) para malhas rigidas (BonFile; 6885/6885)
+- [x] miniaturas 3D nas listas para quem nao tem icone (ModelThumbs, segundo plano)
+- [x] assistente "Monstro/NPC novo" (barra e botao direito no 3D, ja posiciona o ponto)
+- [x] Salvar tudo (Ctrl+S) + salvar automatico a cada 5 min (Arquivo) + aviso ao fechar
 - [ ] servidor: o software faz o maximo (para testar no jogo)
-
+- [ ] arvores e grama: fechar o layout do world.ecwld (posicoes) e ler SpeedTree .spt (ou desenhar substitutos)
