@@ -12,17 +12,28 @@
 and edit the game data, client and server, in a single window.
 An **open, community project**: the goal is to make Perfect World 100% editable with a free tool.
 
-**[⬇ Download the test version (Windows)](https://github.com/ipasetto/MyAceEditor/releases)** · [how to install, step by step](#how-to-install-step-by-step)
+**[⬇ Download the test version v0.2.0-beta (Windows)](https://github.com/ipasetto/MyAceEditor/releases/latest)** · [how to install, step by step](#how-to-install-step-by-step)
 
 ![Elements editor](docs/img/en/editor.png)
 
-## Features
+## What's new in v0.2.0-beta
 
-**Updated on October 24, 2026.**
+**Updated on October 26, 2026.**
+
+- **Test server on your PC**: the Server tab installs and controls a Perfect World server inside Windows (WSL); **Save and send to server** takes everything you edited and restarts it.
+- **Server admin panel** (like iweb, but in a window): accounts (create, password, GM, **give CASH by ID**, ban), characters, who is online (kick, mute), double EXP/drop/money, broadcast to everyone, and every map or instance.
+- **NPCGen**: where monsters, NPCs and gatherables spawn, with editable quantity, respawn, radius and monster, plus a **new monster/NPC** wizard based on a model.
+- **3D World**: the game map in 3D (terrain, buildings, water and the monster and NPC models) to see and move spawn points.
+- **Fuller check**: the version that `elementclient.exe` and `gs` require, what is on the local server, and the **`interfaces.pck` windows that crash the game**, with automatic fix.
+- **`.pck` writing**: the interface editor saves straight into `interfaces.pck`, with backup, no sPCK needed.
+- **Translate from another client** (Tools): texts, quests, NPC dialogs and packages from another client, only what fits your client's version.
+- **Save all** (Ctrl+S) and auto-save; the shop refuses to save an item without a price (the server would not start).
+
+## Features
 
 ### Elements (`elements.data`)
 - Opens the Perfect World folder and **reloads it automatically** next time; reads and **writes** `elements.data` with byte-identical save verification and automatic backup.
-- **Real game icons**, read straight from `surfaces.pck`.
+- **Real game icons**, read straight from `surfaces.pck`; 3D thumbnails for monsters and NPCs without an icon.
 - Layout in the style of the classic editors: blocks by category, type filter, search, sub-tabs per field group, names in the official game color.
 - **Game-like tooltips**: stats, per-element defenses, immunities, drops with icon and chance, and who uses the item.
 - **Links**: what each item uses and who uses it; **types and subtypes** list their subtypes and items (double-click filters the list).
@@ -45,12 +56,23 @@ An **open, community project**: the goal is to make Perfect World 100% editable 
 ### AI Policy (`aipolicy.data`)
 - Policy and trigger tree with plain-language explanation, add/delete operations, **clone policy or trigger**, search and translation.
 
+### NPCGen and 3D World
+- **NPCGen** tab: every monster, NPC and gathering point of each map (`npcgen.data` read and written byte for byte); quantity, respawn, radius, trigger and who spawns there.
+- **3D World**: terrain with the game textures, buildings, water, lighting and the monster/NPC models; go to a name or coordinate, drag points, create a new monster/NPC there, world map (M).
+
 ### Game interface and packages
 - **Native PCK extractor** (no sPCK needed): image and text preview, extracts to `<pack>.files` like sPCK.
-- **Interface editor** inside the extractor: the windows of `interfaces.pck` drawn like in the game; click, drag, resize and change text (saved to the sPCK folder).
+- **Interface editor** inside the extractor: the windows of `interfaces.pck` drawn like in the game; click, drag, resize and change text; **writes straight into the `.pck`** with backup.
+
+### Test server
+- **Server** tab: installs a 1.4.4 server in WSL (Windows' Linux), creates the account, starts and stops it; the original package files are never changed.
+- **Save and send to server**: saves everything and sends elements, quests, shop, AI and the server configuration, rebuilding the server side from the client.
+- **Admin panel**: accounts, CASH by ID (account or character), characters read from the game database, who is online, world attributes, broadcast, maps and instances with the memory each one uses.
 
 ### Client × server
 - **Pair check**: points out what makes login fail with "wrong version" and **fixes** it by rebuilding the server side from the client, with backups.
+- Checks the **compiled version** in `elementclient.exe` and `gs` (both refuse a different elements), the **local server** and the **windows the game looks for** in `interfaces.pck`.
+- **Translate from another client**: the target client only receives the fields it has, even when the source is a newer version.
 - **MCP** mode: the same operations available to AI agents.
 - Interface in Portuguese, English and Simplified Chinese (`lang/*.json`).
 
@@ -60,27 +82,36 @@ Screenshots taken with a Brazilian client: game content (item, monster and quest
 
 | | |
 |---|---|
-| ![Game-like shop](docs/img/en/gshop.png) | ![Interface editor](docs/img/en/interface.png) |
-| **Cash shop with the game screen** | **Editable game windows** |
-| ![Types and subtypes](docs/img/en/types.png) | ![Quests](docs/img/en/quests.png) |
-| **Weapon types: subtypes and items** | **Quests** |
-| ![Translate from another elements.data](docs/img/en/translate.png) | ![Find errors](docs/img/en/find-errors.png) |
-| **Translate from another file** | **Find errors** |
-| ![Monster tooltip](docs/img/en/tooltip-monster.png) | ![Weapon tooltip](docs/img/en/tooltip-weapon.png) |
-| **Monster tooltip** | **Weapon tooltip** |
+| ![3D World](docs/img/en/world3d.jpg) | ![NPCGen](docs/img/en/npcgen.png) |
+| **3D World: monsters and NPCs on the game map** | **NPCGen: where each one spawns** |
+| ![Test server](docs/img/en/server.png) | ![Check](docs/img/en/check.png) |
+| **Test server on your PC** | **Client × server check** |
+| ![Admin: characters](docs/img/en/admin-characters.png) | ![Admin: maps and instances](docs/img/en/admin-maps.png) |
+| **Admin: characters** | **Admin: maps and instances** |
+| ![Admin: world](docs/img/en/admin-world.png) | ![Interface editor](docs/img/en/interface.png) |
+| **Admin: double EXP, locks and broadcast** | **Editable game windows, written into the .pck** |
+| ![Game-like shop](docs/img/en/gshop.png) | ![Quests](docs/img/en/quests.png) |
+| **Cash shop with the game screen** | **Quests** |
+| ![Types and subtypes](docs/img/en/types.png) | ![Translate from another elements.data](docs/img/en/translate.png) |
+| **Weapon types: subtypes and items** | **Translate from another file** |
+| ![Find errors](docs/img/en/find-errors.png) | ![Monster tooltip](docs/img/en/tooltip-monster.png) |
+| **Find errors** | **Monster tooltip** |
 
 ## How to install (step by step)
 
 Nothing else to install besides the program itself. Works on **Windows 10 or 11 (64-bit)**.
 
-1. Open the **[Releases](https://github.com/ipasetto/MyAceEditor/releases)** page and, in the latest version, click the **`MyAceEditor-...-win-x64.zip`** file to download it (about 64 MB).
+1. Open the **[Releases](https://github.com/ipasetto/MyAceEditor/releases)** page and, in the latest version, click the **`MyAceEditor-...-win-x64.zip`** file to download it (about 70 MB).
 2. In your Downloads folder, **right-click** the `.zip` → **Extract All…** → **Extract**.
-   Do not run the program from inside the `.zip`: it needs the `lang` and `PerfectWorld` folders that come with it.
+   Do not run the program from inside the `.zip`: it needs the `lang`, `PerfectWorld` and `Server` folders that come with it.
 3. Open the extracted `MyAceEditor` folder and double-click **`MyAceEditor.exe`**.
 4. If **"Windows protected your PC"** shows up: click **More info** → **Run anyway**.
    This happens because the program has no paid digital signature yet; the code is open and all here on GitHub.
 5. In the program: **File → Open Perfect World folder…** and pick your game folder (the one with the `element` folder inside).
    Next time it opens the same folder by itself.
+
+**Test server (optional)**: in the **Server** tab, pick the `server files` folder of a 1.4.4 package and click **Install / complete**.
+If WSL is not on Windows yet, the program tells you: run `wsl --install --no-distribution` in a terminal as administrator and restart the PC once. Then just **Start** and join the game through the "Local" server.
 
 **Tips**
 - The program makes a **backup** before saving, but work on a **copy of the game folder** until you get used to it.
@@ -106,7 +137,7 @@ Then **File → Open Perfect World folder…** and pick the folder that contains
 dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PublishReadyToRun=true -o dist
 ```
 
-Produces `dist\MyAceEditor.exe`, a single file that runs without installing anything. Also copy the `lang\` folder next to the `.exe` (it holds the interface languages; see [CONTRIBUTING.md](CONTRIBUTING.md) to translate).
+Produces in `dist\` the `MyAceEditor.exe` (a single file that runs without installing anything) together with the `lang\`, `PerfectWorld\` and `Server\` folders and the `glfw3.dll` used by the 3D World. Ship the whole folder (see [CONTRIBUTING.md](CONTRIBUTING.md) to translate the interface).
 
 ## Status
 
@@ -114,15 +145,17 @@ Produces `dist\MyAceEditor.exe`, a single file that runs without installing anyt
 |---|---|
 | `elements.data`: read / write | ✅ ~98.6% / byte-identical with backup |
 | Convert `elements.data` between versions | ✅ (common format; v191+ 🔜) |
-| Native `.pck`/`.pkx` + icons + extractor | ✅ read (write 🔜) |
+| Native `.pck`/`.pkx` + icons + extractor | ✅ read; writing ✅ for `.pck` v2 (v3 and `.pkx` 🔜) |
 | Field editors, links, bulk, undo, find errors, translator | ✅ |
 | Quests (`tasks.data` v93) | ✅ fields, texts, lists and rewards; clone/delete (changing entry counts 🔜) |
 | GShop (client + server) | ✅ with the game screen |
 | AI Policy | ✅ read, operation editing, clone, search |
-| Interface editor (`interfaces.pck`) | ✅ saves to the sPCK folder (writing `.pck` 🔜) |
-| Client × server check and fix | ✅ |
+| Interface editor (`interfaces.pck`) | ✅ writes straight into the package |
+| Client × server check and fix | ✅ includes program versions and `interfaces.pck` windows |
 | NPCGen (where monsters, NPCs and mines spawn) | ✅ edit points, quantity, respawn and monster; Change ID updates it |
-| Map with the points, automatic test server | 🔜 formats documented |
+| 3D World | ✅ terrain, buildings, water, models; move and create points |
+| Local test server (WSL) + admin panel | ✅ 1.4.4; panel actions still being tested in game |
+| Start instances from the panel, edit characters, send items by mail | 🔜 |
 
 Reference version tested: Perfect World 1.4.4 client/server (`elements.data` v60, `tasks.data` v93).
 What's coming next is in the **[roadmap](docs/ROADMAP.md)**.

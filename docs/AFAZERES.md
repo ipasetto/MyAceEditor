@@ -52,6 +52,7 @@ Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor
 [x] editor de interface agora grava no interfaces.pck (antes so na pasta .files) + bug do texto (String/string) corrigido
 [ ] usuario: testar no jogo fechar o inventario pelo X e uma janela editada
 [x] (ver acima) aplicar o Corrigir no cliente 144
+[x] release v0.2.0-beta (26/10): README PT/EN com novidades e prints novos (NPCGen, 3D, Servidor, painel, Verificacao, interface); aba Verificacao e painel traduzidos para EN; 39 textos EN que faltavam
 [ ] BUG ABERTO: Mapas -> "Iniciar selecionado" na is05 nao sobe (log /home/logs/gs-is05.log vazio). Proximo: rodar "cd /home/gamed && timeout 40 ./gs is05" em primeiro plano p/ ver o erro (usuario interrompeu antes); depois corrigir pwctl gs-start
 [ ] Mapas: a lista perde a selecao ao atualizar (DataSource refeito) -> manter a linha
 [ ] testar com o usuario no jogo: aviso geral, EXP em dobro, gold (usecash), banir/expulsar/calar, GM liga/desliga, criar conta/senha pelo painel

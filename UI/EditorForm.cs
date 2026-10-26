@@ -3632,25 +3632,25 @@ public sealed class EditorForm : Form
         _chkClient.Dock = DockStyle.Fill; _chkServer.Dock = DockStyle.Fill;
         _chkClient.Text = LoadSetting("check_client") ?? "";
         _chkServer.Text = LoadSetting("check_server") ?? "";
-        form.Controls.Add(L("Cliente (pasta element)"), 0, 0); form.Controls.Add(_chkClient, 1, 0);
-        form.Controls.Add(B("Procurar…", () => PickFolder(_chkClient, "Pasta element do cliente")), 2, 0);
-        form.Controls.Add(L("Servidor (pasta home)"), 0, 1); form.Controls.Add(_chkServer, 1, 1);
-        form.Controls.Add(B("Procurar…", () => PickFolder(_chkServer, "Pasta home do servidor (contém gamed, glinkd…)")), 2, 1);
-        var run = B("✔ Verificar", RunCheck); run.BackColor = CAccent; run.ForeColor = Color.White; run.Font = new Font("Segoe UI Semibold", 10);
-        form.Controls.Add(new Label { Text = "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).", Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
+        form.Controls.Add(L(AppLang.T("Cliente (pasta element)", "Client (element folder)")), 0, 0); form.Controls.Add(_chkClient, 1, 0);
+        form.Controls.Add(B(AppLang.T("Procurar…", "Browse…"), () => PickFolder(_chkClient, AppLang.T("Pasta element do cliente", "Client element folder"))), 2, 0);
+        form.Controls.Add(L(AppLang.T("Servidor (pasta home)", "Server (home folder)")), 0, 1); form.Controls.Add(_chkServer, 1, 1);
+        form.Controls.Add(B(AppLang.T("Procurar…", "Browse…"), () => PickFolder(_chkServer, AppLang.T("Pasta home do servidor (contém gamed, glinkd…)", "Server home folder (contains gamed, glinkd…)"))), 2, 1);
+        var run = B(AppLang.T("✔ Verificar", "✔ Check"), RunCheck); run.BackColor = CAccent; run.ForeColor = Color.White; run.Font = new Font("Segoe UI Semibold", 10);
+        form.Controls.Add(new Label { Text = AppLang.T("Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).", "Compares the versions and timestamps the login requires to match (elements, tasks, shop), per-map copies and network encryption (without showing the keys)."), Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
         form.SetColumnSpan(form.GetControlFromPosition(0, 2)!, 2);
         form.Controls.Add(run, 2, 2);
-        var fix = B("Corrigir…", FixPair); fix.BackColor = Color.FromArgb(255, 244, 214); fix.Font = new Font("Segoe UI Semibold", 10);
-        form.Controls.Add(new Label { Text = "Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.", Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 3);
+        var fix = B(AppLang.T("Corrigir…", "Fix…"), FixPair); fix.BackColor = Color.FromArgb(255, 244, 214); fix.Font = new Font("Segoe UI Semibold", 10);
+        form.Controls.Add(new Label { Text = AppLang.T("Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.", "Fix: rebuilds on the server, from the client, what the login requires to match (elements, tasks, shop). Every replaced file gets a backup."), Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 3);
         form.SetColumnSpan(form.GetControlFromPosition(0, 3)!, 2);
         form.Controls.Add(fix, 2, 3);
         for (int i = 0; i < 4; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
 
         _chkList.Columns.Add("", 34);
         _chkList.Columns.Add("Item", 300);
-        _chkList.Columns.Add("Cliente", 170);
-        _chkList.Columns.Add("Servidor", 170);
-        _chkList.Columns.Add("O que significa", 520);
+        _chkList.Columns.Add(AppLang.T("Cliente", "Client"), 170);
+        _chkList.Columns.Add(AppLang.T("Servidor", "Server"), 170);
+        _chkList.Columns.Add(AppLang.T("O que significa", "What it means"), 520);
         _chkList.BackColor = CSurface; _chkList.ForeColor = CFg;
         _chkSummary.ForeColor = CFg;
 
@@ -3672,7 +3672,7 @@ public sealed class EditorForm : Form
     {
         if (_chkClient.Text.Length == 0 && _dataPath is not null)
             _chkClient.Text = Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "";
-        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status("Escolha as pastas do cliente e do servidor."); return; }
+        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(AppLang.T("Escolha as pastas do cliente e do servidor.", "Choose the client and server folders.")); return; }
         // aceita element\data, a pasta do jogo, a raiz dos arquivos do servidor... e mostra a pasta que vale
         _chkClient.Text = VersionCheck.ClientElement(_chkClient.Text); _chkServer.Text = VersionCheck.ServerHome(_chkServer.Text);
         SaveSetting("check_client", _chkClient.Text); SaveSetting("check_server", _chkServer.Text);
@@ -3692,12 +3692,12 @@ public sealed class EditorForm : Form
         }
         _chkList.EndUpdate();
         int err = rows.Count(r => r.Nivel == CheckLevel.Erro), warn = rows.Count(r => r.Nivel == CheckLevel.Aviso);
-        bool nothing = rows.All(r => r.Cliente == "não encontrado" && r.Servidor == "não encontrado");
-        _chkSummary.Text = nothing ? "✖ Não achei os arquivos: confira as pastas (cliente = element do jogo; servidor = pasta que tem gamed/)"
-                         : err > 0 ? $"✖ {err} erro(s) que impedem o login · {warn} aviso(s)"
-                         : warn > 0 ? $"⚠ Sem erros de login · {warn} aviso(s)" : "✔ Cliente e servidor compatíveis";
+        bool nothing = rows.All(r => r.Cliente == VersionCheck.NotFound && r.Servidor == VersionCheck.NotFound);
+        _chkSummary.Text = nothing ? AppLang.T("✖ Não achei os arquivos: confira as pastas (cliente = element do jogo; servidor = pasta que tem gamed/)", "✖ Files not found: check the folders (client = the game's element; server = the folder that has gamed/)")
+                         : err > 0 ? AppLang.T($"✖ {err} erro(s) que impedem o login · {warn} aviso(s)", $"✖ {err} error(s) that block login · {warn} warning(s)")
+                         : warn > 0 ? AppLang.T($"⚠ Sem erros de login · {warn} aviso(s)", $"⚠ No login errors · {warn} warning(s)") : AppLang.T("✔ Cliente e servidor compatíveis", "✔ Client and server are compatible");
         _chkSummary.ForeColor = nothing || err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
-        Status("Verificação concluída");
+        Status(AppLang.T("Verificação concluída", "Check finished"));
     }
 
     // Correção automática do par (issue #26): o usuário escolhe o que trocar; o cliente é a referência.

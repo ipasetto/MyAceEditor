@@ -14,6 +14,11 @@ public sealed record CheckRow(string Item, string Cliente, string Servidor, Chec
 /// </summary>
 public static class VersionCheck
 {
+    static string T(string pt, string en) => AppLang.T(pt, en);
+
+    /// <summary>Texto de arquivo ausente (a tela compara com ele para dizer que nada foi achado).</summary>
+    public static string NotFound => T("não encontrado", "not found");
+
     /// <param name="clientElement">pasta element\ do cliente</param>
     /// <param name="serverHome">pasta home/ do servidor (contém gamed/, glinkd/…)</param>
     /// <summary>Aceita a pasta do jogo, a element ou a element\data e devolve a element.</summary>
@@ -55,11 +60,11 @@ public static class VersionCheck
         // 1) elements.data — versão entra na edition
         var ce = Header(Path.Combine(cData, "elements.data"));
         var se = Header(Path.Combine(sCfg, "elements.data"));
-        rows.Add(Compare("elements.data — versão", ce is null ? null : $"v{ce.Value.A & 0xFFFF}", se is null ? null : $"v{se.Value.A & 0xFFFF}",
-            "Cliente e servidor precisam da mesma versão de elements.data (exporte os dois juntos)."));
+        rows.Add(Compare(T("elements.data — versão", "elements.data — version"), ce is null ? null : $"v{ce.Value.A & 0xFFFF}", se is null ? null : $"v{se.Value.A & 0xFFFF}",
+            T("Cliente e servidor precisam da mesma versão de elements.data (exporte os dois juntos).", "Client and server need the same elements.data version (export both together).")));
         if (ce is { } c1 && se is { } s1)
-            rows.Add(new("elements.data — data de exportação", Unix(c1.B), Unix(s1.B), CheckLevel.Info,
-                "Informativo: a data não entra na verificação de login."));
+            rows.Add(new(T("elements.data — data de exportação", "elements.data — export date"), Unix(c1.B), Unix(s1.B), CheckLevel.Info,
+                T("Informativo: a data não entra na verificação de login.", "Informative: the date is not part of the login check.")));
 
         // 1b) cópias do elements.data por mapa (gamed/config/aNN/…) devem ser iguais à principal
         if (Directory.Exists(sCfg) && se is not null)
@@ -71,49 +76,58 @@ public static class VersionCheck
                 var h = Header(copy);
                 long size = new FileInfo(copy).Length;
                 bool same = h is { } x && x.A == se.Value.A && size == mainSize;
-                rows.Add(new($"elements.data — cópia {Path.GetRelativePath(sCfg, copy)}", "—",
-                    h is null ? "ilegível" : $"v{h.Value.A & 0xFFFF}, {size:N0} B", same ? CheckLevel.Ok : CheckLevel.Aviso,
-                    same ? "Igual à principal." : "Cópia diferente da principal (versão antiga). Só afeta o jogo se o gs.conf desse mapa apontar para ela; senão, é sobra e pode ser apagada."));
+                rows.Add(new(T("elements.data — cópia ", "elements.data — copy ") + Path.GetRelativePath(sCfg, copy), "—",
+                    h is null ? T("ilegível", "unreadable") : $"v{h.Value.A & 0xFFFF}, {size:N0} B", same ? CheckLevel.Ok : CheckLevel.Aviso,
+                    same ? T("Igual à principal.", "Same as the main one.")
+                         : T("Cópia diferente da principal (versão antiga). Só afeta o jogo se o gs.conf desse mapa apontar para ela; senão, é sobra e pode ser apagada.",
+                             "Copy differs from the main one (old version). It only matters if that map's gs.conf points to it; otherwise it is a leftover and can be deleted.")));
             }
         }
 
         // 1b2) janelas que o elementclient.exe procura e o interfaces.pck não carrega
+        var dlgItem = T("interfaces.pck — janelas que o jogo procura", "interfaces.pck — windows the game looks for");
         try
         {
             if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)
-                rows.Add(new("interfaces.pck — janelas que o jogo procura", $"faltam {dlgs.Count}: " + string.Join(", ", dlgs.Select(d => d.Dialog)), "—", CheckLevel.Erro,
-                    "Estão no pacote, mas fora da lista de janelas (.dcf): o jogo cai quando o código toca nelas (ex.: Win_Engrave ao fechar o inventário pelo X). Use Corrigir."));
+                rows.Add(new(dlgItem, T("faltam ", "missing ") + dlgs.Count + ": " + string.Join(", ", dlgs.Select(d => d.Dialog)), "—", CheckLevel.Erro,
+                    T("Estão no pacote, mas fora da lista de janelas (.dcf): o jogo cai quando o código toca nelas (ex.: Win_Engrave ao fechar o inventário pelo X). Use Corrigir.",
+                      "They are in the package but not in the window list (.dcf): the game crashes when the code touches them (e.g. Win_Engrave when closing the inventory with X). Use Fix.")));
         }
-        catch (Exception ex) { rows.Add(new("interfaces.pck — janelas que o jogo procura", "não consegui ler: " + ex.Message, "—", CheckLevel.Aviso, "")); }
+        catch (Exception ex) { rows.Add(new(dlgItem, T("não consegui ler: ", "could not read: ") + ex.Message, "—", CheckLevel.Aviso, "")); }
 
         // 1c) versão que os PROGRAMAS têm compilada: cliente × gs (login) e cada programa × o elements que ele vai ler
         var cExe = ProgramVersion.ElementsVersion(Path.Combine(clientElement, "elementclient.exe"));
         var gsExe = ProgramVersion.ElementsVersion(Path.Combine(serverHome, "gamed", "gs"));
-        string V(int? v) => v is null ? "não identificada" : $"v{v}" + (ProgramVersion.GameFor(v.Value) is { Length: > 0 } g ? $" ({g})" : "");
+        string V(int? v) => v is null ? T("não identificada", "unknown") : $"v{v}" + (ProgramVersion.GameFor(v.Value) is { Length: > 0 } g ? $" ({g})" : "");
+        var progItem = T("Programas — versão do elements compilada", "Programs — compiled elements version");
         if (cExe is not null || gsExe is not null)
         {
             rows.Add(cExe is null || gsExe is null
-                ? new("Programas — versão do elements compilada", V(cExe), V(gsExe), CheckLevel.Aviso, "Não consegui ler a versão de um dos programas.")
+                ? new(progItem, V(cExe), V(gsExe), CheckLevel.Aviso, T("Não consegui ler a versão de um dos programas.", "Could not read the version of one of the programs."))
                 : cExe == gsExe
-                    ? new("Programas — versão do elements compilada", V(cExe), V(gsExe), CheckLevel.Ok, "elementclient.exe e gs são da mesma versão.")
-                    : new("Programas — versão do elements compilada", V(cExe), V(gsExe), CheckLevel.Erro,
-                        $"O cliente e o gs são de versões diferentes: o login é recusado mesmo com os dados iguais. Use um pacote de servidor cujo gs seja v{cExe}"
-                        + (ProgramVersion.GameFor(cExe.Value) is { Length: > 0 } g ? $" (jogo {g})" : "") + ", ou um cliente da versão do servidor."));
+                    ? new(progItem, V(cExe), V(gsExe), CheckLevel.Ok, T("elementclient.exe e gs são da mesma versão.", "elementclient.exe and gs are the same version."))
+                    : new(progItem, V(cExe), V(gsExe), CheckLevel.Erro,
+                        T($"O cliente e o gs são de versões diferentes: o login é recusado mesmo com os dados iguais. Use um pacote de servidor cujo gs seja v{cExe}",
+                          $"Client and gs are different versions: login is refused even with identical data. Use a server package whose gs is v{cExe}")
+                        + (ProgramVersion.GameFor(cExe.Value) is { Length: > 0 } g ? T($" (jogo {g})", $" (game {g})") : "")
+                        + T(", ou um cliente da versão do servidor.", ", or a client of the server's version.")));
             if (cExe is { } cv && ce is { } cd && cv != (cd.A & 0xFFFF))
-                rows.Add(new("elementclient.exe × elements.data do cliente", V(cExe), "—", CheckLevel.Erro,
-                    $"O elementclient.exe espera elements v{cv}, mas o elements.data do cliente é v{cd.A & 0xFFFF}. Converta com Arquivo → Salvar em outra versão (v{cv}) ou use o executável da versão dos dados."));
+                rows.Add(new(T("elementclient.exe × elements.data do cliente", "elementclient.exe × client elements.data"), V(cExe), "—", CheckLevel.Erro,
+                    T($"O elementclient.exe espera elements v{cv}, mas o elements.data do cliente é v{cd.A & 0xFFFF}. Converta com Arquivo → Salvar em outra versão (v{cv}) ou use o executável da versão dos dados.",
+                      $"elementclient.exe expects elements v{cv}, but the client's elements.data is v{cd.A & 0xFFFF}. Convert it with File → Save as another version (v{cv}) or use the executable of the data's version.")));
             if (gsExe is { } gv && se is { } sd && gv != (sd.A & 0xFFFF))
-                rows.Add(new("gs × elements.data do servidor", "—", $"gs v{gv}, arquivo v{sd.A & 0xFFFF}", CheckLevel.Erro,
-                    $"O gs só abre elements v{gv}: com este arquivo ele cai ao iniciar. Converta para v{gv} (Arquivo → Salvar em outra versão)."));
+                rows.Add(new(T("gs × elements.data do servidor", "gs × server elements.data"), "—", T($"gs v{gv}, arquivo v{sd.A & 0xFFFF}", $"gs v{gv}, file v{sd.A & 0xFFFF}"), CheckLevel.Erro,
+                    T($"O gs só abre elements v{gv}: com este arquivo ele cai ao iniciar. Converta para v{gv} (Arquivo → Salvar em outra versão).",
+                      $"gs only opens elements v{gv}: with this file it crashes on start. Convert to v{gv} (File → Save as another version).")));
         }
 
         // 2) tasks.data — versão entra na edition
         var ct = Header(Path.Combine(cData, "tasks.data"));
         var st = Header(Path.Combine(sCfg, "tasks.data"));
-        rows.Add(Compare("tasks.data — versão", ct is null ? null : $"v{ct.Value.B}", st is null ? null : $"v{st.Value.B}",
-            "Versão do tasks.data diferente: o login é recusado."));
-        rows.Add(Compare("tasks.data — nº de quests", ct is null ? null : $"{ct.Value.C:N0}", st is null ? null : $"{st.Value.C:N0}",
-            "Quantidade de quests diferente: cliente e servidor estão com tasks.data de origens diferentes.", CheckLevel.Aviso));
+        rows.Add(Compare(T("tasks.data — versão", "tasks.data — version"), ct is null ? null : $"v{ct.Value.B}", st is null ? null : $"v{st.Value.B}",
+            T("Versão do tasks.data diferente: o login é recusado.", "Different tasks.data version: login is refused.")));
+        rows.Add(Compare(T("tasks.data — nº de quests", "tasks.data — quest count"), ct is null ? null : $"{ct.Value.C:N0}", st is null ? null : $"{st.Value.C:N0}",
+            T("Quantidade de quests diferente: cliente e servidor estão com tasks.data de origens diferentes.", "Different quest count: client and server have tasks.data from different sources."), CheckLevel.Aviso));
 
         // 3) loja: gshop ↔ gshopsev (timestamps entram na edition)
         foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
@@ -121,34 +135,37 @@ public static class VersionCheck
             var cg = Header(Path.Combine(cData, cn));
             var sg = Header(Path.Combine(sCfg, sn));
             rows.Add(Compare($"{cn} × {sn} — timestamp", cg is null ? null : Unix(cg.Value.A), sg is null ? null : Unix(sg.Value.A),
-                "Timestamp da loja diferente: o login é recusado (\"versão errada\"). Com o servidor local, o que vale são as linhas \"servidor local\" (o Salvar e enviar grava lá, não nesta pasta)."));
-            rows.Add(Compare($"{cn} × {sn} — nº de itens", cg is null ? null : $"{cg.Value.B:N0}", sg is null ? null : $"{sg.Value.B:N0}",
-                "Quantidade de itens da loja diferente.", CheckLevel.Aviso));
+                T("Timestamp da loja diferente: o login é recusado (\"versão errada\"). Com o servidor local, o que vale são as linhas \"servidor local\" (o Salvar e enviar grava lá, não nesta pasta).",
+                  "Different shop timestamp: login is refused (\"wrong version\"). With the local server, the \"local server\" rows are what counts (Save and send writes there, not to this folder).")));
+            rows.Add(Compare($"{cn} × {sn} — " + T("nº de itens", "item count"), cg is null ? null : $"{cg.Value.B:N0}", sg is null ? null : $"{sg.Value.B:N0}",
+                T("Quantidade de itens da loja diferente.", "Different number of shop items."), CheckLevel.Aviso));
         }
 
         // 3b) servidor local (WSL): é nele que o "Salvar e enviar" grava, não na pasta do pacote acima
         var live = LocalServer.DistroExists() ? $@"\\wsl.localhost\{LocalServer.Distro}\home\gamed\config" : null;
         if (live is not null && Directory.Exists(live))
         {
-            const string why = "O servidor local está com outro arquivo: use \"Salvar e enviar ao servidor\" (a aba Servidor mostra o envio).";
+            var why = T("O servidor local está com outro arquivo: use \"Salvar e enviar ao servidor\" (a aba Servidor mostra o envio).",
+                        "The local server has a different file: use \"Save and send to server\" (the Server tab shows the transfer).");
+            var local = T("servidor local — ", "local server — ");
             var le = Header(Path.Combine(live, "elements.data"));
-            rows.Add(Compare("servidor local — elements.data versão", ce is null ? null : $"v{ce.Value.A & 0xFFFF}", le is null ? null : $"v{le.Value.A & 0xFFFF}", why));
+            rows.Add(Compare(local + T("elements.data versão", "elements.data version"), ce is null ? null : $"v{ce.Value.A & 0xFFFF}", le is null ? null : $"v{le.Value.A & 0xFFFF}", why));
             var lt = Header(Path.Combine(live, "tasks.data"));
-            rows.Add(Compare("servidor local — tasks.data versão", ct is null ? null : $"v{ct.Value.B}", lt is null ? null : $"v{lt.Value.B}", why));
+            rows.Add(Compare(local + T("tasks.data versão", "tasks.data version"), ct is null ? null : $"v{ct.Value.B}", lt is null ? null : $"v{lt.Value.B}", why));
             foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
             {
                 var cg = Header(Path.Combine(cData, cn));
                 var lg = Header(Path.Combine(live, sn));
-                rows.Add(Compare($"servidor local — {cn} × {sn} timestamp", cg is null ? null : Unix(cg.Value.A), lg is null ? null : Unix(lg.Value.A), why));
+                rows.Add(Compare(local + $"{cn} × {sn} timestamp", cg is null ? null : Unix(cg.Value.A), lg is null ? null : Unix(lg.Value.A), why));
             }
         }
 
         // 4) aipolicy.data
         var ca = Header(Path.Combine(cData, "aipolicy.data"));
         var sa = Header(Path.Combine(sCfg, "aipolicy.data"));
-        rows.Add(Compare("aipolicy.data — versão / nº de políticas",
+        rows.Add(Compare(T("aipolicy.data — versão / nº de políticas", "aipolicy.data — version / policy count"),
             ca is null ? null : $"v{ca.Value.A} / {ca.Value.B:N0}", sa is null ? null : $"v{sa.Value.A} / {sa.Value.B:N0}",
-            "IA de monstros diferente entre cliente e servidor.", CheckLevel.Aviso));
+            T("IA de monstros diferente entre cliente e servidor.", "Monster AI differs between client and server."), CheckLevel.Aviso));
 
         // 5) rede: versão do glinkd e chaves isec/osec (sem mostrar valores)
         var glinkConf = Path.Combine(serverHome, "glinkd", "gamesys.conf");
@@ -157,15 +174,16 @@ public static class VersionCheck
         {
             var links = ParseIni(glinkConf).Where(kv => kv.Key.StartsWith("GLinkServer", StringComparison.OrdinalIgnoreCase)).ToList();
             var versions = links.Select(l => l.Value.GetValueOrDefault("version")).Where(v => v is not null).Distinct().ToList();
-            rows.Add(new("glinkd — versão do jogo", "—", string.Join(", ", versions.Select(HexVersion)),
+            rows.Add(new(T("glinkd — versão do jogo", "glinkd — game version"), "—", string.Join(", ", versions.Select(HexVersion)),
                 versions.Count == 1 ? CheckLevel.Info : CheckLevel.Aviso,
-                versions.Count == 1 ? "Precisa casar com a versão do elementclient.exe." : "GLinkServers com versões diferentes."));
+                versions.Count == 1 ? T("Precisa casar com a versão do elementclient.exe.", "Must match the elementclient.exe version.")
+                                    : T("GLinkServers com versões diferentes.", "GLinkServers with different versions.")));
 
             var client = File.Exists(dbConf) ? ParseIni(dbConf).GetValueOrDefault("GameClient") : null;
             foreach (var (name, sect) in links)
             {
                 var (lvl, msg, cDesc, sDesc) = KeysMatch(client, sect);
-                rows.Add(new($"criptografia cliente × {name}", cDesc, sDesc, lvl, msg));
+                rows.Add(new(T("criptografia cliente × ", "client encryption × ") + name, cDesc, sDesc, lvl, msg));
             }
         }
         return rows;
@@ -188,9 +206,9 @@ public static class VersionCheck
 
     static CheckRow Compare(string item, string? c, string? s, string dica, CheckLevel onDiff = CheckLevel.Erro)
     {
-        if (c is null && s is null) return new(item, "não encontrado", "não encontrado", CheckLevel.Info, "Arquivo ausente nos dois lados.");
-        if (c is null || s is null) return new(item, c ?? "não encontrado", s ?? "não encontrado", CheckLevel.Aviso, "Arquivo ausente em um dos lados.");
-        return c == s ? new(item, c, s, CheckLevel.Ok, "Iguais.") : new(item, c, s, onDiff, dica);
+        if (c is null && s is null) return new(item, NotFound, NotFound, CheckLevel.Info, T("Arquivo ausente nos dois lados.", "File missing on both sides."));
+        if (c is null || s is null) return new(item, c ?? NotFound, s ?? NotFound, CheckLevel.Aviso, T("Arquivo ausente em um dos lados.", "File missing on one side."));
+        return c == s ? new(item, c, s, CheckLevel.Ok, T("Iguais.", "Same.")) : new(item, c, s, onDiff, dica);
     }
 
     static string Unix(uint t) => t == 0 ? "0" : DateTimeOffset.FromUnixTimeSeconds(t).ToLocalTime().ToString("dd/MM/yyyy HH:mm");
@@ -206,15 +224,15 @@ public static class VersionCheck
     {
         bool cOn = c is not null && c.ContainsKey("isec");
         bool sOn = s.ContainsKey("isec");
-        string Desc(bool on) => on ? "ligada" : "desligada";
-        if (!cOn && !sOn) return (CheckLevel.Ok, "Criptografia desligada nos dois lados.", Desc(cOn), Desc(sOn));
-        if (cOn != sOn) return (CheckLevel.Erro, "Criptografia ligada só de um lado: o cliente não conecta.", Desc(cOn), Desc(sOn));
+        string Desc(bool on) => on ? T("ligada", "on") : T("desligada", "off");
+        if (!cOn && !sOn) return (CheckLevel.Ok, T("Criptografia desligada nos dois lados.", "Encryption off on both sides."), Desc(cOn), Desc(sOn));
+        if (cOn != sOn) return (CheckLevel.Erro, T("Criptografia ligada só de um lado: o cliente não conecta.", "Encryption on only one side: the client cannot connect."), Desc(cOn), Desc(sOn));
         bool ok = c!.GetValueOrDefault("iseckey") == s.GetValueOrDefault("oseckey")
                && c.GetValueOrDefault("oseckey") == s.GetValueOrDefault("iseckey")
                && c.GetValueOrDefault("isec") == s.GetValueOrDefault("osec")
                && c.GetValueOrDefault("osec") == s.GetValueOrDefault("isec");
-        return ok ? (CheckLevel.Ok, "Chaves cruzadas corretamente.", "ligada", "ligada")
-                  : (CheckLevel.Erro, "Chaves não cruzam (iseckey de um lado deve ser o oseckey do outro).", "ligada", "ligada");
+        return ok ? (CheckLevel.Ok, T("Chaves cruzadas corretamente.", "Keys cross correctly."), Desc(true), Desc(true))
+                  : (CheckLevel.Erro, T("Chaves não cruzam (iseckey de um lado deve ser o oseckey do outro).", "Keys do not cross (one side's iseckey must be the other's oseckey)."), Desc(true), Desc(true));
     }
 
     // .conf/.ini simples: [Seção] chave = valor ; linhas com ';' ou '#' são comentário

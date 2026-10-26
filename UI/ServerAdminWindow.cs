@@ -144,6 +144,12 @@ public sealed class ServerAdminWindow : Form
         return f.ShowDialog(owner) == DialogResult.OK ? tb.Text.Trim() : null;
     }
 
+    // títulos das colunas no idioma da interface (as grades vêm de tipos anônimos)
+    static void Headers(DataGridView g, params (string Pt, string En)[] h)
+    {
+        for (int i = 0; i < h.Length && i < g.Columns.Count; i++) g.Columns[i].HeaderText = L(h[i].Pt, h[i].En);
+    }
+
     static bool ValidLogin(string s) => s.Length is >= 3 and <= 20 && s.All(char.IsAsciiLetterOrDigit);
 
     // ---------- visão geral ----------
@@ -199,7 +205,7 @@ public sealed class ServerAdminWindow : Form
             Btn(L("Banir…", "Ban…"), BanAccount),
             Btn(L("Liberar", "Unban"), () => { if (Sel() is { } a) Work(L("Liberando…", "Unbanning…"), () => Done(_adm.Unban(a.Id), L("Conta liberada.", "Account unbanned.")), RefreshAccounts); }),
             Btn(L("Atualizar", "Refresh"), RefreshAccounts));
-        var hint = new Label { Dock = DockStyle.Bottom, Height = 40, ForeColor = Color.DimGray, Padding = new Padding(4),
+        var hint = new Label { Dock = DockStyle.Bottom, Height = 56, ForeColor = Color.DimGray, Padding = new Padding(4),
             Text = L("Gold: 1 gold = 100 de cash. O authd entrega uns 4 minutos depois de enviar (e só começa 10 minutos depois de ligar o servidor); até lá aparece em GoldPendente. Banir também derruba a conta se ela estiver no jogo.",
                      "Gold: 1 gold = 100 cash. authd delivers it about 4 minutes after sending (and only starts 10 minutes after the server starts); until then it shows in GoldPendente. Banning also disconnects the account if it is online.") };
         p.Controls.Add(_acc); p.Controls.Add(hint); p.Controls.Add(bar);
@@ -220,10 +226,12 @@ public sealed class ServerAdminWindow : Form
             _accounts = list;
             _acc.DataSource = list.Select(a => new
             {
-                ID = a.Id, Login = a.Login, GM = a.Gm ? "sim" : "", Online = a.Online ? "● no jogo" : "",
+                ID = a.Id, Login = a.Login, GM = a.Gm ? L("sim", "yes") : "", Online = a.Online ? L("● no jogo", "● online") : "",
                 Criada = a.Created, UltimoLogin = a.LastLogin, BanidaAte = a.BannedUntil?.ToString("dd/MM/yyyy HH:mm") ?? "",
                 GoldPendente = a.PendingGold > 0 ? a.PendingGold.ToString("N0") : "",
             }).ToList();
+            Headers(_acc, ("ID", "ID"), ("Login", "Login"), ("GM", "GM"), ("No jogo", "Online"), ("Criada", "Created"), ("Último login", "Last login"),
+                ("Banida até", "Banned until"), ("Gold pendente", "Pending gold"));
             var keep = _roleAcc.SelectedIndex;
             _roleAcc.Items.Clear();
             foreach (var a in list) _roleAcc.Items.Add($"{a.Login} (ID {a.Id})");
@@ -395,6 +403,7 @@ public sealed class ServerAdminWindow : Form
         {
             _onlineList = list;
             _online.DataSource = list.Select(u => new { Conta = u.UserId, Personagem = u.Name, IdPersonagem = u.RoleId, Gs = u.GsId }).ToList();
+            Headers(_online, ("Conta", "Account"), ("Personagem", "Character"), ("ID do personagem", "Character ID"), ("Mapa (gs)", "Map (gs)"));
             _status.Text = string.Format(L("{0} no jogo.", "{0} online."), list.Count);
         });
     }
@@ -482,6 +491,7 @@ public sealed class ServerAdminWindow : Form
                 Mapa = m.Tag, Nome = m.Name, Tipo = m.Instance ? L("instância", "instance") : L("mundo", "world"),
                 Rodando = run.ContainsKey(m.Tag) ? "●" : "", RAM_MB = run.TryGetValue(m.Tag, out var mb) ? mb.ToString("N0") : "",
             }).ToList();
+            Headers(_maps, ("Mapa", "Map"), ("Nome", "Name"), ("Tipo", "Type"), ("Rodando", "Running"), ("RAM (MB)", "RAM (MB)"));
             _ram.Text = string.Format(L("RAM do Linux: {0:N0} MB livres de {1:N0} MB", "Linux RAM: {0:N0} MB free of {1:N0} MB"), st.Free, st.Total);
         });
     }
