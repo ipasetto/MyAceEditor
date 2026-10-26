@@ -117,6 +117,7 @@ PerfectWorld/TasksFile.cs | tasks.data (arvore, gravacao c/ tabela de offsets)
 PerfectWorld/TaskSchema.cs | esquema v93 (campos, premios, textos, dialogos)
 PerfectWorld/GameConfigs.cs | item_color + item_ext_desc do configs.pck
 PerfectWorld/NpcGenFile.cs | npcgen.data v5-11 (pontos, grupos, coleta, objetos, gatilhos) campo a campo, gravacao identica; limiares de versao conferidos com npcgendata.cpp oficial
+PerfectWorld/CfgCatalog.cs + CfgElementsReader.cs | escolha automatica do CFG em 3 degraus: versao declarada > outras versoes (mais perto primeiro, so leitura completa ate o ultimo byte + regravacao identica) > tamanho de registro ajustado lista a lista (AutoResize: IDs de amostra + 3 listas seguintes); ajustes em ElementsLayout.Adjustments (avisados, nao bloqueiam salvar)
 PerfectWorld/RegionFile.cs | region.sev do servidor (regioes + portais); EntranceOf(config, mapa) = entrada da instancia p/ o Mundo 3D
 PerfectWorld/MapTags.cs | pasta do servidor -> mapa do cliente (gs.conf tag -> configs\instance.txt)
 PerfectWorld/LocalServer.cs + UI/ServerView.cs + Server/provision.sh + Server/pwctl.sh | servidor local no WSL (distro PWServer): instala, inicia/para, estado, conta, par corrigido na copia, entrada Local no serverlist

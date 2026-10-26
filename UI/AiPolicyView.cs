@@ -80,9 +80,10 @@ public sealed class AiPolicyView : UserControl
 
         var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 6, 8, 0), BackColor = bg, WrapContents = false };
         _lblNewOp.ForeColor = fg; _lblLang.ForeColor = fg; _orig.ForeColor = fg;
-        top.Controls.AddRange(new Control[] { _open, _save, _lblNewOp, _newOp, _add, _del, _clone, new Label { Width = 12 }, _find, _findNext });
+        top.Controls.AddRange(new Control[] { _open, _save, _lblNewOp, _newOp, _add, _del, _clone });
         var top2 = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(8, 2, 8, 0), BackColor = bg, WrapContents = false };
-        top2.Controls.AddRange(new Control[] { _trSel, _trAll, _lblTarget, _tgt, _orig, _lblLang });
+        // busca na 2ª linha: na 1ª, no tamanho normal da janela, o "Próximo" ficava cortado
+        top2.Controls.AddRange(new Control[] { _find, _findNext, new Label { Width = 12 }, _trSel, _trAll, _lblTarget, _tgt, _orig, _lblLang });
 
         foreach (var tv in new[] { _policies, _detail }) { tv.BackColor = treeBg; tv.ForeColor = treeFg; tv.Font = new Font("Segoe UI", 10); tv.BorderStyle = BorderStyle.None; }
         _meaning.BackColor = treeBg; _meaning.ForeColor = treeFg;

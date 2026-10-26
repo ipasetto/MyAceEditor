@@ -927,6 +927,16 @@ public sealed class EditorForm : Form
             + (r.Warnings.Count > 0 ? " · " + string.Join(" · ", r.Warnings) : ""));
         Text = $"MyAceEditor — {module.Name}{HeaderInfo(path)}";
         UseWaitCursor = false;
+        // CFG adaptado ao arquivo (versão trocada ou tamanho de registro diferente): avisa o que foi feito
+        if (module.Source is ElementsLayout { Adjustments.Count: > 0 } adj)
+        {
+            Status(Loc.T("status.cfgAdjusted", "CFG adaptado a este arquivo: ") + string.Join(" · ", adj.Adjustments));
+            MessageBox.Show(this, Loc.T("cfgAdjust.body", "Este elements.data não segue exatamente o CFG da versão que ele declara. O MyAceEditor adaptou a leitura sozinho:") + "\n\n• "
+                + string.Join("\n• ", adj.Adjustments) + "\n\n" + (adj.CanWrite
+                    ? Loc.T("cfgAdjust.ok", "A leitura foi até o último byte e a regravação de teste saiu idêntica ao original: pode editar e salvar normalmente.")
+                    : Loc.T("cfgAdjust.ro", "Aberto como somente leitura: ") + adj.ReadOnlyReason),
+                Loc.T("cfgAdjust.title", "Leitura adaptada"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
     }
 
     // " · v60 · 14/03/2012 23:05" lido do cabeçalho do elements.data (u16 versão, u16 assinatura, u32 data de exportação).

@@ -16,6 +16,8 @@ public sealed class ElementsLayout
     public List<BlockSpan> Blocks { get; } = new();
     public List<(string Name, int Start, int End)> OpaqueSections { get; } = new();
     public List<string> Warnings { get; } = new();
+    /// <summary>Tamanhos de registro ajustados ao arquivo (CFG de outra variante da mesma versão); não impedem salvar.</summary>
+    public List<string> Adjustments { get; } = new();
     public string ConfigPath { get; set; } = "";
     public ElementsReadFormat Format { get; set; }
     public bool Complete { get; set; }

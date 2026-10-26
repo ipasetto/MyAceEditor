@@ -483,6 +483,8 @@ xref: configs\references.txt (lista;campo,campo)
 - [T] RECIPE_ESSENCE materials_1..32 podem estar espalhados (ex. receita 27 usa slots 2, 7, 11); a janela de fabricar (interfaces\version01\produce_icon.xml: Btn_Set1..8 paginas, U_01..U_32 receitas, Item_01..08 + Txt_no materiais, Item_out/Txt_out, Txt_Gold, Txt_SkillName/Level) mostra 8 — nossa previa compacta em sequencia [I].
 - [T] Habilidades de monstro (v60): 379 distintas usadas, nenhuma das 693 de classe (descricao de personagem tem "Nv. %d"/"Custo em MP"); ovos de mascote usam 48 (22 com descricao de personagem, sao skills de mascote). Seletor abre nas usadas pelo bloco.
 - [T] skillstr.txt: "ID*10 \"nome\"" e "ID*10+1 \"descricao\"" (descricao pode ter varias linhas; 1789 habilidades com nome no 1.4.4).
+- [T] numero de versao do elements.data NAO garante a estrutura: o cliente 'PW 144 BR' (D:\Perfect World\Clientes\PW 144 BR) diz v61 e tem a estrutura da v60 (150 listas; o PW_1.4.4_v61.cfg tem 153 e NPC_SELL_SERVICE de 3368 B contra 2280). Lido completo com o cfg v60 e regravado identico. Leitores que confiam so na versao desalinham na lista 41 e so falham na 103 (listas vazias no meio parecem validas).
+
 ## §S24 OPERACAO, SEGURANCA, ERROS (PDFs PWDevGroup + Protegendo Servidor + guia andrey.pw; doc analise_arquivos_pw.md §3-6) [W/M]
 classes (mascara, confirmada em sELedit+aipolicy+tasks): BM=1 WIZ=2 PSY=4 VEN=8 BAR=16 AS=32 AR=64 CLE=128 SE=256 MY=512 | modernas: Duskblade 0x400 Stormbringer 0x800 Technician 0x1000 Edgerunner 0x2000 [C]
  nomes internos (§S12): SWORDSMAN=BM MAGE=WIZ NEC=PSY HAG=VEN ORGE=BAR ASN=AS ARCHER=AR ANGEL=CLE BLADE=SE GENIE=MY [I forte]

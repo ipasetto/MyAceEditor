@@ -35,6 +35,8 @@ public sealed class CfgElementsReader
     public int Position => _pos;
     public string? StoppedAt { get; private set; }
     public ElementsProbe? LastResult { get; private set; }
+    /// <summary>Último recurso (CfgCatalog): ajusta o tamanho de registro de listas simples que não fecham com o CFG.</summary>
+    public bool AutoResize { get; set; }
     public CfgElementsReader(string path, LoadContext? context = null) : this(context is null ? File.ReadAllBytes(path) : context.ReadFile(path)) { }
     public CfgElementsReader(byte[] data)
     {
@@ -102,13 +104,26 @@ public sealed class CfgElementsReader
                 {
                     uint stored = TakeU32();
                     if (stored == 0 && count == 0) stored = (uint)recordSize;
-                    if (stored < recordSize || stored > 16 * 1024 * 1024)
-                        throw new InvalidDataException($"Tamanho de registro da lista ({stored}) difere do CFG ({recordSize}).");
-                    recordSize = (int)stored;
-                    if (recordSize != block.RecordSize)
+                    if (stored == 0 || stored > 16 * 1024 * 1024)
+                        throw new InvalidDataException($"Tamanho de registro da lista ({stored}) inválido (CFG define {recordSize}).");
+                    if (stored != recordSize)
                     {
-                        _unmapped = true;
-                        layout.Warnings.Add($"{block.Name}: registro real de {recordSize} bytes, CFG define {block.RecordSize}; a cauda não mapeada fica como bytes brutos.");
+                        // o arquivo diz o tamanho real: a descrição se ajusta (campos finais saem ou viram "bytes extras")
+                        layout.Adjustments.Add($"{block.Name}: registro de {stored} bytes no arquivo, CFG define {recordSize}.");
+                        block = ResizeBlock(block, (int)stored);
+                        recordSize = (int)stored;
+                    }
+                }
+                else if (format == ElementsReadFormat.CountOnly && count > 0 && AutoResize)
+                {
+                    // listas simples não guardam o tamanho do registro: se o do CFG não fecha (IDs absurdos ou próxima
+                    // lista sem sentido), procura o tamanho real perto dele. Ex.: NPC_SELL_SERVICE de um v61 BR.
+                    int stride = DetectStride(cfg, index, block, _pos, count);
+                    if (stride > 0 && stride != recordSize)
+                    {
+                        layout.Adjustments.Add($"{block.Name}: registro de {stride} bytes no arquivo, CFG define {recordSize}.");
+                        block = ResizeBlock(block, stride);
+                        recordSize = stride;
                     }
                 }
                 var list = new ItemList { Name = block.Name, Group = GroupOf(block.Name), Kind = KindOf(block.Name) };
@@ -230,6 +245,98 @@ public sealed class CfgElementsReader
             }
         }
     }
+    // ---------- ajuste automático do tamanho de registro (listas simples, até a v190) ----------
+    // O arquivo não diz o tamanho dos registros; o CFG da comunidade pode não bater com uma variante (servidor que
+    // acrescentou/tirou campos mantendo a versão). Um tamanho é aceito se os IDs de amostra dos registros forem
+    // plausíveis e distintos e o cabeçalho da lista seguinte fizer sentido; senão, testa tamanhos vizinhos (o mais
+    // perto do CFG primeiro). 0 = nenhum tamanho fecha (o erro de sempre aparece adiante).
+    private const int MaxStrideDelta = 8192;
+
+    private int DetectStride(ElementsCfg cfg, int index, CfgBlock block, int dataPos, int count)
+    {
+        int s0 = block.RecordSize;
+        // 1ª volta exigente (as 3 listas seguintes também fecham com o CFG); 2ª, só a seguinte (duas listas erradas em sequência)
+        foreach (int depth in new[] { 3, 1 })
+        {
+            if (StrideOk(cfg, index, block, dataPos, count, s0, depth)) return s0;
+            for (int d = 1; d <= MaxStrideDelta; d++)
+            {
+                if (StrideOk(cfg, index, block, dataPos, count, s0 + d, depth)) return s0 + d;
+                if (s0 - d >= 4 && StrideOk(cfg, index, block, dataPos, count, s0 - d, depth)) return s0 - d;
+            }
+        }
+        return 0;
+    }
+
+    private bool StrideOk(ElementsCfg cfg, int index, CfgBlock block, int dataPos, int count, int stride, int depth)
+    {
+        long end = dataPos + (long)count * stride;
+        if (end > Length) return false;
+        if (!IdsOk(block, dataPos, count, stride)) return false;
+        return NextOk(cfg, index, end, depth);
+    }
+
+    private bool IdsOk(CfgBlock block, long dataPos, int count, int stride)
+    {
+        if (!HasId(block) || count == 0) return true;
+        int samples = Math.Min(count, 256);
+        var seen = new HashSet<int>();
+        for (int k = 0; k < samples; k++)
+        {
+            long row = (long)k * count / samples;
+            int id = BitConverter.ToInt32(_d, (int)(dataPos + row * stride));
+            if (!IdOk(id) || !seen.Add(id)) return false;
+        }
+        return IdOk(BitConverter.ToInt32(_d, (int)(dataPos + (long)(count - 1) * stride)));   // o último também
+    }
+
+    // simula as próximas `depth` listas com os tamanhos do CFG: cabeçalho plausível e IDs dos registros plausíveis
+    private bool NextOk(ElementsCfg cfg, int index, long pos, int depth)
+    {
+        if (depth <= 0) return true;
+        if (index + 1 >= cfg.Blocks.Count) return pos == Length;
+        var nb = cfg.Blocks[index + 1];
+        long p = pos;
+        if (nb.Offset == "AUTO")
+        {
+            if (p + 8 > Length) return false;
+            uint len = BitConverter.ToUInt32(_d, (int)p + 4); p += 8;
+            if (len > Length - p) return false;
+            p += len;
+            if (nb.Name.Equals("SKILLTOME_SUB_TYPE", StringComparison.OrdinalIgnoreCase)) p += 4;
+        }
+        else p += int.Parse(nb.Offset, CultureInfo.InvariantCulture);
+        if (p + 4 > Length) return false;
+        uint c = BitConverter.ToUInt32(_d, (int)p);
+        if (nb.Raw) return c < 200_000;                       // diálogos: fim da simulação
+        if (c > MaxCount) return false;
+        long end = p + 4 + (long)c * nb.RecordSize;
+        if (end > Length || !IdsOk(nb, p + 4, (int)c, nb.RecordSize)) return false;
+        return NextOk(cfg, index + 1, end, depth - 1);
+    }
+
+    private static bool HasId(CfgBlock b) => b.Fields.Count > 0 && b.Fields[0].Size == 4 && b.Fields[0].SourceName.Equals("ID", StringComparison.OrdinalIgnoreCase);
+    private static bool IdOk(int id) => id > 0 && id < 50_000_000;
+
+    /// <summary>Mesmo bloco com o tamanho real: campos que não cabem saem; a sobra vira "bytes_extras" (byte:N, regravado igual).</summary>
+    internal static CfgBlock ResizeBlock(CfgBlock b, int size)
+    {
+        var nb = new CfgBlock { Number = b.Number, NumberText = b.NumberText, Name = b.Name, Offset = b.Offset, Raw = b.Raw };
+        int sum = 0;
+        foreach (var f in b.Fields)
+        {
+            if (sum + f.Size > size) break;
+            nb.Fields.Add(f); sum += f.Size;
+        }
+        if (sum < size)
+        {
+            string name = "bytes_extras";
+            for (int i = 2; nb.Fields.Any(f => f.Name == name); i++) name = "bytes_extras__" + i;
+            nb.Fields.Add(new CfgField(name, $"byte:{size - sum}", size - sum, "bytes_extras"));
+        }
+        return nb;
+    }
+
     private int ReadCount()
     {
         uint n = TakeU32();

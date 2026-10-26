@@ -19,7 +19,11 @@ public sealed class CfgChoiceRequiredException : InvalidOperationException
         : base("Há mais de um CFG compatível com esta versão; escolha manualmente conforme o ramo do jogo.") => Paths = paths.ToList();
 }
 
-/// <summary>Casa pelo número de versão completo (16 bits baixos); ramos da mesma versão são testados um a um, nunca pega o primeiro arquivo nem versão vizinha.</summary>
+/// <summary>
+/// Casa pelo número de versão (16 bits baixos): 1º os CFG da versão declarada (ramos testados um a um); se nenhum fecha,
+/// os de outras versões, da mais perto para a mais longe (cliente com número de versão trocado); por último, os da versão
+/// declarada com tamanho de registro ajustado lista a lista. Só aceita leitura completa até o último byte.
+/// </summary>
 public static class CfgCatalog
 {
     private static readonly Regex VersionName = new(@"_v(\d+)(?:[_-].+)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -62,7 +66,6 @@ public static class CfgCatalog
         }
         var entries = (cfgDirectory is null ? DefaultEntries() : Discover(cfgDirectory))
             .Where(x => x.Version == reader.Version).OrderBy(x => x.Path, StringComparer.Ordinal).ToList();
-        if (entries.Count == 0) throw new InvalidDataException($"Nenhum CFG para a versão v{reader.Version}. Coloque o arquivo em PerfectWorld\\cfg ou escolha um CFG manualmente.");
         var candidates = new List<(ElementsCfg Cfg, ElementsProbe Probe)>();
         var messages = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -85,12 +88,56 @@ public static class CfgCatalog
         var complete = candidates.Where(x => x.Probe.Complete).ToList();
         if (complete.Any(x => !x.Probe.HasUnmappedBytes)) complete = complete.Where(x => !x.Probe.HasUnmappedBytes).ToList();
         if (complete.Count > 1) throw new CfgChoiceRequiredException(complete.Select(x => x.Cfg.SourcePath));
-        if (complete.Count == 0) throw new InvalidDataException($"Nenhum CFG candidato da versão v{reader.Version} casou por completo.\n" +
+        if (complete.Count == 1)
+        {
+            var selected = complete[0];
+            var result = reader.Parse(selected.Cfg, selected.Probe.Format, context?.Slice(.20, 1));
+            if (!reader.LastResult!.Complete) throw new InvalidDataException("Falha na decodificação completa: " + reader.StoppedAt);
+            return new CfgMatch(selected.Cfg.SourcePath, reader, result, reader.LastResult!);
+        }
+
+        // Nenhum CFG da versão declarada fechou. Clientes montados por terceiros às vezes gravam um número de versão
+        // que não é o da estrutura (ex.: PW 144 BR diz v61 e é v60). 2º degrau: os CFG das outras versões, da mais perto
+        // para a mais longe; só vale leitura COMPLETA até o último byte (e a regravação de teste igual, no Parse).
+        var all = (cfgDirectory is null ? DefaultEntries() : Discover(cfgDirectory)).Where(x => x.Version != reader.Version)
+            .OrderBy(x => Math.Abs(x.Version - (int)reader.Version)).ThenBy(x => x.Version).ThenBy(x => x.Path, StringComparer.Ordinal).ToList();
+        context?.Report(.20, "Casando CFG", "a versão declarada não fecha; testando a estrutura de outras versões", force: true);
+        foreach (var entry in all)
+        {
+            context?.Check();
+            ElementsCfg cfg;
+            try { cfg = ElementsCfg.Load(entry.Path); } catch (InvalidDataException) { continue; }
+            if (!seen.Add(cfg.SchemaKey)) continue;
+            var best = reader.Probe(cfg).OrderByDescending(x => x.Complete).ThenBy(x => x.HasUnmappedBytes).First();
+            if (!best.Complete || best.HasUnmappedBytes) continue;
+            var result = reader.Parse(cfg, best.Format, context?.Slice(.25, 1));
+            if (!reader.LastResult!.Complete) continue;
+            if (result.Source is ElementsLayout layout)
+                layout.Adjustments.Add($"O arquivo diz v{reader.Version}, mas a estrutura é a da v{entry.Version}: aberto com {System.IO.Path.GetFileName(entry.Path)} " +
+                    $"(leitura completa até o último byte). Ao salvar, o número de versão do arquivo continua v{reader.Version}.");
+            return new CfgMatch(cfg.SourcePath, reader, result, reader.LastResult!);
+        }
+
+        // 3º degrau: os CFG da versão declarada com o tamanho de registro ajustado ao arquivo lista a lista
+        // (servidor que acrescentou/tirou campos). Só vale se fechar até o último byte.
+        reader.AutoResize = true;
+        try
+        {
+            foreach (var entry in entries)
+            {
+                context?.Check();
+                ElementsCfg cfg;
+                try { cfg = ElementsCfg.Load(entry.Path); } catch (InvalidDataException) { continue; }
+                var best = reader.Probe(cfg).OrderByDescending(x => x.Complete).First();
+                if (!best.Complete) { messages.Add($"{System.IO.Path.GetFileName(entry.Path)} com tamanhos ajustados: {best.Error}"); continue; }
+                var result = reader.Parse(cfg, best.Format, context?.Slice(.25, 1));
+                if (reader.LastResult!.Complete) return new CfgMatch(cfg.SourcePath, reader, result, reader.LastResult!);
+            }
+        }
+        finally { reader.AutoResize = false; }
+
+        throw new InvalidDataException($"Nenhum CFG casou por completo (versão declarada v{reader.Version}, outras versões e tamanhos ajustados).\n" +
             string.Join("\n", messages) + "\nEscolha um CFG manualmente para ver os dados parciais; leitura parcial não conta como sucesso e não pode ser salva.");
-        var selected = complete[0];
-        var result = reader.Parse(selected.Cfg, selected.Probe.Format, context?.Slice(.20, 1));
-        if (!reader.LastResult!.Complete) throw new InvalidDataException("Falha na decodificação completa: " + reader.StoppedAt);
-        return new CfgMatch(selected.Cfg.SourcePath, reader, result, reader.LastResult!);
     }
 
     public static string Audit(string directory)
