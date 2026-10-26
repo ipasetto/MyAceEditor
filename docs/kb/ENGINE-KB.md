@@ -122,6 +122,7 @@ PerfectWorld/RegionFile.cs | region.sev do servidor (regioes + portais); Entranc
 PerfectWorld/MapTags.cs | pasta do servidor -> mapa do cliente (gs.conf tag -> configs\instance.txt)
 PerfectWorld/Gnet.cs | protocolo interno GNET (writer/reader big-endian, CompactUINT, Octets, Rpc com xid) p/ falar com gdeliveryd:29100 e gamedbd:29400 como o iweb
 PerfectWorld/ServerAdmin.cs + UI/ServerAdminWindow.cs | painel "Administrar" (aba Servidor): contas (pwctl/MySQL), personagens (gamedbd, so leitura), no jogo (expulsar/calar), mundo (atributos em dobro/travas + aviso geral), mapas/instancias (gs por tag, RAM)
+PerfectWorld/ClientDialogs.cs | janelas que o exe procura x .dcf do interfaces.pck (Find/Fix); usada na Verificacao/Corrigir
 PerfectWorld/ProgramVersion.cs | versao do elements compilada no elementclient.exe e no gs (imediato 0x300000vv em push+cmp / mov+cmp); usada na Verificacao
 PerfectWorld/LocalServer.cs + UI/ServerView.cs + Server/provision.sh + Server/pwctl.sh | servidor local no WSL (distro PWServer): instala, inicia/para, estado, conta, par corrigido na copia, entrada Local no serverlist
 PerfectWorld/TerrainFile.cs | alturas do terreno do cliente (.trn2 + .t2bk sob demanda), HeightAt interpolado
@@ -193,6 +194,10 @@ melhorias de UI (out/2026, ideias de §E9b) [T por print]:
 - [T] GShop: GShopFile.ServerProblems (item sem preco derruba o gs) bloqueia Salvar loja, "Salvar e enviar" e o envio do LocalServer.FixPair (26/10).
 - [T] Verificacao: linhas "servidor local" comparam o cliente com \\wsl.localhost\PWServer\home\gamed\config (onde o Salvar e enviar grava); as linhas de cima comparam com a pasta do pacote, que o envio NAO altera.
 - [T] Painel Administrar -> Contas -> "Dar CASH por ID": aceita ID de conta ou de personagem (conta = ID & ~15), confirma com nome e envia via pwctl gold. Testado ate a confirmacao (sem enviar).
+
+- [T] ClientDialogs (26/10): acha janelas que o elementclient.exe procura (strings Win_*) e que o interfaces.pck tem em XML fora dos .dcf (sem as abertas pelo nome/modelos/prefixos); linha de erro na Verificacao e item no Corrigir (acrescenta nos 2 .dcf mantendo o tamanho: espacos repetidos viram 1). Testado numa copia do cliente 144: Win_Engrave + Win_EarthBagRank, depois 0.
+- PckPatch: falha antes do backup se o .pck estiver aberto em outro programa; 2 trocas no mesmo segundo usam 1 backup (o original).
+- Painel: aviso de gold pendente e tempo real de entrega (~4 min; 10 min apos ligar).
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's Angelica Editor faz, com CODIGO NOSSO e interface parecida com a dele.

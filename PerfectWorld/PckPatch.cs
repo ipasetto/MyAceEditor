@@ -29,7 +29,12 @@ public static class PckPatch
             ms.ToArray().CopyTo(payload, 0);
         }
 
-        File.Copy(pckPath, pckPath + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".bak", false);
+        // aberto em outro programa (jogo, outro editor): falha aqui, antes de deixar um backup à toa
+        try { using (new FileStream(pckPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read)) { } }
+        catch (IOException) { throw new IOException($"{Path.GetFileName(pckPath)} está aberto em outro programa (o jogo ou outro editor). Feche-o e tente de novo."); }
+        // duas trocas no mesmo segundo: o backup da primeira já guarda o original
+        var bak = pckPath + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".bak";
+        if (!File.Exists(bak)) File.Copy(pckPath, bak, false);
         using (var fs = new FileStream(pckPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
             fs.Position = e.Offset;

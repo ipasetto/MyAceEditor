@@ -77,6 +77,15 @@ public static class VersionCheck
             }
         }
 
+        // 1b2) janelas que o elementclient.exe procura e o interfaces.pck não carrega
+        try
+        {
+            if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)
+                rows.Add(new("interfaces.pck — janelas que o jogo procura", $"faltam {dlgs.Count}: " + string.Join(", ", dlgs.Select(d => d.Dialog)), "—", CheckLevel.Erro,
+                    "Estão no pacote, mas fora da lista de janelas (.dcf): o jogo cai quando o código toca nelas (ex.: Win_Engrave ao fechar o inventário pelo X). Use Corrigir."));
+        }
+        catch (Exception ex) { rows.Add(new("interfaces.pck — janelas que o jogo procura", "não consegui ler: " + ex.Message, "—", CheckLevel.Aviso, "")); }
+
         // 1c) versão que os PROGRAMAS têm compilada: cliente × gs (login) e cada programa × o elements que ele vai ler
         var cExe = ProgramVersion.ElementsVersion(Path.Combine(clientElement, "elementclient.exe"));
         var gsExe = ProgramVersion.ElementsVersion(Path.Combine(serverHome, "gamed", "gs"));

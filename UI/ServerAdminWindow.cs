@@ -200,8 +200,8 @@ public sealed class ServerAdminWindow : Form
             Btn(L("Liberar", "Unban"), () => { if (Sel() is { } a) Work(L("Liberando…", "Unbanning…"), () => Done(_adm.Unban(a.Id), L("Conta liberada.", "Account unbanned.")), RefreshAccounts); }),
             Btn(L("Atualizar", "Refresh"), RefreshAccounts));
         var hint = new Label { Dock = DockStyle.Bottom, Height = 40, ForeColor = Color.DimGray, Padding = new Padding(4),
-            Text = L("Gold: 1 gold = 100 de cash; o servidor entrega na conta em alguns segundos (ou no próximo login). Banir também derruba a conta se ela estiver no jogo.",
-                     "Gold: 1 gold = 100 cash; the server credits it within seconds (or on next login). Banning also disconnects the account if it is online.") };
+            Text = L("Gold: 1 gold = 100 de cash. O authd entrega uns 4 minutos depois de enviar (e só começa 10 minutos depois de ligar o servidor); até lá aparece em GoldPendente. Banir também derruba a conta se ela estiver no jogo.",
+                     "Gold: 1 gold = 100 cash. authd delivers it about 4 minutes after sending (and only starts 10 minutes after the server starts); until then it shows in GoldPendente. Banning also disconnects the account if it is online.") };
         p.Controls.Add(_acc); p.Controls.Add(hint); p.Controls.Add(bar);
         return p;
     }
@@ -264,8 +264,16 @@ public sealed class ServerAdminWindow : Form
         var v = Ask(this, a.Login, L("Quantidade de gold:", "Amount of gold:"), "1000");
         if (v is null) return;
         if (!int.TryParse(v, out var gold) || gold <= 0 || gold > 2_000_000) { _status.Text = L("Gold: número entre 1 e 2.000.000.", "Gold: a number from 1 to 2,000,000."); return; }
-        Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L("{0:N0} gold enviados para {1}.", "{0:N0} gold sent to {1}."), gold, a.Login)), RefreshAccounts);
+        if (a.PendingGold > 0 && !Confirm(PendingWarning(a))) return;
+        Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L(SentText, SentTextEn), gold, a.Login)), RefreshAccounts);
     }
+
+    // o authd só pega o pedido com 200 s de idade e o temporizador dele começa 10 min depois de ligar (PW-KB)
+    const string SentText = "{0:N0} gold enviados para {1}: chegam em uns 4 minutos (coluna GoldPendente até lá).",
+        SentTextEn = "{0:N0} gold sent to {1}: arrives in about 4 minutes (GoldPendente column until then).";
+
+    string PendingWarning(ServerAdmin.Account a) => string.Format(L("Já há {0:N0} gold a caminho desta conta (o authd entrega uns 4 minutos depois). Enviar mais mesmo assim?",
+        "{0:N0} gold is already on its way to this account (authd delivers about 4 minutes later). Send more anyway?"), a.PendingGold);
 
     // CASH por ID: aceita o ID da conta ou de um personagem (personagem → conta = ID & ~15, LOGICUID do servidor)
     void GiveCashById()
@@ -291,8 +299,9 @@ public sealed class ServerAdminWindow : Form
             var who = role is null ? $"{a.Login} (ID {a.Id})"
                 : string.Format(L("{0} (personagem {1}), conta {2} (ID {3})", "{0} (character {1}), account {2} (ID {3})"), role.Name, role.Id, a.Login, a.Id);
             if (!Confirm(string.Format(L("Dar {0:N0} gold ({1:N0} de cash) para {2}?\n\nO cash fica na conta: todos os personagens dela usam o mesmo saldo.",
-                    "Give {0:N0} gold ({1:N0} cash) to {2}?\n\nCash goes to the account: all its characters share the balance."), gold, gold * 100L, who))) return;
-            Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L("{0:N0} gold enviados para {1}.", "{0:N0} gold sent to {1}."), gold, who)), RefreshAccounts);
+                    "Give {0:N0} gold ({1:N0} cash) to {2}?\n\nCash goes to the account: all its characters share the balance."), gold, gold * 100L, who)
+                    + (a.PendingGold > 0 ? "\n\n" + PendingWarning(a) : ""))) return;
+            Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L(SentText, SentTextEn), gold, who)), RefreshAccounts);
         });
     }
 

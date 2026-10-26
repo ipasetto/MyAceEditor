@@ -15,6 +15,11 @@ public static class PairFixer
         serverHome = VersionCheck.ServerHome(serverHome);
         string cData = Path.Combine(clientElement, "data"), sCfg = Path.Combine(serverHome, "gamed", "config");
         var fixes = new List<Fix>();
+        // cliente: janelas que o jogo procura e o interfaces.pck não carrega (o jogo cai ao usá-las)
+        if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)
+            fixes.Add(new($"interfaces.pck: carregar {dlgs.Count} janela(s) que o jogo procura",
+                string.Join(", ", dlgs.Select(d => d.Dialog)) + ". Estão no pacote, mas fora da lista (.dcf); sem elas o jogo cai (ex.: fechar o inventário pelo X). Backup do .pck.",
+                true, () => ClientDialogs.Fix(clientElement, dlgs)));
         if (!Directory.Exists(cData) || !Directory.Exists(sCfg)) return fixes;
 
         // elements.data e tasks.data: mesmo arquivo nos dois lados; copia o do cliente se a versão (ou o conteúdo) for diferente
