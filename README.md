@@ -84,8 +84,6 @@ Projeto **aberto e comunitário**: a meta é tornar o Perfect World 100% editáv
 | **Mundo 3D: monstros e NPCs no mapa do jogo** | **NPCGen: onde cada um nasce** |
 | ![Servidor de teste](docs/img/server.png) | ![Verificação](docs/img/check.png) |
 | **Servidor de teste no PC** | **Verificação cliente × servidor** |
-| ![Painel: personagens](docs/img/admin-characters.png) | ![Painel: mapas e instâncias](docs/img/admin-maps.png) |
-| **Painel: personagens** | **Painel: mapas e instâncias** |
 | ![Painel: mundo](docs/img/admin-world.png) | ![Editor de interfaces](docs/img/interface.png) |
 | **Painel: EXP em dobro, travas e aviso geral** | **Janelas do jogo editáveis, gravadas no .pck** |
 | ![Loja como no jogo](docs/img/gshop.png) | ![Quests](docs/img/quests.png) |
