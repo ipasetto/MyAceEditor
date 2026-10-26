@@ -12,7 +12,7 @@
 and edit the game data, client and server, in a single window.
 An **open, community project**: the goal is to make Perfect World 100% editable with a free tool.
 
-**[⬇ Download the test version v0.2.0-beta (Windows)](https://github.com/ipasetto/MyAceEditor/releases/latest)** · [how to install, step by step](#how-to-install-step-by-step)
+**[⬇ Download the test version v0.2.0-beta (Windows)](https://github.com/ipasetto/MyAceEditor/releases/tag/v0.2.0-beta)** · [how to install, step by step](#how-to-install-step-by-step)
 
 ![Elements editor](docs/img/en/editor.png)
 

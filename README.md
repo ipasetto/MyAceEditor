@@ -12,7 +12,7 @@
 (.NET 10) para ler e editar os dados do jogo, cliente e servidor, numa única janela.
 Projeto **aberto e comunitário**: a meta é tornar o Perfect World 100% editável com uma ferramenta livre.
 
-**[⬇ Baixar a versão de teste v0.2.0-beta (Windows)](https://github.com/ipasetto/MyAceEditor/releases/latest)** · [como instalar, passo a passo](#como-instalar-passo-a-passo)
+**[⬇ Baixar a versão de teste v0.2.0-beta (Windows)](https://github.com/ipasetto/MyAceEditor/releases/tag/v0.2.0-beta)** · [como instalar, passo a passo](#como-instalar-passo-a-passo)
 
 ![Editor de elementos](docs/img/editor.png)
 
