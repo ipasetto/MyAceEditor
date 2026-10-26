@@ -195,6 +195,7 @@ public sealed class ServerAdminWindow : Form
             Btn(L("Trocar senha…", "Change password…"), ChangePassword),
             Btn(L("GM liga/desliga", "Toggle GM"), ToggleGm),
             Btn(L("Enviar gold…", "Send gold…"), SendGold),
+            Btn(L("Dar CASH por ID…", "Give CASH by ID…"), GiveCashById),
             Btn(L("Banir…", "Ban…"), BanAccount),
             Btn(L("Liberar", "Unban"), () => { if (Sel() is { } a) Work(L("Liberando…", "Unbanning…"), () => Done(_adm.Unban(a.Id), L("Conta liberada.", "Account unbanned.")), RefreshAccounts); }),
             Btn(L("Atualizar", "Refresh"), RefreshAccounts));
@@ -264,6 +265,35 @@ public sealed class ServerAdminWindow : Form
         if (v is null) return;
         if (!int.TryParse(v, out var gold) || gold <= 0 || gold > 2_000_000) { _status.Text = L("Gold: número entre 1 e 2.000.000.", "Gold: a number from 1 to 2,000,000."); return; }
         Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L("{0:N0} gold enviados para {1}.", "{0:N0} gold sent to {1}."), gold, a.Login)), RefreshAccounts);
+    }
+
+    // CASH por ID: aceita o ID da conta ou de um personagem (personagem → conta = ID & ~15, LOGICUID do servidor)
+    void GiveCashById()
+    {
+        var sel = _acc.CurrentRow?.Index is int i && i >= 0 && i < _accounts.Count ? _accounts[i].Id.ToString() : "";
+        var v = Ask(this, L("Dar CASH", "Give CASH"), L("ID da conta ou do personagem:", "Account or character ID:"), sel);
+        if (v is null) return;
+        if (!int.TryParse(v, out var id) || id < 16) { _status.Text = L("ID: só números.", "ID: digits only."); return; }
+        var g = Ask(this, L("Dar CASH", "Give CASH"), L("Quantidade de gold (1 gold = 100 de cash):", "Amount of gold (1 gold = 100 cash):"), "1000");
+        if (g is null) return;
+        if (!int.TryParse(g, out var gold) || gold <= 0 || gold > 2_000_000) { _status.Text = L("Gold: número entre 1 e 2.000.000.", "Gold: a number from 1 to 2,000,000."); return; }
+        ServerAdmin.Account? acc = null; ServerAdmin.RoleInfo? role = null;
+        Work(L("Procurando o ID…", "Looking up the ID…"), () =>
+        {
+            var list = _adm.Accounts();
+            acc = list.FirstOrDefault(a => a.Id == id);
+            if (acc is not null) return;
+            try { role = _adm.RoleDetails(id); } catch { }
+            if (role is not null) acc = list.FirstOrDefault(a => a.Id == (id & ~0xF));
+        }, () =>
+        {
+            if (acc is not { } a) { _status.Text = string.Format(L("Nenhuma conta ou personagem com o ID {0}.", "No account or character with ID {0}."), id); return; }
+            var who = role is null ? $"{a.Login} (ID {a.Id})"
+                : string.Format(L("{0} (personagem {1}), conta {2} (ID {3})", "{0} (character {1}), account {2} (ID {3})"), role.Name, role.Id, a.Login, a.Id);
+            if (!Confirm(string.Format(L("Dar {0:N0} gold ({1:N0} de cash) para {2}?\n\nO cash fica na conta: todos os personagens dela usam o mesmo saldo.",
+                    "Give {0:N0} gold ({1:N0} cash) to {2}?\n\nCash goes to the account: all its characters share the balance."), gold, gold * 100L, who))) return;
+            Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L("{0:N0} gold enviados para {1}.", "{0:N0} gold sent to {1}."), gold, who)), RefreshAccounts);
+        });
     }
 
     void BanAccount()

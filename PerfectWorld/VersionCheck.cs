@@ -112,9 +112,26 @@ public static class VersionCheck
             var cg = Header(Path.Combine(cData, cn));
             var sg = Header(Path.Combine(sCfg, sn));
             rows.Add(Compare($"{cn} × {sn} — timestamp", cg is null ? null : Unix(cg.Value.A), sg is null ? null : Unix(sg.Value.A),
-                "Timestamp da loja diferente: o login é recusado (\"versão errada\"). Exporte a loja para os dois lados de uma vez."));
+                "Timestamp da loja diferente: o login é recusado (\"versão errada\"). Com o servidor local, o que vale são as linhas \"servidor local\" (o Salvar e enviar grava lá, não nesta pasta)."));
             rows.Add(Compare($"{cn} × {sn} — nº de itens", cg is null ? null : $"{cg.Value.B:N0}", sg is null ? null : $"{sg.Value.B:N0}",
                 "Quantidade de itens da loja diferente.", CheckLevel.Aviso));
+        }
+
+        // 3b) servidor local (WSL): é nele que o "Salvar e enviar" grava, não na pasta do pacote acima
+        var live = LocalServer.DistroExists() ? $@"\\wsl.localhost\{LocalServer.Distro}\home\gamed\config" : null;
+        if (live is not null && Directory.Exists(live))
+        {
+            const string why = "O servidor local está com outro arquivo: use \"Salvar e enviar ao servidor\" (a aba Servidor mostra o envio).";
+            var le = Header(Path.Combine(live, "elements.data"));
+            rows.Add(Compare("servidor local — elements.data versão", ce is null ? null : $"v{ce.Value.A & 0xFFFF}", le is null ? null : $"v{le.Value.A & 0xFFFF}", why));
+            var lt = Header(Path.Combine(live, "tasks.data"));
+            rows.Add(Compare("servidor local — tasks.data versão", ct is null ? null : $"v{ct.Value.B}", lt is null ? null : $"v{lt.Value.B}", why));
+            foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
+            {
+                var cg = Header(Path.Combine(cData, cn));
+                var lg = Header(Path.Combine(live, sn));
+                rows.Add(Compare($"servidor local — {cn} × {sn} timestamp", cg is null ? null : Unix(cg.Value.A), lg is null ? null : Unix(lg.Value.A), why));
+            }
         }
 
         // 4) aipolicy.data

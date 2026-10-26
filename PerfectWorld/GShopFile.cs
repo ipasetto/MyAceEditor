@@ -56,6 +56,14 @@ public sealed class GShopFile
         return diffs;
     }
 
+    /// <summary>
+    /// Itens que o gs recusa (cgame/gs/playermall.cpp): ele lê as opções em ordem e para na primeira com preço ≤ 0;
+    /// item sem nenhuma opção válida derruba a loja inteira ("不存在可用的条目索引", erro -31) e o gs não sobe.
+    /// </summary>
+    public List<string> ServerProblems() =>
+        Items.Select((it, i) => (it, i)).Where(x => x.it.GetOption(0).Price <= 0)
+            .Select(x => $"posição {x.i + 1}: item {x.it.ItemId} \"{x.it.Name}\" sem preço (a 1ª opção de venda precisa custar pelo menos 0,01)").ToList();
+
     public byte[] WriteClient()
     {
         using var ms = new MemoryStream();

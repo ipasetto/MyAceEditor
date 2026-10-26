@@ -200,7 +200,13 @@ public sealed class LocalServer
             if (File.Exists(Path.Combine(data, f))) { File.Copy(Path.Combine(data, f), Path.Combine(stage, f)); Log("enviando " + f + " do cliente"); }
         foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
             if (File.Exists(Path.Combine(data, cn)))
-                try { File.WriteAllBytes(Path.Combine(stage, sn), GShopFile.ReadClient(File.ReadAllBytes(Path.Combine(data, cn))).WriteServer()); Log($"enviando {sn} (refeito do {cn} do cliente)"); }
+                try
+                {
+                    var shop = GShopFile.ReadClient(File.ReadAllBytes(Path.Combine(data, cn)));
+                    // item sem preço derruba o gs: fica o gshopsev que o servidor já tem (o login acusa versão até corrigir)
+                    if (shop.ServerProblems() is { Count: > 0 } bad) { Log($"##ERRO {cn} NÃO enviado, o gs não subiria: " + string.Join("; ", bad)); continue; }
+                    File.WriteAllBytes(Path.Combine(stage, sn), shop.WriteServer()); Log($"enviando {sn} (refeito do {cn} do cliente)");
+                }
                 catch (Exception ex) { Log($"não consegui refazer {sn}: {ex.Message}"); }
         // IA: a aberta no editor; senão a mais nova entre cliente e servidor original (o servidor é quem usa)
         var ai = new[] { aiPolicy, Path.Combine(data, "aipolicy.data"), serverConfig is null ? null : Path.Combine(serverConfig, "aipolicy.data") }

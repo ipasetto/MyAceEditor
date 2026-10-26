@@ -1013,6 +1013,12 @@ public sealed class EditorForm : Form
     private TabPage? _tabServer;
     private void SaveAndSend()
     {
+        if (_gshop?.ServerProblems() is { Count: > 0 } bad)
+        {
+            if (_tabs is not null && _tabGShop is not null) _tabs.SelectedTab = _tabGShop;
+            MessageBox.Show(this, GShopView.ProblemText(bad), Loc.T("tb.saveSend", "💾 Salvar e enviar ao servidor"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         SaveAll(quiet: true);
         if (_serverView is null) return;
         if (_tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;

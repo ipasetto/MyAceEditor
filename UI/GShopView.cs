@@ -188,10 +188,23 @@ internal sealed class GShopView : UserControl
         return saved;
     }
 
+    /// <summary>Itens das lojas abertas que derrubariam o gs (preço zero); vazio = pode gravar e enviar.</summary>
+    public List<string> ServerProblems() => _shops.Where(s => s is not null).SelectMany(s => s!.ServerProblems()).ToList();
+
+    public static string ProblemText(List<string> bad) =>
+        Loc.T("gshop.badItems", "O servidor (gs) recusa a loja inteira e não sobe com estes itens:") + "\n\n"
+        + string.Join("\n", bad.Take(15)) + (bad.Count > 15 ? $"\n… +{bad.Count - 15}" : "")
+        + "\n\n" + Loc.T("gshop.badFix", "Dê um preço a eles (mínimo 0,01) ou exclua-os e salve de novo.");
+
     bool SaveCore(bool quiet)
     {
         var f = _shops[_which];
         if (f is null || _clientPath[_which] is not { } cp) return false;
+        if (f.ServerProblems() is { Count: > 0 } bad)
+        {
+            if (!quiet) MessageBox.Show(this, ProblemText(bad), Loc.T("gshop.saveFail", "Falha ao salvar a loja"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
         if (_serverPath[_which] is null)
         {
             if (quiet) return false;   // sem o gshopsev não grava sozinho (o par precisa sair igual)

@@ -190,6 +190,10 @@ melhorias de UI (out/2026, ideias de §E9b) [T por print]:
 - [~] Painel Administrar servidor (26/10): testado no programa real com o servidor no ar: visao geral (servicos, online, RAM, log), contas (lista), personagens (userP: Mercenario nv 19, mapa, posicao), mundo (le os 8 atributos), mapas (lista 44 do gs.conf, gs01 995 MB). NAO testado ainda: criar conta/senha/GM/gold/banir pelo painel, ligar atributo, aviso geral, expulsar/calar (precisa jogador no jogo). FALHA ABERTA: "Iniciar" instancia is05 nao sobe (log vazio, processo some) - investigar rodando ./gs is05 em primeiro plano (usuario interrompeu antes).
 - pwctl e atualizado sozinho no Linux (LocalServer.EnsureTools compara md5); no bulktest copiar build/Server para a pasta do teste (senao leva um pwctl velho).
 
+- [T] GShop: GShopFile.ServerProblems (item sem preco derruba o gs) bloqueia Salvar loja, "Salvar e enviar" e o envio do LocalServer.FixPair (26/10).
+- [T] Verificacao: linhas "servidor local" comparam o cliente com \\wsl.localhost\PWServer\home\gamed\config (onde o Salvar e enviar grava); as linhas de cima comparam com a pasta do pacote, que o envio NAO altera.
+- [T] Painel Administrar -> Contas -> "Dar CASH por ID": aceita ID de conta ou de personagem (conta = ID & ~15), confirma com nome e envia via pwctl gold. Testado ate a confirmacao (sem enviar).
+
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's Angelica Editor faz, com CODIGO NOSSO e interface parecida com a dele.
  referencia de estudo: codigo-fonte do Rody em D:/Perfect World/PW/Outros Editores/Rodys Angelica Editor.zip (C# net481, ~1200 .cs; modulos NextAIPolicyEditor2 NpcGenDataEditor PCKManager DDS MppcLibrary RAE_Octets; dados configs/PW/PW_types.csv (tipo/vinculo de cada campo: matters, skills_pw, ft_prob, ft_bool, ft_hex_color, time_seconds, *_ESSENCE...), PW_pt.csv (rotulos PT), PW_enums.json, 134 .cfg, 23 .rules)
