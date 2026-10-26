@@ -122,6 +122,7 @@ PerfectWorld/RegionFile.cs | region.sev do servidor (regioes + portais); Entranc
 PerfectWorld/MapTags.cs | pasta do servidor -> mapa do cliente (gs.conf tag -> configs\instance.txt)
 PerfectWorld/Gnet.cs | protocolo interno GNET (writer/reader big-endian, CompactUINT, Octets, Rpc com xid) p/ falar com gdeliveryd:29100 e gamedbd:29400 como o iweb
 PerfectWorld/ServerAdmin.cs + UI/ServerAdminWindow.cs | painel "Administrar" (aba Servidor): contas (pwctl/MySQL), personagens (gamedbd, so leitura), no jogo (expulsar/calar), mundo (atributos em dobro/travas + aviso geral), mapas/instancias (gs por tag, RAM)
+PerfectWorld/PckWriter.cs | grava/acrescenta arquivos num .pck v2 (sem .pkx): copia ao lado, conteudo no lugar da tabela antiga, tabela+rodape novos, relê e confere, File.Replace (original vira .bak; leitores abertos seguem no backup)
 PerfectWorld/ClientDialogs.cs | janelas que o exe procura x .dcf do interfaces.pck (Find/Fix); usada na Verificacao/Corrigir
 PerfectWorld/ProgramVersion.cs | versao do elements compilada no elementclient.exe e no gs (imediato 0x300000vv em push+cmp / mov+cmp); usada na Verificacao
 PerfectWorld/LocalServer.cs + UI/ServerView.cs + Server/provision.sh + Server/pwctl.sh | servidor local no WSL (distro PWServer): instala, inicia/para, estado, conta, par corrigido na copia, entrada Local no serverlist
@@ -198,6 +199,10 @@ melhorias de UI (out/2026, ideias de §E9b) [T por print]:
 - [T] ClientDialogs (26/10): acha janelas que o elementclient.exe procura (strings Win_*) e que o interfaces.pck tem em XML fora dos .dcf (sem as abertas pelo nome/modelos/prefixos); linha de erro na Verificacao e item no Corrigir (acrescenta nos 2 .dcf mantendo o tamanho: espacos repetidos viram 1). Testado numa copia do cliente 144: Win_Engrave + Win_EarthBagRank, depois 0.
 - PckPatch: falha antes do backup se o .pck estiver aberto em outro programa; 2 trocas no mesmo segundo usam 1 backup (o original).
 - Painel: aviso de gold pendente e tempo real de entrega (~4 min; 10 min apos ligar).
+
+- [T] issue #13 (26/10): PckWriter. Editor de interface "Salvar janela" grava direto no interfaces.pck (backup), botao "Gravar pasta .files no pacote" leva edicoes antigas; ClientDialogs.Fix usa o PckWriter (um backup so). Testado no programa real: Corrigir janelas no 144 + texto do cosmetic.xml gravado, relido e desfeito.
+- [T] UiDocument/GameDialog: atributos sem diferenciar maiusculas (String/string), atributo repetido tolerado, controle com nome da janela. Teste: 458 janelas/9.729 controles com posicao e texto gravados e relidos.
+- Corrigir falhava com o proprio editor aberto (Extrator/Interface seguram o .pck): PckWriter troca com File.Replace e funciona com eles abertos; com o jogo aberto da erro claro.
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's Angelica Editor faz, com CODIGO NOSSO e interface parecida com a dele.

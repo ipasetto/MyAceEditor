@@ -51,47 +51,35 @@ public static class ClientDialogs
             .Select(kv => new Missing(kv.Key, kv.Value)).OrderBy(m => m.Dialog).ToList();
     }
 
-    /// <summary>
-    /// Acrescenta as janelas nos dois .dcf de jogo. O pacote só aceita troca do MESMO tamanho (PckPatch): os espaços
-    /// repetidos entre as colunas viram um só, e a sobra no fim vira espaço. Backup do .pck a cada troca.
-    /// </summary>
+    /// <summary>Acrescenta as janelas nos dois .dcf de jogo, de uma vez (PckWriter: um backup do .pck).</summary>
     public static void Fix(string clientElement, List<Missing> missing)
     {
         var pck = Path.Combine(clientElement, "interfaces.pck");
-        foreach (var dcf in Dcfs)
+        var changed = new Dictionary<string, byte[]>();
+        using (var a = new PckArchive(pck))
         {
-            byte[] old;
-            HashSet<string> have;
-            Func<string, bool> exists;
-            using (var a = new PckArchive(pck))
+            var all = a.Entries.Select(x => x.Path.ToLowerInvariant()).ToHashSet();
+            foreach (var dcf in Dcfs)
             {
                 if (a.Find(dcf) is not { } e) continue;
-                old = a.Read(e);
-                have = DcfFiles(old).Select(f => f.ToLowerInvariant()).ToHashSet();
-                var all = a.Entries.Select(x => x.Path.ToLowerInvariant()).ToHashSet();
-                exists = p => all.Contains(p.ToLowerInvariant());
+                var old = a.Read(e);
+                var have = DcfFiles(old).Select(f => f.ToLowerInvariant()).ToHashSet();
+                bool v1 = dcf.EndsWith("-v1.dcf");
+                var add = new StringBuilder();
+                foreach (var m in missing)
+                {
+                    var file = Path.GetFileName(m.File);
+                    // ingame-v1 usa a cópia de Version01 quando o pacote tem
+                    var rel = v1 && all.Contains((@"interfaces\version01\" + file).ToLowerInvariant()) ? @"Version01\" + file : file;
+                    if (have.Contains(rel.ToLowerInvariant())) continue;
+                    add.Append(rel).Append("\t-1\t-1\t0\r\n");
+                }
+                if (add.Length == 0) continue;
+                var extra = Encoding.ASCII.GetBytes((old.Length > 0 && old[^1] != '\n' ? "\r\n" : "") + add);
+                changed[dcf] = old.Concat(extra).ToArray();
             }
-            bool v1 = dcf.EndsWith("-v1.dcf");
-            var add = new StringBuilder();
-            foreach (var m in missing)
-            {
-                var file = Path.GetFileName(m.File);
-                // ingame-v1 usa a cópia de Version01 quando o pacote tem
-                var rel = v1 && exists(@"interfaces\version01\" + file) ? @"Version01\" + file : file;
-                if (have.Contains(rel.ToLowerInvariant())) continue;
-                add.Append(rel).Append("\t-1\t-1\t0\r\n");
-            }
-            if (add.Length == 0) continue;
-            var extra = Encoding.ASCII.GetBytes((old.Length > 0 && old[^1] != '\n' ? "\r\n" : "") + add);
-            var packed = Compact(old);
-            if (packed.Length + extra.Length > old.Length)
-                throw new InvalidOperationException($"{dcf}: não há espaço para acrescentar {missing.Count} linha(s) sem refazer o pacote.");
-            var neu = new byte[old.Length];
-            packed.CopyTo(neu, 0);
-            extra.CopyTo(neu, packed.Length);
-            neu.AsSpan(packed.Length + extra.Length).Fill((byte)' ');
-            PckPatch.ReplaceSameSize(pck, dcf, neu);
         }
+        if (changed.Count > 0) PckWriter.Write(pck, changed);
     }
 
     /// <summary>Arquivos listados num .dcf (1ª coluna de cada linha).</summary>
@@ -99,19 +87,6 @@ public static class ClientDialogs
         Encoding.GetEncoding(936).GetString(dcf).Split('\n')
             .Select(l => l.Split(new[] { ' ', '\t', '\r' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault())
             .Where(f => f is not null && f.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))!;
-
-    // espaço/tab repetidos viram um (0x20/0x09 nunca aparecem dentro de um caractere GBK de 2 bytes)
-    static byte[] Compact(byte[] b)
-    {
-        var o = new List<byte>(b.Length);
-        foreach (var c in b)
-        {
-            bool blank = c is (byte)' ' or (byte)'\t';
-            if (blank && o.Count > 0 && o[^1] is (byte)' ' or (byte)'\t') continue;
-            o.Add(c);
-        }
-        return o.ToArray();
-    }
 
     static string? DialogName(byte[] b)
     {

@@ -35,7 +35,8 @@ public sealed class UiDocument
     /// <summary>Volta a um texto anterior (desfazer).</summary>
     public void Restore(string xml) { Xml = xml; Dialog = GameDialog.Parse(Xml); }
 
-    static Regex StartTag(string name) => new(@"<([A-Z]+)\s+Name=""" + Regex.Escape(name) + @"""([^>]*)>");
+    // nunca a tag da janela: há controle com o mesmo nome dela (gmfinishmsg.xml)
+    static Regex StartTag(string name) => new(@"<(?!DIALOG\b)([A-Z]+)\s+Name=""" + Regex.Escape(name) + @"""([^>]*)>");
 
     /// <summary>Muda (ou cria) um atributo da tag de abertura do controle (x, y, Width, Height...).</summary>
     public bool SetAttr(string control, string attr, string value)
@@ -43,7 +44,7 @@ public sealed class UiDocument
         var m = StartTag(control).Match(Xml);
         if (!m.Success) return false;
         var tag = m.Value;
-        var a = new Regex(@"\b" + Regex.Escape(attr) + @"=""[^""]*""");
+        var a = new Regex(@"\b" + Regex.Escape(attr) + @"=""[^""]*""", RegexOptions.IgnoreCase);   // há arquivos com "X", "string"…
         var newTag = a.IsMatch(tag) ? a.Replace(tag, $"{attr}=\"{value}\"", 1)
             : tag.Insert(tag.IndexOf('"', tag.IndexOf("Name=\"", StringComparison.Ordinal) + 6) + 1, $" {attr}=\"{value}\"");
         Xml = Xml[..m.Index] + newTag + Xml[(m.Index + m.Length)..];
@@ -69,9 +70,9 @@ public sealed class UiDocument
         int end = next.Success ? m.Index + m.Length + next.Index : Xml.Length;
         var body = Xml[(m.Index + m.Length)..end];
         var esc = text.Replace("&", "&amp;").Replace("\"", "&quot;").Replace("<", "&lt;").Replace(">", "&gt;");
-        var tm = Regex.Match(body, @"<Text\b[^>]*?\bString=""[^""]*""");
+        var tm = Regex.Match(body, @"<Text\b[^>]*?\bString=""[^""]*""", RegexOptions.IgnoreCase);
         string newBody;
-        if (tm.Success) newBody = body[..tm.Index] + Regex.Replace(tm.Value, @"\bString=""[^""]*""", $"String=\"{esc}\"") + body[(tm.Index + tm.Length)..];
+        if (tm.Success) newBody = body[..tm.Index] + Regex.Replace(tm.Value, @"\b(String)=""[^""]*""", s => $"{s.Groups[1].Value}=\"{esc}\"", RegexOptions.IgnoreCase) + body[(tm.Index + tm.Length)..];
         else
         {
             var t2 = Regex.Match(body, @"<Text\b");

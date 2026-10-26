@@ -72,6 +72,7 @@ internal sealed class InterfaceView : UserControl
         save.BackColor = Accent; save.ForeColor = Color.White;
         B("ui.undo", "↶ Desfazer", () => Undo(), 100);
         B("ui.redo", "↷ Refazer", () => Redo(), 100);
+        B("ui.packFolder", "Gravar pasta .files no pacote", PackFolder, 200);
         B("ui.openFolder", "Abrir pasta .files", () => { if (_pckPath is not null) { var d = _pckPath + ".files"; Directory.CreateDirectory(d); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(d) { UseShellExecute = true }); } }, 140);
         _bar.Controls.Add(_outlines);
         _outlines.CheckedChanged += (_, _) => _canvas.Invalidate();
@@ -142,8 +143,8 @@ internal sealed class InterfaceView : UserControl
         foreach (var f in AllDialogs().Where(f => q.Length == 0 || f.Contains(q, StringComparison.OrdinalIgnoreCase)).OrderBy(IsLegacy).ThenBy(f => f, StringComparer.OrdinalIgnoreCase))
             _files.Items.Add(new DialogItem(f, IsLegacy(f) ? f + "   " + Loc.T("ui.legacy", "(antiga, o jogo não usa)") : f));
         _files.EndUpdate();
-        _info.Text = string.Format(Loc.T("ui.count", "{0} janelas · edite na tela; \"Salvar janela\" grava em {1} (empacote com o sPCK para o jogo usar)."),
-            _files.Items.Count, Path.GetFileName(_pckPath) + ".files");
+        _info.Text = string.Format(Loc.T("ui.count2", "{0} janelas · edite na tela; \"Salvar janela\" grava direto no {1} (com backup)."),
+            _files.Items.Count, Path.GetFileName(_pckPath));
     }
 
     // convenção do sPCK: <pacote>.files\<caminho completo dentro do pacote>
@@ -190,18 +191,53 @@ internal sealed class InterfaceView : UserControl
             + (_dirty ? " · " + Loc.T("ui.unsaved", "não salvo") : "");
     }
 
+    // grava direto no pacote (PckWriter); a cópia de trabalho na pasta .files, se houver, acompanha
     void Save()
     {
         if (_doc is null || _file is null || _pckPath is null) return;
         try
         {
-            var path = FolderPath(_file);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            AtomicFileSave.Write(path, _doc.ToBytes());
-            _dirty = false; _fromFolder = true; UpdateInfo();
-            MessageBox.Show(this, string.Format(Loc.T("ui.saved", "Janela salva em:\n{0}\n\nPara o jogo usar, empacote a pasta {1}.files de volta no {1} (sPCK). Gravar o .pck direto ainda não existe no MyAceEditor."), path, Path.GetFileName(_pckPath)), "Interface");
+            var bytes = _doc.ToBytes();
+            if (File.Exists(FolderPath(_file))) AtomicFileSave.Write(FolderPath(_file), bytes);
+            var bak = WritePack(new Dictionary<string, byte[]> { [_file] = bytes });
+            _dirty = false; UpdateInfo();
+            MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), "Interface");
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ui.saveFail", "Falha ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    /// <summary>Leva ao pacote o que está na pasta .files e é diferente do pacote (edições antigas, feitas antes de o editor gravar o .pck).</summary>
+    void PackFolder()
+    {
+        if (_pckPath is null || _pck is null) return;
+        var dir = _pckPath + ".files";
+        var changed = new Dictionary<string, byte[]>();
+        if (Directory.Exists(dir))
+            foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                var rel = Path.GetRelativePath(dir, f);
+                var bytes = File.ReadAllBytes(f);
+                if (_pck.Find(rel) is { } e && _pck.Read(e).AsSpan().SequenceEqual(bytes)) continue;
+                changed[rel] = bytes;
+            }
+        if (changed.Count == 0) { MessageBox.Show(this, Loc.T("ui.packNone", "A pasta .files não tem nada diferente do pacote."), "Interface"); return; }
+        if (MessageBox.Show(this, string.Format(Loc.T("ui.packAsk", "Gravar no {0} estes {1} arquivo(s) da pasta .files?\n\n{2}\n\nO pacote atual fica como backup."),
+                Path.GetFileName(_pckPath), changed.Count, string.Join("\n", changed.Keys.Take(20))), "Interface", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        try
+        {
+            var bak = WritePack(changed);
+            FillList();
+            MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), "Interface");
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ui.saveFail", "Falha ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    // o leitor é reaberto depois: o arquivo antigo virou o backup
+    string WritePack(Dictionary<string, byte[]> files)
+    {
+        _pck?.Dispose(); _pck = null;
+        try { return PckWriter.Write(_pckPath!, files); }
+        finally { _pck = new PckArchive(_pckPath!); }
     }
 
     // ---------- edição ----------

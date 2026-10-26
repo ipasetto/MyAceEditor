@@ -37,6 +37,14 @@ public sealed class GameDialog
     static readonly Regex Attr = new(@"\b(\w+)=""([^""]*)""", RegexOptions.Compiled);
     static readonly Regex File = new(@"FileName=""([^""]*)""", RegexOptions.Compiled);
 
+    // atributo repetido na mesma tag ("String" e "string"): vale o primeiro
+    static Dictionary<string, string> Attrs(string tag)
+    {
+        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match x in Attr.Matches(tag)) d.TryAdd(x.Groups[1].Value, x.Groups[2].Value);
+        return d;
+    }
+
     public static GameDialog Parse(string xml)
     {
         var h = Head.Match(xml);
@@ -49,10 +57,10 @@ public sealed class GameDialog
         {
             var m = ms[i];
             var body = xml[(m.Index + m.Length)..(i + 1 < ms.Count ? ms[i + 1].Index : xml.Length)];
-            var a = Attr.Matches(m.Groups[3].Value).ToDictionary(x => x.Groups[1].Value, x => x.Groups[2].Value, StringComparer.OrdinalIgnoreCase);
+            var a = Attrs(m.Groups[3].Value);
             int N(string k) => a.TryGetValue(k, out var v) && int.TryParse(v, out var n) ? n : 0;
             var textTag = Regex.Match(body, @"<Text\b([^>]*)/?>");
-            var ta = textTag.Success ? Attr.Matches(textTag.Groups[1].Value).ToDictionary(x => x.Groups[1].Value, x => x.Groups[2].Value, StringComparer.OrdinalIgnoreCase) : new();
+            var ta = textTag.Success ? Attrs(textTag.Groups[1].Value) : new();
             // cor "R,G,B,A"; há arquivos do jogo com valor malformado (ex.: "25color") — vira "sem cor"
             static int? C(string s) => int.TryParse(s.Trim(), out var v) ? Math.Clamp(v, 0, 255) : null;
             Color? col = ta.TryGetValue("Color", out var cs) && cs.Split(',') is { Length: >= 3 } c && C(c[0]) is { } cr && C(c[1]) is { } cg && C(c[2]) is { } cb

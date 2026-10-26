@@ -396,10 +396,17 @@ legado 1.3.6: item 1288B (4x(price,ign,duration), status unico; sem gift/log_pri
 item_ext_desc.txt: UTF-16, `item_id "texto"`, ignora / e #
 erro 1451 no gshop = item sem duracao permitida [W]; preco 0.00 no gshop => "versao antiga" [W]
 
+## §S3b gravar .pck v2 [T 26/10]
+- cabecalho 12 B: FSIG_1 0x4DCA23EF | u32 tamanho total do pacote | 0x56A089B7 (o tamanho precisa ser atualizado ao gravar).
+- rodape 280 B: 0xFDFDFEEE | 0x00020002 | u32 posicao da tabela ^ KEY_1 | 0 | "Angelica File Package, Perfect World." (252 B) | 0xF00DBEEF | u32 nº de arquivos | 0x00020002.
+- tabela: por entrada i32 tam^KEY_1, i32 tam^KEY_2, entrada (276 B: caminho GBK 260, u32 offset, i32 size, i32 csize, u32 ?) zlib se ficar < 276. KEY_2 sai da propria tabela (2º int ^ tam). Conteudo zlib quando menor; cru quando csize == size.
+- gravar sem refazer tudo: conteudo novo onde estava a tabela antiga, depois tabela + rodape (o espaco antigo vira sobra). Testado: interfaces.pck e configs.pck do 144 relidos iguais entrada a entrada.
+
 ## §S20b janelas carregadas (.dcf) [T 26/10]
 - interfaces\ingame.dcf / ingame-v1.dcf (GBK): 1 linha por janela "arquivo.xml x y flag" (v1 com caminho Version01\...); loginui*.dcf para o login. XML fora do .dcf NAO e carregado.
 - CECGameUIMan::Init faz m_pDlgX = dynamic_cast<CDlgX*>(GetDialog("Win_X")); faltando no .dcf -> ponteiro nulo e o jogo cai quando o codigo toca nele. Caso real (144 build 2305 + interfaces 2017): Win_Engrave (campo +0x344) e Win_EarthBagRank fora do .dcf; fechar o inventario pelo X percorre uma lista de janelas de servico (IsShow, vtable+0x30) e cai em elementclient+0x13654B (mov edx,[eax]).
 - Nem todo Win_ do exe vai no .dcf: Loading.xml, CWindow.xml, Fortress_BuildSubList.xml sao abertos pelo nome; Win_CWindow%d / Win_FriendChat%d sao modelos copiados; Win_FittingRoom e prefixo (M/F/Pet).
+- XML de janela: ha arquivos com atributo em minusculas (string="...", X="..."); editar sem diferenciar maiusculas, senao a tag fica com String e string (duplicado). Ha controle com o MESMO nome da janela (gmfinishmsg.xml: Win_GMFinishMsg).
 - Crash do cliente: element\logs\EC.log ("glb_HandleException") + ec_build<N>.dmp (minidump x86; ler ExceptionStream + ModuleList; objdump no WSL para disassemblar).
 
 ## §S20 interfaces.pck XML (fonte: UIEdit C# WPF github perfectdev/UIEdit; doc pw-gshop-ui.md) [C-terceiros]

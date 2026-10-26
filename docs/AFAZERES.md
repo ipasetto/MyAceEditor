@@ -48,7 +48,10 @@ Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor
 [ ] usuario: corrigir os 2 itens de preco 0 no gshop do 144 (posicoes 2 e 382) e reenviar
 [x] CASH "nao caia": chega, mas o authd demora (~4 min; so comeca 10 min apos ligar). Painel avisa e mostra pendente
 [x] crash ao fechar o inventario pelo X: Win_Engrave fora do .dcf do interfaces.pck -> Verificacao acusa e Corrigir registra (testado em copia)
-[ ] aplicar o Corrigir no cliente 144 de verdade (o editor do usuario segurava o interfaces.pck) e testar fechar o inventario no jogo
+[x] Corrigir aplicado no 144 pelo programa real (backup interfaces.pck.20261026-122856.bak = original)
+[x] editor de interface agora grava no interfaces.pck (antes so na pasta .files) + bug do texto (String/string) corrigido
+[ ] usuario: testar no jogo fechar o inventario pelo X e uma janela editada
+[x] (ver acima) aplicar o Corrigir no cliente 144
 [ ] BUG ABERTO: Mapas -> "Iniciar selecionado" na is05 nao sobe (log /home/logs/gs-is05.log vazio). Proximo: rodar "cd /home/gamed && timeout 40 ./gs is05" em primeiro plano p/ ver o erro (usuario interrompeu antes); depois corrigir pwctl gs-start
 [ ] Mapas: a lista perde a selecao ao atualizar (DataSource refeito) -> manter a linha
 [ ] testar com o usuario no jogo: aviso geral, EXP em dobro, gold (usecash), banir/expulsar/calar, GM liga/desliga, criar conta/senha pelo painel
