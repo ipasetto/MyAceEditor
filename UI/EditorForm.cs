@@ -919,6 +919,12 @@ public sealed class EditorForm : Form
         BuildTree();
         SaveLast(path);
         _dataPath = path;
+        // o cliente aberto passa a ser o da aba Verificação (e o que o "Salvar e enviar" leva ao servidor)
+        if (Path.GetDirectoryName(Path.GetDirectoryName(path)) is { } element)
+        {
+            _chkClient.Text = VersionCheck.ClientElement(element);
+            SaveSetting("check_client", _chkClient.Text);
+        }
         int items = module.Lists.Sum(l => l.Items.Count);
         Status($"{module.Name} · {module.Lists.Count} {Loc.T("status.blocks", "blocos")} · {items:N0} {Loc.T("status.items", "itens")} · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
             + $" · {r.Cfg}"
