@@ -274,7 +274,9 @@ public sealed class LocalServer
     /// crash "Exception occurred in ParsePage thread" ao entrar no mundo). A URL vira http://127.0.0.1:1/ (recusa na
     /// hora), mesmo tamanho, e o cache BBSPages\temp*.htm baixado volta para a página local temp0.htm. Backup de tudo.
     /// </summary>
-    public void FixClientPages(string clientElement)
+    public void FixClientPages(string clientElement) => FixClientPages(clientElement, Log);
+
+    public static void FixClientPages(string clientElement, Action<string> Log)
     {
         var pck = Path.Combine(clientElement, "configs.pck");
         if (File.Exists(pck))

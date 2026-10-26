@@ -28,7 +28,7 @@
 [x] tasks.data v93 completo: 21.777 quests, 238 campos, textos, dialogos; leitura/gravacao byte-identica (§E3c)
 [x] aba Quests: arvore + Dados + Textos + Dialogos
 [ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | outras versoes (so v93 completa)
-[ ] auto-tradutor (quests + elements + configs.pck)
+[x] traduzir a partir de outro cliente (elements + quests + falas do aipolicy + pacotes de interface/ajuda quando o jogo e o mesmo programa)
 [x] GShop (cliente+servidor juntos, tela igual a do jogo; falta validar no jogo e desfazer)
 [ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [x] modelos de monstro/NPC, construcoes, texturas e luz do chao, agua, mapa pintado (M) | [ ] arvores e grama (.ecwld/.spt), animacao | [ ] objetos e gatilhos (hoje so preservados)
 [x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)

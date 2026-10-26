@@ -1591,5 +1591,18 @@
   "legend.keys4": "Ctrl+C/Ctrl+V copy and paste a point · Delete · Ctrl+Z/Ctrl+Y",
   "legend.closed": "▸ Legend and shortcuts (H)",
   "dlg.previewDrag": "drag to rotate",
-  "world.wentTo": "Camera at X {0:0} Z {1:0}"
+  "world.wentTo": "Camera at X {0:0} Z {1:0}",
+  "menu.translateClient": "Translate from another &client…",
+  "trc.title": "Translate from another client",
+  "trc.saveFirst": "There are quests or AI Policy changes not saved yet. Save (or undo) them before translating.",
+  "trc.pick": "Folder of the other Perfect World (the already translated one, any version)",
+  "trc.noElements": "No elements.data found in that folder.",
+  "trc.same": "That is the same folder as the open client.",
+  "trc.planFail": "Could not compare the clients",
+  "trc.info": "From: {0}\nTo: {1} (the open client)\nOnly what this client has is brought in. Every file gets a backup (.bak).",
+  "trc.running": "Close the game of this client before applying.",
+  "trc.elements": "Items, monsters, NPCs and skills (elements.data) — review first",
+  "trc.elementsDetail": "Names and texts by ID, block and field, in any version; opens the review window and goes into Undo.",
+  "trc.go": "Translate",
+  "trc.failed": "failed — "
 }

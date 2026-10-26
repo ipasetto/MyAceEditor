@@ -156,6 +156,9 @@ public sealed class EditorForm : Form
         var translateFrom = new ToolStripMenuItem { ForeColor = CFg }; translateFrom.Click += (_, _) => TranslateFromOther();
         tools.DropDownItems.Add(translateFrom);
         Bind(() => translateFrom.Text = Loc.T("menu.translateFrom", "&Traduzir com outro elements.data…"));
+        var translateClient = new ToolStripMenuItem { ForeColor = CFg }; translateClient.Click += (_, _) => TranslateFromClient();
+        tools.DropDownItems.Add(translateClient);
+        Bind(() => translateClient.Text = Loc.T("menu.translateClient", "Traduzir a partir de outro &cliente…"));
         var showUnused = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = !_hideUnused };
         showUnused.CheckedChanged += (_, _) =>
         {
@@ -1644,13 +1647,19 @@ public sealed class EditorForm : Form
     // ---------- traduzir com outro elements.data (como o DataTranslator / "Localization" do RAE) ----------
     // Copia nomes e textos (campos de texto UTF-16) pelo ID, bloco a bloco, de outro elements.data já traduzido,
     // de qualquer versão. Só troca o que é diferente e não vazio no outro arquivo. Um passo de desfazer.
-    private void TranslateFromOther()
+    private void TranslateFromOther() => TranslateFromOther(null);
+
+    private void TranslateFromOther(string? otherPath)
     {
         if (_store.Current is not { } mod || mod.Source is not ElementsLayout layout) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
-        using var dlg = new OpenFileDialog { Filter = "elements.data (*.data)|*.data|*.*|*.*", Title = Loc.T("tr.pick", "elements.data já traduzido (qualquer versão)") };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (otherPath is null)
+        {
+            using var dlg = new OpenFileDialog { Filter = "elements.data (*.data)|*.data|*.*|*.*", Title = Loc.T("tr.pick", "elements.data já traduzido (qualquer versão)") };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            otherPath = dlg.FileName;
+        }
         Module other;
-        try { Cursor = Cursors.WaitCursor; other = CfgCatalog.Load(dlg.FileName).Module; }
+        try { Cursor = Cursors.WaitCursor; other = CfgCatalog.Load(otherPath).Module; }
         catch (Exception ex) { Error(Loc.T("tr.loadFail", "Não consegui ler o outro arquivo"), ex); return; }
         finally { Cursor = Cursors.Default; }
         var plan = ElementsTranslator.Plan(mod, ElementsCfg.Load(layout.ConfigPath), other);
@@ -1668,6 +1677,82 @@ public sealed class EditorForm : Form
         _unusedCache.Clear(); _list.Invalidate();
         if (_current is not null) ShowItem(_current);
         Status(string.Format(Loc.T("tr.done", "{0:N0} textos traduzidos (salve para gravar)"), changes.Count - skipped));
+    }
+
+    // ---------- traduzir a partir de outro cliente (mesma versão, mais alta ou mais baixa) ----------
+    // Tudo o que é texto: elements (janela de revisão), quests, falas dos monstros e, se o jogo for o mesmo programa,
+    // os pacotes de interface/descrições e a ajuda. O cliente aberto só recebe o que ele tem; estrutura e versão ficam.
+    private void TranslateFromClient()
+    {
+        if (_dataPath is null || Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) is not { } target)
+        { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
+        if (_tasksDirty || _aiView?.HasUnsaved == true)
+        {
+            MessageBox.Show(this, Loc.T("trc.saveFirst", "Há quests ou AI Policy com alterações não salvas. Salve (ou desfaça) antes de traduzir."), Loc.T("trc.title", "Traduzir a partir de outro cliente"));
+            return;
+        }
+        using var pick = new FolderBrowserDialog { Description = Loc.T("trc.pick", "Pasta do outro Perfect World (o já traduzido, de qualquer versão)"), SelectedPath = LoadSetting("translate_source") ?? "" };
+        if (pick.ShowDialog(this) != DialogResult.OK) return;
+        SaveSetting("translate_source", pick.SelectedPath);
+        var srcEl = FindFile(pick.SelectedPath, "elements.data");
+        if (srcEl is null || Path.GetDirectoryName(Path.GetDirectoryName(srcEl)) is not { } source) { Status(Loc.T("trc.noElements", "Não achei elements.data nessa pasta.")); return; }
+        if (string.Equals(Path.GetFullPath(source), Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase)) { Status(Loc.T("trc.same", "É a mesma pasta do cliente aberto.")); return; }
+
+        List<ClientTranslator.Step> steps;
+        try { Cursor = Cursors.WaitCursor; steps = ClientTranslator.Plan(target, source); }
+        catch (Exception ex) { Error(Loc.T("trc.planFail", "Não consegui comparar os clientes"), ex); return; }
+        finally { Cursor = Cursors.Default; }
+        bool running = GameRunningFrom(target);
+
+        using var f = new Form { Text = Loc.T("trc.title", "Traduzir a partir de outro cliente"), Width = 760, Height = 520, StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false, MinimizeBox = false, BackColor = CSurface, ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) };
+        // pelo nome da pasta do cliente (a que contém "element"); o caminho inteiro fica na dica
+        static string ClientName(string element) => Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(element).TrimEnd('\\')) ?? element);
+        var info = new Label { Dock = DockStyle.Top, Height = 84, Padding = new Padding(10), ForeColor = running ? Color.Firebrick : CMuted, AutoEllipsis = true,
+            Text = string.Format(Loc.T("trc.info", "De: {0}\nPara: {1} (o cliente aberto)\nSó entra o que este cliente tem. Cada arquivo ganha cópia de segurança (.bak)."), ClientName(source), ClientName(target))
+                + (running ? "\n" + Loc.T("trc.running", "Feche o jogo deste cliente antes de aplicar.") : "") };
+        new ToolTip().SetToolTip(info, source + "\n→ " + target);
+        var list = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None, BackColor = CSurface, ForeColor = CFg, IntegralHeight = false };
+        var detail = new Label { Dock = DockStyle.Bottom, Height = 54, Padding = new Padding(10, 6, 10, 6), ForeColor = CMuted };
+        const string elementsRow = "elements";
+        list.Items.Add(Loc.T("trc.elements", "Itens, monstros, NPCs e habilidades (elements.data) — revisar antes"), true);
+        var rows = new List<object> { elementsRow };
+        foreach (var s in steps) { list.Items.Add(s.Title, s.Default); rows.Add(s); }
+        list.ItemCheck += (_, e) => { if (rows[e.Index] is ClientTranslator.Step { Enabled: false }) e.NewValue = CheckState.Unchecked; };
+        list.SelectedIndexChanged += (_, _) => detail.Text = list.SelectedIndex < 0 ? "" : rows[list.SelectedIndex] is ClientTranslator.Step st ? st.Detail
+            : Loc.T("trc.elementsDetail", "Nomes e textos pelo ID, bloco e campo, em qualquer versão; abre a janela de revisão e entra no Desfazer.");
+        var ok = new Button { Text = Loc.T("trc.go", "Traduzir"), Dock = DockStyle.Bottom, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White, DialogResult = DialogResult.OK };
+        f.Controls.Add(list); f.Controls.Add(info); f.Controls.Add(detail); f.Controls.Add(ok);
+        f.AcceptButton = ok;
+        if (f.ShowDialog(this) != DialogResult.OK) return;
+        var chosen = list.CheckedIndices.Cast<int>().Select(i => rows[i]).ToList();
+        if (chosen.Count == 0) return;
+        if (chosen.Any(c => c is ClientTranslator.Step) && GameRunningFrom(target))
+        {
+            MessageBox.Show(this, Loc.T("trc.running", "Feche o jogo deste cliente antes de aplicar."), Loc.T("trc.title", "Traduzir a partir de outro cliente"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var log = new List<string>(); var touched = new List<string>();
+        Cursor = Cursors.WaitCursor;
+        foreach (var s in chosen.OfType<ClientTranslator.Step>())
+            try { touched.Add(s.Apply(log.Add)); }
+            catch (Exception ex) { log.Add($"{s.Title}: " + Loc.T("trc.failed", "falhou — ") + ex.Message); }
+        Cursor = Cursors.Default;
+        // o editor passa a mostrar o que foi gravado
+        if (_tasksPath is not null && touched.Any(t => string.Equals(t, _tasksPath, StringComparison.OrdinalIgnoreCase))) LoadTasks(_tasksPath);
+        if (touched.FirstOrDefault(t => t.EndsWith("aipolicy.data", StringComparison.OrdinalIgnoreCase)) is { } ai) _aiView?.LoadFile(ai);
+        if (log.Count > 0)
+            MessageBox.Show(this, string.Join("\n", log), Loc.T("trc.title", "Traduzir a partir de outro cliente"));
+        if (chosen.Contains(elementsRow)) TranslateFromOther(srcEl);
+    }
+
+    private static bool GameRunningFrom(string element)
+    {
+        foreach (var p in System.Diagnostics.Process.GetProcessesByName("elementclient"))
+            try { if (p.MainModule?.FileName is { } exe && exe.StartsWith(element, StringComparison.OrdinalIgnoreCase)) return true; }
+            catch { return true; }   // sem acesso ao processo: melhor avisar
+            finally { p.Dispose(); }
+        return false;
     }
 
     // ---------- salvar em outra versão (issue #24) ----------
