@@ -86,8 +86,6 @@ Screenshots taken with a Brazilian client: game content (item, monster and quest
 | **3D World: monsters and NPCs on the game map** | **NPCGen: where each one spawns** |
 | ![Test server](docs/img/en/server.png) | ![Check](docs/img/en/check.png) |
 | **Test server on your PC** | **Client × server check** |
-| ![Admin: characters](docs/img/en/admin-characters.png) | ![Admin: maps and instances](docs/img/en/admin-maps.png) |
-| **Admin: characters** | **Admin: maps and instances** |
 | ![Admin: world](docs/img/en/admin-world.png) | ![Interface editor](docs/img/en/interface.png) |
 | **Admin: double EXP, locks and broadcast** | **Editable game windows, written into the .pck** |
 | ![Game-like shop](docs/img/en/gshop.png) | ![Quests](docs/img/en/quests.png) |
