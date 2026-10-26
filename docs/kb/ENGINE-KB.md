@@ -120,6 +120,9 @@ PerfectWorld/NpcGenFile.cs | npcgen.data v5-11 (pontos, grupos, coleta, objetos,
 PerfectWorld/CfgCatalog.cs + CfgElementsReader.cs | escolha automatica do CFG em 3 degraus: versao declarada > outras versoes (mais perto primeiro, so leitura completa ate o ultimo byte + regravacao identica) > tamanho de registro ajustado lista a lista (AutoResize: IDs de amostra + 3 listas seguintes); ajustes em ElementsLayout.Adjustments (avisados, nao bloqueiam salvar)
 PerfectWorld/RegionFile.cs | region.sev do servidor (regioes + portais); EntranceOf(config, mapa) = entrada da instancia p/ o Mundo 3D
 PerfectWorld/MapTags.cs | pasta do servidor -> mapa do cliente (gs.conf tag -> configs\instance.txt)
+PerfectWorld/Gnet.cs | protocolo interno GNET (writer/reader big-endian, CompactUINT, Octets, Rpc com xid) p/ falar com gdeliveryd:29100 e gamedbd:29400 como o iweb
+PerfectWorld/ServerAdmin.cs + UI/ServerAdminWindow.cs | painel "Administrar" (aba Servidor): contas (pwctl/MySQL), personagens (gamedbd, so leitura), no jogo (expulsar/calar), mundo (atributos em dobro/travas + aviso geral), mapas/instancias (gs por tag, RAM)
+PerfectWorld/ProgramVersion.cs | versao do elements compilada no elementclient.exe e no gs (imediato 0x300000vv em push+cmp / mov+cmp); usada na Verificacao
 PerfectWorld/LocalServer.cs + UI/ServerView.cs + Server/provision.sh + Server/pwctl.sh | servidor local no WSL (distro PWServer): instala, inicia/para, estado, conta, par corrigido na copia, entrada Local no serverlist
 PerfectWorld/TerrainFile.cs | alturas do terreno do cliente (.trn2 + .t2bk sob demanda), HeightAt interpolado
 PerfectWorld/SkiModel.cs | malhas .ski (modelos de monstro/NPC/mina) na pose de ligacao
@@ -182,6 +185,10 @@ melhorias de UI (out/2026, ideias de §E9b) [T por print]:
  pendente conhecido: Tests/audit_localization.py procura dicionario Tokens em FieldLabels.cs (foi movido p/ FieldTokens.cs) -> script quebrado, nao relacionado a estas mudancas
 
 - [T] Aba NPCGen (PerfectWorld/NpcGenFile.cs, UI/NpcGenView.cs): acha gamed\config pela pasta do servidor da Verificacao (ou "Abrir pasta"); combo de arquivo (world primeiro, depois aNN/bNN), filtro Pontos de monstro/NPC/Coleta, busca por nome/ID (espera 250 ms); lista virtual com nome+icone do elements, qtde, renascer, posicao, raio, gatilho; painel: posicao, raio, local (chao/livre), gatilho, max vivos, 3 flags, tabela de quem nasce (duplo clique troca pelo seletor com filtro Monstros/NPCs; qtde/renascer/caminho editam na tabela), adicionar/trocar/remover; Ponto novo (copia o selecionado), Clonar, Excluir; desfazer por ponto (Replace/Insert/Remove, Ctrl+Z com a aba aberta); Salvar grava so os arquivos mudados com backup. Teste no programa: trocar 7068->7069 e qtde 1->3 = 2 bytes diferentes; Mudar ID 7068->33115 = 70 pontos, Ctrl+Z volta. Licao de teste: a janela do Claude flutua a direita e engole cliques da automacao (some do print) -> mover a janela de teste (MoveWindow).
+
+- [T] Verificacao: linha "Programas - versao do elements compilada" (cliente x gs) + elementclient.exe x elements do cliente + gs x elements do servidor (26/10). Teste: 144 = v60/v60 OK; BR = exe v60 com elements v61 -> erro apontado.
+- [~] Painel Administrar servidor (26/10): testado no programa real com o servidor no ar: visao geral (servicos, online, RAM, log), contas (lista), personagens (userP: Mercenario nv 19, mapa, posicao), mundo (le os 8 atributos), mapas (lista 44 do gs.conf, gs01 995 MB). NAO testado ainda: criar conta/senha/GM/gold/banir pelo painel, ligar atributo, aviso geral, expulsar/calar (precisa jogador no jogo). FALHA ABERTA: "Iniciar" instancia is05 nao sobe (log vazio, processo some) - investigar rodando ./gs is05 em primeiro plano (usuario interrompeu antes).
+- pwctl e atualizado sozinho no Linux (LocalServer.EnsureTools compara md5); no bulktest copiar build/Server para a pasta do teste (senao leva um pwctl velho).
 
 ## §E8 ROADMAP (ordem sugerida; custo: B=baixo M=medio A=alto)
 META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's Angelica Editor faz, com CODIGO NOSSO e interface parecida com a dele.

@@ -35,6 +35,7 @@ public sealed class LocalServer
             RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = stdin is not null,
             UseShellExecute = false, CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+            StandardInputEncoding = stdin is null ? null : new UTF8Encoding(false),
         };
         psi.Environment["WSL_UTF8"] = "1";
         using var p = Process.Start(psi)!;
@@ -229,8 +230,23 @@ public sealed class LocalServer
         return r.Output.Contains("##ERRO") || r.Code != 0 ? "Não consegui criar a conta:\n" + r.Output : null;
     }
 
+    /// <summary>
+    /// Leva ao Linux o pwctl desta versão do programa quando o instalado é outro (comandos novos do painel de
+    /// administração chegam sem reinstalar).
+    /// </summary>
+    public void EnsureTools()
+    {
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Server", "pwctl.sh")).Replace("\r\n", "\n").TrimStart('﻿');
+        var want = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
+        var have = Bash("md5sum /usr/local/bin/pwctl 2>/dev/null", timeoutMs: 60_000).Output.Trim().Split(' ')[0];
+        if (have == want) return;
+        Bash("cat > /usr/local/bin/pwctl && chmod +x /usr/local/bin/pwctl", stdin: text, timeoutMs: 60_000);
+        Log("pwctl atualizado no Linux");
+    }
+
     public RunResult Start(IEnumerable<string>? maps = null)
     {
+        EnsureTools();
         KeepAlive();
         return Bash("pwctl start " + string.Join(' ', maps ?? new[] { "gs01" }), Log, timeoutMs: 600_000);
     }

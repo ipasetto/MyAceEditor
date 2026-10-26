@@ -39,6 +39,19 @@
 [x] janelas do jogo dentro da engine: aba Interface (ver/editar posicao, tamanho, texto; salva em interfaces.pck.files) | [ ] gravar no .pck
 [ ] deploy de servidor | editor de mapa (PW-KB §S22) | skills
 
+## ONDE PARAMOS (26/10/2026, painel do servidor) - RETOMAR AQUI
+Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor num form (como o iweb)".
+[x] Verificacao: versao do elements compilada no elementclient.exe x gs x arquivos (ProgramVersion.cs)
+[x] Painel "Administrar..." na aba Servidor (ServerAdminWindow): visao geral, contas, personagens, no jogo, mundo, mapas - leituras testadas no programa real
+[ ] BUG ABERTO: Mapas -> "Iniciar selecionado" na is05 nao sobe (log /home/logs/gs-is05.log vazio). Proximo: rodar "cd /home/gamed && timeout 40 ./gs is05" em primeiro plano p/ ver o erro (usuario interrompeu antes); depois corrigir pwctl gs-start
+[ ] Mapas: a lista perde a selecao ao atualizar (DataSource refeito) -> manter a linha
+[ ] testar com o usuario no jogo: aviso geral, EXP em dobro, gold (usecash), banir/expulsar/calar, GM liga/desliga, criar conta/senha pelo painel
+[ ] nomes dos mapas em portugues (instance.txt e chines)
+[ ] posicao do personagem em coordenadas do jogo (hoje X/Z do servidor)
+[ ] proximas etapas do painel: editar personagem (nivel, dinheiro, teleporte; PutRole*), enviar item por correio (SysSendMail), clas, chat (world2.chat)
+[ ] aviso de versao tambem na aba Servidor + "qual pacote de servidor usar"
+Pendencias antigas: VRAM ~1,3 GB | AI Policy x Policy.cpp | arvores e grama | entradas das 19 instancias so por teleporte | botao "Montar dados do servidor" (usuario: "agora nao")
+
 ## ESTADO GIT
 repo PUBLICO github.com/ipasetto/MyAceEditor (GPL-3.0), branch main. Usuario faz "Push origin" (force push bloqueado p/ mim).
 

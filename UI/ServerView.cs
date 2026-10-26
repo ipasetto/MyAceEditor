@@ -25,6 +25,7 @@ public sealed class ServerView : UserControl
     readonly FlowLayoutPanel _lights = new() { Dock = DockStyle.Top, Height = 34, WrapContents = false, AutoScroll = true };
     readonly List<Button> _buttons = new();
     bool _busy;
+    readonly Color _accent;
     /// <summary>aipolicy.data aberto na aba AI Policy (é o que vai para o servidor ao enviar).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<string?>? AiPolicyPath { get; set; }
@@ -32,7 +33,7 @@ public sealed class ServerView : UserControl
     public ServerView(Color bg, Color fg, Color accent, Func<string> client, Func<string> serverHome, Func<string, string?> load, Action<string, string> save)
     {
         _client = client; _serverHome = serverHome; _load = load; _save = save;
-        BackColor = bg; ForeColor = fg; Dock = DockStyle.Fill; Padding = new Padding(10);
+        BackColor = bg; ForeColor = fg; Dock = DockStyle.Fill; Padding = new Padding(10); _accent = accent;
         var intro = new Label
         {
             Dock = DockStyle.Top, Height = 46, ForeColor = fg,
@@ -58,6 +59,7 @@ public sealed class ServerView : UserControl
         bar.Controls.Add(Btn(L("⟳ Enviar meus arquivos e reiniciar", "⟳ Send my files and restart"), SendFiles));
         bar.Controls.Add(Btn(L("👤 Criar/trocar conta", "👤 Create/change account"), CreateAccount));
         bar.Controls.Add(Btn(L("Estado", "Status"), RefreshStatus));
+        bar.Controls.Add(Btn(L("🛠 Administrar…", "🛠 Admin…"), OpenAdmin, accent));
         // tudo numa tabela de linhas automáticas (o log ocupa o resto): nada depende da ordem de encaixe
         var root = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 1, RowCount = 6, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -219,6 +221,17 @@ public sealed class ServerView : UserControl
                     : L("Servidor parado ou subindo.", "Server stopped or starting.");
             });
         });
+    }
+
+    /// <summary>Painel de administração (contas, personagens, quem está no jogo, mundo, mapas).</summary>
+    void OpenAdmin()
+    {
+        Fill();
+        var pkg = _pkg.Text.Trim();
+        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(L("Escolha a pasta \"server files\" do pacote.", "Pick the package's \"server files\" folder.")); return; }
+        if (!LocalServer.DistroExists()) { Warn(L("Instale o servidor local primeiro.", "Install the local server first.")); return; }
+        var w = new ServerAdminWindow(NewServer(), pkg, _client(), BackColor, ForeColor, _accent);
+        w.Show(FindForm());
     }
 
     static bool Valid(string s) => s.Trim().Length is >= 3 and <= 20 && s.Trim().All(char.IsAsciiLetterOrDigit);

@@ -77,6 +77,27 @@ public static class VersionCheck
             }
         }
 
+        // 1c) versão que os PROGRAMAS têm compilada: cliente × gs (login) e cada programa × o elements que ele vai ler
+        var cExe = ProgramVersion.ElementsVersion(Path.Combine(clientElement, "elementclient.exe"));
+        var gsExe = ProgramVersion.ElementsVersion(Path.Combine(serverHome, "gamed", "gs"));
+        string V(int? v) => v is null ? "não identificada" : $"v{v}" + (ProgramVersion.GameFor(v.Value) is { Length: > 0 } g ? $" ({g})" : "");
+        if (cExe is not null || gsExe is not null)
+        {
+            rows.Add(cExe is null || gsExe is null
+                ? new("Programas — versão do elements compilada", V(cExe), V(gsExe), CheckLevel.Aviso, "Não consegui ler a versão de um dos programas.")
+                : cExe == gsExe
+                    ? new("Programas — versão do elements compilada", V(cExe), V(gsExe), CheckLevel.Ok, "elementclient.exe e gs são da mesma versão.")
+                    : new("Programas — versão do elements compilada", V(cExe), V(gsExe), CheckLevel.Erro,
+                        $"O cliente e o gs são de versões diferentes: o login é recusado mesmo com os dados iguais. Use um pacote de servidor cujo gs seja v{cExe}"
+                        + (ProgramVersion.GameFor(cExe.Value) is { Length: > 0 } g ? $" (jogo {g})" : "") + ", ou um cliente da versão do servidor."));
+            if (cExe is { } cv && ce is { } cd && cv != (cd.A & 0xFFFF))
+                rows.Add(new("elementclient.exe × elements.data do cliente", V(cExe), "—", CheckLevel.Erro,
+                    $"O elementclient.exe espera elements v{cv}, mas o elements.data do cliente é v{cd.A & 0xFFFF}. Converta com Arquivo → Salvar em outra versão (v{cv}) ou use o executável da versão dos dados."));
+            if (gsExe is { } gv && se is { } sd && gv != (sd.A & 0xFFFF))
+                rows.Add(new("gs × elements.data do servidor", "—", $"gs v{gv}, arquivo v{sd.A & 0xFFFF}", CheckLevel.Erro,
+                    $"O gs só abre elements v{gv}: com este arquivo ele cai ao iniciar. Converta para v{gv} (Arquivo → Salvar em outra versão)."));
+        }
+
         // 2) tasks.data — versão entra na edition
         var ct = Header(Path.Combine(cData, "tasks.data"));
         var st = Header(Path.Combine(sCfg, "tasks.data"));

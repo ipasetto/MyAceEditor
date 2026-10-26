@@ -76,9 +76,58 @@ account)
     exit 0
     ;;
 log)
-    tail -n 60 "$L/$2.log" 2>/dev/null
+    tail -n ${3:-60} "$L/$2.log" 2>/dev/null
+    ;;
+# ---------- painel de administração (só números nos argumentos; textos não passam por aqui) ----------
+accounts)
+    # id, login, criada, GM (nº de direitos), online (zona), último login, banida até (unix), cash pendente
+    mysql -B -N pw -e "SELECT u.ID, u.name, u.creatime,
+        (SELECT COUNT(*) FROM auth a WHERE a.userid=u.ID),
+        IFNULL((SELECT p.zoneid FROM point p WHERE p.uid=u.ID AND p.zoneid IS NOT NULL LIMIT 1), ''),
+        IFNULL((SELECT MAX(p.lastlogin) FROM point p WHERE p.uid=u.ID), ''),
+        IFNULL((SELECT MAX(UNIX_TIMESTAMP(f.ctime)+f.forbid_time) FROM forbid f WHERE f.userid=u.ID AND f.type=100), ''),
+        IFNULL((SELECT SUM(c.cash) FROM usecashnow c WHERE c.userid=u.ID), 0)
+        FROM users u ORDER BY u.ID"
+    ;;
+gm)       # pwctl gm <uid> on|off
+    uid=$(( $2 + 0 ))
+    if [ "$3" = "on" ]; then
+        [ "$(mysql -N pw -e "SELECT COUNT(*) FROM auth WHERE userid=$uid")" = "0" ] && mysql pw -e "CALL addGM($uid, 1)"
+        echo "##OK GM ligado"
+    else
+        mysql pw -e "DELETE FROM auth WHERE userid=$uid" && echo "##OK GM desligado"
+    fi
+    ;;
+gold)     # pwctl gold <uid> <gold>: o gdeliveryd entrega na conta (1 gold = 100 de cash)
+    uid=$(( $2 + 0 )); cash=$(( $3 * 100 ))
+    [ $cash -gt 0 ] || { echo "##ERRO quantidade"; exit 1; }
+    mysql pw -e "CALL usecash($uid, 1, 0, 1, 0, $cash, 1, @e)" && echo "##OK gold enviado"
+    ;;
+ban)      # pwctl ban <uid> <segundos>: proíbe o login (tipo 100, o mesmo que o GMKickoutUser grava)
+    uid=$(( $2 + 0 )); secs=$(( $3 + 0 ))
+    mysql pw -e "CALL addForbid($uid, 100, $secs, 'MyAceEditor', 0)" && echo "##OK banida"
+    ;;
+unban)
+    uid=$(( $2 + 0 ))
+    mysql pw -e "DELETE FROM forbid WHERE userid=$uid" && echo "##OK liberada"
+    ;;
+maps)     # mapas em execução: "<tag> <RAM em MB>" + memória do Linux
+    for pid in $(pgrep -x gs); do
+        tag=$(tr '\0' ' ' < /proc/$pid/cmdline | awk '{print $2}')
+        echo "$tag $(( $(awk '/VmRSS/{print $2}' /proc/$pid/status) / 1024 ))"
+    done
+    free -m | awk '/^Mem:/{print "##RAM", $2, $7}'
+    ;;
+gs-start) # pwctl gs-start <tag>
+    tag=$(printf '%s' "$2" | tr -cd 'a-z0-9_')
+    [ -n "$tag" ] || exit 1
+    svc "gs-$tag" "gs $tag\$" gamed ./gs $tag
+    ;;
+gs-stop)
+    tag=$(printf '%s' "$2" | tr -cd 'a-z0-9_')
+    [ -n "$tag" ] && pkill -9 -f "^./gs $tag\$" && echo "##OK parado $tag"
     ;;
 *)
-    echo "uso: pwctl start|stop|status|account|log"
+    echo "uso: pwctl start|stop|status|account|log|accounts|gm|gold|ban|unban|maps|gs-start|gs-stop"
     ;;
 esac
