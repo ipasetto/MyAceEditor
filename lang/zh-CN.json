@@ -2484,5 +2484,11 @@
   "srv.swapFreshDb": "重置游戏数据库（角色和名称）——更换版本时推荐",
   "srv.swapBackup": "先备份当前安装（/home.bak-<日期>，数 GB）",
   "srv.swapOk": "替换程序",
-  "srv.swapNo": "暂不"
+  "srv.swapNo": "暂不",
+  "ls.aiRejected": "gs 拒绝了 aipolicy.data（版本比它新）：正在转换",
+  "ls.aiConverted": "aipolicy.data 已转换为 v{0} 触发器（与 {1} 中的相同）：{2:N0} 个策略；移除了此 gs 不认识的 {3} 个触发器和 {4} 个操作",
+  "ls.aiAccepted": "gs 已接受转换后的 aipolicy.data。",
+  "ls.aiNoReference": "gs 无法读取此 aipolicy.data，也找不到它能读取的参考文件（另一个 gs 版本相同的服务端包）。请在 AI 策略标签中打开服务器版本的 aipolicy.data 后重新发送。",
+  "fix.mapCopiesTitle": "地图副本：使 {0} 个文件与客户端一致",
+  "fix.mapCopiesDetail": "。它们来自其他版本；使用它们的地图在打开时会崩溃。当前文件会保留为备份。"
 }

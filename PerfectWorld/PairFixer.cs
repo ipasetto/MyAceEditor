@@ -58,6 +58,22 @@ public static class PairFixer
                 true, () => AtomicFileSave.Write(s, File.ReadAllBytes(c))));
         }
 
+        // cópias por mapa (gamed/config/aNN/elements.data, tasks.data): sobra de outra versão; se o gs.conf de um mapa as
+        // usar, a instância cai. Ficam iguais às do cliente (o original vira backup).
+        var stale = new List<(string Copy, string Main)>();
+        foreach (var name in new[] { "elements.data", "tasks.data" })
+        {
+            var c = Path.Combine(cData, name);
+            if (!File.Exists(c)) continue;
+            foreach (var copy in Directory.EnumerateFiles(sCfg, name, SearchOption.AllDirectories))
+                if (!string.Equals(Path.GetDirectoryName(copy)?.TrimEnd('\\', '/'), Path.GetFullPath(sCfg).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase) && !SameContent(c, copy))
+                    stale.Add((copy, c));
+        }
+        if (stale.Count > 0)
+            fixes.Add(new(string.Format(Loc.T("fix.mapCopiesTitle", "Cópias por mapa: igualar {0} arquivo(s) aos do cliente"), stale.Count),
+                string.Join(", ", stale.Select(x => Path.GetRelativePath(sCfg, x.Copy))) + Loc.T("fix.mapCopiesDetail", ". São de outra versão; um mapa que as use cai ao abrir. Os atuais ficam como backup."),
+                true, () => { foreach (var (copy, main) in stale) AtomicFileSave.Write(copy, File.ReadAllBytes(main)); }));
+
         // loja: o servidor (gshopsev) é refeito a partir do gshop do cliente, com o mesmo timestamp
         foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
         {

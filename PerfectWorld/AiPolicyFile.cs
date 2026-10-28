@@ -449,6 +449,71 @@ public sealed class AiPolicyFile
         return op;
     }
 
+    /// <summary>O que um gs aceita, tirado de um aipolicy.data que ele lê: versão dos gatilhos e das políticas e os maiores tipos usados.</summary>
+    public sealed record AiLimits(int TriggerVersion, int PolicyVersion, int MaxOp, int MaxCond, int MaxTarget);
+
+    public AiLimits Limits()
+    {
+        static IEnumerable<AiCondNode> Nodes(AiCondNode? n) => n is null ? Enumerable.Empty<AiCondNode>() : new[] { n }.Concat(Nodes(n.Left)).Concat(Nodes(n.Right));
+        var trg = Policies.SelectMany(p => p.Triggers).ToList();
+        return new(trg.Select(t => t.Version).DefaultIfEmpty().Max(), Policies.Select(p => p.Version).DefaultIfEmpty().Max(),
+            trg.SelectMany(t => t.Ops).Select(o => o.Type).DefaultIfEmpty().Max(), trg.SelectMany(t => Nodes(t.Root)).Select(n => n.Type).DefaultIfEmpty().Max(),
+            trg.SelectMany(t => t.Ops).Select(o => o.Target.Type).DefaultIfEmpty().Max());
+    }
+
+    public sealed record AiConvertReport(int TriggersRecoded, int OpsDropped, int TriggersDropped);
+
+    /// <summary>
+    /// Converte para um gs mais antigo (ex.: aipolicy do 1.6, gatilhos v33, num gs 1.5.5 que só lê v23 — senão ele não
+    /// inicia: "Failed to Load AIPolicy"). Gatilhos e políticas passam para a versão do gs e os parâmetros são reescritos
+    /// pelos layouts (campo que só existe a partir de uma versão maior sai; campo que só existia antes entra zerado).
+    /// Sai o que o gs não conhece: operação ou alvo de tipo maior que os dele, e o gatilho cuja condição usa um tipo que
+    /// ele não tem (junto com run/stop/active_trigger que apontavam para esse gatilho). O resto fica igual.
+    /// </summary>
+    public AiConvertReport ConvertTo(AiLimits lim)
+    {
+        static bool Unknown(AiCondNode? n, int max) => n is not null && (n.Type > max || Unknown(n.Left, max) || Unknown(n.Right, max));
+        int recoded = 0, opsOut = 0, trgOut = 0;
+        foreach (var p in Policies)
+        {
+            var gone = new HashSet<int>();
+            foreach (var t in p.Triggers.Where(t => Unknown(t.Root, lim.MaxCond)).ToList()) { gone.Add(t.Id); p.Triggers.Remove(t); trgOut++; }
+            foreach (var t in p.Triggers)
+            {
+                int from = t.Version, to = Math.Min(t.Version, lim.TriggerVersion);
+                int before = t.Ops.Count;
+                t.Ops.RemoveAll(o => o.Type > lim.MaxOp || o.Target.Type > lim.MaxTarget || AiSchema.Op(o.Type) is null || AiSchema.Target(o.Target.Type) is null
+                    || (o.Type is 4 or 5 or 6 && o.Param.Length >= 4 && gone.Contains(BitConverter.ToInt32(o.Param, 0))));
+                opsOut += before - t.Ops.Count;
+                if (from == to) continue;
+                foreach (var o in t.Ops)
+                {
+                    o.Param = Recode(AiSchema.Op(o.Type)!, from, to, o.Param);
+                    o.Target.Param = Recode(AiSchema.Target(o.Target.Type)!, from, to, o.Target.Param);
+                }
+                t.Version = to; recoded++;
+            }
+            p.Version = Math.Min(p.Version, lim.PolicyVersion);
+        }
+        return new(recoded, opsOut, trgOut);
+    }
+
+    /// <summary>Parâmetro gravado com o layout da versão <paramref name="from"/> → bytes do layout da versão <paramref name="to"/>.</summary>
+    static byte[] Recode(AiLayout lay, int from, int to, byte[] p)
+    {
+        using var ms = new MemoryStream(p.Length);
+        int o = 0;
+        foreach (var f in lay.Fields)
+        {
+            bool inFrom = from >= f.MinVer && from < f.MaxVer, inTo = to >= f.MinVer && to < f.MaxVer;
+            int size = f.Kind switch { 'i' or 'f' => 4, 'b' => 1, '3' => 3, 'a' => 128, 't' => inFrom ? 4 + BitConverter.ToInt32(p, o) : 6, _ => 0 };
+            if (inFrom && inTo) ms.Write(p, o, size);
+            else if (inTo) { if (f.Kind == 't') ms.Write(new byte[] { 2, 0, 0, 0, 0, 0 }); else ms.Write(new byte[size]); }   // texto vazio = só o \0
+            if (inFrom) o += size;
+        }
+        return ms.ToArray();
+    }
+
     /// <summary>Serializa o estado atual.</summary>
     public byte[] Build()
     {

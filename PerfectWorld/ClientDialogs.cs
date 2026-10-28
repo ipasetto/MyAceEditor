@@ -51,32 +51,50 @@ public static class ClientDialogs
             .Select(kv => new Missing(kv.Key, kv.Value)).OrderBy(m => m.Dialog).ToList();
     }
 
-    /// <summary>Acrescenta as janelas nos dois .dcf de jogo, de uma vez (PckWriter: um backup do .pck).</summary>
+    /// <summary>
+    /// Registra as janelas nos .dcf, de uma vez (PckWriter: um backup do .pck): nos dois de jogo sempre, e nos de login
+    /// quando eles já usam a pasta do XML (ex.: faces\, as janelas de aparência da criação de personagem). O caminho vai
+    /// relativo a interfaces\ (faces\chooseear.xml); tira as linhas que a versão antiga desta correção gravou só com o
+    /// nome do arquivo, que o jogo não acha.
+    /// </summary>
     public static void Fix(string clientElement, List<Missing> missing)
     {
+        static string Rel(string pckPath) => pckPath[@"interfaces\".Length..];
+        static string Dir(string rel) => Path.GetDirectoryName(rel.StartsWith(@"version01\", StringComparison.OrdinalIgnoreCase) ? rel[@"version01\".Length..] : rel) ?? "";
         var pck = Path.Combine(clientElement, "interfaces.pck");
         var changed = new Dictionary<string, byte[]>();
+        var gbk = Encoding.GetEncoding(936);
         using (var a = new PckArchive(pck))
         {
             var all = a.Entries.Select(x => x.Path.ToLowerInvariant()).ToHashSet();
-            foreach (var dcf in Dcfs)
+            foreach (var dcf in Dcfs.Concat(LoginDcfs))
             {
                 if (a.Find(dcf) is not { } e) continue;
                 var old = a.Read(e);
-                var have = DcfFiles(old).Select(f => f.ToLowerInvariant()).ToHashSet();
-                bool v1 = dcf.EndsWith("-v1.dcf");
+                var files = DcfFiles(old).ToList();
+                var have = files.Select(f => f.ToLowerInvariant()).ToHashSet();
+                bool v1 = dcf.EndsWith("-v1.dcf"), login = LoginDcfs.Contains(dcf);
+                // linhas antigas sem a subpasta: o arquivo não existe em interfaces\ (só em interfaces\faces\…)
+                var wrong = missing.Where(x => Path.GetDirectoryName(Rel(x.File)) is { Length: > 0 })
+                    .Select(x => Path.GetFileName(x.File).ToLowerInvariant())
+                    .Where(n => have.Contains(n) && !all.Contains(@"interfaces\" + n)).ToHashSet();
                 var add = new StringBuilder();
-                foreach (var m in missing)
+                foreach (var x in missing)
                 {
-                    var file = Path.GetFileName(m.File);
-                    // ingame-v1 usa a cópia de Version01 quando o pacote tem
-                    var rel = v1 && all.Contains((@"interfaces\version01\" + file).ToLowerInvariant()) ? @"Version01\" + file : file;
+                    var rel = Rel(x.File);
+                    if (login && !files.Any(f => Dir(f).Equals(Path.GetDirectoryName(rel) ?? "", StringComparison.OrdinalIgnoreCase))) continue;
+                    // -v1 usa a cópia de Version01 quando o pacote tem
+                    if (v1 && all.Contains((@"interfaces\version01\" + rel).ToLowerInvariant())) rel = @"Version01\" + rel;
                     if (have.Contains(rel.ToLowerInvariant())) continue;
                     add.Append(rel).Append("\t-1\t-1\t0\r\n");
                 }
-                if (add.Length == 0) continue;
-                var extra = Encoding.ASCII.GetBytes((old.Length > 0 && old[^1] != '\n' ? "\r\n" : "") + add);
-                changed[dcf] = old.Concat(extra).ToArray();
+                if (add.Length == 0 && wrong.Count == 0) continue;
+                var text = gbk.GetString(old);
+                if (wrong.Count > 0)
+                    text = string.Join('\n', text.Split('\n')
+                        .Where(l => !wrong.Contains(l.Split(new[] { ' ', '\t', '\r' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.ToLowerInvariant() ?? "")));
+                if (add.Length > 0) text += (text.Length > 0 && !text.EndsWith('\n') ? "\r\n" : "") + add;
+                changed[dcf] = gbk.GetBytes(text);
             }
         }
         if (changed.Count > 0) PckWriter.Write(pck, changed);

@@ -2482,5 +2482,11 @@
   "srv.swapFreshDb": "Start the game database over (characters and names) — recommended when changing versions",
   "srv.swapBackup": "Keep the current installation first (/home.bak-<date>, a few GB)",
   "srv.swapOk": "Replace the programs",
-  "srv.swapNo": "Not now"
+  "srv.swapNo": "Not now",
+  "ls.aiRejected": "The gs refused aipolicy.data (newer version than its own): converting",
+  "ls.aiConverted": "aipolicy.data converted to v{0} triggers (like the one in {1}): {2:N0} policies; removed {3} triggers and {4} operations this gs does not know",
+  "ls.aiAccepted": "The gs accepted the converted aipolicy.data.",
+  "ls.aiNoReference": "The gs cannot read this aipolicy.data and no readable one was found to use as a reference (another package with a gs of the same version). Open an aipolicy.data of the server's version in the AI Policy tab and send again.",
+  "fix.mapCopiesTitle": "Per-map copies: make {0} file(s) match the client's",
+  "fix.mapCopiesDetail": ". They are from another version; a map that uses them crashes when it opens. The current ones are kept as backup."
 }

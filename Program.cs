@@ -34,6 +34,8 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 4 && args[0] == "--local-send") { LocalSend(args[1], args[2], args[3]); return; }
+        if (args.Length >= 3 && args[0] == "--fix-pair") { FixPairCli(args[1], args[2]); return; }   // <cliente> <servidor>: aplica as correções recomendadas
+        if (args.Length >= 4 && args[0] == "--aipolicy-convert") { AiConvert(args[1], args[2], args[3]); return; }   // <entrada> <referência que o gs lê> <saída>
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
@@ -157,6 +159,10 @@ internal static class Program
                 sb.AppendLine($"  {t,2} {AiSchema.OpName(t),-20} × {n,6}  {(AiSchema.Op(t)?.Guess == true ? "[inferido]" : "[KB/arquivo]")}");
             var dv = f.Policies.SelectMany(p => p.Triggers).GroupBy(t => t.Version).OrderBy(g => g.Key);
             sb.AppendLine("dwVersion dos triggers: " + string.Join(", ", dv.Select(g => $"v{g.Key}×{g.Count()}")));
+            static IEnumerable<AiCondNode> Nodes(AiCondNode? n) => n is null ? Enumerable.Empty<AiCondNode>() : new[] { n }.Concat(Nodes(n.Left)).Concat(Nodes(n.Right));
+            var trg = f.Policies.SelectMany(p => p.Triggers).ToList();
+            sb.AppendLine("condições (tipo×qtd): " + string.Join(", ", trg.SelectMany(t => Nodes(t.Root)).GroupBy(n => n.Type).OrderBy(g => g.Key).Select(g => $"{g.Key}×{g.Count()}")));
+            sb.AppendLine("alvos (tipo×qtd): " + string.Join(", ", trg.SelectMany(t => t.Ops).GroupBy(o => o.Target.Type).OrderBy(g => g.Key).Select(g => $"{g.Key}×{g.Count()}")));
             var ctx = new AiContext();
             var t0 = System.Diagnostics.Stopwatch.StartNew();
             int nt = 0;
@@ -167,6 +173,32 @@ internal static class Program
             sb.AppendLine($"resumo detalhado de {nt:N0} triggers: {t0.ElapsedMilliseconds} ms");
         }
         File.WriteAllText("aipolicy-report.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --fix-pair <pasta element do cliente> <pasta home do servidor>: aplica as correções recomendadas do "Corrigir o par"
+    // (sem a troca de programas do servidor local, que pergunta antes) e grava fix-pair.txt.
+    private static void FixPairCli(string client, string server)
+    {
+        var sb = new StringBuilder();
+        foreach (var f in PairFixer.Plan(client, server).Where(f => f.Recommended))
+            try { f.Apply(); sb.AppendLine("OK    " + f.Title); }
+            catch (Exception ex) { sb.AppendLine($"FALHOU {f.Title}: {ex.Message}"); }
+        File.WriteAllText("fix-pair.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --aipolicy-convert <entrada> <referência> <saída>: converte para o que o gs da referência lê (aipolicy-convert.txt).
+    private static void AiConvert(string input, string reference, string output)
+    {
+        var sb = new StringBuilder();
+        var src = new AiPolicyFile(input); var refFile = new AiPolicyFile(reference);
+        if (!src.Ok || !refFile.Ok) { sb.AppendLine("leitura incompleta: " + (src.Error ?? refFile.Error)); File.WriteAllText("aipolicy-convert.txt", sb.ToString(), new UTF8Encoding(false)); return; }
+        var lim = refFile.Limits();
+        sb.AppendLine($"origem: {src.Limits()}\nreferência: {lim}");
+        var rep = src.ConvertTo(lim);
+        File.WriteAllBytes(output, src.Build());
+        var back = new AiPolicyFile(output);
+        sb.AppendLine($"{rep}\nresultado: {(back.Ok ? back.Limits().ToString() : "NÃO RELÊ: " + back.Error)} · {back.Policies.Count:N0} políticas · {back.Policies.Sum(p => p.Triggers.Count):N0} gatilhos");
+        File.WriteAllText("aipolicy-convert.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --tasks <tasks.data>: lista amostra de quests e prova a gravação de nomes (tasks-report.txt).

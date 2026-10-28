@@ -212,11 +212,17 @@ public sealed class LocalServer
         return new ProgramSwap { Package = pkg, From = installed, To = client };
     }
 
-    static string? FindPackage(int version, string preferred)
+    static string? FindPackage(int version, string preferred) => PackagesWith(version, preferred).FirstOrDefault();
+
+    /// <summary>
+    /// Pastas "server files" cujo gs tem a versão pedida: <paramref name="preferred"/> primeiro, depois as pastas ao lado
+    /// dela e até 3 níveis abaixo (pacotes vêm como &lt;pasta&gt;\&lt;pacote&gt;\server files\home).
+    /// </summary>
+    static IEnumerable<string> PackagesWith(int version, string preferred)
     {
         static bool Is(string dir, int v) => File.Exists(Path.Combine(dir, "home", "gamed", "gs")) && ProgramVersion.ElementsVersion(Path.Combine(dir, "home", "gamed", "gs")) == v;
-        if (Directory.Exists(preferred) && Is(preferred, version)) return preferred;
-        // pastas vizinhas e até 3 níveis abaixo delas (pacotes vêm como <pasta>\<pacote>\server files\home)
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (Directory.Exists(preferred) && Is(preferred, version) && seen.Add(Path.GetFullPath(preferred))) yield return preferred;
         var roots = new[] { Path.GetDirectoryName(preferred), Path.GetDirectoryName(Path.GetDirectoryName(preferred) ?? "") }.Where(r => r is not null && Directory.Exists(r)).Distinct();
         foreach (var root in roots)
         {
@@ -225,20 +231,19 @@ public sealed class LocalServer
             {
                 var next = new List<string>();
                 foreach (var dir in level)
-                    try
+                {
+                    string[] subs;
+                    try { subs = Directory.GetDirectories(dir); } catch (IOException) { continue; } catch (UnauthorizedAccessException) { continue; }
+                    foreach (var d in subs)
                     {
-                        foreach (var d in Directory.EnumerateDirectories(dir))
-                        {
-                            if (Path.GetFileName(d).Equals("home", StringComparison.OrdinalIgnoreCase)) continue;   // dentro de um pacote
-                            if (Is(d, version)) return d;
-                            next.Add(d);
-                        }
+                        if (Path.GetFileName(d).Equals("home", StringComparison.OrdinalIgnoreCase)) continue;   // dentro de um pacote
+                        if (Is(d, version) && seen.Add(Path.GetFullPath(d))) yield return d;
+                        next.Add(d);
                     }
-                    catch (IOException) { } catch (UnauthorizedAccessException) { }
+                }
                 level = next.Count > 400 ? next.Take(400).ToList() : next;
             }
         }
-        return null;
     }
 
     /// <summary>
@@ -361,7 +366,60 @@ public sealed class LocalServer
         var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
         Bash($"cp -a '{ToWslPath(cfg)}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", Log, timeoutMs: 1_800_000);
         FixPair(clientElement, aiPolicy, cfg);
-        return Start();
+        var r = Start();
+        FixRejectedAiPolicy(serverFiles);
+        return r;
+    }
+
+    /// <summary>
+    /// O gs não inicia com aipolicy.data de versão mais nova que a dele ("Failed to Load AIPolicy": ex.: o do PWI 1.6,
+    /// gatilhos v33, num gs 1.5.5 que lê até v23). Converte o enviado com os limites de um aipolicy.data que um gs da
+    /// mesma versão lê (de outro pacote no disco) e reinicia o gs; os arquivos do usuário não mudam.
+    /// </summary>
+    void FixRejectedAiPolicy(string serverFiles)
+    {
+        var sent = Path.Combine(BaseDir, "envio", "aipolicy.data");
+        if (!File.Exists(sent) || !GsRejectedAiPolicy()) return;
+        Log("##PASSO " + Loc.T("ls.aiRejected", "O gs recusou o aipolicy.data (versão mais nova que a dele): convertendo"));
+        int have;
+        try { var f = new AiPolicyFile(sent); if (!f.Ok) return; have = f.Limits().TriggerVersion; } catch { return; }
+        var refs = new List<(string Path, AiPolicyFile.AiLimits Limits)>();
+        if (ProgramVersion.ElementsVersion(Path.Combine(serverFiles, "home", "gamed", "gs")) is int gsVer)
+            foreach (var pkg in PackagesWith(gsVer, serverFiles))
+            {
+                var p = Path.Combine(pkg, "home", "gamed", "config", "aipolicy.data");
+                try { if (File.Exists(p) && new AiPolicyFile(p) is { Ok: true } rf && rf.Limits() is { } lim && lim.TriggerVersion < have) refs.Add((p, lim)); } catch { }
+            }
+        foreach (var (refPath, lim) in refs.OrderByDescending(x => x.Limits.TriggerVersion))
+        {
+            var ai = new AiPolicyFile(sent);
+            var rep = ai.ConvertTo(lim);
+            var conv = Path.Combine(BaseDir, "envio", "aipolicy.convertido.data");
+            File.WriteAllBytes(conv, ai.Build());
+            Log(string.Format(Loc.T("ls.aiConverted", "aipolicy.data convertido para gatilhos v{0} (como o de {1}): {2:N0} políticas; saíram {3} gatilhos e {4} operações que este gs não conhece"),
+                lim.TriggerVersion, refPath, ai.Policies.Count, rep.TriggersDropped, rep.OpsDropped));
+            Bash($"cp -f '{ToWslPath(conv)}' /home/gamed/config/aipolicy.data && chmod a+rw /home/gamed/config/aipolicy.data; pkill -9 -x gs; true", Log, timeoutMs: 120_000);
+            Start();
+            if (!GsRejectedAiPolicy()) { Log(Loc.T("ls.aiAccepted", "O gs aceitou o aipolicy.data convertido.")); return; }
+        }
+        Log("##ERRO " + Loc.T("ls.aiNoReference", "O gs não lê este aipolicy.data e não achei um que ele leia para servir de referência (outro pacote com o gs da mesma versão). Abra na aba AI Policy um aipolicy.data da versão do servidor e envie de novo."));
+    }
+
+    /// <summary>Espera o gs terminar de carregar (até ~2 min): true se ele recusou o aipolicy.data.</summary>
+    bool GsRejectedAiPolicy()
+    {
+        for (int i = 0; i < 24; i++)
+        {
+            var o = Bash("grep -a -c 'Failed to Load AIPolicy' /home/logs/gs-gs01.log; grep -a -c announceproviderid /home/logs/gs-gs01.log", timeoutMs: 60_000).Output
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (o.Length >= 2 && int.TryParse(o[0], out var failed) && int.TryParse(o[1], out var ready))
+            {
+                if (failed > 0) return true;
+                if (ready > 0) return false;   // o gs já falou com os glinkd: carregou tudo
+            }
+            Thread.Sleep(5000);
+        }
+        return false;
     }
 
     /// <summary>null = ok; senão, o erro.</summary>

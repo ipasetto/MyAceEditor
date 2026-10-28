@@ -36,7 +36,13 @@ cp -a "$SRC/home/." /home/ || fail "cópia de home"
 for f in authd.conf table.xml gmopgen.xml GMserver.conf iweb.conf; do [ -f "$SRC/etc/$f" ] && cp "$SRC/etc/$f" /etc/; done
 [ -d "$SRC/etc/ssl" ] && cp -a "$SRC/etc/ssl" /etc/pw-ssl 2>/dev/null
 # bibliotecas antigas que vêm no pacote (libstdc++.so.5, libpcre.so.0, libtask.so)
-if [ -d "$SRC/lib" ]; then cp -a "$SRC/lib/." /usr/lib/i386-linux-gnu/; ldconfig; fi
+# menos a libxml2: a antiga de alguns pacotes (1.5.5) por cima da do Ubuntu derruba o gacd ao ler o gacd.xml (SIGSEGV)
+if [ -d "$SRC/lib" ]; then
+    for f in "$SRC/lib/"*; do case "$(basename "$f")" in libxml2*) ;; *) cp -a "$f" /usr/lib/i386-linux-gnu/ ;; esac; done
+fi
+# reinstalação por cima de uma instalação que já trocou a libxml2: volta a do sistema
+apt-get install --reinstall -y -q libxml2:i386 >/dev/null 2>&1
+ldconfig
 mkdir -p /home/logs
 chmod -R a+rwX /home
 find /home -maxdepth 2 -type f ! -name "*.conf" ! -name "*.txt" ! -name "*.xml" -exec chmod a+x {} +
