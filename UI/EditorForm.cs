@@ -203,15 +203,18 @@ public sealed class EditorForm : Form
         aj.DropDownItems.Add(about);
         foreach (var (code, name) in AppLang.All)
         {
-            var mi = new ToolStripMenuItem(name) { ForeColor = CFg, Checked = AppLang.Current == code, Tag = code };
+            var mi = new ToolStripMenuItem(name) { ForeColor = CFg, Checked = AppLang.Current == code, Tag = code, Image = FlagIcons.Get(code) };
             mi.Click += (_, _) => AppLang.Current = code;
             lg.DropDownItems.Add(mi);
         }
         AppLang.Changed += () => { foreach (ToolStripMenuItem x in lg.DropDownItems) x.Checked = (string?)x.Tag == AppLang.Current; };
-        // o seletor de idioma fica sempre em "Idioma / Language" (universal), com cada língua pelo próprio nome
-        lg.Text = "Idioma / Language";
+        // seletor de idioma: só a bandeira do idioma atual (reconhecível em qualquer língua), depois de Ajuda;
+        // "Idioma" traduzido fica na dica, e cada língua aparece pelo próprio nome e bandeira
+        lg.DisplayStyle = ToolStripItemDisplayStyle.Image;
         Bind(() =>
         {
+            lg.Text = lg.ToolTipText = Loc.T("lang.menu", "Idioma");
+            lg.Image = FlagIcons.Get(AppLang.Current);
             arq.Text = Loc.T("menu.file", "&Arquivo");
             openPw.Text = Loc.T("menu.openPw", "Abrir &pasta do Perfect World…");
             openEl.Text = Loc.T("menu.openElements", "Abrir &elements.data…");
@@ -229,7 +232,7 @@ public sealed class EditorForm : Form
             tools.Text = Loc.T("menu.tools", "&Ferramentas");
             findErrors.Text = Loc.T("menu.findErrors", "Procurar &erros…");
         });
-        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, tools, lg, aj });
+        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, tools, aj, lg });
         MainMenuStrip = menu;
         return menu;
     }
