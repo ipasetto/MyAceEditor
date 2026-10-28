@@ -9,14 +9,32 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public static class PairFixer
 {
-    public sealed record Fix(string Title, string Detail, bool Recommended, Action Apply);
+    public sealed record Fix(string Title, string Detail, bool Recommended, Action Apply)
+    {
+        /// <summary>Troca de programas do servidor local: quem aplica pergunta antes backup e banco novo.</summary>
+        public LocalServer.ProgramSwap? Swap { get; init; }
+    }
 
-    public static List<Fix> Plan(string clientElement, string serverHome)
+    /// <param name="localServer">servidor local (aba Servidor); com ele, programas de outra versão instalados no Linux também são corrigidos</param>
+    public static List<Fix> Plan(string clientElement, string serverHome, Func<LocalServer>? localServer = null)
     {
         clientElement = VersionCheck.ClientElement(clientElement);
         serverHome = VersionCheck.ServerHome(serverHome);
         string cData = Path.Combine(clientElement, "data"), sCfg = Path.Combine(serverHome, "gamed", "config");
         var fixes = new List<Fix>();
+        // servidor local com programas de outra versão que a do cliente (instalado com outro pacote): o glinkd recusa o
+        // login ("versão baixa"). Troca para o pacote da versão do cliente — para cima ou para baixo — e inicia.
+        // Backup e banco novo são perguntados antes (Fix.Swap); depois os dados do cliente vão junto.
+        if (localServer is not null && Path.GetDirectoryName(serverHome.TrimEnd('\\', '/')) is { } serverFiles
+            && LocalServer.SwapFor(clientElement, serverFiles, out _) is { } swap)
+            fixes.Add(new(string.Format(Loc.T(swap.Downgrade ? "fix.programsDownTitle" : "fix.programsUpTitle",
+                    swap.Downgrade ? "Servidor local: voltar os programas para a versão do cliente (v{0} → v{1})" : "Servidor local: atualizar os programas para a versão do cliente (v{0} → v{1})"), swap.From, swap.To),
+                string.Format(Loc.T("fix.programsDetail", "Os programas instalados são de outra versão e o login é recusado com \"versão do cliente baixa\". Instala os de {0}, envia os dados do cliente e inicia. Antes, pergunta se guarda a instalação atual."), swap.Package),
+                true, () =>
+                {
+                    var r = localServer().SendAll(swap.Package, clientElement, null, swap);
+                    if (r.Code != 0) throw new InvalidOperationException(r.Output.Trim().Split('\n').LastOrDefault() ?? "");
+                }) { Swap = swap });
         // cliente: janelas que o jogo procura e o interfaces.pck não carrega (o jogo cai ao usá-las)
         if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)
             fixes.Add(new(string.Format(Loc.T("fix.dialogsTitle", "interfaces.pck: carregar {0} janela(s) que o jogo procura"), dlgs.Count),

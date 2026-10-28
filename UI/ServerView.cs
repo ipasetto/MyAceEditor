@@ -120,9 +120,12 @@ public sealed class ServerView : UserControl
     LocalServer NewServer()
     {
         var s = new LocalServer(_base.Text.Trim());
-        s.Log = line => BeginInvoke(() => AppendLog(line));
+        s.Log = line => { if (IsHandleCreated) BeginInvoke(() => AppendLog(line)); };
         return s;
     }
+
+    /// <summary>Servidor local com as pastas desta aba (para o Corrigir da Verificação); o andamento vai para o log daqui.</summary>
+    public LocalServer CreateServer() { Fill(); return NewServer(); }
 
     void AppendLog(string line)
     {
@@ -190,8 +193,52 @@ public sealed class ServerView : UserControl
         var pkg = _pkg.Text.Trim(); var client = _client();
         if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickTheServerFilesFolder", "Escolha a pasta \"server files\" na aba Servidor.")); return; }
         var ai = AiPolicyPath?.Invoke();
-        // tudo, sempre: config inteira do servidor + elements/tasks/loja/IA do cliente (LocalServer.SendAll)
-        Run(Loc.T("srv.sendingAllFilesAndRestarting", "Enviando todos os arquivos e reiniciando…"), s => s.SendAll(pkg, client, ai));
+        // antes: os programas instalados são da versão do cliente? (lê o gs do Linux, fora da tela)
+        Busy(true, Loc.T("srv.checkingPrograms", "Conferindo a versão dos programas do servidor…"));
+        Task.Run(() =>
+        {
+            string? missing = null; LocalServer.ProgramSwap? sw = null;
+            try { sw = LocalServer.SwapFor(client, pkg, out missing); } catch { }
+            BeginInvoke(() =>
+            {
+                Busy(false);
+                if (missing is not null) AppendLog("⚠ " + missing);
+                if (sw is not null && !AskSwap(this, sw)) { AppendLog("⚠ " + Loc.T("srv.swapSkipped", "Programas de outra versão mantidos: o login continuará recusado.")); sw = null; }
+                // tudo, sempre: config inteira do servidor + elements/tasks/loja/IA do cliente (LocalServer.SendAll)
+                Run(Loc.T("srv.sendingAllFilesAndRestarting", "Enviando todos os arquivos e reiniciando…"), s => s.SendAll(pkg, client, ai, sw));
+            });
+        });
+    }
+
+    /// <summary>
+    /// Avisa que o servidor local instalado é de outra versão que o cliente e pergunta se troca os programas, se guarda a
+    /// instalação atual e se recomeça o banco do jogo. false = não trocar.
+    /// </summary>
+    public static bool AskSwap(IWin32Window owner, LocalServer.ProgramSwap s)
+    {
+        string V(int? v) => v is null ? "?" : $"v{v}" + (ProgramVersion.GameFor(v.Value) is { Length: > 0 } g ? $" ({g})" : "");
+        using var f = new Form
+        {
+            Text = Loc.T("srv.swapTitle", "Servidor local de outra versão"), Width = 640, Height = 360, StartPosition = FormStartPosition.CenterParent,
+            ShowInTaskbar = false, MinimizeBox = false, MaximizeBox = false, FormBorderStyle = FormBorderStyle.FixedDialog, Font = new Font("Segoe UI", 9.5f), Padding = new Padding(14),
+        };
+        var text = new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = string.Format(Loc.T("srv.swapBody", "O servidor local instalado é {0} e o seu cliente é {1}. Com versões diferentes o jogo recusa o login (\"versão do cliente baixa\").\n\nO MyAceEditor vai {2} os programas do servidor para os de:\n{3}\n\nAs contas de login continuam. Personagens criados em outra versão em geral não abrem nesta."),
+                V(s.From), V(s.To), s.Downgrade ? Loc.T("srv.swapDown", "voltar") : Loc.T("srv.swapUp", "atualizar"), s.Package),
+        };
+        var fresh = new CheckBox { Dock = DockStyle.Bottom, Height = 28, Checked = s.FreshDatabase, Text = Loc.T("srv.swapFreshDb", "Recomeçar o banco do jogo (personagens e nomes) — recomendado ao trocar de versão") };
+        var backup = new CheckBox { Dock = DockStyle.Bottom, Height = 28, Checked = s.Backup, Text = Loc.T("srv.swapBackup", "Guardar a instalação atual antes (/home.bak-<data>, alguns GB)") };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 42, FlowDirection = FlowDirection.RightToLeft };
+        var ok = new Button { Text = Loc.T("srv.swapOk", "Trocar os programas"), AutoSize = true, DialogResult = DialogResult.OK };
+        var no = new Button { Text = Loc.T("srv.swapNo", "Agora não"), AutoSize = true, DialogResult = DialogResult.Cancel };
+        buttons.Controls.Add(ok); buttons.Controls.Add(no);
+        f.Controls.Add(text); f.Controls.Add(fresh); f.Controls.Add(backup); f.Controls.Add(buttons);
+        f.AcceptButton = ok; f.CancelButton = no;
+        if (f.ShowDialog(owner) != DialogResult.OK) return false;
+        s.Backup = backup.Checked; s.FreshDatabase = fresh.Checked;
+        return true;
     }
 
     void CreateAccount()

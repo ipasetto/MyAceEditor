@@ -97,25 +97,8 @@ public sealed class LocalServer
             if (r.Code != 0) throw new InvalidOperationException(Loc.T("ls.importFailed", "wsl --import falhou:") + "\n" + r.Output);
         }
 
-        // scripts do programa → /root/pw na distro
         progress?.Report((Loc.T("ls.preparing", "Preparando a instalação"), null));
-        var here = Path.Combine(AppContext.BaseDirectory, "Server");
-        foreach (var f in new[] { "provision.sh", "pwctl.sh" })
-        {
-            var text = File.ReadAllText(Path.Combine(here, f));
-            var w = Bash($"mkdir -p /root/pw && cat > /root/pw/{f} && chmod +x /root/pw/{f}", stdin: text, timeoutMs: 120_000);
-            if (w.Code != 0) throw new InvalidOperationException(string.Format(Loc.T("ls.copyFailed", "Não consegui copiar {0} para o Linux:"), f) + "\n" + w.Output);
-        }
-
-        var pass = DbPassword();
-        string? error = null;
-        var res = Bash($"/root/pw/provision.sh '{ToWslPath(o.ServerFiles)}' '{ToWslPath(o.SqlDir)}' '{pass}'", line =>
-        {
-            Log(line);
-            if (line.StartsWith("##PASSO ")) progress?.Report((line[8..], null));
-            else if (line.StartsWith("##ERRO ")) error = line[7..];
-        });
-        if (res.Code != 0 || error is not null) throw new InvalidOperationException(Loc.T("ls.installStopped", "A instalação parou: ") + (error ?? string.Format(Loc.T("ls.exitCode", "código {0}"), res.Code)));
+        Provision(o.ServerFiles, o.SqlDir, step => progress?.Report((step, null)));
 
         // par cliente × servidor na CÓPIA do servidor (elements, tasks e loja iguais ao cliente; senão o login é recusado)
         progress?.Report((Loc.T("ls.matching", "Igualando o servidor ao seu cliente (elements, tasks, loja)"), null));
@@ -130,6 +113,155 @@ public sealed class LocalServer
         progress?.Report((Loc.T("ls.disablingAds", "Desligando a página de anúncios da internet que derruba o cliente"), null));
         FixClientPages(o.ClientElement);
         progress?.Report((Loc.T("ls.done", "Pronto"), 1));
+    }
+
+    /// <summary>
+    /// Leva os scripts do programa para /root/pw (na distro) e roda o provision.sh com o pacote: programas, configs e
+    /// endereços; o banco existente fica. Exceção = parou, com a mensagem para o usuário.
+    /// </summary>
+    void Provision(string serverFiles, string sqlDir, Action<string>? step = null)
+    {
+        var here = Path.Combine(AppContext.BaseDirectory, "Server");
+        foreach (var f in new[] { "provision.sh", "pwctl.sh" })
+        {
+            var text = File.ReadAllText(Path.Combine(here, f));
+            var w = Bash($"mkdir -p /root/pw && cat > /root/pw/{f} && chmod +x /root/pw/{f}", stdin: text, timeoutMs: 120_000);
+            if (w.Code != 0) throw new InvalidOperationException(string.Format(Loc.T("ls.copyFailed", "Não consegui copiar {0} para o Linux:"), f) + "\n" + w.Output);
+        }
+        string? error = null;
+        var res = Bash($"/root/pw/provision.sh '{ToWslPath(serverFiles)}' '{ToWslPath(sqlDir)}' '{DbPassword()}'", line =>
+        {
+            Log(line);
+            if (line.StartsWith("##PASSO ")) step?.Invoke(line[8..]);
+            else if (line.StartsWith("##ERRO ")) error = line[7..];
+        });
+        if (res.Code != 0 || error is not null) throw new InvalidOperationException(Loc.T("ls.installStopped", "A instalação parou: ") + (error ?? string.Format(Loc.T("ls.exitCode", "código {0}"), res.Code)));
+    }
+
+    // ---------- programas instalados × versão do cliente ----------
+    /// <summary>Programas que fixam a versão do servidor: o glinkd manda a versão ao cliente no login; gs, gdeliveryd e gamedbd leem os dados.</summary>
+    static readonly string[] Programs = { @"glinkd\glinkd", @"gdeliveryd\gdeliveryd", @"gamedbd\gamedbd", @"gamed\gs" };
+
+    /// <summary>A home/ instalada no Linux, vista do Windows (null sem a distro ou sem servidor instalado).</summary>
+    public static string? LiveHome => DistroExists() && Directory.Exists($@"\\wsl.localhost\{Distro}\home\glinkd") ? $@"\\wsl.localhost\{Distro}\home" : null;
+
+    /// <summary>Versão do elements compilada no gs instalado no servidor local (null sem servidor ou não identificada).</summary>
+    public static int? InstalledVersion() => LiveHome is { } h ? ProgramVersion.ElementsVersion(Path.Combine(h, "gamed", "gs")) : null;
+
+    /// <summary>Programas instalados no servidor local diferentes dos da pasta do pacote. Vazio = iguais ou sem servidor local.</summary>
+    public static List<string> ProgramsDiffering(string serverHome)
+    {
+        var diff = new List<string>();
+        if (LiveHome is not { } live) return diff;
+        foreach (var rel in Programs)
+        {
+            var pkg = Path.Combine(serverHome, rel); var inst = Path.Combine(live, rel);
+            if (!File.Exists(pkg)) continue;
+            if (!File.Exists(inst) || !SameEnds(pkg, inst)) diff.Add(Path.GetFileName(rel));
+        }
+        return diff;
+    }
+
+    // tamanho + 1º e último MB: o gs tem ~200 MB e é lido pela rede do WSL
+    static bool SameEnds(string a, string b)
+    {
+        try
+        {
+            using var fa = File.OpenRead(a); using var fb = File.OpenRead(b);
+            if (fa.Length != fb.Length) return false;
+            const int n = 1 << 20;
+            var ba = new byte[n]; var bb = new byte[n];
+            foreach (long at in new[] { 0, Math.Max(0, fa.Length - n) })
+            {
+                fa.Position = at; fb.Position = at;
+                int na = fa.ReadAtLeast(ba, n, false), nb = fb.ReadAtLeast(bb, n, false);
+                if (na != nb || !ba.AsSpan(0, na).SequenceEqual(bb.AsSpan(0, nb))) return false;
+            }
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Troca de programas do servidor local para a versão do cliente (atualizar ou voltar). Backup e Banco novo são
+    /// escolhas do usuário: o banco de personagens de outra versão em geral não abre (o uniquenamed não inicia).
+    /// </summary>
+    public sealed class ProgramSwap
+    {
+        public required string Package { get; init; }   // pasta "server files" com os programas da versão do cliente
+        public int? From { get; init; }                  // versão instalada (elements compilada no gs)
+        public int? To { get; init; }                    // versão do cliente
+        public bool Downgrade => From is { } f && To is { } t && t < f;
+        public bool Backup { get; set; }
+        public bool FreshDatabase { get; set; } = true;
+    }
+
+    /// <summary>
+    /// O que fazer para o servidor local casar com o cliente: null se já casa, se não há servidor instalado ou se não deu
+    /// para ler as versões. Procura o pacote com o gs da versão do cliente: primeiro <paramref name="preferred"/>, depois
+    /// as pastas ao lado dele (ex.: D:\...\PW_Server\*), para cima ou para baixo de versão.
+    /// </summary>
+    public static ProgramSwap? SwapFor(string clientElement, string preferred, out string? missing)
+    {
+        missing = null;
+        int? client = ProgramVersion.ElementsVersion(Path.Combine(clientElement, "elementclient.exe"));
+        int? installed = InstalledVersion();
+        if (client is null || installed is null || client == installed) return null;
+        var pkg = FindPackage(client.Value, preferred);
+        if (pkg is null) { missing = string.Format(Loc.T("ls.noPackageFor", "Nenhuma pasta de servidor com o gs v{0} perto de {1}."), client, preferred); return null; }
+        return new ProgramSwap { Package = pkg, From = installed, To = client };
+    }
+
+    static string? FindPackage(int version, string preferred)
+    {
+        static bool Is(string dir, int v) => File.Exists(Path.Combine(dir, "home", "gamed", "gs")) && ProgramVersion.ElementsVersion(Path.Combine(dir, "home", "gamed", "gs")) == v;
+        if (Directory.Exists(preferred) && Is(preferred, version)) return preferred;
+        // pastas vizinhas e até 3 níveis abaixo delas (pacotes vêm como <pasta>\<pacote>\server files\home)
+        var roots = new[] { Path.GetDirectoryName(preferred), Path.GetDirectoryName(Path.GetDirectoryName(preferred) ?? "") }.Where(r => r is not null && Directory.Exists(r)).Distinct();
+        foreach (var root in roots)
+        {
+            var level = new List<string> { root! };
+            for (int depth = 0; depth < 4 && level.Count > 0; depth++)
+            {
+                var next = new List<string>();
+                foreach (var dir in level)
+                    try
+                    {
+                        foreach (var d in Directory.EnumerateDirectories(dir))
+                        {
+                            if (Path.GetFileName(d).Equals("home", StringComparison.OrdinalIgnoreCase)) continue;   // dentro de um pacote
+                            if (Is(d, version)) return d;
+                            next.Add(d);
+                        }
+                    }
+                    catch (IOException) { } catch (UnauthorizedAccessException) { }
+                level = next.Count > 400 ? next.Take(400).ToList() : next;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Troca os programas do servidor local pelos do pacote: para, (se pedido) guarda a home/ em /home.bak-&lt;data&gt;,
+    /// roda o provision.sh e (se pedido) recomeça o banco do jogo (as contas de login, no MariaDB, ficam).
+    /// Não inicia: quem chama envia os dados e inicia.
+    /// </summary>
+    public void InstallPrograms(ProgramSwap swap)
+    {
+        Stop();
+        if (swap.Backup)
+        {
+            Log("##PASSO " + Loc.T("ls.backupHome", "Guardando a instalação atual (/home.bak-<data>)"));
+            var bk = Bash("b=/home.bak-$(date +%Y%m%d-%H%M%S) && mkdir -p $b && cd /home && for d in *; do [ $d = logs ] || cp -a $d $b/ || exit 1; done && echo $b", timeoutMs: 1_800_000);
+            if (bk.Code != 0) throw new InvalidOperationException(Loc.T("ls.backupFailed", "Não consegui guardar a instalação atual; nada foi trocado.") + "\n" + bk.Output);
+            Log(string.Format(Loc.T("ls.backupAt", "backup em {0}"), bk.Output.Trim().Split('\n').Last()));
+        }
+        Provision(swap.Package, swap.Package);   // o banco de contas já existe: a pasta SQL não é usada
+        if (swap.FreshDatabase)
+        {
+            Log("##PASSO " + Loc.T("ls.freshDb", "Recomeçando o banco do jogo (personagens e nomes)"));
+            Bash("for d in /home/uniquenamed/uname /home/gamedbd/dbhome /home/gamedbd/dbhomewdb; do [ -d $d ] && rm -rf $d/dbdata/* $d/dblogs/* $d/__db.* ; done; true", Log, timeoutMs: 300_000);
+        }
     }
 
     async Task<string> DownloadRootfsAsync(IProgress<(string, double?)>? progress, CancellationToken ct)
@@ -221,9 +353,11 @@ public sealed class LocalServer
     /// "Salvar e enviar ao servidor": para, copia a pasta gamed\config INTEIRA do servidor original (npcgen, mapas,
     /// regiões…), põe por cima os arquivos que vêm do cliente (FixPair) e inicia. Nada é pulado por data ou tamanho.
     /// </summary>
-    public RunResult SendAll(string serverFiles, string clientElement, string? aiPolicy = null)
+    public RunResult SendAll(string serverFiles, string clientElement, string? aiPolicy = null, ProgramSwap? swap = null)
     {
         Stop();
+        // programas de outra versão que a do cliente: o glinkd recusaria o login ("versão baixa"); troca antes dos dados
+        if (swap is not null) { InstallPrograms(swap); serverFiles = swap.Package; }
         var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
         Bash($"cp -a '{ToWslPath(cfg)}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", Log, timeoutMs: 1_800_000);
         FixPair(clientElement, aiPolicy, cfg);

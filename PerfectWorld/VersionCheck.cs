@@ -153,8 +153,31 @@ public static class VersionCheck
             }
         }
 
+        // 3c) servidor local: os PROGRAMAS instalados (o glinkd manda a versão ao cliente no login) têm de ser os desta pasta;
+        //     o "Enviar" leva só os dados, então um servidor instalado com outro pacote recusa o cliente ("versão baixa")
+        if (LocalServer.LiveHome is { } liveHome)
+        {
+            var local = Loc.T("chk.localServer", "servidor local — ");
+            string? Versions(string home) => File.Exists(Path.Combine(home, "glinkd", "gamesys.conf"))
+                ? string.Join(", ", ParseIni(Path.Combine(home, "glinkd", "gamesys.conf")).Where(kv => kv.Key.StartsWith("GLinkServer", StringComparison.OrdinalIgnoreCase))
+                    .Select(kv => kv.Value.GetValueOrDefault("version")).Where(v => v is not null).Distinct().Select(HexVersion)) : null;
+            rows.Add(Compare(local + Loc.T("chk.glinkdInstalled", "glinkd versão (desta pasta × instalado)"), Versions(serverHome), Versions(liveHome),
+                Loc.T("chk.glinkdInstalledDiffers", "O servidor local roda programas de outra versão: o cliente ouve \"versão do cliente baixa\" e o login é recusado. Use Corrigir (ou Enviar ao servidor): instala os programas desta pasta.")));
+            // o que decide: o gs instalado é da versão do elementclient.exe? (para cima ou para baixo, o Corrigir troca)
+            var inst = LocalServer.InstalledVersion();
+            if (cExe is not null && inst is not null)
+                rows.Add(cExe == inst
+                    ? new(local + Loc.T("chk.programs", "programas"), V(cExe), V(inst), CheckLevel.Ok, Loc.T("chk.programsMatchClient", "Os programas instalados são da versão do cliente."))
+                    : new(local + Loc.T("chk.programs", "programas"), V(cExe), V(inst), CheckLevel.Erro,
+                        (LocalServer.SwapFor(clientElement, Path.GetDirectoryName(serverHome.TrimEnd('\\', '/')) ?? serverHome, out var missing) is { } sw
+                            ? string.Format(Loc.T(sw.Downgrade ? "chk.programsDowngrade" : "chk.programsUpgrade",
+                                sw.Downgrade ? "O servidor local é de versão mais nova que o cliente: o login é recusado. Use Corrigir: volta os programas para os de {0}."
+                                             : "O servidor local é de versão mais antiga que o cliente (\"versão do cliente baixa\"): o login é recusado. Use Corrigir: instala os programas de {0}."), sw.Package)
+                            : missing ?? "")));
+        }
+
         // 4) aipolicy.data
-        var ca = Header(Path.Combine(cData, "aipolicy.data"));
+        var ca =Header(Path.Combine(cData, "aipolicy.data"));
         var sa = Header(Path.Combine(sCfg, "aipolicy.data"));
         rows.Add(Compare(Loc.T("chk.aipolicyDataVersionPolicyCount", "aipolicy.data — versão / nº de políticas"),
             ca is null ? null : $"v{ca.Value.A} / {ca.Value.B:N0}", sa is null ? null : $"v{sa.Value.A} / {sa.Value.B:N0}",

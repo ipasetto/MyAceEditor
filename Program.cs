@@ -33,6 +33,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
+        if (args.Length >= 4 && args[0] == "--local-send") { LocalSend(args[1], args[2], args[3]); return; }
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
@@ -351,6 +352,24 @@ internal static class Program
         foreach (var r in VersionCheck.Run(client, server))
             sb.AppendLine($"[{r.Nivel}] {r.Item} | cliente: {r.Cliente} | servidor: {r.Servidor} | {r.Dica}");
         File.WriteAllText("check-report.txt", sb.ToString(), Encoding.UTF8);
+    }
+
+    // --local-send <server files> <pasta element do cliente> <pasta do servidor local>: o mesmo "Enviar ao servidor" da aba
+    // Servidor; programas de outra versão que a do cliente são trocados sem perguntar (banco novo, sem backup). Log em local-send.txt.
+    private static void LocalSend(string serverFiles, string client, string baseDir)
+    {
+        var log = new StringBuilder();
+        var s = new LocalServer(baseDir) { Log = line => { lock (log) log.AppendLine(line); } };
+        try
+        {
+            client = VersionCheck.ClientElement(client);
+            var swap = LocalServer.SwapFor(client, serverFiles, out var missing);   // sem perguntar: banco novo, sem backup
+            if (missing is not null) log.AppendLine("== " + missing);
+            var r = s.SendAll(swap?.Package ?? serverFiles, client, null, swap);
+            log.AppendLine($"== código {r.Code}");
+        }
+        catch (Exception ex) { log.AppendLine("== ERRO " + ex.Message); }
+        File.WriteAllText("local-send.txt", log.ToString(), Encoding.UTF8);
     }
 
     // --roundtrip <elements.data>: prova a gravação (roundtrip-report.txt). Não altera o arquivo de entrada.

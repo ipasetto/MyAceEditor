@@ -3762,7 +3762,7 @@ public sealed class EditorForm : Form
     private void FixPair()
     {
         if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(Loc.T("chk.pickBothFolders", "Escolha as pastas do cliente e do servidor.")); return; }
-        var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text);
+        var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text, _serverView is { } sv ? sv.CreateServer : null);
         if (fixes.Count == 0) { MessageBox.Show(this, Loc.T("fix.none", "Nada para corrigir: o servidor já está igual ao cliente no que o login exige."), Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         using var f = new Form
         {
@@ -3777,12 +3777,21 @@ public sealed class EditorForm : Form
         f.Controls.Add(list); f.Controls.Add(info); f.Controls.Add(ok);
         if (f.ShowDialog(this) != DialogResult.OK) return;
         var done = new List<string>(); var failed = new List<string>();
-        for (int i = 0; i < fixes.Count; i++)
+        var marked = Enumerable.Range(0, fixes.Count).Where(list.GetItemChecked).ToList();
+        // troca de programas do servidor local: pergunta backup e banco novo; "Agora não" tira o item
+        marked.RemoveAll(i => fixes[i].Swap is { } sw && !ServerView.AskSwap(this, sw));
+        // fora da tela: trocar os programas do servidor local leva minutos
+        ReadProgressDialog.Run(this, Loc.T("fix.title", "Corrigir o par"), ctx =>
         {
-            if (!list.GetItemChecked(i)) continue;
-            try { fixes[i].Apply(); done.Add(fixes[i].Title); }
-            catch (Exception ex) { failed.Add($"{fixes[i].Title}: {ex.Message}"); }
-        }
+            for (int k = 0; k < marked.Count; k++)
+            {
+                var fx = fixes[marked[k]];
+                ctx.Report((double)k / marked.Count, fx.Title, indeterminate: true, force: true);
+                try { fx.Apply(); done.Add(fx.Title); }
+                catch (Exception ex) { failed.Add($"{fx.Title}: {ex.Message}"); }
+            }
+            return done;
+        }, allowCancel: false);
         RunCheck();
         MessageBox.Show(this, (done.Count > 0 ? Loc.T("fix.done", "Corrigido:") + "\n• " + string.Join("\n• ", done) : "")
             + (failed.Count > 0 ? "\n\n" + Loc.T("fix.failed", "Falhou:") + "\n• " + string.Join("\n• ", failed) : "")
