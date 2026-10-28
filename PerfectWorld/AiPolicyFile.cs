@@ -25,9 +25,14 @@ public sealed class AiField
     public string Name = "";
     public char Kind;
     public int MinVer;
+    /// <summary>Só existe ANTES deste dwVersion (int.MaxValue = sem limite).</summary>
+    public int MaxVer = int.MaxValue;
 }
 
-/// <summary>Layout de parâmetro, escrito como texto: "i:uSkill i:uLevel b:bStop@1 3:pad@1" (@N = só a partir do dwVersion N).</summary>
+/// <summary>
+/// Layout de parâmetro, escrito como texto: "i:uSkill i:uLevel b:bStop@1 3:pad@1" (@N = só a partir do dwVersion N;
+/// &lt;N = só antes do dwVersion N, para as structs antigas que o Policy.cpp oficial ainda converte).
+/// </summary>
 public sealed class AiLayout
 {
     public AiField[] Fields { get; }
@@ -42,15 +47,17 @@ public sealed class AiLayout
         {
             int c = tok.IndexOf(':');
             if (c != 1) throw new FormatException($"campo inválido '{tok}' (use tipo:nome ou tipo:nome@versão)");
-            var rest = tok[(c + 1)..]; int ver = 0;
+            var rest = tok[(c + 1)..]; int ver = 0, below = int.MaxValue;
+            int lt = rest.IndexOf('<');
+            if (lt >= 0) { below = int.Parse(rest[(lt + 1)..], CultureInfo.InvariantCulture); rest = rest[..lt]; }
             int at = rest.IndexOf('@');
             if (at >= 0) { ver = int.Parse(rest[(at + 1)..], CultureInfo.InvariantCulture); rest = rest[..at]; }
             if ("ifb3at".IndexOf(tok[0]) < 0) throw new FormatException($"tipo de campo '{tok[0]}' desconhecido");
-            return new AiField { Kind = tok[0], Name = rest, MinVer = ver };
+            return new AiField { Kind = tok[0], Name = rest, MinVer = ver, MaxVer = below };
         }).ToArray();
     }
 
-    public List<AiField> Active(int ver) => Fields.Where(f => ver >= f.MinVer).ToList();
+    public List<AiField> Active(int ver) => Fields.Where(f => ver >= f.MinVer && ver < f.MaxVer).ToList();
 
     /// <summary>Quantos bytes o parâmetro ocupa em data[pos..]. false = dados insuficientes/inválidos.</summary>
     public bool TryMeasure(int ver, byte[] d, int pos, out int len)
@@ -132,60 +139,140 @@ public sealed class AiLayout
 /// <summary>Nomes e layouts. Layouts extras/correções podem ser dados sem recompilar: aipolicy_layouts.json ao lado do .exe.</summary>
 public static class AiSchema
 {
+    // nomes e números: enums _e_condition/_e_operation/_e_target do policy.h oficial (cgame/gs/ai, source 1.7.2)
     public static readonly string[] CondNames =
     {
         "time_come", "hp_less", "start_attack", "random", "kill_player", "NOT", "OR", "AND", "died", "+", "-", "*", "/",
         ">", "<", "==", "var_global", "const", "be_hurt", "reach_end", "history_stage", "history_value", "stop_fight",
-        "local_var", "reach_end_2", "has_filter", "room_index", "players_in_radius", "players_in_region"
+        "local_var", "reach_end_2", "has_filter", "room_index", "players_in_radius", "players_in_region",
+        "servertime_day", "servertime_week", "not_bind_carrier", "reach_start", "carrier_full", "time_come_2"
     };
 
     public static readonly string[] OpNames =
     {
         "attack", "use_skill", "talk", "reset_hate", "run_trigger", "stop_trigger", "active_trigger", "create_timer",
         "kill_timer", "flee", "hate_first", "hate_last", "hate_50%", "skip", "active_controller", "set_global",
-        "revise_global", "summon_monster", "walk_along", "play_action", "history_a", "history_b", "faction_pvp_points", "calc_var"
+        "revise_global", "summon_monster", "walk_along", "play_action", "history_a", "history_b", "faction_pvp_points", "calc_var",
+        "summon_monster_2", "walk_along_2", "use_skill_2", "active_controller_2", "deliver_task", "summon_mine", "summon_npc",
+        "deliver_random_task_in_region", "deliver_task_in_hate_list", "clear_tower_task_in_region",
+        "save_players_in_radius", "save_players_in_region", "skill_with_talk", "use_skill_3", "sort_num", "get_pos_num",
+        "auto_bind_carrier", "add_range_to_hate", "save_alive_in_radius", "save_alive_in_region", "walk_along_3", "walk_along_4",
+        "save_time", "random_assignment", "carrier_voting", "voting_result", "voting_show", "carrier_delivery_task",
+        "carrier_noentry", "talk_2", "create_timer_2", "kill_timer_2", "change_fighting_state", "change_active_passive",
+        "child_carrier_parent", "close_child_monster", "deliver_hate_targets", "change_attack_policy",
+        "specify_failed_task", "specify_failed_task_regional"
     };
 
     public static readonly string[] TargetNames =
     {
         "hate_first", "hate_second", "hate_others", "most_hp", "most_mp", "least_hp", "occupation_list", "self", "killer",
-        "birthplace_faction", "hate_random", "nearest", "farthest", "hate_first_redirected"
+        "birthplace_faction", "hate_random", "nearest", "farthest", "hate_first_redirected",
+        "random_in_range", "nearest_in_range", "farthest_in_range"
     };
 
-    public const int MaxOpType = 79, MaxTargetType = 18;
+    public const int MaxOpType = 102, MaxTargetType = 20;
 
     public static string CondName(int t) => t >= 0 && t < CondNames.Length ? CondNames[t] : $"cond_{t}";
     public static string OpName(int t) => t >= 0 && t < OpNames.Length ? OpNames[t] : $"op_{t}";
     public static string TargetName(int t) => t >= 0 && t < TargetNames.Length ? TargetNames[t] : $"alvo_{t}";
 
-    // false = veio do KB (PW-KB §S18 descreve o campo); true = inferido (validar com arquivo real).
-    static readonly Dictionary<int, AiLayout> Ops = new()
-    {
-        [0] = new("i:uType", true),
-        [1] = new("i:uSkill i:uLevel", true),
-        [2] = new("t:text i:uAppendDataMask@17", false),       // §S18: i32 tamanho + UTF-16LE c/ \0; máscara >=17
-        [3] = new("", false),
-        [4] = new("i:uID", true), [5] = new("i:uID", true), [6] = new("i:uID", true),
-        [7] = new("i:uID i:uPeriod i:uCounter", true),
-        [8] = new("i:uID", true),
-        [9] = new("", true), [10] = new("", true), [11] = new("", true), [12] = new("", true), [13] = new("", true),
-        [14] = new("i:uID b:bStop@1 3:pad@1", false),          // §S18: >=1 +bool bStop +3B
-        [15] = new("i:iKey i:iValue b:bIsValue@4 3:pad@4", false), // §S18: >=4 +bIsValue; +3B de padding (com lixo) [T]
-        [16] = new("i:iKey i:iValue", true),
-        [17] = new("i:uMonsterID i:uMonsterNum i:iDispearTime i:iDispearCondition@7 i:iUnk4 i:iUnk5", true), // tamanho provado no arquivo real (6 ints, dwVersion 9); nomes de iUnk4/5 desconhecidos
-        // 24-79: sem layout (nenhuma aparece no aipolicy.data testado)
-        [18] = new("i:uPathGroup i:uPathID i:iPatrolType i:iSpeedType", true), // 4 ints provados no arquivo real
-        [19] = new("a:szActionName i:uLoop i:uInterval i:uPlayTime", false), // §S18: nome[128]+loop,interval,playtime
-        [20] = new("i:uID i:iValue", true), [21] = new("i:uID i:iValue", true),
-        [22] = new("i:uPoints", true),
-        [23] = new("i:iDst i:iDstType i:iSrc1 i:iSrc1Type i:iOp i:iSrc2 i:iSrc2Type", true),
-    };
+    // Layouts = structs de policytype.h + CTriggerData::ReadOperationParam/ReadOperationTarget do Policy.cpp oficial
+    // (source 1.7.2, F_TRIGGER_VERSION 40). Cada op é lida com sizeof(struct), alinhamento de 4 (bool + 3 B de padding),
+    // exceto as convertidas por versão (play_action, summon_mine, set_global, active_controller, summon_monster) e as que
+    // trazem texto (talk, skill_with_talk, talk_2, o_72). false = conferido com o código oficial.
+    static readonly Dictionary<int, AiLayout> Ops = BuildOps();
 
+    static Dictionary<int, AiLayout> BuildOps()
+    {
+        const string Talk = "t:text i:uAppendDataMask@17";
+        const string Region = "f:fMinX f:fMinY f:fMinZ f:fMaxX f:fMaxY f:fMaxZ";
+        var o = new Dictionary<int, AiLayout>
+        {
+            [0] = new("i:uType", false),
+            [1] = new("i:uSkill i:uLevel", false),
+            [2] = new(Talk, false),                                   // i32 tamanho + UTF-16LE c/ \0; máscara >=17
+            [3] = new("", false),
+            [4] = new("i:uID", false), [5] = new("i:uID", false), [6] = new("i:uID", false),
+            [7] = new("i:uID i:uPeriod i:uCounter", false),
+            [8] = new("i:uID", false),
+            [9] = new("", false), [10] = new("", false), [11] = new("", false), [12] = new("", false), [13] = new("", false),
+            [14] = new("i:uID b:bStop@1 3:pad@1", false),
+            [15] = new("i:iKey i:iValue b:bIsValue@4 3:pad@4", false),  // +3B de padding (com lixo) [T]
+            [16] = new("i:iKey i:iValue", false),
+            // <7: iMonsterID iRange iLife bDispear bUsePolicyTarget(+2B) iPathID iMonsterNum — mesmos 24 B
+            [17] = new("i:uMonsterID i:iRange i:iDispearTime i:iDispearCondition i:uPathID i:uMonsterNum", false),
+            [18] = new("i:uPathGroup i:uPathID i:iPatrolType i:iSpeedType", false),   // uPathGroup = iWorldID
+            [19] = new("a:szActionName b:bLoop<9 3:pad<9 i:uLoop@9 i:uInterval i:uPlayTime@9 i:iUnknown@38", false),
+            [20] = new("i:uID i:iValue", false),
+            [21] = new("i:uID i:iValue b:bIsHistoryValue 3:pad", false),
+            [22] = new("i:uPoints", false),
+            [23] = new("i:iDst i:iDstType i:iSrc1 i:iSrc1Type i:iOp i:iSrc2 i:iSrc2Type", false),
+            [24] = new("i:iDispearCondition i:uMonsterID i:iMonsterIDType i:iRange i:iDispearTime i:uPathID i:iPathIDType i:uMonsterNum i:iMonsterNumType", false),
+            [25] = new("i:uPathGroup i:uPathID i:iPathIDType i:iPatrolType i:iSpeedType", false),
+            [26] = new("i:uSkill i:uSkillType i:uLevel i:uLevelType", false),
+            [27] = new("i:uID i:uIDType b:bStop 3:pad", false),
+            [28] = new("i:uID i:uIDType", false),
+            [29] = new("i:iLifeType i:iMineID i:iMineIDType i:iRange i:iLife i:iMineNum i:iMineNumType b:bSetOwner@24 3:pad@24", false),
+            [30] = new("i:iLifeType i:iNPCID i:iNPCIDType i:iRange i:iLife i:uPathID i:iPathIDType i:iNPCNum i:iNPCNumType", false),
+            [31] = new("i:uID " + Region, false),
+            [32] = new("i:uID i:uIDType i:iRange i:iPlayerNum", false),
+            [33] = new(Region, false),
+            [34] = new("f:fRadius i:uRadiusType i:iTargetID i:uTargetType", false),
+            [35] = new(Region + " i:iTargetID i:uTargetType", false),
+            [36] = new("i:uSkill i:uSkillType i:uLevel i:uLevelType " + Talk, false),
+            [37] = new("i:uSkill i:uSkillType i:uLevel i:uLevelType i:iTmpID i:iLife", false),
+            [38] = new("i:uNum i:uNumType i:uVarID i:uVarType", false),
+            [39] = new("i:uNum i:uNumType i:uPos i:uPosType i:uVarID i:uVarType", false),
+            [40] = new("f:fRange", false),
+            [41] = new("i:iRange i:uRangeType", false),
+            [42] = new("f:fRadius i:uRadiusType i:iTargetID i:uTargetType", false),
+            [43] = new(Region + " i:iTargetID i:uTargetType", false),
+            [44] = new("i:uPathGroup i:iStartPathID i:iStartPathIDType i:iEndPathID i:iEndPathIDType i:iPatrolType i:iSpeedType", false),
+            [45] = new("i:uPathGroup i:iStartPathID i:iStartPathIDType i:iEndPathID i:iEndPathIDType i:iMinPathID i:iMinPathIDType i:iMaxPathID i:iMaxPathIDType i:iPatrolType i:iSpeedType i:iOrientationType", false),
+            [46] = new("i:iTimeType i:iParamID i:iParamIDType", false),
+            [47] = new("i:iRandomMin i:iRandomMax i:iQuantity i:iTargetID", false),
+            [48] = new("i:iVoteID i:iVoteIDType", false),
+            [49] = new("i:iVoteID i:iVoteIDType i:iSelect i:iSelectType i:iSaveResult i:iSaveResultType", false),
+            [50] = new("i:iStyle " + Ints("iShow", 16), false),
+            [51] = new("i:iTaskID i:iTaskIDType", false),
+            [52] = new("i:iOpen", false),
+            [53] = new(Talk + " i:iChannelKinds i:iChannelKindsType i:iChannelID i:iChannelIDType", false),
+            [54] = new("i:uID i:iIDType i:uPeriod i:iPeriodType i:uCounter i:iCounterType", false),
+            [55] = new("i:uID i:iIDType", false),
+            [56] = new("i:iChangeState", false),
+            [57] = new("i:iChoose", false),
+            [58] = new("f:fRange i:iPos", false),
+            [59] = new("i:uMonsterID", false),
+            [60] = new("i:uMonsterID", false),
+            [61] = new("i:iAttackPolicyID", false),
+            [62] = new("i:iTaskID i:iTaskIDType", false),
+            [63] = new("i:iTaskID i:iTaskIDType " + Region, false),
+            [72] = new(Talk + " " + Region, false),   // lido à parte no Policy.cpp: texto + 2 vértices
+            [84] = new("", false), [97] = new("", false),
+            [94] = new("b:bVal1", false), [95] = new("b:bVal1", false),   // struct { bool } = 1 B
+        };
+        // structs sem nome (O_64..O_102): só inteiros, nº de campos = sizeof/4
+        var ints = new Dictionary<int, int>
+        {
+            [64] = 21, [65] = 11, [66] = 8, [67] = 7, [68] = 3, [69] = 2, [70] = 1, [71] = 2, [73] = 2, [74] = 17, [75] = 1,
+            [76] = 4, [77] = 6, [78] = 10, [79] = 2, [80] = 6, [81] = 6, [82] = 7, [83] = 11, [85] = 7, [86] = 3, [87] = 11,
+            [88] = 3, [89] = 10, [90] = 4, [91] = 6, [92] = 9, [93] = 10, [96] = 2, [98] = 1, [99] = 20, [100] = 2, [101] = 2, [102] = 2,
+        };
+        foreach (var (k, n) in ints) o[k] = new(Ints("iVal", n), false);
+        return o;
+    }
+
+    static string Ints(string prefix, int n) => string.Join(" ", Enumerable.Range(1, n).Select(i => $"i:{prefix}{i}"));
+
+    // ReadOperationTarget: 6 = máscara de classes; 14..16 = alcance em metros; 18 = 12 B; 20 = 16 B; o resto sem parâmetro
     static readonly Dictionary<int, AiLayout> Targets = new()
     {
         [0] = new("", false), [1] = new("", false), [2] = new("", false), [3] = new("", false), [4] = new("", false),
         [5] = new("", false), [6] = new("i:uOccupationMask", false), [7] = new("", false), [8] = new("", false), [9] = new("", false),
         [10] = new("", false), [11] = new("", false), [12] = new("", false), [13] = new("", false),
+        [14] = new("i:uMeter", false), [15] = new("i:uMeter", false), [16] = new("i:uMeter", false),
+        [17] = new("", false), [18] = new("i:iVal1 i:iVal2 i:iVal3", false), [19] = new("", false),
+        [20] = new("i:iVal1 i:iVal2 i:iVal3 i:iVal4", false),
     };
 
     static AiSchema()
@@ -295,13 +382,13 @@ public sealed class AiPolicyFile
             if (nPol < 0 || nPol > 1_000_000) throw new AiParseException($"nº de políticas inválido ({nPol})", 4);
             for (int p = 0; p < nPol; p++)
             {
-                r.Ctx = $"política #{p}";
+                r.Ctx = $"política #{p} (início {r.Pos})";
                 var pol = new AiPolicy { Version = r.I32(), Id = r.I32() };
                 int nTrig = r.I32();
                 if (nTrig < 0 || nTrig > 100_000) throw new AiParseException($"nº de triggers inválido ({nTrig})", r.Pos - 4);
                 for (int t = 0; t < nTrig; t++)
                 {
-                    r.Ctx = $"política #{p} (id {pol.Id}), trigger #{t}";
+                    r.Ctx = $"política #{p} (id {pol.Id}), trigger #{t} (início {r.Pos})";
                     var trg = new AiTrigger { Version = r.I32(), Id = r.I32(), Active = r.U8(), Run = r.U8(), AttackValid = r.U8(), NameRaw = r.Bytes(128) };
                     trg.Root = ReadCond(r, 0);
                     int nOp = r.I32();
@@ -320,7 +407,8 @@ public sealed class AiPolicyFile
         }
         catch (AiParseException ex)
         {
-            Error = $"{ex.Message}\n  onde: {r.Ctx}\n  offset: {ex.Offset} (0x{ex.Offset:X})\n  próximos bytes: {Hex(data, ex.Offset, 48)}";
+            Error = $"{ex.Message}\n  onde: {r.Ctx}\n  offset: {ex.Offset} (0x{ex.Offset:X})\n  próximos bytes: {Hex(data, ex.Offset, 48)}"
+                + (r.LastOp is { } lo ? $"\n  última operação lida antes: {lo} — se o erro vem logo depois, o layout dela é o suspeito" : "");
         }
     }
 
@@ -357,6 +445,7 @@ public sealed class AiPolicyFile
         var tl = AiSchema.Target(tt) ?? throw new AiParseException($"alvo {tt} ({AiSchema.TargetName(tt)}) sem layout", tPos);
         if (!tl.TryMeasure(ver, r.Data, r.Pos, out int tlen)) throw new AiParseException($"parâmetro do alvo {tt} passa do fim do arquivo", r.Pos);
         op.Target = new AiTarget { Type = tt, Param = r.Bytes(tlen) };
+        r.LastOp = $"tipo {type} ({AiSchema.OpName(type)}), {len} B de parâmetro, alvo {tt} ({tlen} B), em {start}..{r.Pos} ({r.Ctx})";
         return op;
     }
 
@@ -417,7 +506,7 @@ public sealed class AiPolicyFile
 
     sealed class Reader
     {
-        public readonly byte[] Data; public int Pos; public string Ctx = "cabeçalho";
+        public readonly byte[] Data; public int Pos; public string Ctx = "cabeçalho"; public string? LastOp;
         public Reader(byte[] d) => Data = d;
         void Need(int n) { if (n < 0 || Pos + n > Data.Length) throw new AiParseException("fim inesperado do arquivo", Pos); }
         public int I32() { Need(4); var v = BitConverter.ToInt32(Data, Pos); Pos += 4; return v; }
