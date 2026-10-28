@@ -309,6 +309,8 @@ public sealed class EditorForm : Form
             }));
         tabs.TabPages.Add(tN);
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
+        // servidor escolhido no NPCGen (pasta gamed\config) vira o servidor do programa todo
+        _npcgen.ServerFolderPicked = config => { if (Path.GetDirectoryName(config) is { } gamed) SetServerFolder(gamed); };
         var tAi = new TabPage() { BackColor = CBg };
         Bind(() => tAi.Text = Loc.T("tab.aipolicy", "AI Policy"));
         _aiView = new AiPolicyView(CBg, CFg, CTreeBg, CTreeFg, CAccent);
@@ -823,11 +825,27 @@ public sealed class EditorForm : Form
     // ---------- carregar ----------
     private void OpenPwFolder()
     {
-        using var dlg = new FolderBrowserDialog { Description = "Selecione a pasta do Perfect World (que contém 'element')" };
+        using var dlg = new FolderBrowserDialog { Description = Loc.T("dialog.openFolder", "Selecione a pasta do Perfect World (que contém 'element')") };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         var ele = FindFile(dlg.SelectedPath, "elements.data");
-        if (ele is null) { Status("Não achei elements.data nessa pasta."); return; }
+        if (ele is null) { Status(Loc.T("status.noElements", "Não achei elements.data nessa pasta.")); return; }
+        if (!ConfirmLeaveGame()) return;
         LoadElements(ele);
+    }
+
+    /// <summary>
+    /// Antes de abrir outro elements.data (outro PW): todas as abas do cliente vão trocar de arquivo, então o que está
+    /// pendente nelas (elements, quests, loja, AI Policy) é salvo ou descartado agora, de uma vez. false = cancelou.
+    /// </summary>
+    private bool ConfirmLeaveGame()
+    {
+        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _aiView?.HasUnsaved == true;
+        if (!dirty) return true;
+        var r = MessageBox.Show(this, Loc.T("load.unsavedAsk", "Há alterações não salvas no PW aberto. Salvar tudo antes de abrir o outro?\n\nSim: salva e abre · Não: descarta e abre · Cancelar: continua aqui"),
+            Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+        if (r == DialogResult.Cancel) return false;
+        if (r == DialogResult.Yes) SaveAll(quiet: true);
+        return true;
     }
 
     private static string? FindFile(string root, string name)
@@ -840,7 +858,7 @@ public sealed class EditorForm : Form
     private void OpenElements()
     {
         using var dlg = new OpenFileDialog { Filter = "Perfect World elements (*.data)|*.data|Todos (*.*)|*.*" };
-        if (dlg.ShowDialog(this) == DialogResult.OK) LoadElements(dlg.FileName);
+        if (dlg.ShowDialog(this) == DialogResult.OK && ConfirmLeaveGame()) LoadElements(dlg.FileName);
     }
 
     // Carregamento em segundo plano com janela de progresso e cancelamento (contribuição LAOCHEN):
@@ -909,28 +927,33 @@ public sealed class EditorForm : Form
         _unusedCache.Clear();
         _typeCache.Clear();
         _edits.Clear();
-        BeginInvoke(() => _gshop?.GameFolderChanged());   // loja da mesma pasta do jogo
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
-        _aiView?.LoadRememberedIfNeeded();
         _atlasPck = r.AtlasPck; _atlas = r.Atlas;          // ícones: cache novo para este pacote
         _iconIdx.Clear(); _treeIcons.Images.Clear(); _thumbs?.Dispose(); _thumbs = null; _thumbBatch.Clear();
         _cfgs = r.Cfgs;
-        if (r.Tasks is { } t)
-        {
-            _tasks = t; _tasksPath = r.TasksPath; _tasksDirty = false;
-            RefreshQuests();
-            _qStatus.Text = TasksStatus(r.TasksPath!);
-        }
+        _tasks = r.Tasks; _tasksPath = r.TasksPath; _tasksDirty = false;   // sem tasks.data no jogo novo, a aba fica vazia
+        _qTree.Nodes.Clear(); _qCur = null; _qGrid.Rows.Clear();
+        RefreshQuests();
+        _qStatus.Text = r.TasksPath is { } tp ? TasksStatus(tp) : Loc.T("quest.openFirst", "Abra um tasks.data primeiro.");
         BuildTree();
         SaveLast(path);
         _dataPath = path;
         // o cliente aberto passa a ser o da aba Verificação (e o que o "Salvar e enviar" leva ao servidor)
-        if (Path.GetDirectoryName(Path.GetDirectoryName(path)) is { } element)
+        var element = Path.GetDirectoryName(Path.GetDirectoryName(path));
+        if (element is not null)
         {
             _chkClient.Text = VersionCheck.ClientElement(element);
             SaveSetting("check_client", _chkClient.Text);
         }
+        // regra: o programa é um só — toda aba que lê arquivos do cliente passa para os da pasta nova
+        BeginInvoke(() =>
+        {
+            _gshop?.GameFolderChanged();
+            _aiView?.GameFolderChanged(element);
+            _pckView?.GameFolderChanged();
+            _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do cliente anterior
+        });
         int items = module.Lists.Sum(l => l.Items.Count);
         Status($"{module.Name} · {module.Lists.Count} {Loc.T("status.blocks", "blocos")} · {items:N0} {Loc.T("status.items", "itens")} · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
             + $" · {r.Cfg}"
@@ -3630,30 +3653,41 @@ public sealed class EditorForm : Form
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        Label L(string t) => new() { Text = t, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CFg };
-        Button B(string t, Action a) { var b = new Button { Text = t, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; b.Click += (_, _) => a(); return b; }
+        // textos ligados ao idioma (Bind): trocar o idioma refaz rótulos, botões, colunas e o resultado já mostrado
+        Label L(Func<string> t) { var l = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CFg }; Bind(() => l.Text = t()); return l; }
+        Button B(Func<string> t, Action a) { var b = new Button { Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; b.Click += (_, _) => a(); Bind(() => b.Text = t()); return b; }
         _chkClient.Dock = DockStyle.Fill; _chkServer.Dock = DockStyle.Fill;
         _chkClient.Text = LoadSetting("check_client") ?? "";
         _chkServer.Text = LoadSetting("check_server") ?? "";
-        form.Controls.Add(L(AppLang.T("Cliente (pasta element)", "Client (element folder)")), 0, 0); form.Controls.Add(_chkClient, 1, 0);
-        form.Controls.Add(B(AppLang.T("Procurar…", "Browse…"), () => PickFolder(_chkClient, AppLang.T("Pasta element do cliente", "Client element folder"))), 2, 0);
-        form.Controls.Add(L(AppLang.T("Servidor (pasta home)", "Server (home folder)")), 0, 1); form.Controls.Add(_chkServer, 1, 1);
-        form.Controls.Add(B(AppLang.T("Procurar…", "Browse…"), () => PickFolder(_chkServer, AppLang.T("Pasta home do servidor (contém gamed, glinkd…)", "Server home folder (contains gamed, glinkd…)"))), 2, 1);
-        var run = B(AppLang.T("✔ Verificar", "✔ Check"), RunCheck); run.BackColor = CAccent; run.ForeColor = Color.White; run.Font = new Font("Segoe UI Semibold", 10);
-        form.Controls.Add(new Label { Text = AppLang.T("Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).", "Compares the versions and timestamps the login requires to match (elements, tasks, shop), per-map copies and network encryption (without showing the keys)."), Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
-        form.SetColumnSpan(form.GetControlFromPosition(0, 2)!, 2);
+        form.Controls.Add(L(() => Loc.T("chk.clientElementFolder", "Cliente (pasta element)")), 0, 0); form.Controls.Add(_chkClient, 1, 0);
+        form.Controls.Add(B(() => Loc.T("chk.browse", "Procurar…"), () => PickFolder(_chkClient, Loc.T("chk.clientElementFolder2", "Pasta element do cliente"))), 2, 0);
+        form.Controls.Add(L(() => Loc.T("chk.serverHomeFolder", "Servidor (pasta home)")), 0, 1); form.Controls.Add(_chkServer, 1, 1);
+        form.Controls.Add(B(() => Loc.T("chk.browse", "Procurar…"), () => { if (PickFolder(_chkServer, Loc.T("chk.serverHomeFolderContainsGamed", "Pasta home do servidor (contém gamed, glinkd…)"))) SetServerFolder(_chkServer.Text); }), 2, 1);
+        var run = B(() => Loc.T("chk.check", "✔ Verificar"), RunCheck); run.BackColor = CAccent; run.ForeColor = Color.White; run.Font = new Font("Segoe UI Semibold", 10);
+        var runInfo = L(() => Loc.T("chk.comparesTheVersionsAndTimestamps", "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).")); runInfo.ForeColor = CMuted;
+        form.Controls.Add(runInfo, 0, 2);
+        form.SetColumnSpan(runInfo, 2);
         form.Controls.Add(run, 2, 2);
-        var fix = B(AppLang.T("Corrigir…", "Fix…"), FixPair); fix.BackColor = Color.FromArgb(255, 244, 214); fix.Font = new Font("Segoe UI Semibold", 10);
-        form.Controls.Add(new Label { Text = AppLang.T("Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.", "Fix: rebuilds on the server, from the client, what the login requires to match (elements, tasks, shop). Every replaced file gets a backup."), Dock = DockStyle.Fill, ForeColor = CMuted, TextAlign = ContentAlignment.MiddleLeft }, 0, 3);
-        form.SetColumnSpan(form.GetControlFromPosition(0, 3)!, 2);
+        var fix = B(() => Loc.T("chk.fix", "Corrigir…"), FixPair); fix.BackColor = Color.FromArgb(255, 244, 214); fix.Font = new Font("Segoe UI Semibold", 10);
+        var fixInfo = L(() => Loc.T("chk.fixRebuildsOnTheServer", "Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.")); fixInfo.ForeColor = CMuted;
+        form.Controls.Add(fixInfo, 0, 3);
+        form.SetColumnSpan(fixInfo, 2);
         form.Controls.Add(fix, 2, 3);
         for (int i = 0; i < 4; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
 
         _chkList.Columns.Add("", 34);
-        _chkList.Columns.Add("Item", 300);
-        _chkList.Columns.Add(AppLang.T("Cliente", "Client"), 170);
-        _chkList.Columns.Add(AppLang.T("Servidor", "Server"), 170);
-        _chkList.Columns.Add(AppLang.T("O que significa", "What it means"), 520);
+        _chkList.Columns.Add("", 300);
+        _chkList.Columns.Add("", 170);
+        _chkList.Columns.Add("", 170);
+        _chkList.Columns.Add("", 520);
+        Bind(() =>
+        {
+            _chkList.Columns[1].Text = Loc.T("chk.item", "Item");
+            _chkList.Columns[2].Text = Loc.T("chk.client", "Cliente");
+            _chkList.Columns[3].Text = Loc.T("chk.server", "Servidor");
+            _chkList.Columns[4].Text = Loc.T("chk.whatItMeans", "O que significa");
+            if (_chkList.Items.Count > 0) RunCheck();   // as linhas do resultado são texto: refaz no idioma novo
+        });
         _chkList.BackColor = CSurface; _chkList.ForeColor = CFg;
         _chkSummary.ForeColor = CFg;
 
@@ -3665,20 +3699,38 @@ public sealed class EditorForm : Form
         return root;
     }
 
-    private void PickFolder(TextBox target, string title)
+    private bool PickFolder(TextBox target, string title)
     {
         using var dlg = new FolderBrowserDialog { Description = title, UseDescriptionForTitle = true, SelectedPath = target.Text };
-        if (dlg.ShowDialog(this) == DialogResult.OK) target.Text = dlg.SelectedPath;
+        if (dlg.ShowDialog(this) != DialogResult.OK) return false;
+        target.Text = dlg.SelectedPath;
+        return true;
+    }
+
+    /// <summary>
+    /// Regra: um servidor só para o programa todo. Escolher a pasta do servidor (aqui ou no NPCGen) vale para
+    /// Verificação, Servidor e NPCGen de uma vez.
+    /// </summary>
+    private void SetServerFolder(string dir)
+    {
+        if (!Directory.Exists(dir)) return;
+        var home = VersionCheck.ServerHome(dir);
+        if (string.Equals(home, _chkServer.Text, StringComparison.OrdinalIgnoreCase) && LoadSetting("check_server") == home) return;
+        _chkServer.Text = home;
+        SaveSetting("check_server", home);
+        _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do servidor anterior
+        _npcgen?.ServerFolderChanged(home);
     }
 
     private void RunCheck()
     {
         if (_chkClient.Text.Length == 0 && _dataPath is not null)
             _chkClient.Text = Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "";
-        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(AppLang.T("Escolha as pastas do cliente e do servidor.", "Choose the client and server folders.")); return; }
+        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(Loc.T("chk.chooseTheClientAndServer", "Escolha as pastas do cliente e do servidor.")); return; }
         // aceita element\data, a pasta do jogo, a raiz dos arquivos do servidor... e mostra a pasta que vale
         _chkClient.Text = VersionCheck.ClientElement(_chkClient.Text); _chkServer.Text = VersionCheck.ServerHome(_chkServer.Text);
         SaveSetting("check_client", _chkClient.Text); SaveSetting("check_server", _chkServer.Text);
+        _npcgen?.ServerFolderChanged(_chkServer.Text);   // servidor digitado à mão também vale para o NPCGen
         var rows = VersionCheck.Run(_chkClient.Text, _chkServer.Text);
         _chkList.BeginUpdate(); _chkList.Items.Clear();
         foreach (var r in rows)
@@ -3696,11 +3748,11 @@ public sealed class EditorForm : Form
         _chkList.EndUpdate();
         int err = rows.Count(r => r.Nivel == CheckLevel.Erro), warn = rows.Count(r => r.Nivel == CheckLevel.Aviso);
         bool nothing = rows.All(r => r.Cliente == VersionCheck.NotFound && r.Servidor == VersionCheck.NotFound);
-        _chkSummary.Text = nothing ? AppLang.T("✖ Não achei os arquivos: confira as pastas (cliente = element do jogo; servidor = pasta que tem gamed/)", "✖ Files not found: check the folders (client = the game's element; server = the folder that has gamed/)")
-                         : err > 0 ? AppLang.T($"✖ {err} erro(s) que impedem o login · {warn} aviso(s)", $"✖ {err} error(s) that block login · {warn} warning(s)")
-                         : warn > 0 ? AppLang.T($"⚠ Sem erros de login · {warn} aviso(s)", $"⚠ No login errors · {warn} warning(s)") : AppLang.T("✔ Cliente e servidor compatíveis", "✔ Client and server are compatible");
+        _chkSummary.Text = nothing ? Loc.T("chk.filesNotFoundCheckThe", "✖ Não achei os arquivos: confira as pastas (cliente = element do jogo; servidor = pasta que tem gamed/)")
+                         : err > 0 ? string.Format(Loc.T("chk.0ErrorSThatBlock", "✖ {0} erro(s) que impedem o login · {1} aviso(s)"), err, warn)
+                         : warn > 0 ? string.Format(Loc.T("chk.noLoginErrors0Warning", "⚠ Sem erros de login · {0} aviso(s)"), warn) : Loc.T("chk.clientAndServerAreCompatible", "✔ Cliente e servidor compatíveis");
         _chkSummary.ForeColor = nothing || err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
-        Status(AppLang.T("Verificação concluída", "Check finished"));
+        Status(Loc.T("chk.checkFinished", "Verificação concluída"));
     }
 
     // Correção automática do par (issue #26): o usuário escolhe o que trocar; o cliente é a referência.

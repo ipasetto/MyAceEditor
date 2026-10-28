@@ -1,3 +1,4 @@
+using MyAceEditor.UI;
 using System.Globalization;
 using System.Text;
 
@@ -26,7 +27,6 @@ public static class AiMeaning
 {
     const string NL = "\r\n";
     static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-    static string L(string pt, string en) => AppLang.T(pt, en);
 
     // ---------- helpers de parâmetro ----------
     static int[] Ints(byte[] p) => p.Length % 4 == 0 ? Enumerable.Range(0, p.Length / 4).Select(i => BitConverter.ToInt32(p, i * 4)).ToArray() : Array.Empty<int>();
@@ -52,28 +52,28 @@ public static class AiMeaning
     static string Gs(Dictionary<string, object> d, string k) => d.TryGetValue(k, out var v) && v is string s ? s : "";
 
     // ---------- condições ----------
-    static readonly (string Pt, string En)[] CondTitles =
+    static readonly (string Key, string Pt)[] CondTitles =
     {
-        ("Timer disparou", "Timer fired"), ("Vida abaixo de", "HP below"), ("Começou a atacar (entrou em combate)", "Started attacking (entered combat)"),
-        ("Chance aleatória", "Random chance"), ("Matou um jogador", "Killed a player"), ("NÃO (inverte)", "NOT (inverts)"),
-        ("OU", "OR"), ("E", "AND"), ("Morreu", "Died"), ("Soma (+)", "Add (+)"), ("Subtração (−)", "Subtract (−)"),
-        ("Multiplicação (×)", "Multiply (×)"), ("Divisão (÷)", "Divide (÷)"), ("Maior que (>)", "Greater than (>)"),
-        ("Menor que (<)", "Less than (<)"), ("Igual a (==)", "Equal to (==)"), ("Variável global", "Global variable"),
-        ("Valor constante", "Constant value"), ("Recebeu dano na faixa", "Took damage in range"),
-        ("Chegou ao fim do caminho", "Reached end of path"), ("Estágio do histórico", "History stage"),
-        ("Valor do histórico", "History value"), ("Saiu do combate", "Stopped fighting"), ("Variável local", "Local variable"),
-        ("Chegou ao fim do caminho (v2)", "Reached end of path (v2)"), ("Possui filtro", "Has filter"), ("Índice da sala", "Room index"),
-        ("Jogadores no raio", "Players in radius"), ("Jogadores na região", "Players in region"),
-        ("Data (A/M/D h:m)", "Date (Y/M/D h:m)"), ("Dia da semana / hora", "Weekday / time"),
+        ("aim.timerFired", "Timer disparou"), ("aim.hpBelow", "Vida abaixo de"), ("aim.startedAttackingEnteredCombat", "Começou a atacar (entrou em combate)"),
+        ("aim.randomChance", "Chance aleatória"), ("aim.killedAPlayer2", "Matou um jogador"), ("aim.notInverts", "NÃO (inverte)"),
+        ("aim.or2", "OU"), ("aim.and2", "E"), ("aim.died2", "Morreu"), ("aim.add", "Soma (+)"), ("aim.subtract", "Subtração (−)"),
+        ("aim.multiply", "Multiplicação (×)"), ("aim.divide", "Divisão (÷)"), ("aim.greaterThan", "Maior que (>)"),
+        ("aim.lessThan", "Menor que (<)"), ("aim.equalTo", "Igual a (==)"), ("aim.globalVariable", "Variável global"),
+        ("aim.constantValue", "Valor constante"), ("aim.tookDamageInRange", "Recebeu dano na faixa"),
+        ("aim.reachedEndOfPath", "Chegou ao fim do caminho"), ("aim.historyStage", "Estágio do histórico"),
+        ("aim.historyValue", "Valor do histórico"), ("aim.stoppedFighting2", "Saiu do combate"), ("aim.localVariable", "Variável local"),
+        ("aim.reachedEndOfPathV2", "Chegou ao fim do caminho (v2)"), ("aim.hasFilter", "Possui filtro"), ("aim.roomIndex", "Índice da sala"),
+        ("aim.playersInRadius", "Jogadores no raio"), ("aim.playersInRegion", "Jogadores na região"),
+        ("aim.dateYMDH", "Data (A/M/D h:m)"), ("aim.weekdayTime", "Dia da semana / hora"),
     };
 
     public static string CondTitle(int t) => t >= 0 && t < CondTitles.Length
-        ? L(CondTitles[t].Pt, CondTitles[t].En)
-        : L($"Condição {t} (sem descrição)", $"Condition {t} (no description)");
+        ? Loc.T(CondTitles[t].Key, CondTitles[t].Pt)
+        : string.Format(Loc.T("aim.condition0NoDescription", "Condição {0} (sem descrição)"), t);
 
     static string? BinaryOp(int t) => t switch
     {
-        6 => L(" OU ", " OR "), 7 => L(" E ", " AND "), 9 => " + ", 10 => " − ", 11 => " × ", 12 => " ÷ ",
+        6 => Loc.T("aim.or", " OU "), 7 => Loc.T("aim.and", " E "), 9 => " + ", 10 => " − ", 11 => " × ", 12 => " ÷ ",
         13 => " > ", 14 => " < ", 15 => " == ", _ => null,
     };
 
@@ -84,19 +84,19 @@ public static class AiMeaning
         int a = i.Length > 0 ? i[0] : 0, b = i.Length > 1 ? i[1] : 0;
         return n.Type switch
         {
-            0 => L($"timer {a} disparou", $"timer {a} fired"),
-            1 => L($"vida < {Pct(F0(n.Param))}", $"HP < {Pct(F0(n.Param))}"),
-            2 => L("começou a atacar", "started attacking"),
-            3 => L($"chance de {Pct(F0(n.Param))}", $"{Pct(F0(n.Param))} chance"),
-            4 => L("matou um jogador", "killed a player"),
-            8 => L("morreu", "died"),
+            0 => string.Format(Loc.T("aim.timer0Fired", "timer {0} disparou"), a),
+            1 => string.Format(Loc.T("aim.hp0", "vida < {0}"), Pct(F0(n.Param))),
+            2 => Loc.T("aim.startedAttacking", "começou a atacar"),
+            3 => string.Format(Loc.T("aim.0Chance", "chance de {0}"), Pct(F0(n.Param))),
+            4 => Loc.T("aim.killedAPlayer", "matou um jogador"),
+            8 => Loc.T("aim.died", "morreu"),
             16 => $"global[{a}]",
             17 => a.ToString(Inv),
-            18 => L($"recebeu dano entre {a} e {b}", $"took {a}–{b} damage"),
-            19 or 24 => L($"chegou ao fim do caminho {a}", $"reached end of path {a}"),
-            22 => L("saiu do combate", "stopped fighting"),
+            18 => string.Format(Loc.T("aim.took01Damage", "recebeu dano entre {0} e {1}"), a, b),
+            19 or 24 => string.Format(Loc.T("aim.reachedEndOfPath0", "chegou ao fim do caminho {0}"), a),
+            22 => Loc.T("aim.stoppedFighting", "saiu do combate"),
             23 => $"local[{a}]",
-            27 => L($"jogadores no raio {F0(n.Param).ToString("0.##", Inv)}", $"players within radius {F0(n.Param).ToString("0.##", Inv)}"),
+            27 => string.Format(Loc.T("aim.playersWithinRadius0", "jogadores no raio {0}"), F0(n.Param).ToString("0.##", Inv)),
             _ => CondTitle(n.Type) + (n.Param.Length > 0 ? " (" + ParamText(n.Param) + ")" : ""),
         };
     }
@@ -105,7 +105,7 @@ public static class AiMeaning
     public static string CondExpr(AiCondNode? n)
     {
         if (n is null) return "?";
-        if (n.Type == 5) return L("NÃO (", "NOT (") + CondExpr(n.Left ?? n.Right) + ")";
+        if (n.Type == 5) return Loc.T("aim.not", "NÃO (") + CondExpr(n.Left ?? n.Right) + ")";
         var op = BinaryOp(n.Type);
         if (op != null) return "(" + CondExpr(n.Left) + op + CondExpr(n.Right) + ")";
         return CondLeaf(n);
@@ -115,38 +115,38 @@ public static class AiMeaning
     public static string CondLabel(AiCondNode n) => BinaryOp(n.Type) != null || n.Type == 5 ? CondTitle(n.Type) : CondLeaf(n);
 
     // ---------- operações ----------
-    static readonly (string Pt, string En)[] OpTitles =
+    static readonly (string Key, string Pt)[] OpTitles =
     {
-        ("Atacar", "Attack"), ("Usar habilidade", "Use skill"), ("Falar", "Talk"), ("Zerar lista de ódio", "Reset hate list"),
-        ("Executar trigger", "Run trigger"), ("Parar trigger", "Stop trigger"), ("Ativar trigger", "Activate trigger"),
-        ("Criar timer", "Create timer"), ("Apagar timer", "Kill timer"), ("Fugir", "Flee"),
-        ("Focar o 1º da lista de ódio", "Target first in hate list"), ("Focar o último da lista de ódio", "Target last in hate list"),
-        ("Focar o do meio (50%) da lista de ódio", "Target the 50% hate entry"), ("Pular", "Skip"), ("Controlador", "Controller"),
-        ("Definir variável global", "Set global variable"), ("Ajustar variável global", "Revise global variable"),
-        ("Invocar monstro", "Summon monster"), ("Andar por um caminho", "Walk along path"), ("Tocar animação", "Play action"),
-        ("Histórico (A)", "History (A)"), ("Histórico (B)", "History (B)"), ("Pontos PvP da facção", "Faction PvP points"),
-        ("Calcular variável", "Calculate variable"),
+        ("aim.attack", "Atacar"), ("aim.useSkill", "Usar habilidade"), ("aim.talk", "Falar"), ("aim.resetHateList", "Zerar lista de ódio"),
+        ("aim.runTrigger", "Executar trigger"), ("aim.stopTrigger", "Parar trigger"), ("aim.activateTrigger", "Ativar trigger"),
+        ("aim.createTimer", "Criar timer"), ("aim.killTimer", "Apagar timer"), ("aim.flee2", "Fugir"),
+        ("aim.targetFirstInHateList", "Focar o 1º da lista de ódio"), ("aim.targetLastInHateList", "Focar o último da lista de ódio"),
+        ("aim.targetThe50HateEntry", "Focar o do meio (50%) da lista de ódio"), ("aim.skip", "Pular"), ("aim.controller", "Controlador"),
+        ("aim.setGlobalVariable", "Definir variável global"), ("aim.reviseGlobalVariable", "Ajustar variável global"),
+        ("aim.summonMonster", "Invocar monstro"), ("aim.walkAlongPath", "Andar por um caminho"), ("aim.playAction", "Tocar animação"),
+        ("aim.historyA", "Histórico (A)"), ("aim.historyB", "Histórico (B)"), ("aim.factionPvpPoints", "Pontos PvP da facção"),
+        ("aim.calculateVariable", "Calcular variável"),
     };
 
     public static string OpTitle(int t) => t >= 0 && t < OpTitles.Length
-        ? L(OpTitles[t].Pt, OpTitles[t].En)
-        : L($"Operação {t} (sem descrição)", $"Operation {t} (no description)");
+        ? Loc.T(OpTitles[t].Key, OpTitles[t].Pt)
+        : string.Format(Loc.T("aim.operation0NoDescription", "Operação {0} (sem descrição)"), t);
 
-    static readonly (string Pt, string En)[] Dispear =
+    static readonly (string Key, string Pt)[] Dispear =
     {
-        ("nunca some", "never despawns"), ("some com quem invocou", "despawns with the summoner"),
-        ("some com o alvo", "despawns with the target"), ("some com um dos dois", "despawns with either"),
+        ("aim.neverDespawns", "nunca some"), ("aim.despawnsWithTheSummoner", "some com quem invocou"),
+        ("aim.despawnsWithTheTarget", "some com o alvo"), ("aim.despawnsWithEither", "some com um dos dois"),
     };
-    static readonly (string Pt, string En)[] Patrol = { ("para no fim", "stops at the end"), ("volta pelo caminho", "returns"), ("em loop", "loops") };
-    static readonly (string Pt, string En)[] Speed = { ("início", "begin"), ("lenta", "slow"), ("rápida", "fast"), ("fim", "end") };
-    static readonly (string Pt, string En)[] VarType = { ("global", "global"), ("local", "local"), ("constante", "constant"), ("aleatório", "random") };
+    static readonly (string Key, string Pt)[] Patrol = { ("aim.stopsAtTheEnd", "para no fim"), ("aim.returns", "volta pelo caminho"), ("aim.loops", "em loop") };
+    static readonly (string Key, string Pt)[] Speed = { ("aim.begin", "início"), ("aim.slow", "lenta"), ("aim.fast", "rápida"), ("aim.end", "fim") };
+    static readonly (string Key, string Pt)[] VarType = { ("aim.global", "global"), ("aim.local", "local"), ("aim.constant", "constante"), ("aim.random", "aleatório") };
     static readonly string[] CalcOp = { "+", "−", "×", "÷", "%" };
 
-    static string Pick((string Pt, string En)[] a, int i, string fallback) => i >= 0 && i < a.Length ? L(a[i].Pt, a[i].En) : fallback;
+    static string Pick((string Key, string Pt)[] a, int i, string fallback) => i >= 0 && i < a.Length ? Loc.T(a[i].Key, a[i].Pt) : fallback;
 
     static string Operand(int type, int n) => type switch
     {
-        0 => $"global[{n}]", 1 => $"local[{n}]", 2 => n.ToString(Inv), 3 => L($"aleatório({n})", $"random({n})"), _ => n.ToString(Inv),
+        0 => $"global[{n}]", 1 => $"local[{n}]", 2 => n.ToString(Inv), 3 => string.Format(Loc.T("aim.random0", "aleatório({0})"), n), _ => n.ToString(Inv),
     };
 
     /// <summary>Frase da operação (sem o alvo).</summary>
@@ -155,60 +155,57 @@ public static class AiMeaning
         var d = Vals(o, ver);
         switch (o.Type)
         {
-            case 0: return L($"Atacar (modo {Gi(d, "uType")})", $"Attack (mode {Gi(d, "uType")})");
+            case 0: return string.Format(Loc.T("aim.attackMode0", "Atacar (modo {0})"), Gi(d, "uType"));
             case 1:
             {
                 int s = Gi(d, "uSkill"); var nm = c.SkillName(s);
                 string who = nm is null ? s.ToString(Inv) : $"{nm} ({s})";
-                return L($"Usar a habilidade {who}, nível {Gi(d, "uLevel")}", $"Use skill {who}, level {Gi(d, "uLevel")}");
+                return string.Format(Loc.T("aim.useSkill0Level1", "Usar a habilidade {0}, nível {1}"), who, Gi(d, "uLevel"));
             }
             case 2:
             {
                 var (pre, body) = AiChannel.Split(Gs(d, "text"));
                 string shown = c.Translate(body) ?? body;
-                return L($"Dizer [{AiChannel.Name(pre)}]: “{shown}”", $"Say [{AiChannel.Name(pre)}]: “{shown}”");
+                return string.Format(Loc.T("aim.say01", "Dizer [{0}]: “{1}”"), AiChannel.Name(pre), shown);
             }
-            case 3: return L("Zerar a lista de ódio", "Reset the hate list");
-            case 4: return L($"Executar o trigger {Gi(d, "uID")}", $"Run trigger {Gi(d, "uID")}");
-            case 5: return L($"Parar o trigger {Gi(d, "uID")}", $"Stop trigger {Gi(d, "uID")}");
-            case 6: return L($"Ativar o trigger {Gi(d, "uID")}", $"Activate trigger {Gi(d, "uID")}");
-            case 7: return L($"Criar o timer {Gi(d, "uID")} (período {Gi(d, "uPeriod")}, repetições {Gi(d, "uCounter")})",
-                             $"Create timer {Gi(d, "uID")} (period {Gi(d, "uPeriod")}, repeats {Gi(d, "uCounter")})");
-            case 8: return L($"Apagar o timer {Gi(d, "uID")}", $"Kill timer {Gi(d, "uID")}");
-            case 9: return L("Fugir", "Flee");
+            case 3: return Loc.T("aim.resetTheHateList", "Zerar a lista de ódio");
+            case 4: return string.Format(Loc.T("aim.runTrigger0", "Executar o trigger {0}"), Gi(d, "uID"));
+            case 5: return string.Format(Loc.T("aim.stopTrigger0", "Parar o trigger {0}"), Gi(d, "uID"));
+            case 6: return string.Format(Loc.T("aim.activateTrigger0", "Ativar o trigger {0}"), Gi(d, "uID"));
+            case 7: return string.Format(Loc.T("aim.createTimer0Period1", "Criar o timer {0} (período {1}, repetições {2})"), Gi(d, "uID"), Gi(d, "uPeriod"), Gi(d, "uCounter"));
+            case 8: return string.Format(Loc.T("aim.killTimer0", "Apagar o timer {0}"), Gi(d, "uID"));
+            case 9: return Loc.T("aim.flee", "Fugir");
             case 10: case 11: case 12: case 13: return OpTitle(o.Type);
             case 14:
                 return Gb(d, "bStop") != 0
-                    ? L($"Parar o controlador {Gi(d, "uID")}", $"Stop controller {Gi(d, "uID")}")
-                    : L($"Ativar o controlador {Gi(d, "uID")}", $"Activate controller {Gi(d, "uID")}");
+                    ? string.Format(Loc.T("aim.stopController0", "Parar o controlador {0}"), Gi(d, "uID"))
+                    : string.Format(Loc.T("aim.activateController0", "Ativar o controlador {0}"), Gi(d, "uID"));
             case 15:
             {
                 bool literal = !d.ContainsKey("bIsValue") || Gb(d, "bIsValue") != 0;
                 string rhs = literal ? Gi(d, "iValue").ToString(Inv) : $"global[{Gi(d, "iValue")}]";
-                return L($"Definir global[{Gi(d, "iKey")}] = {rhs}", $"Set global[{Gi(d, "iKey")}] = {rhs}");
+                return string.Format(Loc.T("aim.setGlobal01", "Definir global[{0}] = {1}"), Gi(d, "iKey"), rhs);
             }
-            case 16: return L($"Ajustar global[{Gi(d, "iKey")}] em {Gi(d, "iValue")} (?)", $"Revise global[{Gi(d, "iKey")}] by {Gi(d, "iValue")} (?)");
+            case 16: return string.Format(Loc.T("aim.reviseGlobal0By1", "Ajustar global[{0}] em {1} (?)"), Gi(d, "iKey"), Gi(d, "iValue"));
             case 17:
             {
                 int id = Gi(d, "uMonsterID"); var nm = c.MonsterName(id);
                 string who = nm is null ? $"#{id}" : $"{c.Translate(nm) ?? nm} (#{id})";
                 int t = Gi(d, "iDispearTime");
-                string life = t < 0 ? L("sem tempo limite", "no time limit") : L($"tempo {t}", $"time {t}");
+                string life = t < 0 ? Loc.T("aim.noTimeLimit", "sem tempo limite") : string.Format(Loc.T("aim.time0", "tempo {0}"), t);
                 string cond = d.ContainsKey("iDispearCondition") ? ", " + Pick(Dispear, Gi(d, "iDispearCondition"), "?") : "";
-                return L($"Invocar {Gi(d, "uMonsterNum")}× {who} ({life}{cond})", $"Summon {Gi(d, "uMonsterNum")}× {who} ({life}{cond})");
+                return string.Format(Loc.T("aim.summon0123", "Invocar {0}× {1} ({2}{3})"), Gi(d, "uMonsterNum"), who, life, cond);
             }
             case 18:
-                return L($"Andar pelo caminho {Gi(d, "uPathID")} do grupo {Gi(d, "uPathGroup")} ({Pick(Patrol, Gi(d, "iPatrolType"), "?")}, velocidade {Pick(Speed, Gi(d, "iSpeedType"), "?")})",
-                         $"Walk along path {Gi(d, "uPathID")} of group {Gi(d, "uPathGroup")} ({Pick(Patrol, Gi(d, "iPatrolType"), "?")}, speed {Pick(Speed, Gi(d, "iSpeedType"), "?")})");
+                return string.Format(Loc.T("aim.walkAlongPath0Of", "Andar pelo caminho {0} do grupo {1} ({2}, velocidade {3})"), Gi(d, "uPathID"), Gi(d, "uPathGroup"), Pick(Patrol, Gi(d, "iPatrolType"), "?"), Pick(Speed, Gi(d, "iSpeedType"), "?"));
             case 19:
             {
                 var raw = Gs(d, "szActionName");
                 string shown = c.Translate(raw) ?? raw;
-                return L($"Tocar a animação “{shown}” (repetições {Gi(d, "uLoop")}, intervalo {Gi(d, "uInterval")}, duração {Gi(d, "uPlayTime")})",
-                         $"Play action “{shown}” (loops {Gi(d, "uLoop")}, interval {Gi(d, "uInterval")}, duration {Gi(d, "uPlayTime")})");
+                return string.Format(Loc.T("aim.playAction0Loops1", "Tocar a animação “{0}” (repetições {1}, intervalo {2}, duração {3})"), shown, Gi(d, "uLoop"), Gi(d, "uInterval"), Gi(d, "uPlayTime"));
             }
-            case 20: case 21: return L($"{OpTitle(o.Type)}: [{Gi(d, "uID")}] = {Gi(d, "iValue")}", $"{OpTitle(o.Type)}: [{Gi(d, "uID")}] = {Gi(d, "iValue")}");
-            case 22: return L($"Pontos PvP da facção: {Gi(d, "uPoints")}", $"Faction PvP points: {Gi(d, "uPoints")}");
+            case 20: case 21: return string.Format(Loc.T("aim.012", "{0}: [{1}] = {2}"), OpTitle(o.Type), Gi(d, "uID"), Gi(d, "iValue"));
+            case 22: return string.Format(Loc.T("aim.factionPvpPoints0", "Pontos PvP da facção: {0}"), Gi(d, "uPoints"));
             case 23:
             {
                 int op = Gi(d, "iOp");
@@ -220,21 +217,21 @@ public static class AiMeaning
     }
 
     // ---------- alvos ----------
-    static readonly (string Pt, string En)[] TargetTitles =
+    static readonly (string Key, string Pt)[] TargetTitles =
     {
-        ("o que tem mais ódio", "top of the hate list"), ("o 2º da lista de ódio", "2nd in the hate list"),
-        ("os demais da lista de ódio", "the rest of the hate list"), ("o com mais HP", "the one with most HP"),
-        ("o com mais MP", "the one with most MP"), ("o com menos HP", "the one with least HP"),
-        ("jogadores das classes da máscara", "players of the masked classes"), ("ele mesmo", "itself"),
-        ("quem o matou", "its killer"), ("a facção do local de nascimento", "the birthplace faction"),
-        ("alguém aleatório da lista de ódio", "a random one from the hate list"), ("o mais próximo", "the nearest"),
-        ("o mais distante", "the farthest"), ("o 1º do ódio (redirecionado)", "top of hate list (redirected)"),
+        ("aim.topOfTheHateList", "o que tem mais ódio"), ("aim.2ndInTheHateList", "o 2º da lista de ódio"),
+        ("aim.theRestOfTheHate", "os demais da lista de ódio"), ("aim.theOneWithMostHp", "o com mais HP"),
+        ("aim.theOneWithMostMp", "o com mais MP"), ("aim.theOneWithLeastHp", "o com menos HP"),
+        ("aim.playersOfTheMaskedClasses", "jogadores das classes da máscara"), ("aim.itself", "ele mesmo"),
+        ("aim.itsKiller", "quem o matou"), ("aim.theBirthplaceFaction", "a facção do local de nascimento"),
+        ("aim.aRandomOneFromThe", "alguém aleatório da lista de ódio"), ("aim.theNearest", "o mais próximo"),
+        ("aim.theFarthest", "o mais distante"), ("aim.topOfHateListRedirected", "o 1º do ódio (redirecionado)"),
     };
 
     public static string TargetText(AiTarget a)
     {
-        string t = a.Type >= 0 && a.Type < TargetTitles.Length ? L(TargetTitles[a.Type].Pt, TargetTitles[a.Type].En)
-                                                               : L($"alvo {a.Type} (sem descrição)", $"target {a.Type} (no description)");
+        string t = a.Type >= 0 && a.Type < TargetTitles.Length ? Loc.T(TargetTitles[a.Type].Key, TargetTitles[a.Type].Pt)
+                                                               : string.Format(Loc.T("aim.target0NoDescription", "alvo {0} (sem descrição)"), a.Type);
         if (a.Type == 6 && a.Param.Length >= 4) t += $" 0x{BitConverter.ToInt32(a.Param, 0):X}";
         return t;
     }
@@ -246,7 +243,7 @@ public static class AiMeaning
 
     public static string TriggerName(AiTrigger t, AiContext c, bool original = false)
     {
-        var nm = string.IsNullOrWhiteSpace(t.Name) ? L("(sem nome)", "(no name)") : t.Name;
+        var nm = string.IsNullOrWhiteSpace(t.Name) ? Loc.T("aim.noName", "(sem nome)") : t.Name;
         if (original || string.IsNullOrWhiteSpace(t.Name)) return nm;
         var tr = c.Translate(nm);
         return tr is null ? nm : $"{tr}  ({nm})";
@@ -255,10 +252,10 @@ public static class AiMeaning
     public static string TriggerSummary(AiTrigger t, AiContext c)
     {
         var sb = new StringBuilder();
-        sb.Append(L("Trigger ", "Trigger ")).Append(t.Id).Append(": ").Append(TriggerName(t, c)).Append(NL).Append(NL);
-        sb.Append(L("SE ", "IF ")).Append(CondExpr(t.Root)).Append(NL);
-        sb.Append(L("ENTÃO:", "THEN:")).Append(NL);
-        if (t.Ops.Count == 0) sb.Append("  ").Append(L("(nenhuma operação)", "(no operations)")).Append(NL);
+        sb.Append(Loc.T("aim.trigger", "Trigger ")).Append(t.Id).Append(": ").Append(TriggerName(t, c)).Append(NL).Append(NL);
+        sb.Append(Loc.T("aim.if", "SE ")).Append(CondExpr(t.Root)).Append(NL);
+        sb.Append(Loc.T("aim.then", "ENTÃO:")).Append(NL);
+        if (t.Ops.Count == 0) sb.Append("  ").Append(Loc.T("aim.noOperations", "(nenhuma operação)")).Append(NL);
         for (int i = 0; i < t.Ops.Count; i++)
         {
             var o = t.Ops[i];
@@ -266,10 +263,10 @@ public static class AiMeaning
             foreach (var raw in OpTexts(o, t.Version))
             {
                 var body = AiChannel.Split(raw).Body;
-                if (c.Translate(body) != null) sb.Append("       ").Append(L("original", "original")).Append(": “").Append(body).Append("”").Append(NL);
+                if (c.Translate(body) != null) sb.Append("       ").Append(Loc.T("aim.original", "original")).Append(": “").Append(body).Append("”").Append(NL);
             }
         }
-        sb.Append(NL).Append(L("Ativo no início: ", "Active at start: ")).Append(t.Active != 0 ? L("sim", "yes") : L("não", "no"))
+        sb.Append(NL).Append(Loc.T("aim.activeAtStart", "Ativo no início: ")).Append(t.Active != 0 ? Loc.T("aim.yes", "sim") : Loc.T("aim.no", "não"))
           .Append("  ·  bRun=").Append(t.Run).Append("  ·  bAttackValid=").Append(t.AttackValid).Append("  ·  dwVersion ").Append(t.Version).Append(NL);
         return sb.ToString();
     }
@@ -277,22 +274,22 @@ public static class AiMeaning
     public static string PolicySummary(AiPolicy p, AiContext c)
     {
         var sb = new StringBuilder();
-        sb.Append(L("Política ", "Policy ")).Append(p.Id).Append(" — ").Append(p.Triggers.Count).Append(" trigger(s)").Append(NL).Append(NL);
+        sb.Append(Loc.T("aim.policy", "Política ")).Append(p.Id).Append(" — ").Append(string.Format(Loc.T("aim.triggerCount", "{0} trigger(s)"), p.Triggers.Count)).Append(NL).Append(NL);
         var used = c.UsedBy(p.Id);
         if (used.Count == 0)
-            sb.Append(L("Usada por: nenhum monstro conhecido (abra o elements.data para ver quem usa).", "Used by: no known monster (open elements.data to see who uses it).")).Append(NL);
+            sb.Append(Loc.T("aim.usedByNoKnownMonster", "Usada por: nenhum monstro conhecido (abra o elements.data para ver quem usa).")).Append(NL);
         else
         {
-            sb.Append(L("Usada por ", "Used by ")).Append(used.Count).Append(L(" monstro(s): ", " monster(s): "))
+            sb.Append(Loc.T("aim.usedBy", "Usada por ")).Append(used.Count).Append(Loc.T("aim.monsterS", " monstro(s): "))
               .Append(string.Join(", ", used.Take(15).Select(m => $"{c.Translate(m.Name) ?? m.Name} (#{m.Id})")));
-            if (used.Count > 15) sb.Append(L($" e mais {used.Count - 15}", $" and {used.Count - 15} more"));
+            if (used.Count > 15) sb.Append(string.Format(Loc.T("aim.and0More", " e mais {0}"), used.Count - 15));
             sb.Append(NL);
         }
-        sb.Append(NL).Append(L("Triggers:", "Triggers:")).Append(NL);
+        sb.Append(NL).Append(Loc.T("aim.triggers", "Triggers:")).Append(NL);
         foreach (var t in p.Triggers.Take(40))
-            sb.Append("  [").Append(t.Id).Append("] ").Append(TriggerName(t, c)).Append("  —  ").Append(L("SE ", "IF ")).Append(Cut(CondExpr(t.Root), 90))
-              .Append("  (").Append(t.Ops.Count).Append(L(" op.)", " ops)")).Append(NL);
-        if (p.Triggers.Count > 40) sb.Append("  …").Append(L($" e mais {p.Triggers.Count - 40}", $" and {p.Triggers.Count - 40} more")).Append(NL);
+            sb.Append("  [").Append(t.Id).Append("] ").Append(TriggerName(t, c)).Append("  —  ").Append(Loc.T("aim.if", "SE ")).Append(Cut(CondExpr(t.Root), 90))
+              .Append("  (").Append(t.Ops.Count).Append(Loc.T("aim.ops", " op.)")).Append(NL);
+        if (p.Triggers.Count > 40) sb.Append("  …").Append(string.Format(Loc.T("aim.and0More", " e mais {0}"), p.Triggers.Count - 40)).Append(NL);
         return sb.ToString();
     }
 
@@ -300,44 +297,44 @@ public static class AiMeaning
     public static string Explain(object obj, AiTrigger t, AiContext c) => obj switch
     {
         AiTrigger tr => TriggerSummary(tr, c),
-        AiCondNode n => L("Condição: ", "Condition: ") + CondTitle(n.Type) + NL + CondExpr(n) + NL + NL + TriggerSummary(t, c),
+        AiCondNode n => Loc.T("aim.condition", "Condição: ") + CondTitle(n.Type) + NL + CondExpr(n) + NL + NL + TriggerSummary(t, c),
         AiOp o => OpTitle(o.Type) + NL + OpWithTarget(o, t.Version, c) + NL + NL + TriggerSummary(t, c),
-        AiTarget a => L("Alvo: ", "Target: ") + TargetText(a) + NL + NL + TriggerSummary(t, c),
+        AiTarget a => Loc.T("aim.target", "Alvo: ") + TargetText(a) + NL + NL + TriggerSummary(t, c),
         _ => TriggerSummary(t, c),
     };
 
     // ---------- rótulos de campo e dicas de vínculo ----------
-    static readonly Dictionary<string, (string Pt, string En)> FieldNames = new()
+    static readonly Dictionary<string, (string Key, string Pt)> FieldNames = new()
     {
-        ["uType"] = ("Modo de ataque", "Attack mode"), ["uSkill"] = ("Habilidade (id)", "Skill (id)"), ["uLevel"] = ("Nível", "Level"),
-        ["text"] = ("Texto da fala", "Spoken text"), ["uAppendDataMask"] = ("Dados anexados (máscara)", "Appended data (mask)"),
-        ["uID"] = ("ID", "ID"), ["uPeriod"] = ("Período", "Period"), ["uCounter"] = ("Repetições", "Repeats"),
-        ["bStop"] = ("Parar (0=ativar, 1=parar)", "Stop (0=activate, 1=stop)"), ["iKey"] = ("Variável global (índice)", "Global variable (index)"),
-        ["iValue"] = ("Valor", "Value"), ["bIsValue"] = ("Valor literal (0=outra variável)", "Literal value (0=other variable)"),
-        ["uMonsterID"] = ("Monstro (id)", "Monster (id)"), ["uMonsterNum"] = ("Quantidade", "Count"),
-        ["iDispearTime"] = ("Tempo p/ sumir (-1=sem)", "Despawn time (-1=none)"), ["iDispearCondition"] = ("Condição de sumiço", "Despawn condition"),
-        ["iUnk4"] = ("Desconhecido 4", "Unknown 4"), ["iUnk5"] = ("Desconhecido 5", "Unknown 5"),
-        ["uPathGroup"] = ("Grupo do caminho", "Path group"), ["uPathID"] = ("Caminho (id)", "Path (id)"),
-        ["iPatrolType"] = ("Tipo de patrulha", "Patrol type"), ["iSpeedType"] = ("Velocidade", "Speed"),
-        ["szActionName"] = ("Nome da animação", "Action name"), ["uLoop"] = ("Repetições da animação", "Loop count"),
-        ["uInterval"] = ("Intervalo", "Interval"), ["uPlayTime"] = ("Duração", "Play time"), ["uPoints"] = ("Pontos", "Points"),
-        ["iDst"] = ("Destino", "Destination"), ["iDstType"] = ("Tipo do destino", "Destination type"),
-        ["iSrc1"] = ("Origem 1", "Source 1"), ["iSrc1Type"] = ("Tipo da origem 1", "Source 1 type"), ["iOp"] = ("Operador", "Operator"),
-        ["iSrc2"] = ("Origem 2", "Source 2"), ["iSrc2Type"] = ("Tipo da origem 2", "Source 2 type"),
-        ["uOccupationMask"] = ("Classes (máscara)", "Classes (mask)"),
+        ["uType"] = ("aim.attackMode", "Modo de ataque"), ["uSkill"] = ("aim.skillId", "Habilidade (id)"), ["uLevel"] = ("aim.level", "Nível"),
+        ["text"] = ("aim.spokenText", "Texto da fala"), ["uAppendDataMask"] = ("aim.appendedDataMask", "Dados anexados (máscara)"),
+        ["uID"] = ("aim.id", "ID"), ["uPeriod"] = ("aim.period", "Período"), ["uCounter"] = ("aim.repeats", "Repetições"),
+        ["bStop"] = ("aim.stop0Activate1Stop", "Parar (0=ativar, 1=parar)"), ["iKey"] = ("aim.globalVariableIndex", "Variável global (índice)"),
+        ["iValue"] = ("aim.value", "Valor"), ["bIsValue"] = ("aim.literalValue0OtherVariable", "Valor literal (0=outra variável)"),
+        ["uMonsterID"] = ("aim.monsterId", "Monstro (id)"), ["uMonsterNum"] = ("aim.count", "Quantidade"),
+        ["iDispearTime"] = ("aim.despawnTime1None", "Tempo p/ sumir (-1=sem)"), ["iDispearCondition"] = ("aim.despawnCondition", "Condição de sumiço"),
+        ["iUnk4"] = ("aim.unknown4", "Desconhecido 4"), ["iUnk5"] = ("aim.unknown5", "Desconhecido 5"),
+        ["uPathGroup"] = ("aim.pathGroup", "Grupo do caminho"), ["uPathID"] = ("aim.pathId", "Caminho (id)"),
+        ["iPatrolType"] = ("aim.patrolType", "Tipo de patrulha"), ["iSpeedType"] = ("aim.speed", "Velocidade"),
+        ["szActionName"] = ("aim.actionName", "Nome da animação"), ["uLoop"] = ("aim.loopCount", "Repetições da animação"),
+        ["uInterval"] = ("aim.interval", "Intervalo"), ["uPlayTime"] = ("aim.playTime", "Duração"), ["uPoints"] = ("aim.points", "Pontos"),
+        ["iDst"] = ("aim.destination", "Destino"), ["iDstType"] = ("aim.destinationType", "Tipo do destino"),
+        ["iSrc1"] = ("aim.source1", "Origem 1"), ["iSrc1Type"] = ("aim.source1Type", "Tipo da origem 1"), ["iOp"] = ("aim.operator", "Operador"),
+        ["iSrc2"] = ("aim.source2", "Origem 2"), ["iSrc2Type"] = ("aim.source2Type", "Tipo da origem 2"),
+        ["uOccupationMask"] = ("aim.classesMask", "Classes (máscara)"),
     };
 
-    public static string FieldLabel(string name) => FieldNames.TryGetValue(name, out var v) ? $"{L(v.Pt, v.En)}  [{name}]" : name;
+    public static string FieldLabel(string name) => FieldNames.TryGetValue(name, out var v) ? $"{Loc.T(v.Key, v.Pt)}  [{name}]" : name;
 
     /// <summary>Significado do valor de um campo (nome do monstro/habilidade, enum), ou null.</summary>
     public static string? Hint(string field, int value, AiContext c) => field switch
     {
         "uMonsterID" => c.MonsterName(value) is { } m ? c.Translate(m) ?? m : null,
         "uSkill" => c.SkillName(value),
-        "iDispearCondition" => value >= 0 && value < Dispear.Length ? L(Dispear[value].Pt, Dispear[value].En) : null,
-        "iPatrolType" => value >= 0 && value < Patrol.Length ? L(Patrol[value].Pt, Patrol[value].En) : null,
-        "iSpeedType" => value >= 0 && value < Speed.Length ? L(Speed[value].Pt, Speed[value].En) : null,
-        "iDstType" or "iSrc1Type" or "iSrc2Type" => value >= 0 && value < VarType.Length ? L(VarType[value].Pt, VarType[value].En) : null,
+        "iDispearCondition" => value >= 0 && value < Dispear.Length ? Loc.T(Dispear[value].Key, Dispear[value].Pt) : null,
+        "iPatrolType" => value >= 0 && value < Patrol.Length ? Loc.T(Patrol[value].Key, Patrol[value].Pt) : null,
+        "iSpeedType" => value >= 0 && value < Speed.Length ? Loc.T(Speed[value].Key, Speed[value].Pt) : null,
+        "iDstType" or "iSrc1Type" or "iSrc2Type" => value >= 0 && value < VarType.Length ? Loc.T(VarType[value].Key, VarType[value].Pt) : null,
         "iOp" => value >= 0 && value < CalcOp.Length ? CalcOp[value] : null,
         _ => null,
     };

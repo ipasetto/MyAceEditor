@@ -9,7 +9,6 @@ namespace MyAceEditor.UI;
 /// </summary>
 public sealed class ServerView : UserControl
 {
-    static string L(string pt, string en) => AppLang.T(pt, en);
 
     readonly Func<string> _client, _serverHome;
     readonly Func<string, string?> _load;
@@ -34,32 +33,28 @@ public sealed class ServerView : UserControl
     {
         _client = client; _serverHome = serverHome; _load = load; _save = save;
         BackColor = bg; ForeColor = fg; Dock = DockStyle.Fill; Padding = new Padding(10); _accent = accent;
-        var intro = new Label
-        {
-            Dock = DockStyle.Top, Height = 46, ForeColor = fg,
-            Text = L("Servidor de teste no seu PC (Linux do Windows, WSL). Clique em Instalar uma vez; depois é só Iniciar e entrar no jogo pelo servidor \"Local\". Seus arquivos originais do servidor não são alterados: o programa trabalha numa cópia.",
-                     "Test server on your PC (Windows Subsystem for Linux). Click Install once; then just Start and join the \"Local\" server in the game. Your original server files are not changed: the program works on a copy."),
-        };
+        var intro = new Label { Dock = DockStyle.Top, Height = 46, ForeColor = fg };
+        Bind(() => intro.Text = Loc.T("srv.testServerOnYourPc", "Servidor de teste no seu PC (Linux do Windows, WSL). Clique em Instalar uma vez; depois é só Iniciar e entrar no jogo pelo servidor \"Local\". Seus arquivos originais do servidor não são alterados: o programa trabalha numa cópia."));
         var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 104, ColumnCount = 3, RowCount = 3 };
         for (int i = 0; i < 3; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
-        Label Lb(string t) => new() { Text = t, AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = fg };
-        form.Controls.Add(Lb(L("Pacote do servidor (\"server files\")", "Server package (\"server files\")")), 0, 0); form.Controls.Add(_pkg, 1, 0);
-        form.Controls.Add(Btn(L("Procurar…", "Browse…"), () => Pick(_pkg)), 2, 0);
-        form.Controls.Add(Lb(L("Pasta do servidor local", "Local server folder")), 0, 1); form.Controls.Add(_base, 1, 1);
-        form.Controls.Add(Btn(L("Procurar…", "Browse…"), () => Pick(_base)), 2, 1);
+        Label Lb(Func<string> t) { var l = new Label { AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = fg }; Bind(() => l.Text = t()); return l; }
+        form.Controls.Add(Lb(() => Loc.T("srv.serverPackageServerFiles", "Pacote do servidor (\"server files\")")), 0, 0); form.Controls.Add(_pkg, 1, 0);
+        form.Controls.Add(Btn(() => Loc.T("srv.browse", "Procurar…"), () => Pick(_pkg)), 2, 0);
+        form.Controls.Add(Lb(() => Loc.T("srv.localServerFolder", "Pasta do servidor local")), 0, 1); form.Controls.Add(_base, 1, 1);
+        form.Controls.Add(Btn(() => Loc.T("srv.browse", "Procurar…"), () => Pick(_base)), 2, 1);
         var acc = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        acc.Controls.AddRange(new Control[] { Lb(L("Login", "Login")), _login, Lb(L("Senha", "Password")), _pass, _gm });
-        _gm.Text = L("GM", "GM");
-        form.Controls.Add(Lb(L("Sua conta no jogo", "Your game account")), 0, 2); form.Controls.Add(acc, 1, 2);
+        acc.Controls.AddRange(new Control[] { Lb(() => Loc.T("srv.login", "Login")), _login, Lb(() => Loc.T("srv.password", "Senha")), _pass, _gm });
+        Bind(() => _gm.Text = Loc.T("srv.gm", "GM"));
+        form.Controls.Add(Lb(() => Loc.T("srv.yourGameAccount", "Sua conta no jogo")), 0, 2); form.Controls.Add(acc, 1, 2);
         var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, WrapContents = false };
-        bar.Controls.Add(Btn(L("⬇ Instalar / completar", "⬇ Install / complete"), Install, accent));
-        bar.Controls.Add(Btn(L("▶ Iniciar", "▶ Start"), () => Run(L("Iniciando…", "Starting…"), s => s.Start()), accent));
-        bar.Controls.Add(Btn(L("■ Parar", "■ Stop"), () => Run(L("Parando…", "Stopping…"), s => s.Stop())));
-        bar.Controls.Add(Btn(L("⟳ Enviar meus arquivos e reiniciar", "⟳ Send my files and restart"), SendFiles));
-        bar.Controls.Add(Btn(L("👤 Criar/trocar conta", "👤 Create/change account"), CreateAccount));
-        bar.Controls.Add(Btn(L("Estado", "Status"), RefreshStatus));
-        bar.Controls.Add(Btn(L("🛠 Administrar…", "🛠 Admin…"), OpenAdmin, accent));
+        bar.Controls.Add(Btn(() => Loc.T("srv.installComplete", "⬇ Instalar / completar"), Install, accent));
+        bar.Controls.Add(Btn(() => Loc.T("srv.start", "▶ Iniciar"), () => Run(Loc.T("srv.starting", "Iniciando…"), s => s.Start()), accent));
+        bar.Controls.Add(Btn(() => Loc.T("srv.stop", "■ Parar"), () => Run(Loc.T("srv.stopping", "Parando…"), s => s.Stop())));
+        bar.Controls.Add(Btn(() => Loc.T("srv.sendMyFilesAndRestart", "⟳ Enviar meus arquivos e reiniciar"), SendFiles));
+        bar.Controls.Add(Btn(() => Loc.T("srv.createChangeAccount", "👤 Criar/trocar conta"), CreateAccount));
+        bar.Controls.Add(Btn(() => Loc.T("srv.status", "Estado"), RefreshStatus));
+        bar.Controls.Add(Btn(() => Loc.T("srv.admin", "🛠 Administrar…"), OpenAdmin, accent));
         // tudo numa tabela de linhas automáticas (o log ocupa o resto): nada depende da ordem de encaixe
         var root = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 1, RowCount = 6, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -74,13 +69,26 @@ public sealed class ServerView : UserControl
 
         _login.Text = _load("server_login") ?? "";
         VisibleChanged += (_, _) => { if (Visible) Fill(); };
+        Loc.Changed += ApplyTexts;
     }
 
-    Button Btn(string text, Action click, Color? back = null)
+    // textos fixos da tela: refeitos quando o idioma muda
+    readonly List<Action> _texts = new();
+    void Bind(Action apply) { apply(); _texts.Add(apply); }
+    void ApplyTexts() { if (IsHandleCreated) BeginInvoke(() => _texts.ForEach(a => a())); else _texts.ForEach(a => a()); }
+
+    protected override void Dispose(bool disposing)
     {
-        var b = new Button { Text = text, AutoSize = true, Height = 32, Margin = new Padding(0, 0, 8, 0), FlatStyle = back is null ? FlatStyle.Standard : FlatStyle.Flat };
+        if (disposing) Loc.Changed -= ApplyTexts;
+        base.Dispose(disposing);
+    }
+
+    Button Btn(Func<string> text, Action click, Color? back = null)
+    {
+        var b = new Button { AutoSize = true, Height = 32, Margin = new Padding(0, 0, 8, 0), FlatStyle = back is null ? FlatStyle.Standard : FlatStyle.Flat };
         if (back is { } c) { b.BackColor = c; b.ForeColor = Color.White; }
         b.Click += (_, _) => { if (!_busy) click(); };
+        Bind(() => b.Text = text());
         _buttons.Add(b);
         return b;
     }
@@ -140,15 +148,15 @@ public sealed class ServerView : UserControl
     void Install()
     {
         var pkg = _pkg.Text.Trim();
-        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(L("Escolha a pasta \"server files\" do pacote (a que tem home, etc e lib).", "Pick the package's \"server files\" folder (with home, etc and lib).")); return; }
-        if (SqlDir() is not { } sql) { Warn(L("Não achei a pasta SQL (PW_tabels.sql) ao lado do pacote.", "SQL folder (PW_tabels.sql) not found next to the package.")); return; }
-        if (!Valid(_login.Text) || !Valid(_pass.Text)) { Warn(L("Login e senha: só letras e números.", "Login and password: letters and digits only.")); return; }
+        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickThePackageSServer", "Escolha a pasta \"server files\" do pacote (a que tem home, etc e lib).")); return; }
+        if (SqlDir() is not { } sql) { Warn(Loc.T("srv.sqlFolderPwTabelsSql", "Não achei a pasta SQL (PW_tabels.sql) ao lado do pacote.")); return; }
+        if (!Valid(_login.Text) || !Valid(_pass.Text)) { Warn(Loc.T("srv.loginAndPasswordLettersAnd", "Login e senha: só letras e números.")); return; }
         var client = _client();
-        if (!Directory.Exists(Path.Combine(client, "data"))) { Warn(L("Abra o cliente na aba Verificação (pasta element).", "Set the client (element folder) in the Verification tab.")); return; }
+        if (!Directory.Exists(Path.Combine(client, "data"))) { Warn(Loc.T("srv.setTheClientElementFolder", "Abra o cliente na aba Verificação (pasta element).")); return; }
         _save("server_pkg", pkg); _save("server_base", _base.Text.Trim()); _save("server_login", _login.Text.Trim());
         var opt = new LocalServer.InstallOptions(pkg, sql, client, _login.Text.Trim(), _pass.Text, _gm.Checked);
         var s = NewServer();
-        Busy(true, L("Instalando…", "Installing…"));
+        Busy(true, Loc.T("srv.installing", "Instalando…"));
         var prog = new Progress<(string Step, double? Fraction)>(p =>
         {
             _step.Text = p.Step;
@@ -157,8 +165,8 @@ public sealed class ServerView : UserControl
         });
         Task.Run(async () =>
         {
-            try { await s.InstallAsync(opt, prog, CancellationToken.None); BeginInvoke(() => { Busy(false, L("Instalado. Clique em Iniciar.", "Installed. Click Start.")); }); }
-            catch (Exception ex) { BeginInvoke(() => { Busy(false, L("Parou: ", "Stopped: ") + ex.Message); AppendLog("ERRO: " + ex.Message); }); }
+            try { await s.InstallAsync(opt, prog, CancellationToken.None); BeginInvoke(() => { Busy(false, Loc.T("srv.installedClickStart", "Instalado. Clique em Iniciar.")); }); }
+            catch (Exception ex) { BeginInvoke(() => { Busy(false, Loc.T("srv.stopped", "Parou: ") + ex.Message); AppendLog("ERRO: " + ex.Message); }); }
         });
     }
 
@@ -180,27 +188,27 @@ public sealed class ServerView : UserControl
         if (_busy) return;
         Fill();
         var pkg = _pkg.Text.Trim(); var client = _client();
-        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(L("Escolha a pasta \"server files\" na aba Servidor.", "Pick the \"server files\" folder in the Server tab.")); return; }
+        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickTheServerFilesFolder", "Escolha a pasta \"server files\" na aba Servidor.")); return; }
         var ai = AiPolicyPath?.Invoke();
         // tudo, sempre: config inteira do servidor + elements/tasks/loja/IA do cliente (LocalServer.SendAll)
-        Run(L("Enviando todos os arquivos e reiniciando…", "Sending all files and restarting…"), s => s.SendAll(pkg, client, ai));
+        Run(Loc.T("srv.sendingAllFilesAndRestarting", "Enviando todos os arquivos e reiniciando…"), s => s.SendAll(pkg, client, ai));
     }
 
     void CreateAccount()
     {
-        if (!Valid(_login.Text) || !Valid(_pass.Text)) { Warn(L("Login e senha: só letras e números.", "Login and password: letters and digits only.")); return; }
+        if (!Valid(_login.Text) || !Valid(_pass.Text)) { Warn(Loc.T("srv.loginAndPasswordLettersAnd", "Login e senha: só letras e números.")); return; }
         _save("server_login", _login.Text.Trim());
-        Run(L("Criando a conta…", "Creating the account…"), s =>
+        Run(Loc.T("srv.creatingTheAccount", "Criando a conta…"), s =>
         {
             var err = s.Account(_login.Text.Trim(), _pass.Text, _gm.Checked);
-            s.Log(err ?? L("Conta pronta.", "Account ready."));
+            s.Log(err ?? Loc.T("srv.accountReady", "Conta pronta."));
             return new LocalServer.RunResult(err is null ? 0 : 1, err ?? "");
         });
     }
 
     void RefreshStatus()
     {
-        _step.Text = L("Consultando…", "Checking…");
+        _step.Text = Loc.T("srv.checking", "Consultando…");
         Task.Run(() =>
         {
             if (LocalServer.WslProblem() is { } p) { BeginInvoke(() => { _step.Text = p; AppendLog(p); }); return; }
@@ -209,7 +217,7 @@ public sealed class ServerView : UserControl
             BeginInvoke(() =>
             {
                 _lights.Controls.Clear();
-                if (st.Count == 0) { _step.Text = L("Servidor local ainda não instalado.", "Local server not installed yet."); return; }
+                if (st.Count == 0) { _step.Text = Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado."); return; }
                 foreach (var (name, on) in st)
                     _lights.Controls.Add(new Label
                     {
@@ -217,8 +225,8 @@ public sealed class ServerView : UserControl
                         Text = (on ? "● " : "○ ") + name, ForeColor = on ? Color.LimeGreen : Color.IndianRed,
                     });
                 _step.Text = st.TryGetValue("porta29000", out var up) && up
-                    ? L("Servidor no ar: entre no jogo pelo servidor \"Local\".", "Server is up: join the \"Local\" server in the game.")
-                    : L("Servidor parado ou subindo.", "Server stopped or starting.");
+                    ? Loc.T("srv.serverIsUpJoinThe", "Servidor no ar: entre no jogo pelo servidor \"Local\".")
+                    : Loc.T("srv.serverStoppedOrStarting", "Servidor parado ou subindo.");
             });
         });
     }
@@ -228,12 +236,12 @@ public sealed class ServerView : UserControl
     {
         Fill();
         var pkg = _pkg.Text.Trim();
-        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(L("Escolha a pasta \"server files\" do pacote.", "Pick the package's \"server files\" folder.")); return; }
-        if (!LocalServer.DistroExists()) { Warn(L("Instale o servidor local primeiro.", "Install the local server first.")); return; }
+        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickThePackageSServer2", "Escolha a pasta \"server files\" do pacote.")); return; }
+        if (!LocalServer.DistroExists()) { Warn(Loc.T("srv.installTheLocalServerFirst", "Instale o servidor local primeiro.")); return; }
         var w = new ServerAdminWindow(NewServer(), pkg, _client(), BackColor, ForeColor, _accent);
         w.Show(FindForm());
     }
 
     static bool Valid(string s) => s.Trim().Length is >= 3 and <= 20 && s.Trim().All(char.IsAsciiLetterOrDigit);
-    void Warn(string msg) => MessageBox.Show(this, msg, L("Servidor", "Server"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+    void Warn(string msg) => MessageBox.Show(this, msg, Loc.T("srv.server", "Servidor"), MessageBoxButtons.OK, MessageBoxIcon.Information);
 }

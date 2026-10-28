@@ -1,3 +1,4 @@
+using MyAceEditor.UI;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -170,11 +171,11 @@ public sealed class ServerAdmin
     /// <summary>Classes (playertemplate.h USER_CLASS_*): nomes da versão brasileira onde conhecidos.</summary>
     public static string ClassName(int cls) => cls switch
     {
-        0 => AppLang.T("Guerreiro", "Blademaster"), 1 => AppLang.T("Mago", "Wizard"), 2 => AppLang.T("Espiritualista", "Psychic"),
-        3 => AppLang.T("Feiticeira", "Venomancer"), 4 => AppLang.T("Bárbaro", "Barbarian"), 5 => AppLang.T("Mercenário", "Assassin"),
-        6 => AppLang.T("Arqueiro", "Archer"), 7 => AppLang.T("Sacerdote", "Cleric"), 8 => "Seeker", 9 => AppLang.T("Místico", "Mystic"),
+        0 => Loc.T("class.0", "Guerreiro"), 1 => Loc.T("class.1", "Mago"), 2 => Loc.T("class.2", "Espiritualista"),
+        3 => Loc.T("class.3", "Feiticeira"), 4 => Loc.T("class.4", "Bárbaro"), 5 => Loc.T("class.5", "Mercenário"),
+        6 => Loc.T("class.6", "Arqueiro"), 7 => Loc.T("class.7", "Sacerdote"), 8 => Loc.T("class.8", "Seeker"), 9 => Loc.T("class.9", "Místico"),
         10 => "Duskblade", 11 => "Stormbringer",
-        _ => AppLang.T("classe ", "class ") + cls,
+        _ => Loc.T("svadm.class", "classe ") + cls,
     };
 
     // ---------- mapas (um gs por mapa) ----------
@@ -216,7 +217,7 @@ public sealed class ServerAdmin
             foreach (Match m in Regex.Matches(text, @"""([^""]*)""\s*\{\s*(\d+)"))
                 if (!m.Groups[1].Value.Any(ch => ch is >= '⺀' and <= '鿿'))
                     map.TryAdd(int.Parse(m.Groups[2].Value), m.Groups[1].Value);
-            map.TryAdd(1, AppLang.T("Mundo principal", "Main world"));
+            map.TryAdd(1, Loc.T("svadm.mainWorld", "Mundo principal"));
             return map;
         }
         catch { return null; }

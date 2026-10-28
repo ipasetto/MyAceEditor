@@ -20,7 +20,6 @@ public sealed class AiPolicyView : UserControl
 {
     sealed record NodeRef(object Obj, AiTrigger Trig);
 
-    static string L(string pt, string en) => AppLang.T(pt, en);
 
     readonly TreeView _policies = new() { Dock = DockStyle.Fill, HideSelection = false };
     readonly TreeView _detail = new() { Dock = DockStyle.Fill, HideSelection = false };
@@ -139,14 +138,14 @@ public sealed class AiPolicyView : UserControl
         _trAll.Click += async (_, _) => await TranslateAll();
         _orig.CheckedChanged += (_, _) => { RefreshLabels(); if (_current != null) ShowFields(_detail.SelectedNode); RefreshMeaning(); };
 
-        AppLang.Changed += OnLangChanged;
+        Loc.Changed += OnLangChanged;
         ApplyTexts();
-        SetStatus(L("Abra o aipolicy.data (pasta data do cliente ou config do servidor).", "Open aipolicy.data (client data folder or server config)."));
+        SetStatus(Loc.T("ai.openAipolicyDataClientData", "Abra o aipolicy.data (pasta data do cliente ou config do servidor)."));
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { AppLang.Changed -= OnLangChanged; _cts?.Cancel(); }
+        if (disposing) { Loc.Changed -= OnLangChanged; _cts?.Cancel(); }
         base.Dispose(disposing);
     }
 
@@ -154,21 +153,21 @@ public sealed class AiPolicyView : UserControl
 
     void ApplyTexts()
     {
-        _open.Text = L("Abrir aipolicy.data…", "Open aipolicy.data…");
-        _save.Text = L("Salvar (com backup)", "Save (with backup)");
-        _lblNewOp.Text = L("  Nova operação:", "  New operation:");
-        _add.Text = "+ " + L("Operação", "Operation");
-        _del.Text = L("Excluir operação/trigger", "Delete operation/trigger");
-        _clone.Text = L("Clonar política/trigger", "Clone policy/trigger");
-        _find.PlaceholderText = L("Buscar: ID ou nome", "Search: ID or name");
-        _findNext.Text = L("Próximo", "Next");
-        _lblTarget.Text = L("Traduzir para:", "Translate to:");
-        _trSel.Text = _cts is null ? L("Traduzir seleção", "Translate selection") : L("Cancelar tradução", "Cancel translation");
-        _trAll.Text = _cts is null ? L("Traduzir tudo", "Translate all") : L("Cancelar tradução", "Cancel translation");
-        _orig.Text = L("Mostrar original / nomes técnicos", "Show original / technical names");
-        _lblLang.Text = L($"   Idioma do programa: {AppLang.NameOf(AppLang.Current)} (menu Idioma)", $"   Program language: {AppLang.NameOf(AppLang.Current)} (Language menu)");
-        _grid.Columns[0].HeaderText = L("Campo", "Field");
-        _grid.Columns[1].HeaderText = L("Valor", "Value");
+        _open.Text = Loc.T("ai.openAipolicyData", "Abrir aipolicy.data…");
+        _save.Text = Loc.T("ai.saveWithBackup", "Salvar (com backup)");
+        _lblNewOp.Text = Loc.T("ai.newOperation", "  Nova operação:");
+        _add.Text = "+ " + Loc.T("ai.operation", "Operação");
+        _del.Text = Loc.T("ai.deleteOperationTrigger", "Excluir operação/trigger");
+        _clone.Text = Loc.T("ai.clonePolicyTrigger", "Clonar política/trigger");
+        _find.PlaceholderText = Loc.T("ai.searchIdOrName", "Buscar: ID ou nome");
+        _findNext.Text = Loc.T("ai.next", "Próximo");
+        _lblTarget.Text = Loc.T("ai.translateTo", "Traduzir para:");
+        _trSel.Text = _cts is null ? Loc.T("ai.translateSelection", "Traduzir seleção") : Loc.T("ai.cancelTranslation", "Cancelar tradução");
+        _trAll.Text = _cts is null ? Loc.T("ai.translateAll", "Traduzir tudo") : Loc.T("ai.cancelTranslation", "Cancelar tradução");
+        _orig.Text = Loc.T("ai.showOriginalTechnicalNames", "Mostrar original / nomes técnicos");
+        _lblLang.Text = string.Format(Loc.T("ai.programLanguage0LanguageMenu", "   Idioma do programa: {0} (menu Idioma)"), AppLang.NameOf(AppLang.Current));
+        _grid.Columns[0].HeaderText = Loc.T("ai.field", "Campo");
+        _grid.Columns[1].HeaderText = Loc.T("ai.value", "Valor");
         int keep = Math.Max(0, _newOp.SelectedIndex);
         _newOp.Items.Clear();
         foreach (var k in AiSchema.KnownOps) _newOp.Items.Add($"{k} {AiMeaning.OpTitle(k)}");
@@ -215,15 +214,23 @@ public sealed class AiPolicyView : UserControl
 
     // ---------- arquivo ----------
 
-    // Último aipolicy.data aberto: carregado sozinho ao abrir o programa (em segundo plano).
-    static string RememberFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "aipolicy_path.txt");
-    bool _rememberTried;
+    /// <summary>
+    /// Outra pasta do PW foi aberta: a aba passa a mostrar o aipolicy.data dela (element\data), em segundo plano.
+    /// Sem esse arquivo no jogo novo, o do PW anterior é fechado (nunca fica um arquivo de outro jogo aberto).
+    /// O EditorForm já perguntou se salva o que estava pendente.
+    /// </summary>
+    int _loadGen;
 
-    public void LoadRememberedIfNeeded()
+    public void GameFolderChanged(string? elementDir)
     {
-        if (_rememberTried || _file is not null) return;
-        _rememberTried = true;
-        try { var p = File.ReadAllText(RememberFile).Trim(); if (File.Exists(p)) _ = LoadFileAsync(p, quiet: true); } catch { }
+        _cts?.Cancel();
+        _dirty = false; _loadGen++;
+        var p = elementDir is null ? null : Path.Combine(elementDir, "data", "aipolicy.data");
+        if (p is not null && File.Exists(p)) { _ = LoadFileAsync(p, quiet: true); return; }
+        _file = null; _path = null;
+        _policies.Nodes.Clear(); ClearDetail(); _meaning.Text = ""; _report.Visible = false;
+        UpdateButtons();
+        SetStatus(Loc.T("ai.openAipolicyDataClientData", "Abra o aipolicy.data (pasta data do cliente ou config do servidor)."));
     }
 
     public void LoadFile(string path) => _ = LoadFileAsync(path, quiet: false);
@@ -231,17 +238,19 @@ public sealed class AiPolicyView : UserControl
     async Task LoadFileAsync(string path, bool quiet)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        SetStatus(L("Carregando aipolicy.data…", "Loading aipolicy.data…"));
+        int gen = ++_loadGen;   // trocas rápidas de pasta: só a leitura mais recente é mostrada
+        SetStatus(Loc.T("ai.loadingAipolicyData", "Carregando aipolicy.data…"));
         AiPolicyFile parsed; bool rt;
         try { (parsed, rt) = await Task.Run(() => { var f = new AiPolicyFile(path); return (f, f.Ok && f.RoundTripIdentical()); }); }
         catch (Exception ex)
         {
-            SetStatus(L("Falha ao ler o aipolicy.data.", "Failed to read aipolicy.data."));
+            if (gen != _loadGen) return;
+            SetStatus(Loc.T("ai.failedToReadAipolicyData", "Falha ao ler o aipolicy.data."));
             if (!quiet) MessageBox.Show(this, ex.Message, "AI Policy", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
+        if (gen != _loadGen) return;
         _file = parsed; _path = path; _dirty = false;
-        try { Directory.CreateDirectory(Path.GetDirectoryName(RememberFile)!); File.WriteAllText(RememberFile, path); } catch { }
         ShowFile(path, sw.ElapsedMilliseconds, rt);
     }
 
@@ -252,11 +261,11 @@ public sealed class AiPolicyView : UserControl
         _policies.Nodes.Clear(); ClearDetail(); _meaning.Text = "";
         if (!_file.Ok)
         {
-            _report.Text = "Leitura INCOMPLETA — edição desativada para não corromper o arquivo.\r\n\r\n" + _file.Error!.Replace("\n", "\r\n") +
-                "\r\n\r\nO tamanho de cada operação não está gravado no arquivo (PW-KB §S18). Complemente o layout do tipo indicado em " +
-                "aipolicy_layouts.json (ao lado do .exe) e abra de novo. Exemplo:\r\n{ \"ops\": { \"17\": \"i:uMonsterID i:uNum\" } }";
+            _report.Text = (Loc.T("ai.incompleteRead", "Leitura INCOMPLETA — edição desativada para não corromper o arquivo.") + "\n\n" + _file.Error! + "\n\n" +
+                Loc.T("ai.incompleteHow", "O tamanho de cada operação não está gravado no arquivo (PW-KB §S18). Complemente o layout do tipo indicado em aipolicy_layouts.json (ao lado do .exe) e abra de novo. Exemplo:") +
+                "\n{ \"ops\": { \"17\": \"i:uMonsterID i:uNum\" } }").Replace("\r\n", "\n").Replace("\n", "\r\n");
             _report.Visible = true; UpdateButtons();
-            SetStatus($"{Path.GetFileName(path)}: leitura incompleta — veja o relatório.");
+            SetStatus(string.Format(Loc.T("ai.incompleteStatus", "{0}: leitura incompleta — veja o relatório."), Path.GetFileName(path)));
             return;
         }
         _report.Visible = false;
@@ -269,8 +278,9 @@ public sealed class AiPolicyView : UserControl
         }
         _policies.EndUpdate();
         UpdateButtons();
-        SetStatus($"{Path.GetFileName(path)}: versão {_file.Version} · {_file.Policies.Count:N0} políticas · round-trip {(rt ? "IDÊNTICO ✓" : "DIFERENTE ✗ (não salve!)")} · " +
-                  L($"carregado em {(parseMs + sw.ElapsedMilliseconds) / 1000.0:0.0} s", $"loaded in {(parseMs + sw.ElapsedMilliseconds) / 1000.0:0.0} s"));
+        SetStatus(string.Format(Loc.T("ai.fileStatus", "{0}: versão {1} · {2:N0} políticas · round-trip {3}"), Path.GetFileName(path), _file.Version, _file.Policies.Count,
+                      rt ? Loc.T("ai.roundTripSame", "IDÊNTICO ✓") : Loc.T("ai.roundTripDiff", "DIFERENTE ✗ (não salve!)")) + " · " +
+                  string.Format(Loc.T("ai.loadedIn000", "carregado em {0:0.0} s"), (parseMs + sw.ElapsedMilliseconds) / 1000.0));
         if (!rt) _save.Enabled = false;
     }
 
@@ -284,12 +294,12 @@ public sealed class AiPolicyView : UserControl
     string PolicyLabel(AiPolicy p)
     {
         int users = _ctx.UsedBy(p.Id).Count;
-        return L($"Política {p.Id}  ({p.Triggers.Count} triggers", $"Policy {p.Id}  ({p.Triggers.Count} triggers")
-               + (users > 0 ? L($" · {users} monstro(s)", $" · {users} monster(s)") : "") + ")";
+        return string.Format(Loc.T("ai.policy01Triggers", "Política {0}  ({1} triggers"), p.Id, p.Triggers.Count)
+               + (users > 0 ? string.Format(Loc.T("ai.0MonsterS", " · {0} monstro(s)"), users) : "") + ")";
     }
 
     string TriggerLabel(AiTrigger t) =>
-        $"[{t.Id}] {AiMeaning.TriggerName(t, _ctx, _orig.Checked)}{(t.Active == 0 ? L("  (inativo)", "  (inactive)") : "")}";
+        $"[{t.Id}] {AiMeaning.TriggerName(t, _ctx, _orig.Checked)}{(t.Active == 0 ? Loc.T("ai.inactive", "  (inativo)") : "")}";
 
     string CondLabel(AiCondNode n) => _orig.Checked
         ? $"{n.Type} {AiSchema.CondName(n.Type)}{(n.Param.Length > 0 ? "  " + CondParamText(n) : "")}"
@@ -310,11 +320,11 @@ public sealed class AiPolicyView : UserControl
 
     string TargetLabel(AiTarget a) => _orig.Checked
         ? $"alvo: {a.Type} {AiSchema.TargetName(a.Type)}"
-        : L("alvo: ", "target: ") + AiMeaning.TargetText(a);
+        : Loc.T("ai.target", "alvo: ") + AiMeaning.TargetText(a);
 
-    string CondGroupLabel() => L("SE (condição)", "IF (condition)");
-    string OpsGroupLabel(AiTrigger t) => L($"ENTÃO (operações: {t.Ops.Count})", $"THEN (operations: {t.Ops.Count})");
-    string PropsLabel() => L("Gatilho (propriedades)", "Trigger (properties)");
+    string CondGroupLabel() => Loc.T("ai.ifCondition", "SE (condição)");
+    string OpsGroupLabel(AiTrigger t) => string.Format(Loc.T("ai.thenOperations0", "ENTÃO (operações: {0})"), t.Ops.Count);
+    string PropsLabel() => Loc.T("ai.triggerProperties", "Gatilho (propriedades)");
 
     void RefreshLabels()
     {
@@ -405,7 +415,7 @@ public sealed class AiPolicyView : UserControl
     void TranslationRow(string raw)
     {
         var body = AiChannel.Split(raw).Body;
-        if (!_orig.Checked && _tr.TryGet(body, TargetLang) is { } tr) Row("      ↳ " + L("tradução", "translation"), tr, _ => null, readOnly: true);
+        if (!_orig.Checked && _tr.TryGet(body, TargetLang) is { } tr) Row("      ↳ " + Loc.T("ai.translation", "tradução"), tr, _ => null, readOnly: true);
     }
 
     void ShowFields(TreeNode? node)
@@ -416,20 +426,20 @@ public sealed class AiPolicyView : UserControl
         {
             case AiTrigger t:
                 Row("ID", t.Id.ToString(), v => Try(() => t.Id = int.Parse(v, CultureInfo.InvariantCulture)));
-                Row(L("dwVersion (define o layout das operações)", "dwVersion (sets the operation layout)"), t.Version.ToString(), _ => null, readOnly: true);
-                Row(L("Ativo (0/1)", "Active (0/1)"), t.Active.ToString(), v => Try(() => t.Active = (byte)(int.Parse(v) != 0 ? 1 : 0)));
-                Row(L("Executa (0/1)", "Run (0/1)"), t.Run.ToString(), v => Try(() => t.Run = (byte)(int.Parse(v) != 0 ? 1 : 0)));
-                Row(L("Ataque válido (0/1)", "Attack valid (0/1)"), t.AttackValid.ToString(), v => Try(() => t.AttackValid = (byte)(int.Parse(v) != 0 ? 1 : 0)));
-                Row(L("Nome (GBK, até 127 bytes)", "Name (GBK, up to 127 bytes)"), t.Name, v => Try(() => t.Name = v));
+                Row(Loc.T("ai.dwversionSetsTheOperationLayout", "dwVersion (define o layout das operações)"), t.Version.ToString(), _ => null, readOnly: true);
+                Row(Loc.T("ai.active01", "Ativo (0/1)"), t.Active.ToString(), v => Try(() => t.Active = (byte)(int.Parse(v) != 0 ? 1 : 0)));
+                Row(Loc.T("ai.run01", "Executa (0/1)"), t.Run.ToString(), v => Try(() => t.Run = (byte)(int.Parse(v) != 0 ? 1 : 0)));
+                Row(Loc.T("ai.attackValid01", "Ataque válido (0/1)"), t.AttackValid.ToString(), v => Try(() => t.AttackValid = (byte)(int.Parse(v) != 0 ? 1 : 0)));
+                Row(Loc.T("ai.nameGbkUpTo127", "Nome (GBK, até 127 bytes)"), t.Name, v => Try(() => t.Name = v));
                 TranslationRow(t.Name);
                 break;
             case AiCondNode c:
-                Row($"{L("Tipo", "Type")} ({AiSchema.CondName(c.Type)})", c.Type.ToString(), v => Try(() => c.Type = int.Parse(v, CultureInfo.InvariantCulture)));
+                Row($"{Loc.T("ai.type", "Tipo")} ({AiSchema.CondName(c.Type)})", c.Type.ToString(), v => Try(() => c.Type = int.Parse(v, CultureInfo.InvariantCulture)));
                 HintRow(AiMeaning.CondTitle(c.Type));
-                Row(L("Parâmetro (hex; mesmo tamanho)", "Parameter (hex; same size)"), AiPolicyFile.Hex(c.Param, 0, c.Param.Length), v => Try(() =>
+                Row(Loc.T("ai.parameterHexSameSize", "Parâmetro (hex; mesmo tamanho)"), AiPolicyFile.Hex(c.Param, 0, c.Param.Length), v => Try(() =>
                 {
                     var b = v.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => Convert.ToByte(x, 16)).ToArray();
-                    if (b.Length != c.Param.Length) throw new InvalidDataException($"O parâmetro tem {c.Param.Length} bytes; informe exatamente {c.Param.Length}.");
+                    if (b.Length != c.Param.Length) throw new InvalidDataException(string.Format(Loc.T("ai.paramSize", "O parâmetro tem {0} bytes; informe exatamente {0}."), c.Param.Length));
                     c.Param = b;
                 }));
                 if (c.Param.Length % 4 == 0)
@@ -447,18 +457,18 @@ public sealed class AiPolicyView : UserControl
                     }
                 break;
             case AiOp o:
-                Row(L("Tipo", "Type"), $"{o.Type} {AiSchema.OpName(o.Type)}", _ => null, readOnly: true);
+                Row(Loc.T("ai.type", "Tipo"), $"{o.Type} {AiSchema.OpName(o.Type)}", _ => null, readOnly: true);
                 HintRow(AiMeaning.OpTitle(o.Type));
                 var lay = AiSchema.Op(o.Type);
-                if (lay is null) { Row(L("Parâmetro (hex)", "Parameter (hex)"), AiPolicyFile.Hex(o.Param, 0, o.Param.Length), _ => null, readOnly: true); break; }
+                if (lay is null) { Row(Loc.T("ai.parameterHex", "Parâmetro (hex)"), AiPolicyFile.Hex(o.Param, 0, o.Param.Length), _ => null, readOnly: true); break; }
                 FieldRows(lay, tag.Trig.Version, () => o.Param, b => o.Param = b);
-                if (lay.Guess) Row(L("(layout inferido, não provado)", "(inferred layout, not proven)"), "", _ => null, readOnly: true);
+                if (lay.Guess) Row(Loc.T("ai.inferredLayoutNotProven", "(layout inferido, não provado)"), "", _ => null, readOnly: true);
                 break;
             case AiTarget a:
-                Row(L("Tipo do alvo (0..18)", "Target type (0..18)"), a.Type.ToString(), v => Try(() =>
+                Row(Loc.T("ai.targetType018", "Tipo do alvo (0..18)"), a.Type.ToString(), v => Try(() =>
                 {
                     int nt = int.Parse(v, CultureInfo.InvariantCulture);
-                    var nl = AiSchema.Target(nt) ?? throw new InvalidDataException($"Alvo {nt} sem layout (aipolicy_layouts.json).");
+                    var nl = AiSchema.Target(nt) ?? throw new InvalidDataException(string.Format(Loc.T("ai.targetNoLayout", "Alvo {0} sem layout (aipolicy_layouts.json)."), nt));
                     a.Type = nt; a.Param = nl.Encode(tag.Trig.Version, nl.Zero(tag.Trig.Version));
                 }));
                 HintRow(AiMeaning.TargetText(a));
@@ -504,7 +514,7 @@ public sealed class AiPolicyView : UserControl
         if (e.ColumnIndex != 1 || e.RowIndex < 0 || e.RowIndex >= _setters.Count || _file is not { Ok: true }) return;
         var text = Convert.ToString(_grid.Rows[e.RowIndex].Cells[1].Value) ?? "";
         var err = _setters[e.RowIndex](text);
-        if (err != null) MessageBox.Show(this, err, L("Valor inválido", "Invalid value"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        if (err != null) MessageBox.Show(this, err, Loc.T("ai.invalidValue", "Valor inválido"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
         else MarkDirty();
         var node = _detail.SelectedNode;
         ShowFields(node);                       // recarrega os valores já normalizados
@@ -545,7 +555,7 @@ public sealed class AiPolicyView : UserControl
             t.Ops.Remove(op); MarkDirty(); ShowTrigger(t);
         }
         else if (_policies.SelectedNode is { Tag: AiTrigger tr, Parent.Tag: AiPolicy pol } pn &&
-                 MessageBox.Show(this, $"Excluir o trigger {tr.Id}? Outros triggers que o ativam por ID ficarão apontando para o vazio.", "AI Policy", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                 MessageBox.Show(this, string.Format(Loc.T("ai.deleteTriggerAsk", "Excluir o trigger {0}? Outros triggers que o ativam por ID ficarão apontando para o vazio."), tr.Id), "AI Policy", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
         {
             pol.Triggers.Remove(tr); pn.Remove();
             ClearDetail(); MarkDirty();
@@ -566,7 +576,7 @@ public sealed class AiPolicyView : UserControl
                 var node = new TreeNode(TriggerLabel(copy)) { Tag = copy };
                 pn.Nodes.Insert(pn.Nodes.IndexOf(_policies.SelectedNode) + 1, node);
                 _policies.SelectedNode = node; MarkDirty();
-                SetStatus(L($"Trigger {tr.Id} clonado como {copy.Id}", $"Trigger {tr.Id} cloned as {copy.Id}"));
+                SetStatus(string.Format(Loc.T("ai.trigger0ClonedAs1", "Trigger {0} clonado como {1}"), tr.Id, copy.Id));
                 break;
             }
             case { Tag: AiPolicy p }:
@@ -576,8 +586,7 @@ public sealed class AiPolicyView : UserControl
                 var pn = new TreeNode(PolicyLabel(copy)) { Tag = copy };
                 foreach (var t in copy.Triggers) pn.Nodes.Add(new TreeNode(TriggerLabel(t)) { Tag = t });
                 _policies.Nodes.Add(pn); _policies.SelectedNode = pn; MarkDirty();
-                SetStatus(L($"Política {p.Id} clonada como {copy.Id} (no fim da lista). Para um monstro usar, ponha esse ID no campo de IA dele.",
-                            $"Policy {p.Id} cloned as {copy.Id} (end of list). Set this ID in a monster's AI field to use it."));
+                SetStatus(string.Format(Loc.T("ai.policy0ClonedAs1", "Política {0} clonada como {1} (no fim da lista). Para um monstro usar, ponha esse ID no campo de IA dele."), p.Id, copy.Id));
                 break;
             }
         }
@@ -605,7 +614,7 @@ public sealed class AiPolicyView : UserControl
             n.EnsureVisible(); _policies.SelectedNode = n; _policies.Focus();
             return;
         }
-        SetStatus(L($"Nada encontrado para \"{q}\"", $"Nothing found for \"{q}\""));
+        SetStatus(string.Format(Loc.T("ai.nothingFoundFor0", "Nada encontrado para \"{0}\""), q));
     }
 
     // ---------- tradução ----------
@@ -617,11 +626,11 @@ public sealed class AiPolicyView : UserControl
         if (_file is not { Ok: true }) return Enumerable.Empty<string>();
         if (_current is null)
         {
-            if (_policies.SelectedNode?.Tag is AiPolicy p) { label = L($"política {p.Id}", $"policy {p.Id}"); return AiMeaning.PolicyTexts(p); }
+            if (_policies.SelectedNode?.Tag is AiPolicy p) { label = string.Format(Loc.T("ai.policy0", "política {0}"), p.Id); return AiMeaning.PolicyTexts(p); }
             return Enumerable.Empty<string>();
         }
-        if (_detail.SelectedNode?.Tag is NodeRef { Obj: AiOp op }) { label = L("operação", "operation"); return AiMeaning.OpTexts(op, _current.Version); }
-        label = L($"trigger {_current.Id}", $"trigger {_current.Id}");
+        if (_detail.SelectedNode?.Tag is NodeRef { Obj: AiOp op }) { label = Loc.T("ai.operation2", "operação"); return AiMeaning.OpTexts(op, _current.Version); }
+        label = string.Format(Loc.T("ai.trigger0", "trigger {0}"), _current.Id);
         return AiMeaning.TriggerTexts(_current);
     }
 
@@ -647,7 +656,7 @@ public sealed class AiPolicyView : UserControl
     {
         if (_cts != null) { _cts.Cancel(); return Task.CompletedTask; }
         if (_file is not { Ok: true }) return Task.CompletedTask;
-        return RunTranslation(Pending(AiMeaning.FileTexts(_file)), L("arquivo inteiro", "whole file"), askAbove: 0);
+        return RunTranslation(Pending(AiMeaning.FileTexts(_file)), Loc.T("ai.wholeFile", "arquivo inteiro"), askAbove: 0);
     }
 
     async Task RunTranslation(List<string> todo, string scope, int askAbove)
@@ -656,18 +665,14 @@ public sealed class AiPolicyView : UserControl
         if (todo.Count == 0)
         {
             AfterTranslation();
-            SetStatus(L($"Nada a traduzir em {scope}: já traduzido (cache/glossário) ou já está em {AppLang.NameOf(lang)}.",
-                        $"Nothing to translate in {scope}: already translated (cache/glossary) or already in {AppLang.NameOf(lang)}."));
+            SetStatus(string.Format(Loc.T("ai.nothingToTranslateIn0", "Nada a traduzir em {0}: já traduzido (cache/glossário) ou já está em {1}."), scope, AppLang.NameOf(lang)));
             return;
         }
         if (todo.Count > askAbove &&
             MessageBox.Show(this,
-                L($"Traduzir {todo.Count:N0} texto(s) distintos para {AppLang.NameOf(lang)} usando {_tr.ProviderName}?\n\n" +
+                string.Format(Loc.T("ai.translateAsk", "Traduzir {0:N0} texto(s) distintos para {1} usando {2}?\n\n" +
                   "Os textos serão enviados à internet. O resultado fica salvo em cache (não será pedido de novo) e " +
-                  "NÃO altera o aipolicy.data.",
-                  $"Translate {todo.Count:N0} distinct text(s) to {AppLang.NameOf(lang)} using {_tr.ProviderName}?\n\n" +
-                  "The texts will be sent over the internet. The result is cached (not requested again) and " +
-                  "does NOT change aipolicy.data."),
+                  "NÃO altera o aipolicy.data."), todo.Count, AppLang.NameOf(lang), _tr.ProviderName),
                 "AI Policy", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             return;
 
@@ -675,21 +680,19 @@ public sealed class AiPolicyView : UserControl
         ApplyTexts(); UpdateButtons();
         var progress = new Progress<TranslateProgress>(p =>
             SetStatus(p.WaitSeconds > 0
-                ? L($"Limite de uso do serviço: aguardando {p.WaitSeconds} s para continuar ({p.Done:N0} / {p.Total:N0})…",
-                    $"Service rate limit: waiting {p.WaitSeconds} s before continuing ({p.Done:N0} / {p.Total:N0})…")
-                : L($"Traduzindo… {p.Done:N0} / {p.Total:N0}", $"Translating… {p.Done:N0} / {p.Total:N0}")));
+                ? string.Format(Loc.T("ai.serviceRateLimitWaiting0", "Limite de uso do serviço: aguardando {0} s para continuar ({1:N0} / {2:N0})…"), p.WaitSeconds, p.Done, p.Total)
+                : string.Format(Loc.T("ai.translating0N01N0", "Traduzindo… {0:N0} / {1:N0}"), p.Done, p.Total)));
         try
         {
             var r = await _tr.TranslateAsync(todo, lang, progress, _cts.Token);
-            string msg = L($"Tradução ({scope}): {r.Translated:N0} ok", $"Translation ({scope}): {r.Translated:N0} ok");
-            if (r.Failed > 0) msg += L($" · {r.Failed:N0} falharam", $" · {r.Failed:N0} failed");
-            if (r.NotTried > 0) msg += L($" · {r.NotTried:N0} pendentes (serviço fora do ar: clique de novo para continuar)",
-                                         $" · {r.NotTried:N0} pending (service down: click again to resume)");
+            string msg = string.Format(Loc.T("ai.translation01N0Ok", "Tradução ({0}): {1:N0} ok"), scope, r.Translated);
+            if (r.Failed > 0) msg += string.Format(Loc.T("ai.0N0Failed", " · {0:N0} falharam"), r.Failed);
+            if (r.NotTried > 0) msg += string.Format(Loc.T("ai.0N0PendingServiceDown", " · {0:N0} pendentes (serviço fora do ar: clique de novo para continuar)"), r.NotTried);
             if (r.LastError != null && (r.Failed > 0 || r.NotTried > 0)) msg += " · " + r.LastError;
             SetStatus(msg);
         }
-        catch (OperationCanceledException) { SetStatus(L("Tradução cancelada (o que já foi traduzido ficou em cache).", "Translation cancelled (what was already translated stays cached).")); }
-        catch (Exception ex) { SetStatus(L("Erro na tradução: ", "Translation error: ") + ex.Message); }
+        catch (OperationCanceledException) { SetStatus(Loc.T("ai.translationCancelledWhatWasAlready", "Tradução cancelada (o que já foi traduzido ficou em cache).")); }
+        catch (Exception ex) { SetStatus(Loc.T("ai.translationError", "Erro na tradução: ") + ex.Message); }
         finally
         {
             _cts?.Dispose(); _cts = null;
@@ -715,9 +718,10 @@ public sealed class AiPolicyView : UserControl
         {
             var bk = _file.Save(_path);
             _dirty = false; _save.Enabled = false;
-            SetStatus($"Salvo: {Path.GetFileName(_path)}" + (bk is null ? "" : $" · backup {Path.GetFileName(bk)}") + " — grave o MESMO arquivo no cliente (data/) e no servidor (gamed/config/).");
+            SetStatus(string.Format(Loc.T("ai.saved", "Salvo: {0}"), Path.GetFileName(_path)) + (bk is null ? "" : " · backup " + Path.GetFileName(bk))
+                + Loc.T("ai.savedHint", " — grave o MESMO arquivo no cliente (data/) e no servidor (gamed/config/)."));
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Erro ao salvar", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ai.saveError", "Erro ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
     /// <summary>Salvar tudo / Salvar e enviar ao servidor.</summary>
@@ -725,7 +729,7 @@ public sealed class AiPolicyView : UserControl
     public string? FilePath => _file is { Ok: true } ? _path : null;
     public string? SaveIfDirty() { if (!_dirty) return null; SaveFile(); return _dirty ? null : _path; }
 
-    void MarkDirty() { _dirty = true; UpdateButtons(); SetStatus(L("Alterado — não salvo.", "Changed — not saved.")); }
+    void MarkDirty() { _dirty = true; UpdateButtons(); SetStatus(Loc.T("ai.changedNotSaved", "Alterado — não salvo.")); }
 
     void UpdateButtons()
     {

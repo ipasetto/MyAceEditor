@@ -1,3 +1,4 @@
+using MyAceEditor.UI;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -63,12 +64,12 @@ public sealed class LocalServer
             var r = Wsl("--status", timeoutMs: 60_000);
             var t = r.Output;
             if (t.Contains("virtualiza", StringComparison.OrdinalIgnoreCase) && (t.Contains("não está habilitada") || t.Contains("not enabled") || t.Contains("n\u00e3o est\u00e1")))
-                return "O WSL está instalado, mas a virtualização ainda não está ativa. Reinicie o computador (a \"Plataforma de Máquina Virtual\" só vale depois de reiniciar).";
+                return Loc.T("ls.wslNoVirt", "O WSL está instalado, mas a virtualização ainda não está ativa. Reinicie o computador (a \"Plataforma de Máquina Virtual\" só vale depois de reiniciar).");
             if (t.Contains("não está instalado") || t.Contains("is not installed"))
-                return "O WSL não está instalado. Rode \"wsl --install --no-distribution\" como administrador e reinicie.";
+                return Loc.T("ls.wslMissing", "O WSL não está instalado. Rode \"wsl --install --no-distribution\" como administrador e reinicie.");
             return null;
         }
-        catch (Exception ex) { return "Não consegui rodar o wsl.exe: " + ex.Message; }
+        catch (Exception ex) { return Loc.T("ls.wslRunFail", "Não consegui rodar o wsl.exe: ") + ex.Message; }
     }
 
     public static bool DistroExists()
@@ -89,21 +90,21 @@ public sealed class LocalServer
         if (!DistroExists())
         {
             var tar = await DownloadRootfsAsync(progress, ct);
-            progress?.Report(("Criando o Linux do servidor (" + Distro + ")", null));
+            progress?.Report((string.Format(Loc.T("ls.creatingLinux", "Criando o Linux do servidor ({0})"), Distro), null));
             var vm = Path.Combine(BaseDir, "vm");
             Directory.CreateDirectory(vm);
             var r = Wsl($"--import {Distro} \"{vm}\" \"{tar}\" --version 2", line: Log);
-            if (r.Code != 0) throw new InvalidOperationException("wsl --import falhou:\n" + r.Output);
+            if (r.Code != 0) throw new InvalidOperationException(Loc.T("ls.importFailed", "wsl --import falhou:") + "\n" + r.Output);
         }
 
         // scripts do programa → /root/pw na distro
-        progress?.Report(("Preparando a instalação", null));
+        progress?.Report((Loc.T("ls.preparing", "Preparando a instalação"), null));
         var here = Path.Combine(AppContext.BaseDirectory, "Server");
         foreach (var f in new[] { "provision.sh", "pwctl.sh" })
         {
             var text = File.ReadAllText(Path.Combine(here, f));
             var w = Bash($"mkdir -p /root/pw && cat > /root/pw/{f} && chmod +x /root/pw/{f}", stdin: text, timeoutMs: 120_000);
-            if (w.Code != 0) throw new InvalidOperationException("Não consegui copiar " + f + " para o Linux:\n" + w.Output);
+            if (w.Code != 0) throw new InvalidOperationException(string.Format(Loc.T("ls.copyFailed", "Não consegui copiar {0} para o Linux:"), f) + "\n" + w.Output);
         }
 
         var pass = DbPassword();
@@ -114,21 +115,21 @@ public sealed class LocalServer
             if (line.StartsWith("##PASSO ")) progress?.Report((line[8..], null));
             else if (line.StartsWith("##ERRO ")) error = line[7..];
         });
-        if (res.Code != 0 || error is not null) throw new InvalidOperationException("A instalação parou: " + (error ?? "código " + res.Code));
+        if (res.Code != 0 || error is not null) throw new InvalidOperationException(Loc.T("ls.installStopped", "A instalação parou: ") + (error ?? string.Format(Loc.T("ls.exitCode", "código {0}"), res.Code)));
 
         // par cliente × servidor na CÓPIA do servidor (elements, tasks e loja iguais ao cliente; senão o login é recusado)
-        progress?.Report(("Igualando o servidor ao seu cliente (elements, tasks, loja)", null));
+        progress?.Report((Loc.T("ls.matching", "Igualando o servidor ao seu cliente (elements, tasks, loja)"), null));
         FixPair(o.ClientElement, null, Path.Combine(o.ServerFiles, "home", "gamed", "config"));
 
-        progress?.Report(("Criando a sua conta", null));
+        progress?.Report((Loc.T("ls.creatingAccount", "Criando a sua conta"), null));
         var acc = Account(o.Login, o.Password, o.Gm);
         if (acc is not null) throw new InvalidOperationException(acc);
 
-        progress?.Report(("Colocando \"Local\" na lista de servidores do cliente", null));
+        progress?.Report((Loc.T("ls.addingLocal", "Colocando \"Local\" na lista de servidores do cliente"), null));
         AddToServerList(o.ClientElement);
-        progress?.Report(("Desligando a página de anúncios da internet que derruba o cliente", null));
+        progress?.Report((Loc.T("ls.disablingAds", "Desligando a página de anúncios da internet que derruba o cliente"), null));
         FixClientPages(o.ClientElement);
-        progress?.Report(("Pronto", 1));
+        progress?.Report((Loc.T("ls.done", "Pronto"), 1));
     }
 
     async Task<string> DownloadRootfsAsync(IProgress<(string, double?)>? progress, CancellationToken ct)
@@ -140,10 +141,10 @@ public sealed class LocalServer
         http.DefaultRequestHeaders.UserAgent.ParseAdd("MyAceEditor");
         var sums = await http.GetStringAsync(SumsUrl, ct);
         var expected = sums.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.EndsWith(Path.GetFileName(tar)))?.Split(' ')[0];
-        if (expected is null) throw new InvalidOperationException("Não achei o SHA-256 da imagem do Ubuntu.");
+        if (expected is null) throw new InvalidOperationException(Loc.T("ls.noSha", "Não achei o SHA-256 da imagem do Ubuntu."));
         if (File.Exists(tar) && Sha256(tar) == expected) return tar;
 
-        progress?.Report(("Baixando o Ubuntu 22.04 oficial (~234 MB)", 0));
+        progress?.Report((Loc.T("ls.downloading", "Baixando o Ubuntu 22.04 oficial (~234 MB)"), 0));
         var part = tar + ".part";
         using (var resp = await http.GetAsync(RootfsUrl, HttpCompletionOption.ResponseHeadersRead, ct))
         {
@@ -155,10 +156,10 @@ public sealed class LocalServer
             while ((n = await src.ReadAsync(buf, ct)) > 0)
             {
                 await dst.WriteAsync(buf.AsMemory(0, n), ct); got += n;
-                if (total > 0 && got - last > 4 << 20) { last = got; progress?.Report(($"Baixando o Ubuntu 22.04 oficial ({got >> 20} de {total >> 20} MB)", (double)got / total)); }
+                if (total > 0 && got - last > 4 << 20) { last = got; progress?.Report((string.Format(Loc.T("ls.downloadingMb", "Baixando o Ubuntu 22.04 oficial ({0} de {1} MB)"), got >> 20, total >> 20), (double)got / total)); }
             }
         }
-        if (Sha256(part) != expected) { File.Delete(part); throw new InvalidOperationException("O arquivo baixado não confere com o SHA-256 oficial; apaguei e nada foi instalado."); }
+        if (Sha256(part) != expected) { File.Delete(part); throw new InvalidOperationException(Loc.T("ls.shaMismatch", "O arquivo baixado não confere com o SHA-256 oficial; apaguei e nada foi instalado.")); }
         File.Move(part, tar, true);
         return tar;
     }
@@ -197,22 +198,22 @@ public sealed class LocalServer
         Directory.CreateDirectory(stage);
         var data = Path.Combine(clientElement, "data");
         foreach (var f in new[] { "elements.data", "tasks.data" })
-            if (File.Exists(Path.Combine(data, f))) { File.Copy(Path.Combine(data, f), Path.Combine(stage, f)); Log("enviando " + f + " do cliente"); }
+            if (File.Exists(Path.Combine(data, f))) { File.Copy(Path.Combine(data, f), Path.Combine(stage, f)); Log(string.Format(Loc.T("ls.sendingClient", "enviando {0} do cliente"), f)); }
         foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
             if (File.Exists(Path.Combine(data, cn)))
                 try
                 {
                     var shop = GShopFile.ReadClient(File.ReadAllBytes(Path.Combine(data, cn)));
                     // item sem preço derruba o gs: fica o gshopsev que o servidor já tem (o login acusa versão até corrigir)
-                    if (shop.ServerProblems() is { Count: > 0 } bad) { Log($"##ERRO {cn} NÃO enviado, o gs não subiria: " + string.Join("; ", bad)); continue; }
-                    File.WriteAllBytes(Path.Combine(stage, sn), shop.WriteServer()); Log($"enviando {sn} (refeito do {cn} do cliente)");
+                    if (shop.ServerProblems() is { Count: > 0 } bad) { Log("##ERRO " + string.Format(Loc.T("ls.shopNotSent", "{0} NÃO enviado, o gs não subiria: "), cn) + string.Join("; ", bad)); continue; }
+                    File.WriteAllBytes(Path.Combine(stage, sn), shop.WriteServer()); Log(string.Format(Loc.T("ls.sendingRebuilt", "enviando {0} (refeito do {1} do cliente)"), sn, cn));
                 }
-                catch (Exception ex) { Log($"não consegui refazer {sn}: {ex.Message}"); }
+                catch (Exception ex) { Log(string.Format(Loc.T("ls.rebuildFailed", "não consegui refazer {0}: {1}"), sn, ex.Message)); }
         // IA: a aberta no editor; senão a mais nova entre cliente e servidor original (o servidor é quem usa)
         var ai = new[] { aiPolicy, Path.Combine(data, "aipolicy.data"), serverConfig is null ? null : Path.Combine(serverConfig, "aipolicy.data") }
             .Where(p => p is not null && File.Exists(p)).Select(p => p!).ToList();
         var pick = aiPolicy is not null && File.Exists(aiPolicy) ? aiPolicy : ai.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
-        if (pick is not null) { File.Copy(pick, Path.Combine(stage, "aipolicy.data")); Log("enviando aipolicy.data de " + pick); }
+        if (pick is not null) { File.Copy(pick, Path.Combine(stage, "aipolicy.data")); Log(string.Format(Loc.T("ls.sendingAi", "enviando aipolicy.data de {0}"), pick)); }
         Bash($"cp -f '{ToWslPath(stage)}'/*.data /home/gamed/config/ && chmod a+rw /home/gamed/config/*.data", Log, timeoutMs: 300_000);
     }
 
@@ -233,7 +234,7 @@ public sealed class LocalServer
     public string? Account(string login, string password, bool gm)
     {
         var r = Bash($"pwctl account '{login}' '{password}'{(gm ? " gm" : "")}", Log, timeoutMs: 120_000);
-        return r.Output.Contains("##ERRO") || r.Code != 0 ? "Não consegui criar a conta:\n" + r.Output : null;
+        return r.Output.Contains("##ERRO") || r.Code != 0 ? Loc.T("ls.accountFailed", "Não consegui criar a conta:") + "\n" + r.Output : null;
     }
 
     /// <summary>
@@ -247,7 +248,7 @@ public sealed class LocalServer
         var have = Bash("md5sum /usr/local/bin/pwctl 2>/dev/null", timeoutMs: 60_000).Output.Trim().Split(' ')[0];
         if (have == want) return;
         Bash("cat > /usr/local/bin/pwctl && chmod +x /usr/local/bin/pwctl", stdin: text, timeoutMs: 60_000);
-        Log("pwctl atualizado no Linux");
+        Log(Loc.T("ls.pwctlUpdated", "pwctl atualizado no Linux"));
     }
 
     public RunResult Start(IEnumerable<string>? maps = null)
@@ -315,7 +316,7 @@ public sealed class LocalServer
                     var g = m.Groups[1];
                     var fixedText = text[..g.Index] + local.PadRight(g.Length) + text[(g.Index + g.Length)..];
                     PckPatch.ReplaceSameSize(pck, @"configs\loginpage.ini", Encoding.Latin1.GetBytes(fixedText));
-                    Log($"página de anúncios do login: {g.Value} → {local} (configs.pck, backup ao lado)");
+                    Log(string.Format(Loc.T("ls.adsPage", "página de anúncios do login: {0} → {1} (configs.pck, backup ao lado)"), g.Value, local));
                 }
             }
         }
@@ -326,7 +327,7 @@ public sealed class LocalServer
             {
                 if (File.ReadAllBytes(f).AsSpan().SequenceEqual(File.ReadAllBytes(safe))) continue;
                 AtomicFileSave.Write(f, File.ReadAllBytes(safe));
-                Log("cache de página trocado pela página local: " + f);
+                Log(Loc.T("ls.pageCache", "cache de página trocado pela página local: ") + f);
             }
     }
 
@@ -342,7 +343,7 @@ public sealed class LocalServer
             var nl = text.Contains("\r\n") ? "\r\n" : "\n";
             var add = "Servidor local" + nl + "Local\t\t29000:127.0.0.1" + nl;
             AtomicFileSave.Write(f, Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes(add + text.TrimStart('\uFEFF'))).ToArray());
-            Log("lista de servidores: " + f);
+            Log(Loc.T("ls.serverList", "lista de servidores: ") + f);
         }
     }
 }

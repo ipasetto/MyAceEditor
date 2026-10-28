@@ -1,3 +1,5 @@
+using MyAceEditor.UI;
+
 namespace MyAceEditor.PerfectWorld;
 
 /// <summary>
@@ -17,24 +19,24 @@ public static class PairFixer
         var fixes = new List<Fix>();
         // cliente: janelas que o jogo procura e o interfaces.pck não carrega (o jogo cai ao usá-las)
         if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)
-            fixes.Add(new($"interfaces.pck: carregar {dlgs.Count} janela(s) que o jogo procura",
-                string.Join(", ", dlgs.Select(d => d.Dialog)) + ". Estão no pacote, mas fora da lista (.dcf); sem elas o jogo cai (ex.: fechar o inventário pelo X). Backup do .pck.",
+            fixes.Add(new(string.Format(Loc.T("fix.dialogsTitle", "interfaces.pck: carregar {0} janela(s) que o jogo procura"), dlgs.Count),
+                string.Join(", ", dlgs.Select(d => d.Dialog)) + Loc.T("fix.dialogsDetail", ". Estão no pacote, mas fora da lista (.dcf); sem elas o jogo cai (ex.: fechar o inventário pelo X). Backup do .pck."),
                 true, () => ClientDialogs.Fix(clientElement, dlgs)));
         if (!Directory.Exists(cData) || !Directory.Exists(sCfg)) return fixes;
 
         // elements.data e tasks.data: mesmo arquivo nos dois lados; copia o do cliente se a versão (ou o conteúdo) for diferente
         foreach (var (name, why) in new[]
         {
-            ("elements.data", "a versão entra na verificação de login"),
-            ("tasks.data", "versão e quests precisam ser as mesmas do cliente"),
+            ("elements.data", Loc.T("fix.whyElements", "a versão entra na verificação de login")),
+            ("tasks.data", Loc.T("fix.whyTasks", "versão e quests precisam ser as mesmas do cliente")),
         })
         {
             var c = Path.Combine(cData, name); var s = Path.Combine(sCfg, name);
             if (!File.Exists(c)) continue;
             // conteúdo inteiro: mudar HP/drops de um monstro não muda versão nem tamanho (antes só cabeçalho + tamanho)
             if (File.Exists(s) && SameContent(c, s)) continue;
-            fixes.Add(new($"{name}: copiar o do cliente para o servidor",
-                File.Exists(s) ? $"Diferentes ({why}). O do servidor fica salvo como backup." : "Não existe no servidor.",
+            fixes.Add(new(string.Format(Loc.T("fix.copyTitle", "{0}: copiar o do cliente para o servidor"), name),
+                File.Exists(s) ? string.Format(Loc.T("fix.copyDiff", "Diferentes ({0}). O do servidor fica salvo como backup."), why) : Loc.T("fix.notOnServer", "Não existe no servidor."),
                 true, () => AtomicFileSave.Write(s, File.ReadAllBytes(c))));
         }
 
@@ -47,8 +49,9 @@ public static class PairFixer
             try { shop = GShopFile.ReadClient(File.ReadAllBytes(c)); } catch { continue; }
             var rebuilt = shop.WriteServer();
             if (File.Exists(s) && File.ReadAllBytes(s).AsSpan().SequenceEqual(rebuilt)) continue;
-            fixes.Add(new($"{sn}: refazer a partir do {cn} do cliente",
-                File.Exists(s) ? $"Timestamp ou itens diferentes do cliente ({shop.Items.Count} itens). O atual fica como backup." : $"Não existe no servidor ({shop.Items.Count} itens).",
+            fixes.Add(new(string.Format(Loc.T("fix.shopTitle", "{0}: refazer a partir do {1} do cliente"), sn, cn),
+                File.Exists(s) ? string.Format(Loc.T("fix.shopDiff", "Timestamp ou itens diferentes do cliente ({0} itens). O atual fica como backup."), shop.Items.Count)
+                               : string.Format(Loc.T("fix.shopMissing", "Não existe no servidor ({0} itens)."), shop.Items.Count),
                 true, () => AtomicFileSave.Write(s, rebuilt)));
         }
 
@@ -56,7 +59,7 @@ public static class PairFixer
         {
             var c = Path.Combine(cData, "aipolicy.data"); var s = Path.Combine(sCfg, "aipolicy.data");
             if (File.Exists(c) && File.Exists(s) && !File.ReadAllBytes(c).AsSpan().SequenceEqual(File.ReadAllBytes(s)))
-                fixes.Add(new("aipolicy.data: copiar o do cliente para o servidor", "Diferentes. Só marque se o servidor deve usar a mesma IA do cliente.",
+                fixes.Add(new(string.Format(Loc.T("fix.copyTitle", "{0}: copiar o do cliente para o servidor"), "aipolicy.data"), Loc.T("fix.aiDiff", "Diferentes. Só marque se o servidor deve usar a mesma IA do cliente."),
                     false, () => AtomicFileSave.Write(s, File.ReadAllBytes(c))));
         }
         return fixes;

@@ -1,3 +1,4 @@
+using MyAceEditor.UI;
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
@@ -21,14 +22,14 @@ public static class AiChannel
     /// <summary>Nome do canal. Mapeamento das letras é inferido (PW-KB §S18 só lista as letras e os 8 canais).</summary>
     public static string Name(string prefix) => prefix switch
     {
-        "$F" => AppLang.T("Facção", "Faction"),
-        "$A" => AppLang.T("Anônimo", "Anonymous"),
-        "$B" => AppLang.T("Global", "Broadcast"),
-        "$I" => AppLang.T("Instância", "Instance"),
-        "$S" => AppLang.T("Sistema", "System"),
-        "$X" => AppLang.T("Centro da tela", "Center screen"),
-        "$W" => AppLang.T("Sussurro", "Whisper"),
-        _ => AppLang.T("Normal", "Normal"),
+        "$F" => Loc.T("aitr.faction", "Facção"),
+        "$A" => Loc.T("aitr.anonymous", "Anônimo"),
+        "$B" => Loc.T("aitr.broadcast", "Global"),
+        "$I" => Loc.T("aitr.instance", "Instância"),
+        "$S" => Loc.T("aitr.system", "Sistema"),
+        "$X" => Loc.T("aitr.centerScreen", "Centro da tela"),
+        "$W" => Loc.T("aitr.whisper", "Sussurro"),
+        _ => Loc.T("aitr.normal", "Normal"),
     };
 }
 

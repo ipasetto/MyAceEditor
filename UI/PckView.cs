@@ -168,6 +168,26 @@ internal sealed class PckView : Panel
         foreach (var c in _listMode) c.Visible = true;
     }
 
+    /// <summary>
+    /// Outra pasta do PW foi aberta: a lista de pacotes passa a ser a dela e o pacote aberto (e o editor de interface)
+    /// troca para o arquivo de mesmo nome do jogo novo; se ele não existir lá, o pacote é fechado.
+    /// </summary>
+    public void GameFolderChanged()
+    {
+        var dir = _elementDir();
+        var name = _pck is null ? null : Path.GetFileName(_pck.FilePath);
+        bool editing = _editor is { Visible: true };
+        CloseEditor();
+        if (name is not null)
+        {
+            var same = dir is null ? null : Path.Combine(dir, name);
+            if (same is not null && File.Exists(same)) Open(same);
+            else { _pck?.Dispose(); _pck = null; _dialogCount = 0; ApplyFilter(); }
+        }
+        FillKnown();
+        if (editing && _pck is not null) OpenEditor();
+    }
+
     /// <summary>Diagnóstico (--snapshot ... ui:arquivo.xml): abre o interfaces.pck do jogo no editor e a janela pedida.</summary>
     internal void OpenUiForSnapshot(string file)
     {

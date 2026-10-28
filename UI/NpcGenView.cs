@@ -131,15 +131,28 @@ internal sealed class NpcGenView : UserControl
     }
 
     // ---------- arquivos ----------
-    /// <summary>Pasta gamed\config do servidor (lembrada; senão procurada a partir da pasta do servidor da aba Verificação).</summary>
+    /// <summary>
+    /// Pasta gamed\config do servidor. O servidor é um só para o programa todo: o da aba Verificação (check_server);
+    /// a pasta lembrada aqui só vale quando a Verificação ainda não tem servidor.
+    /// </summary>
     void TryOpenServer()
     {
-        var dir = LoadSetting("npcgen_server");
-        if (dir is null || !Directory.Exists(dir))
-            dir = FindConfig(LoadSetting("check_server"));
+        var dir = FindConfig(LoadSetting("check_server"));
+        if (dir is null && LoadSetting("npcgen_server") is { } own && Directory.Exists(own)) dir = own;
         if (dir is not null) Open(dir);
         else _info2.Text = Loc.T("npcgen.noServer", "Use \"Abrir pasta…\" e escolha a pasta do servidor (home, gamed\\config ou a pasta com o npcgen.data).");
     }
+
+    /// <summary>A pasta do servidor mudou em outra aba (Verificação): o npcgen passa a ser o desse servidor.</summary>
+    public void ServerFolderChanged(string? serverDir)
+    {
+        if (FindConfig(serverDir) is not { } dir || string.Equals(dir, _configDir, StringComparison.OrdinalIgnoreCase)) return;
+        Open(dir);
+    }
+
+    /// <summary>O usuário escolheu outro servidor por esta aba: as outras (Verificação, Servidor) seguem.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Action<string>? ServerFolderPicked { get; set; }
 
     static string? FindConfig(string? start)
     {
@@ -163,6 +176,7 @@ internal sealed class NpcGenView : UserControl
             return;
         }
         Open(dir);
+        if (string.Equals(_configDir, dir, StringComparison.OrdinalIgnoreCase)) ServerFolderPicked?.Invoke(dir);
     }
 
     void Open(string dir)

@@ -96,9 +96,10 @@ internal sealed class GShopView : UserControl
         UpdateInfo(); _game.Invalidate();
     }
 
+    /// <summary>Outra pasta do PW foi aberta: a loja passa a ser a dela (o EditorForm já perguntou se salva o que estava pendente).</summary>
     public void GameFolderChanged()
     {
-        if (_dirty.Any(d => d)) return;
+        for (int i = 0; i < _dirty.Length; i++) _dirty[i] = false;
         if (_elementDir() is { } dir) Open(dir);
     }
 

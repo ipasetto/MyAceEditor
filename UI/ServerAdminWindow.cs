@@ -8,7 +8,6 @@ namespace MyAceEditor.UI;
 /// </summary>
 public sealed class ServerAdminWindow : Form
 {
-    static string L(string pt, string en) => AppLang.T(pt, en);
 
     readonly LocalServer _srv;
     readonly ServerAdmin _adm;
@@ -45,20 +44,20 @@ public sealed class ServerAdminWindow : Form
         _srv = srv; _adm = new ServerAdmin(srv); _bg = bg; _fg = fg; _accent = accent;
         _gsConf = Path.Combine(serverFiles, "home", "gamed", "gs.conf");
         _client = clientElement;
-        Text = L("Administrar servidor local", "Local server admin");
+        Text = Loc.T("adm.localServerAdmin", "Administrar servidor local");
         Width = 1100; Height = 720; StartPosition = FormStartPosition.CenterParent; BackColor = bg; ForeColor = fg; Font = new Font("Segoe UI", 9.5f);
         MinimumSize = new Size(800, 500);
 
         var tabs = new TabControl { Dock = DockStyle.Fill };
-        tabs.TabPages.Add(Page(L("Visão geral", "Overview"), BuildOverview()));
-        tabs.TabPages.Add(Page(L("Contas", "Accounts"), BuildAccounts()));
-        tabs.TabPages.Add(Page(L("Personagens", "Characters"), BuildRoles()));
-        tabs.TabPages.Add(Page(L("No jogo agora", "Online now"), BuildOnline()));
-        tabs.TabPages.Add(Page(L("Mundo", "World"), BuildWorld()));
-        tabs.TabPages.Add(Page(L("Mapas e instâncias", "Maps and instances"), BuildMaps()));
+        tabs.TabPages.Add(Page(Loc.T("adm.overview", "Visão geral"), BuildOverview()));
+        tabs.TabPages.Add(Page(Loc.T("adm.accounts", "Contas"), BuildAccounts()));
+        tabs.TabPages.Add(Page(Loc.T("adm.characters", "Personagens"), BuildRoles()));
+        tabs.TabPages.Add(Page(Loc.T("adm.onlineNow", "No jogo agora"), BuildOnline()));
+        tabs.TabPages.Add(Page(Loc.T("adm.world", "Mundo"), BuildWorld()));
+        tabs.TabPages.Add(Page(Loc.T("adm.mapsAndInstances", "Mapas e instâncias"), BuildMaps()));
         tabs.SelectedIndexChanged += (_, _) => RefreshTab(tabs.SelectedIndex);
         Controls.Add(tabs); Controls.Add(_status);
-        Shown += (_, _) => Work(L("Preparando…", "Preparing…"), () => _srv.EnsureTools(), () => RefreshTab(0));
+        Shown += (_, _) => Work(Loc.T("adm.preparing", "Preparando…"), () => _srv.EnsureTools(), () => RefreshTab(0));
     }
 
     // ---------- infraestrutura ----------
@@ -104,7 +103,7 @@ public sealed class ServerAdminWindow : Form
             BeginInvoke(() =>
             {
                 if (Interlocked.Decrement(ref _busy) == 0) UseWaitCursor = false;
-                if (err is not null) { _status.Text = L("Erro: ", "Error: ") + Friendly(err); return; }
+                if (err is not null) { _status.Text = Loc.T("adm.error", "Erro: ") + Friendly(err); return; }
                 if (_status.Text == what) _status.Text = "";
                 then?.Invoke();
             });
@@ -112,13 +111,13 @@ public sealed class ServerAdminWindow : Form
     }
 
     static string Friendly(Exception ex) => ex is IOException or System.Net.Sockets.SocketException or TimeoutException
-        ? L("o servidor não respondeu (está iniciado?) — ", "the server did not answer (is it started?) — ") + ex.Message
+        ? Loc.T("adm.theServerDidNotAnswer", "o servidor não respondeu (está iniciado?) — ") + ex.Message
         : ex.Message;
 
     /// <summary>Resultado de uma ação (pode ser chamado de dentro do Work, fora da tela).</summary>
     void Done(string? error, string ok)
     {
-        var text = error is null ? ok : L("Erro: ", "Error: ") + error;
+        var text = error is null ? ok : Loc.T("adm.error", "Erro: ") + error;
         if (InvokeRequired) BeginInvoke(() => _status.Text = text); else _status.Text = text;
     }
 
@@ -145,9 +144,9 @@ public sealed class ServerAdminWindow : Form
     }
 
     // títulos das colunas no idioma da interface (as grades vêm de tipos anônimos)
-    static void Headers(DataGridView g, params (string Pt, string En)[] h)
+    static void Headers(DataGridView g, params (string Key, string Pt)[] h)
     {
-        for (int i = 0; i < h.Length && i < g.Columns.Count; i++) g.Columns[i].HeaderText = L(h[i].Pt, h[i].En);
+        for (int i = 0; i < h.Length && i < g.Columns.Count; i++) g.Columns[i].HeaderText = Loc.T(h[i].Key, h[i].Pt);
     }
 
     static bool ValidLogin(string s) => s.Length is >= 3 and <= 20 && s.All(char.IsAsciiLetterOrDigit);
@@ -159,12 +158,12 @@ public sealed class ServerAdminWindow : Form
         foreach (var s in new[] { "gs-gs01", "glinkd", "gdeliveryd", "gamedbd", "gfactiond", "gacd", "uniquenamed", "logservice" }) _logSvc.Items.Add(s);
         _logSvc.SelectedIndex = 0;
         var bar = Bar(
-            Btn(L("▶ Iniciar", "▶ Start"), () => Work(L("Iniciando…", "Starting…"), () => _srv.Start(), RefreshOverview), true),
-            Btn(L("■ Parar", "■ Stop"), () => { if (Confirm(L("Parar o servidor? Quem estiver no jogo cai.", "Stop the server? Players will be disconnected."))) Work(L("Parando…", "Stopping…"), () => _srv.Stop(), RefreshOverview); }),
-            Btn(L("⟳ Reiniciar", "⟳ Restart"), () => { if (Confirm(L("Reiniciar o servidor? Quem estiver no jogo cai.", "Restart the server? Players will be disconnected."))) Work(L("Reiniciando…", "Restarting…"), () => { _srv.Stop(); _srv.Start(); }, RefreshOverview); }),
-            Btn(L("Atualizar", "Refresh"), RefreshOverview),
-            new Label { Text = L("   Log:", "   Log:"), AutoSize = true, Padding = new Padding(0, 10, 0, 0) }, _logSvc,
-            Btn(L("Ver", "Show"), () => { var svc = (string)_logSvc.SelectedItem!; string t = ""; Work(L("Lendo log…", "Reading log…"), () => t = _srv.Bash($"pwctl log {svc} 200", timeoutMs: 60_000).Output, () => { _logText.Text = t.Replace("\n", "\r\n"); _logText.SelectionStart = _logText.TextLength; _logText.ScrollToCaret(); }); }));
+            Btn(Loc.T("adm.start", "▶ Iniciar"), () => Work(Loc.T("adm.starting", "Iniciando…"), () => _srv.Start(), RefreshOverview), true),
+            Btn(Loc.T("adm.stop", "■ Parar"), () => { if (Confirm(Loc.T("adm.stopTheServerPlayersWill", "Parar o servidor? Quem estiver no jogo cai."))) Work(Loc.T("adm.stopping", "Parando…"), () => _srv.Stop(), RefreshOverview); }),
+            Btn(Loc.T("adm.restart", "⟳ Reiniciar"), () => { if (Confirm(Loc.T("adm.restartTheServerPlayersWill", "Reiniciar o servidor? Quem estiver no jogo cai."))) Work(Loc.T("adm.restarting", "Reiniciando…"), () => { _srv.Stop(); _srv.Start(); }, RefreshOverview); }),
+            Btn(Loc.T("adm.refresh", "Atualizar"), RefreshOverview),
+            new Label { Text = Loc.T("adm.log", "   Log:"), AutoSize = true, Padding = new Padding(0, 10, 0, 0) }, _logSvc,
+            Btn(Loc.T("adm.show", "Ver"), () => { var svc = (string)_logSvc.SelectedItem!; string t = ""; Work(Loc.T("adm.readingLog", "Lendo log…"), () => t = _srv.Bash($"pwctl log {svc} 200", timeoutMs: 60_000).Output, () => { _logText.Text = t.Replace("\n", "\r\n"); _logText.SelectionStart = _logText.TextLength; _logText.ScrollToCaret(); }); }));
         p.Controls.Add(_logText); p.Controls.Add(_summary); p.Controls.Add(_lights); p.Controls.Add(bar);
         return p;
     }
@@ -174,7 +173,7 @@ public sealed class ServerAdminWindow : Form
     void RefreshOverview()
     {
         Dictionary<string, bool> st = new(); (int, int)? online = null; (List<ServerAdmin.MapProc> Running, int Total, int Free) maps = (new(), 0, 0);
-        Work(L("Consultando…", "Checking…"), () =>
+        Work(Loc.T("adm.checking", "Consultando…"), () =>
         {
             st = _srv.Status();
             maps = _adm.Maps();
@@ -185,9 +184,9 @@ public sealed class ServerAdminWindow : Form
             foreach (var (name, on) in st)
                 _lights.Controls.Add(new Label { AutoSize = true, Padding = new Padding(6), Text = (on ? "● " : "○ ") + name, ForeColor = on ? Color.ForestGreen : Color.IndianRed });
             bool up = st.TryGetValue("porta29000", out var u) && u;
-            _summary.Text = (up ? L("Servidor no ar.", "Server is up.") : L("Servidor parado ou subindo.", "Server stopped or starting."))
-                + "   " + (online is { } o ? string.Format(L("Jogadores no jogo: {0}", "Players online: {0}"), o.Item1) : "")
-                + "\n" + string.Format(L("Mapas rodando: {0} ({1}) · RAM do Linux: {2:N0} MB livres de {3:N0} MB", "Maps running: {0} ({1}) · Linux RAM: {2:N0} MB free of {3:N0} MB"),
+            _summary.Text = (up ? Loc.T("adm.serverIsUp", "Servidor no ar.") : Loc.T("adm.serverStoppedOrStarting", "Servidor parado ou subindo."))
+                + "   " + (online is { } o ? string.Format(Loc.T("adm.playersOnline0", "Jogadores no jogo: {0}"), o.Item1) : "")
+                + "\n" + string.Format(Loc.T("adm.mapsRunning01Linux", "Mapas rodando: {0} ({1}) · RAM do Linux: {2:N0} MB livres de {3:N0} MB"),
                     maps.Running.Count, string.Join(", ", maps.Running.Select(m => $"{m.Tag} {m.RamMb} MB")), maps.Free, maps.Total);
         });
     }
@@ -197,17 +196,16 @@ public sealed class ServerAdminWindow : Form
     {
         var p = new Panel { Dock = DockStyle.Fill };
         var bar = Bar(
-            Btn(L("Nova conta…", "New account…"), NewAccount, true),
-            Btn(L("Trocar senha…", "Change password…"), ChangePassword),
-            Btn(L("GM liga/desliga", "Toggle GM"), ToggleGm),
-            Btn(L("Enviar gold…", "Send gold…"), SendGold),
-            Btn(L("Dar CASH por ID…", "Give CASH by ID…"), GiveCashById),
-            Btn(L("Banir…", "Ban…"), BanAccount),
-            Btn(L("Liberar", "Unban"), () => { if (Sel() is { } a) Work(L("Liberando…", "Unbanning…"), () => Done(_adm.Unban(a.Id), L("Conta liberada.", "Account unbanned.")), RefreshAccounts); }),
-            Btn(L("Atualizar", "Refresh"), RefreshAccounts));
+            Btn(Loc.T("adm.newAccount", "Nova conta…"), NewAccount, true),
+            Btn(Loc.T("adm.changePassword", "Trocar senha…"), ChangePassword),
+            Btn(Loc.T("adm.toggleGm", "GM liga/desliga"), ToggleGm),
+            Btn(Loc.T("adm.sendGold", "Enviar gold…"), SendGold),
+            Btn(Loc.T("adm.giveCashById", "Dar CASH por ID…"), GiveCashById),
+            Btn(Loc.T("adm.ban", "Banir…"), BanAccount),
+            Btn(Loc.T("adm.unban", "Liberar"), () => { if (Sel() is { } a) Work(Loc.T("adm.unbanning", "Liberando…"), () => Done(_adm.Unban(a.Id), Loc.T("adm.accountUnbanned", "Conta liberada.")), RefreshAccounts); }),
+            Btn(Loc.T("adm.refresh", "Atualizar"), RefreshAccounts));
         var hint = new Label { Dock = DockStyle.Bottom, Height = 56, ForeColor = Color.DimGray, Padding = new Padding(4),
-            Text = L("Gold: 1 gold = 100 de cash. O authd entrega uns 4 minutos depois de enviar (e só começa 10 minutos depois de ligar o servidor); até lá aparece em GoldPendente. Banir também derruba a conta se ela estiver no jogo.",
-                     "Gold: 1 gold = 100 cash. authd delivers it about 4 minutes after sending (and only starts 10 minutes after the server starts); until then it shows in GoldPendente. Banning also disconnects the account if it is online.") };
+            Text = Loc.T("adm.gold1Gold100Cash", "Gold: 1 gold = 100 de cash. O authd entrega uns 4 minutos depois de enviar (e só começa 10 minutos depois de ligar o servidor); até lá aparece em GoldPendente. Banir também derruba a conta se ela estiver no jogo.") };
         p.Controls.Add(_acc); p.Controls.Add(hint); p.Controls.Add(bar);
         return p;
     }
@@ -215,23 +213,23 @@ public sealed class ServerAdminWindow : Form
     ServerAdmin.Account? Sel()
     {
         if (_acc.CurrentRow?.Index is int i && i >= 0 && i < _accounts.Count) return _accounts[i];
-        _status.Text = L("Escolha uma conta na lista.", "Pick an account in the list."); return null;
+        _status.Text = Loc.T("adm.pickAnAccountInThe", "Escolha uma conta na lista."); return null;
     }
 
     void RefreshAccounts()
     {
         List<ServerAdmin.Account> list = new();
-        Work(L("Lendo contas…", "Reading accounts…"), () => list = _adm.Accounts(), () =>
+        Work(Loc.T("adm.readingAccounts", "Lendo contas…"), () => list = _adm.Accounts(), () =>
         {
             _accounts = list;
             _acc.DataSource = list.Select(a => new
             {
-                ID = a.Id, Login = a.Login, GM = a.Gm ? L("sim", "yes") : "", Online = a.Online ? L("● no jogo", "● online") : "",
+                ID = a.Id, Login = a.Login, GM = a.Gm ? Loc.T("adm.yes", "sim") : "", Online = a.Online ? Loc.T("adm.online", "● no jogo") : "",
                 Criada = a.Created, UltimoLogin = a.LastLogin, BanidaAte = a.BannedUntil?.ToString("dd/MM/yyyy HH:mm") ?? "",
                 GoldPendente = a.PendingGold > 0 ? a.PendingGold.ToString("N0") : "",
             }).ToList();
-            Headers(_acc, ("ID", "ID"), ("Login", "Login"), ("GM", "GM"), ("No jogo", "Online"), ("Criada", "Created"), ("Último login", "Last login"),
-                ("Banida até", "Banned until"), ("Gold pendente", "Pending gold"));
+            Headers(_acc, ("adm.id", "ID"), ("adm.login", "Login"), ("adm.gm", "GM"), ("adm.online2", "No jogo"), ("adm.created2", "Criada"), ("adm.lastLogin2", "Último login"),
+                ("adm.bannedUntil", "Banida até"), ("adm.pendingGold", "Gold pendente"));
             var keep = _roleAcc.SelectedIndex;
             _roleAcc.Items.Clear();
             foreach (var a in list) _roleAcc.Items.Add($"{a.Login} (ID {a.Id})");
@@ -241,60 +239,58 @@ public sealed class ServerAdminWindow : Form
 
     void NewAccount()
     {
-        var login = Ask(this, L("Nova conta", "New account"), L("Login (letras e números):", "Login (letters and digits):"));
+        var login = Ask(this, Loc.T("adm.newAccount2", "Nova conta"), Loc.T("adm.loginLettersAndDigits", "Login (letras e números):"));
         if (login is null) return;
-        if (!ValidLogin(login)) { _status.Text = L("Login: 3 a 20 letras ou números.", "Login: 3 to 20 letters or digits."); return; }
-        var pass = Ask(this, L("Nova conta", "New account"), L("Senha (letras e números):", "Password (letters and digits):"), password: true);
-        if (pass is null || !ValidLogin(pass)) { _status.Text = L("Senha: 3 a 20 letras ou números.", "Password: 3 to 20 letters or digits."); return; }
-        bool gm = Confirm(L("Dar GM a esta conta?", "Make this account GM?"));
-        Work(L("Criando conta…", "Creating account…"), () => Done(_srv.Account(login, pass, gm), L("Conta criada.", "Account created.")), RefreshAccounts);
+        if (!ValidLogin(login)) { _status.Text = Loc.T("adm.login3To20Letters", "Login: 3 a 20 letras ou números."); return; }
+        var pass = Ask(this, Loc.T("adm.newAccount2", "Nova conta"), Loc.T("adm.passwordLettersAndDigits", "Senha (letras e números):"), password: true);
+        if (pass is null || !ValidLogin(pass)) { _status.Text = Loc.T("adm.password3To20Letters", "Senha: 3 a 20 letras ou números."); return; }
+        bool gm = Confirm(Loc.T("adm.makeThisAccountGm", "Dar GM a esta conta?"));
+        Work(Loc.T("adm.creatingAccount", "Criando conta…"), () => Done(_srv.Account(login, pass, gm), Loc.T("adm.accountCreated", "Conta criada.")), RefreshAccounts);
     }
 
     void ChangePassword()
     {
         if (Sel() is not { } a) return;
-        var pass = Ask(this, a.Login, L("Nova senha (letras e números):", "New password (letters and digits):"), password: true);
+        var pass = Ask(this, a.Login, Loc.T("adm.newPasswordLettersAndDigits", "Nova senha (letras e números):"), password: true);
         if (pass is null) return;
-        if (!ValidLogin(pass)) { _status.Text = L("Senha: 3 a 20 letras ou números.", "Password: 3 to 20 letters or digits."); return; }
-        Work(L("Trocando senha…", "Changing password…"), () => Done(_srv.Account(a.Login, pass, a.Gm), L("Senha trocada.", "Password changed.")), RefreshAccounts);
+        if (!ValidLogin(pass)) { _status.Text = Loc.T("adm.password3To20Letters", "Senha: 3 a 20 letras ou números."); return; }
+        Work(Loc.T("adm.changingPassword", "Trocando senha…"), () => Done(_srv.Account(a.Login, pass, a.Gm), Loc.T("adm.passwordChanged", "Senha trocada.")), RefreshAccounts);
     }
 
     void ToggleGm()
     {
         if (Sel() is not { } a) return;
-        Work(L("Alterando GM…", "Changing GM…"), () => Done(_adm.SetGm(a.Id, !a.Gm),
-            (a.Gm ? L("GM removido de ", "GM removed from ") : L("GM dado a ", "GM given to ")) + a.Login + L(" (vale no próximo login).", " (applies on next login).")), RefreshAccounts);
+        Work(Loc.T("adm.changingGm", "Alterando GM…"), () => Done(_adm.SetGm(a.Id, !a.Gm),
+            (a.Gm ? Loc.T("adm.gmRemovedFrom", "GM removido de ") : Loc.T("adm.gmGivenTo", "GM dado a ")) + a.Login + Loc.T("adm.appliesOnNextLogin", " (vale no próximo login).")), RefreshAccounts);
     }
 
     void SendGold()
     {
         if (Sel() is not { } a) return;
-        var v = Ask(this, a.Login, L("Quantidade de gold:", "Amount of gold:"), "1000");
+        var v = Ask(this, a.Login, Loc.T("adm.amountOfGold", "Quantidade de gold:"), "1000");
         if (v is null) return;
-        if (!int.TryParse(v, out var gold) || gold <= 0 || gold > 2_000_000) { _status.Text = L("Gold: número entre 1 e 2.000.000.", "Gold: a number from 1 to 2,000,000."); return; }
+        if (!int.TryParse(v, out var gold) || gold <= 0 || gold > 2_000_000) { _status.Text = Loc.T("adm.goldANumberFrom1", "Gold: número entre 1 e 2.000.000."); return; }
         if (a.PendingGold > 0 && !Confirm(PendingWarning(a))) return;
-        Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L(SentText, SentTextEn), gold, a.Login)), RefreshAccounts);
+        Work(Loc.T("adm.sendingGold", "Enviando gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(SentText, gold, a.Login)), RefreshAccounts);
     }
 
     // o authd só pega o pedido com 200 s de idade e o temporizador dele começa 10 min depois de ligar (PW-KB)
-    const string SentText = "{0:N0} gold enviados para {1}: chegam em uns 4 minutos (coluna GoldPendente até lá).",
-        SentTextEn = "{0:N0} gold sent to {1}: arrives in about 4 minutes (GoldPendente column until then).";
+    static string SentText => Loc.T("adm.goldSent", "{0:N0} gold enviados para {1}: chegam em uns 4 minutos (coluna GoldPendente até lá).");
 
-    string PendingWarning(ServerAdmin.Account a) => string.Format(L("Já há {0:N0} gold a caminho desta conta (o authd entrega uns 4 minutos depois). Enviar mais mesmo assim?",
-        "{0:N0} gold is already on its way to this account (authd delivers about 4 minutes later). Send more anyway?"), a.PendingGold);
+    string PendingWarning(ServerAdmin.Account a) => string.Format(Loc.T("adm.0N0GoldIsAlready", "Já há {0:N0} gold a caminho desta conta (o authd entrega uns 4 minutos depois). Enviar mais mesmo assim?"), a.PendingGold);
 
     // CASH por ID: aceita o ID da conta ou de um personagem (personagem → conta = ID & ~15, LOGICUID do servidor)
     void GiveCashById()
     {
         var sel = _acc.CurrentRow?.Index is int i && i >= 0 && i < _accounts.Count ? _accounts[i].Id.ToString() : "";
-        var v = Ask(this, L("Dar CASH", "Give CASH"), L("ID da conta ou do personagem:", "Account or character ID:"), sel);
+        var v = Ask(this, Loc.T("adm.giveCash", "Dar CASH"), Loc.T("adm.accountOrCharacterId", "ID da conta ou do personagem:"), sel);
         if (v is null) return;
-        if (!int.TryParse(v, out var id) || id < 16) { _status.Text = L("ID: só números.", "ID: digits only."); return; }
-        var g = Ask(this, L("Dar CASH", "Give CASH"), L("Quantidade de gold (1 gold = 100 de cash):", "Amount of gold (1 gold = 100 cash):"), "1000");
+        if (!int.TryParse(v, out var id) || id < 16) { _status.Text = Loc.T("adm.idDigitsOnly", "ID: só números."); return; }
+        var g = Ask(this, Loc.T("adm.giveCash", "Dar CASH"), Loc.T("adm.amountOfGold1Gold", "Quantidade de gold (1 gold = 100 de cash):"), "1000");
         if (g is null) return;
-        if (!int.TryParse(g, out var gold) || gold <= 0 || gold > 2_000_000) { _status.Text = L("Gold: número entre 1 e 2.000.000.", "Gold: a number from 1 to 2,000,000."); return; }
+        if (!int.TryParse(g, out var gold) || gold <= 0 || gold > 2_000_000) { _status.Text = Loc.T("adm.goldANumberFrom1", "Gold: número entre 1 e 2.000.000."); return; }
         ServerAdmin.Account? acc = null; ServerAdmin.RoleInfo? role = null;
-        Work(L("Procurando o ID…", "Looking up the ID…"), () =>
+        Work(Loc.T("adm.lookingUpTheId", "Procurando o ID…"), () =>
         {
             var list = _adm.Accounts();
             acc = list.FirstOrDefault(a => a.Id == id);
@@ -303,26 +299,25 @@ public sealed class ServerAdminWindow : Form
             if (role is not null) acc = list.FirstOrDefault(a => a.Id == (id & ~0xF));
         }, () =>
         {
-            if (acc is not { } a) { _status.Text = string.Format(L("Nenhuma conta ou personagem com o ID {0}.", "No account or character with ID {0}."), id); return; }
+            if (acc is not { } a) { _status.Text = string.Format(Loc.T("adm.noAccountOrCharacterWith", "Nenhuma conta ou personagem com o ID {0}."), id); return; }
             var who = role is null ? $"{a.Login} (ID {a.Id})"
-                : string.Format(L("{0} (personagem {1}), conta {2} (ID {3})", "{0} (character {1}), account {2} (ID {3})"), role.Name, role.Id, a.Login, a.Id);
-            if (!Confirm(string.Format(L("Dar {0:N0} gold ({1:N0} de cash) para {2}?\n\nO cash fica na conta: todos os personagens dela usam o mesmo saldo.",
-                    "Give {0:N0} gold ({1:N0} cash) to {2}?\n\nCash goes to the account: all its characters share the balance."), gold, gold * 100L, who)
+                : string.Format(Loc.T("adm.0Character1Account2", "{0} (personagem {1}), conta {2} (ID {3})"), role.Name, role.Id, a.Login, a.Id);
+            if (!Confirm(string.Format(Loc.T("adm.give0N0Gold1", "Dar {0:N0} gold ({1:N0} de cash) para {2}?\n\nO cash fica na conta: todos os personagens dela usam o mesmo saldo."), gold, gold * 100L, who)
                     + (a.PendingGold > 0 ? "\n\n" + PendingWarning(a) : ""))) return;
-            Work(L("Enviando gold…", "Sending gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(L(SentText, SentTextEn), gold, who)), RefreshAccounts);
+            Work(Loc.T("adm.sendingGold", "Enviando gold…"), () => Done(_adm.Gold(a.Id, gold), string.Format(SentText, gold, who)), RefreshAccounts);
         });
     }
 
     void BanAccount()
     {
         if (Sel() is not { } a) return;
-        var v = Ask(this, a.Login, L("Banir por quantas horas? (0 = só derrubar)", "Ban for how many hours? (0 = just kick)"), "24");
+        var v = Ask(this, a.Login, Loc.T("adm.banForHowManyHours", "Banir por quantas horas? (0 = só derrubar)"), "24");
         if (v is null || !double.TryParse(v, out var h) || h < 0) return;
         int secs = (int)Math.Min(int.MaxValue, h * 3600);
-        Work(L("Banindo…", "Banning…"), () =>
+        Work(Loc.T("adm.banning", "Banindo…"), () =>
         {
-            if (secs == 0) { _adm.Kick(a.Id, 1, "MyAceEditor"); Done(null, L("Conta derrubada.", "Account kicked.")); }
-            else Done(_adm.Ban(a.Id, secs, "MyAceEditor"), string.Format(L("{0} banida por {1} h.", "{0} banned for {1} h."), a.Login, h));
+            if (secs == 0) { _adm.Kick(a.Id, 1, "MyAceEditor"); Done(null, Loc.T("adm.accountKicked", "Conta derrubada.")); }
+            else Done(_adm.Ban(a.Id, secs, "MyAceEditor"), string.Format(Loc.T("adm.0BannedFor1H", "{0} banida por {1} h."), a.Login, h));
         }, RefreshAccounts);
     }
 
@@ -330,11 +325,11 @@ public sealed class ServerAdminWindow : Form
     Control BuildRoles()
     {
         var p = new Panel { Dock = DockStyle.Fill };
-        var bar = Bar(new Label { Text = L("Conta:", "Account:"), AutoSize = true, Padding = new Padding(0, 10, 0, 0) }, _roleAcc,
-            Btn(L("Ver personagens", "Show characters"), LoadRoles, true));
+        var bar = Bar(new Label { Text = Loc.T("adm.account", "Conta:"), AutoSize = true, Padding = new Padding(0, 10, 0, 0) }, _roleAcc,
+            Btn(Loc.T("adm.showCharacters", "Ver personagens"), LoadRoles, true));
         _roleAcc.SelectedIndexChanged += (_, _) => LoadRoles();
         _roles.SelectedIndexChanged += (_, _) => LoadRole();
-        var note = new Label { Dock = DockStyle.Bottom, Height = 26, ForeColor = Color.DimGray, Text = L("Leitura direta do banco do jogo (gamedbd). Editar personagem fica para uma próxima etapa.", "Read straight from the game database (gamedbd). Character editing comes in a later step.") };
+        var note = new Label { Dock = DockStyle.Bottom, Height = 26, ForeColor = Color.DimGray, Text = Loc.T("adm.readStraightFromTheGame", "Leitura direta do banco do jogo (gamedbd). Editar personagem fica para uma próxima etapa.") };
         p.Controls.Add(_roleInfo); p.Controls.Add(_roles); p.Controls.Add(note); p.Controls.Add(bar);
         return p;
     }
@@ -346,11 +341,11 @@ public sealed class ServerAdminWindow : Form
         if (_roleAcc.SelectedIndex < 0 || _roleAcc.SelectedIndex >= _accounts.Count) return;
         var a = _accounts[_roleAcc.SelectedIndex];
         List<ServerAdmin.Role> list = new();
-        Work(L("Lendo personagens…", "Reading characters…"), () => list = _adm.Roles(a.Id), () =>
+        Work(Loc.T("adm.readingCharacters", "Lendo personagens…"), () => list = _adm.Roles(a.Id), () =>
         {
             _roleList = list; _roles.Items.Clear(); _roleInfo.Text = "";
             foreach (var r in list) _roles.Items.Add($"{r.Name}  (ID {r.Id})");
-            if (list.Count == 0) _roleInfo.Text = L("Esta conta não tem personagens.", "This account has no characters.");
+            if (list.Count == 0) _roleInfo.Text = Loc.T("adm.thisAccountHasNoCharacters", "Esta conta não tem personagens.");
             else _roles.SelectedIndex = 0;
         });
     }
@@ -361,24 +356,24 @@ public sealed class ServerAdminWindow : Form
         var id = _roleList[_roles.SelectedIndex].Id;
         ServerAdmin.RoleInfo? info = null;
         if (_mapDefs.Count == 0) _mapDefs = ServerAdmin.MapList(_gsConf, _client);
-        Work(L("Lendo personagem…", "Reading character…"), () => info = _adm.RoleDetails(id), () =>
+        Work(Loc.T("adm.readingCharacter", "Lendo personagem…"), () => info = _adm.RoleDetails(id), () =>
         {
-            if (info is not { } r) { _roleInfo.Text = L("Não consegui ler este personagem.", "Could not read this character."); return; }
+            if (info is not { } r) { _roleInfo.Text = Loc.T("adm.couldNotReadThisCharacter", "Não consegui ler este personagem."); return; }
             var map = _mapDefs.FirstOrDefault(m => m.WorldTag == r.WorldTag);
             _roleInfo.Text = string.Join("\r\n", new[]
             {
                 $"{r.Name}   (ID {r.Id})",
                 "",
-                L("Classe:        ", "Class:         ") + ServerAdmin.ClassName(r.Cls) + "   " + (r.Gender == 0 ? L("masculino", "male") : L("feminino", "female")),
-                L("Nível:         ", "Level:         ") + r.Level,
-                L("Experiência:   ", "Experience:    ") + r.Exp.ToString("N0"),
-                L("Espírito (SP): ", "Spirit (SP):   ") + r.Sp.ToString("N0"),
+                Loc.T("adm.class", "Classe:        ") + ServerAdmin.ClassName(r.Cls) + "   " + (r.Gender == 0 ? Loc.T("adm.male", "masculino") : Loc.T("adm.female", "feminino")),
+                Loc.T("adm.level", "Nível:         ") + r.Level,
+                Loc.T("adm.experience", "Experiência:   ") + r.Exp.ToString("N0"),
+                Loc.T("adm.spiritSp", "Espírito (SP): ") + r.Sp.ToString("N0"),
                 $"HP / MP:       {r.Hp:N0} / {r.Mp:N0}",
-                L("Reputação:     ", "Reputation:    ") + r.Reputation.ToString("N0"),
-                L("Mapa:          ", "Map:           ") + (map is null ? $"tag {r.WorldTag}" : $"{map.Tag} {map.Name}".Trim()),
-                L("Posição:       ", "Position:      ") + $"X {r.X:0}  Z {r.Z:0}  ({L("altura", "height")} {r.Y:0})",
-                L("Criado em:     ", "Created:       ") + (r.Created?.ToString("dd/MM/yyyy HH:mm") ?? "—"),
-                L("Último login:  ", "Last login:    ") + (r.LastLogin?.ToString("dd/MM/yyyy HH:mm") ?? "—"),
+                Loc.T("adm.reputation", "Reputação:     ") + r.Reputation.ToString("N0"),
+                Loc.T("adm.map", "Mapa:          ") + (map is null ? $"tag {r.WorldTag}" : $"{map.Tag} {map.Name}".Trim()),
+                Loc.T("adm.position", "Posição:       ") + $"X {r.X:0}  Z {r.Z:0}  ({Loc.T("adm.height", "altura")} {r.Y:0})",
+                Loc.T("adm.created", "Criado em:     ") + (r.Created?.ToString("dd/MM/yyyy HH:mm") ?? "—"),
+                Loc.T("adm.lastLogin", "Último login:  ") + (r.LastLogin?.ToString("dd/MM/yyyy HH:mm") ?? "—"),
             });
         });
     }
@@ -389,9 +384,9 @@ public sealed class ServerAdminWindow : Form
     Control BuildOnline()
     {
         var p = new Panel { Dock = DockStyle.Fill };
-        var bar = Bar(Btn(L("Atualizar", "Refresh"), RefreshOnline, true),
-            Btn(L("Expulsar…", "Kick…"), () => OnlineAction(L("Expulsar e impedir de voltar por quantos minutos?", "Kick and block for how many minutes?"), "1", (u, s) => _adm.Kick(u.UserId, s, "MyAceEditor"))),
-            Btn(L("Calar…", "Mute…"), () => OnlineAction(L("Proibir o chat por quantos minutos?", "Mute chat for how many minutes?"), "30", (u, s) => _adm.Mute(u.UserId, s, "MyAceEditor"))));
+        var bar = Bar(Btn(Loc.T("adm.refresh", "Atualizar"), RefreshOnline, true),
+            Btn(Loc.T("adm.kick", "Expulsar…"), () => OnlineAction(Loc.T("adm.kickAndBlockForHow", "Expulsar e impedir de voltar por quantos minutos?"), "1", (u, s) => _adm.Kick(u.UserId, s, "MyAceEditor"))),
+            Btn(Loc.T("adm.mute", "Calar…"), () => OnlineAction(Loc.T("adm.muteChatForHowMany", "Proibir o chat por quantos minutos?"), "30", (u, s) => _adm.Mute(u.UserId, s, "MyAceEditor"))));
         p.Controls.Add(_online); p.Controls.Add(bar);
         return p;
     }
@@ -399,22 +394,22 @@ public sealed class ServerAdminWindow : Form
     void RefreshOnline()
     {
         List<ServerAdmin.OnlineUser> list = new();
-        Work(L("Consultando quem está no jogo…", "Checking who is online…"), () => list = _adm.Online(), () =>
+        Work(Loc.T("adm.checkingWhoIsOnline", "Consultando quem está no jogo…"), () => list = _adm.Online(), () =>
         {
             _onlineList = list;
             _online.DataSource = list.Select(u => new { Conta = u.UserId, Personagem = u.Name, IdPersonagem = u.RoleId, Gs = u.GsId }).ToList();
-            Headers(_online, ("Conta", "Account"), ("Personagem", "Character"), ("ID do personagem", "Character ID"), ("Mapa (gs)", "Map (gs)"));
-            _status.Text = string.Format(L("{0} no jogo.", "{0} online."), list.Count);
+            Headers(_online, ("adm.account2", "Conta"), ("adm.character", "Personagem"), ("adm.characterId", "ID do personagem"), ("adm.mapGs", "Mapa (gs)"));
+            _status.Text = string.Format(Loc.T("adm.0Online", "{0} no jogo."), list.Count);
         });
     }
 
     void OnlineAction(string question, string def, Action<ServerAdmin.OnlineUser, int> act)
     {
-        if (_online.CurrentRow?.Index is not int i || i < 0 || i >= _onlineList.Count) { _status.Text = L("Escolha um jogador na lista.", "Pick a player in the list."); return; }
+        if (_online.CurrentRow?.Index is not int i || i < 0 || i >= _onlineList.Count) { _status.Text = Loc.T("adm.pickAPlayerInThe", "Escolha um jogador na lista."); return; }
         var u = _onlineList[i];
         var v = Ask(this, u.Name, question, def);
         if (v is null || !int.TryParse(v, out var min) || min < 0) return;
-        Work(L("Enviando…", "Sending…"), () => act(u, Math.Max(1, min * 60)), RefreshOnline);
+        Work(Loc.T("adm.sending", "Enviando…"), () => act(u, Math.Max(1, min * 60)), RefreshOnline);
     }
 
     // ---------- mundo ----------
@@ -422,34 +417,34 @@ public sealed class ServerAdminWindow : Form
     {
         var p = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
         p.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(900, 0), Padding = new Padding(0, 0, 0, 8), ForeColor = Color.DimGray,
-            Text = L("Valem na hora para todo o servidor e duram até ele reiniciar (como no iweb).", "Apply immediately to the whole server and last until it restarts (like iweb).") });
-        foreach (var (a, pt, en) in new[]
+            Text = Loc.T("adm.applyImmediatelyToTheWhole", "Valem na hora para todo o servidor e duram até ele reiniciar (como no iweb).") });
+        foreach (var (a, text) in new[]
         {
-            (ServerAdmin.Attr.DoubleExp, "EXP em dobro", "Double EXP"), (ServerAdmin.Attr.DoubleSp, "Espírito (SP) em dobro", "Double SP"),
-            (ServerAdmin.Attr.DoubleMoney, "Dinheiro em dobro", "Double money"), (ServerAdmin.Attr.DoubleDrop, "Drop em dobro", "Double drop"),
-            (ServerAdmin.Attr.NoTrade, "Proibir troca entre jogadores", "Block trading"), (ServerAdmin.Attr.NoAuction, "Proibir leilão", "Block auction"),
-            (ServerAdmin.Attr.NoMail, "Proibir correio", "Block mail"), (ServerAdmin.Attr.NoFaction, "Proibir ações de clã", "Block guild actions"),
+            (ServerAdmin.Attr.DoubleExp, Loc.T("adm.doubleExp", "EXP em dobro")), (ServerAdmin.Attr.DoubleSp, Loc.T("adm.doubleSp", "Espírito (SP) em dobro")),
+            (ServerAdmin.Attr.DoubleMoney, Loc.T("adm.doubleMoney", "Dinheiro em dobro")), (ServerAdmin.Attr.DoubleDrop, Loc.T("adm.doubleDrop", "Drop em dobro")),
+            (ServerAdmin.Attr.NoTrade, Loc.T("adm.blockTrading", "Proibir troca entre jogadores")), (ServerAdmin.Attr.NoAuction, Loc.T("adm.blockAuction", "Proibir leilão")),
+            (ServerAdmin.Attr.NoMail, Loc.T("adm.blockMail", "Proibir correio")), (ServerAdmin.Attr.NoFaction, Loc.T("adm.blockGuildActions", "Proibir ações de clã")),
         })
         {
-            var cb = new CheckBox { Text = L(pt, en), AutoSize = true, Margin = new Padding(4, 4, 4, 4) };
+            var cb = new CheckBox { Text = text, AutoSize = true, Margin = new Padding(4, 4, 4, 4) };
             cb.CheckedChanged += (_, _) =>
             {
                 if (_loadingAttrs) return;
                 bool on = cb.Checked;
-                Work(L("Aplicando…", "Applying…"), () => { if (!_adm.SetAttr(a, (byte)(on ? 1 : 0))) throw new InvalidOperationException(L("o servidor recusou", "the server refused")); },
-                    () => _status.Text = $"{cb.Text}: " + (on ? L("ligado", "on") : L("desligado", "off")));
+                Work(Loc.T("adm.applying", "Aplicando…"), () => { if (!_adm.SetAttr(a, (byte)(on ? 1 : 0))) throw new InvalidOperationException(Loc.T("adm.theServerRefused", "o servidor recusou")); },
+                    () => _status.Text = $"{cb.Text}: " + (on ? Loc.T("adm.on", "ligado") : Loc.T("adm.off", "desligado")));
             };
             _attrs[a] = cb; p.Controls.Add(cb);
         }
-        p.Controls.Add(new Label { AutoSize = true, Padding = new Padding(0, 16, 0, 4), Text = L("Aviso para todos os jogadores:", "Message to all players:"), Font = new Font("Segoe UI", 10f, FontStyle.Bold) });
+        p.Controls.Add(new Label { AutoSize = true, Padding = new Padding(0, 16, 0, 4), Text = Loc.T("adm.messageToAllPlayers", "Aviso para todos os jogadores:"), Font = new Font("Segoe UI", 10f, FontStyle.Bold) });
         var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
         row.Controls.Add(_msg);
-        row.Controls.Add(Btn(L("Enviar aviso", "Send message"), () =>
+        row.Controls.Add(Btn(Loc.T("adm.sendMessage", "Enviar aviso"), () =>
         {
             var m = _msg.Text.Trim();
             if (m.Length == 0) return;
-            if (m.Length > 200) { _status.Text = L("Aviso: até 200 letras.", "Message: up to 200 characters."); return; }
-            Work(L("Enviando aviso…", "Sending message…"), () => _adm.Broadcast(m), () => { _status.Text = L("Aviso enviado.", "Message sent."); _msg.Clear(); });
+            if (m.Length > 200) { _status.Text = Loc.T("adm.messageUpTo200Characters", "Aviso: até 200 letras."); return; }
+            Work(Loc.T("adm.sendingMessage", "Enviando aviso…"), () => _adm.Broadcast(m), () => { _status.Text = Loc.T("adm.messageSent", "Aviso enviado."); _msg.Clear(); });
         }, true));
         p.Controls.Add(row);
         return p;
@@ -458,7 +453,7 @@ public sealed class ServerAdminWindow : Form
     void RefreshWorld()
     {
         var values = new Dictionary<ServerAdmin.Attr, byte?>();
-        Work(L("Lendo o mundo…", "Reading world…"), () => { foreach (var a in _attrs.Keys) values[a] = _adm.GetAttr(a); }, () =>
+        Work(Loc.T("adm.readingWorld", "Lendo o mundo…"), () => { foreach (var a in _attrs.Keys) values[a] = _adm.GetAttr(a); }, () =>
         {
             _loadingAttrs = true;
             foreach (var (a, cb) in _attrs) cb.Checked = values.GetValueOrDefault(a) is > 0;
@@ -470,11 +465,10 @@ public sealed class ServerAdminWindow : Form
     Control BuildMaps()
     {
         var p = new Panel { Dock = DockStyle.Fill };
-        var bar = Bar(Btn(L("▶ Iniciar selecionado", "▶ Start selected"), () => MapAction(true), true),
-            Btn(L("■ Parar selecionado", "■ Stop selected"), () => MapAction(false)), Btn(L("Atualizar", "Refresh"), RefreshMaps), _ram);
+        var bar = Bar(Btn(Loc.T("adm.startSelected", "▶ Iniciar selecionado"), () => MapAction(true), true),
+            Btn(Loc.T("adm.stopSelected", "■ Parar selecionado"), () => MapAction(false)), Btn(Loc.T("adm.refresh", "Atualizar"), RefreshMaps), _ram);
         var hint = new Label { Dock = DockStyle.Bottom, Height = 40, ForeColor = Color.DimGray, Padding = new Padding(4),
-            Text = L("Cada mapa/instância é um programa gs separado e usa RAM. O mundo principal é gs01; as instâncias só abrem para os jogadores se o gs delas estiver rodando.",
-                     "Each map/instance is a separate gs program and uses RAM. The main world is gs01; instances only open to players while their gs is running.") };
+            Text = Loc.T("adm.eachMapInstanceIsA", "Cada mapa/instância é um programa gs separado e usa RAM. O mundo principal é gs01; as instâncias só abrem para os jogadores se o gs delas estiver rodando.") };
         p.Controls.Add(_maps); p.Controls.Add(hint); p.Controls.Add(bar);
         return p;
     }
@@ -483,25 +477,25 @@ public sealed class ServerAdminWindow : Form
     {
         if (_mapDefs.Count == 0) _mapDefs = ServerAdmin.MapList(_gsConf, _client);
         (List<ServerAdmin.MapProc> Running, int Total, int Free) st = (new(), 0, 0);
-        Work(L("Lendo mapas…", "Reading maps…"), () => st = _adm.Maps(), () =>
+        Work(Loc.T("adm.readingMaps", "Lendo mapas…"), () => st = _adm.Maps(), () =>
         {
             var run = st.Running.ToDictionary(m => m.Tag, m => m.RamMb);
             _maps.DataSource = _mapDefs.Select(m => new
             {
-                Mapa = m.Tag, Nome = m.Name, Tipo = m.Instance ? L("instância", "instance") : L("mundo", "world"),
+                Mapa = m.Tag, Nome = m.Name, Tipo = m.Instance ? Loc.T("adm.instance", "instância") : Loc.T("adm.world2", "mundo"),
                 Rodando = run.ContainsKey(m.Tag) ? "●" : "", RAM_MB = run.TryGetValue(m.Tag, out var mb) ? mb.ToString("N0") : "",
             }).ToList();
-            Headers(_maps, ("Mapa", "Map"), ("Nome", "Name"), ("Tipo", "Type"), ("Rodando", "Running"), ("RAM (MB)", "RAM (MB)"));
-            _ram.Text = string.Format(L("RAM do Linux: {0:N0} MB livres de {1:N0} MB", "Linux RAM: {0:N0} MB free of {1:N0} MB"), st.Free, st.Total);
+            Headers(_maps, ("adm.map2", "Mapa"), ("adm.name", "Nome"), ("adm.type", "Tipo"), ("adm.running", "Rodando"), ("adm.ramMb", "RAM (MB)"));
+            _ram.Text = string.Format(Loc.T("adm.linuxRam0N0Mb", "RAM do Linux: {0:N0} MB livres de {1:N0} MB"), st.Free, st.Total);
         });
     }
 
     void MapAction(bool start)
     {
-        if (_maps.CurrentRow?.Index is not int i || i < 0 || i >= _mapDefs.Count) { _status.Text = L("Escolha um mapa na lista.", "Pick a map in the list."); return; }
+        if (_maps.CurrentRow?.Index is not int i || i < 0 || i >= _mapDefs.Count) { _status.Text = Loc.T("adm.pickAMapInThe", "Escolha um mapa na lista."); return; }
         var m = _mapDefs[i];
-        if (!start && m.Tag == "gs01" && !Confirm(L("Parar o mundo principal derruba todos os jogadores. Continuar?", "Stopping the main world disconnects everyone. Continue?"))) return;
-        Work(start ? L("Iniciando ", "Starting ") + m.Tag + "…" : L("Parando ", "Stopping ") + m.Tag + "…",
+        if (!start && m.Tag == "gs01" && !Confirm(Loc.T("adm.stoppingTheMainWorldDisconnects", "Parar o mundo principal derruba todos os jogadores. Continuar?"))) return;
+        Work(start ? Loc.T("adm.starting2", "Iniciando ") + m.Tag + "…" : Loc.T("adm.stopping2", "Parando ") + m.Tag + "…",
             () => { if (start) _adm.StartMap(m.Tag); else _adm.StopMap(m.Tag); }, RefreshMaps);
     }
 }
