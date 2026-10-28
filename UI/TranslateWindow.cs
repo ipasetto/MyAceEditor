@@ -13,7 +13,7 @@ internal sealed class TranslateWindow : Form
     readonly List<ElementsTranslator.Change> _all;
     readonly Func<string, string> _blockName;
     readonly CheckedListBox _blocks = new() { Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false, BorderStyle = BorderStyle.None };
-    readonly CheckBox _onlyNames = new() { AutoSize = true }, _onlyUntranslated = new() { AutoSize = true, Checked = true };
+    readonly CheckBox _onlyNames = new() { AutoSize = true }, _onlyUntranslated = new() { AutoSize = true };   // desmarcado: o cliente pode estar em inglês (só pegaria chinês/russo)
     readonly ListView _preview = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None };
     readonly Button _ok = new() { Height = 34, Dock = DockStyle.Bottom, FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = Color.White, DialogResult = DialogResult.OK };
     readonly Label _info = new() { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8), ForeColor = Color.FromArgb(100, 112, 128) };

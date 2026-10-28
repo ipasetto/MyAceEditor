@@ -2514,5 +2514,8 @@
   "chk.no": "no",
   "chk.gsAiRefused": "refused aipolicy.data",
   "chk.gsLoadedOk": "The world is up.",
-  "chk.gsNotLoaded": "The gs did not finish loading (or is stopped): entering the world disconnects and login fails as \"different version\". Use \"Send to server\" (it converts an aipolicy.data the gs cannot read) or check the gs log in administration."
+  "chk.gsNotLoaded": "The gs did not finish loading (or is stopped): entering the world disconnects and login fails as \"different version\". Use \"Send to server\" (it converts an aipolicy.data the gs cannot read) or check the gs log in administration.",
+  "ct.shopDetail": "names and descriptions of shop items by item ID, and the categories; prices, order and the pair with the server's gshopsev stay",
+  "srv.online": "● Server online",
+  "srv.offline": "● Server offline"
 }

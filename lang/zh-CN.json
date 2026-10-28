@@ -2516,5 +2516,8 @@
   "chk.no": "否",
   "chk.gsAiRefused": "拒绝了 aipolicy.data",
   "chk.gsLoadedOk": "世界已上线。",
-  "chk.gsNotLoaded": "gs 未完成加载（或已停止）：进入世界会断线，登录会因“版本不同”失败。请使用“发送到服务器”（会转换 gs 无法读取的 aipolicy.data），或在管理中查看 gs 日志。"
+  "chk.gsNotLoaded": "gs 未完成加载（或已停止）：进入世界会断线，登录会因“版本不同”失败。请使用“发送到服务器”（会转换 gs 无法读取的 aipolicy.data），或在管理中查看 gs 日志。",
+  "ct.shopDetail": "按物品 ID 替换商城物品的名称和描述以及分类；价格、顺序及与服务器 gshopsev 的配对保持不变",
+  "srv.online": "● 服务器在线",
+  "srv.offline": "● 服务器离线"
 }

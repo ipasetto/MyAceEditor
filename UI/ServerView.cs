@@ -18,7 +18,7 @@ public sealed class ServerView : UserControl
     readonly TextBox _login = new() { Width = 160, BorderStyle = BorderStyle.FixedSingle };
     readonly TextBox _pass = new() { Width = 160, BorderStyle = BorderStyle.FixedSingle, UseSystemPasswordChar = true };
     readonly CheckBox _gm = new() { AutoSize = true, Checked = true };
-    readonly TextBox _log = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9.5f), WordWrap = true };
+    readonly RichTextBox _log = new() { Dock = DockStyle.Fill, ReadOnly = true, ScrollBars = RichTextBoxScrollBars.Vertical, Font = new Font("Consolas", 9.5f), WordWrap = true, BorderStyle = BorderStyle.None };
     readonly Label _step = new() { Dock = DockStyle.Top, Height = 28, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 10.5f, FontStyle.Bold) };
     readonly ProgressBar _bar = new() { Dock = DockStyle.Top, Height = 8, Style = ProgressBarStyle.Marquee, Visible = false };
     readonly FlowLayoutPanel _lights = new() { Dock = DockStyle.Top, Height = 34, WrapContents = false, AutoScroll = true };
@@ -127,10 +127,18 @@ public sealed class ServerView : UserControl
     /// <summary>Servidor local com as pastas desta aba (para o Corrigir da Verificação); o andamento vai para o log daqui.</summary>
     public LocalServer CreateServer() { Fill(); return NewServer(); }
 
-    void AppendLog(string line)
+    /// <summary>Linha do log com cor: etapa em destaque, erro em vermelho, aviso em laranja, o resto na cor normal.</summary>
+    void AppendLog(string line, Color? color = null)
     {
+        Color c = color ?? (line.StartsWith("##ERRO") || line.StartsWith(Loc.T("srv.errorLog", "ERRO: ")) ? Color.IndianRed
+            : line.StartsWith("##AVISO") || line.StartsWith("⚠") ? Color.DarkOrange
+            : line.StartsWith("##PASSO ") ? _accent : _log.ForeColor);
         if (line.StartsWith("##PASSO ")) line = "▶ " + line[8..];
+        _log.SelectionStart = _log.TextLength; _log.SelectionLength = 0;
+        _log.SelectionColor = c;
         _log.AppendText(line + Environment.NewLine);
+        _log.SelectionColor = _log.ForeColor;
+        _log.ScrollToCaret();
     }
 
     void Busy(bool on, string text = "")
@@ -181,9 +189,11 @@ public sealed class ServerView : UserControl
         {
             if (LocalServer.WslProblem() is { } p) { BeginInvoke(() => { Busy(false, p); AppendLog(p); }); return; }
             try { act(s); } catch (Exception ex) { BeginInvoke(() => AppendLog(Loc.T("srv.errorLog", "ERRO: ") + ex.Message)); }
-            BeginInvoke(() => { Busy(false, ""); RefreshStatus(); });
+            BeginInvoke(() => { Busy(false, ""); _announce = true; RefreshStatus(); });
         });
     }
+
+    bool _announce;
 
     /// <summary>Envia ao servidor local o que o editor gravou e reinicia (botão desta aba e "Salvar e enviar" da barra de cima).</summary>
     public void SendFiles()
@@ -271,9 +281,15 @@ public sealed class ServerView : UserControl
                         AutoSize = true, Padding = new Padding(6, 6, 6, 6), Margin = new Padding(0, 0, 6, 0),
                         Text = (on ? "● " : "○ ") + name, ForeColor = on ? Color.LimeGreen : Color.IndianRed,
                     });
-                _step.Text = st.TryGetValue("porta29000", out var up) && up
+                bool online = st.TryGetValue("porta29000", out var up) && up;
+                _step.Text = online
                     ? Loc.T("srv.serverIsUpJoinThe", "Servidor no ar: entre no jogo pelo servidor \"Local\".")
                     : Loc.T("srv.serverStoppedOrStarting", "Servidor parado ou subindo.");
+                if (_announce)   // depois de iniciar/enviar: o resultado em uma linha, verde ou vermelha
+                {
+                    _announce = false;
+                    AppendLog(online ? Loc.T("srv.online", "● Servidor online") : Loc.T("srv.offline", "● Servidor offline"), online ? Color.LimeGreen : Color.IndianRed);
+                }
             });
         });
     }

@@ -30,7 +30,9 @@ start)
     svc gfactiond "gfactiond gamesys.conf" gfactiond ./gfactiond gamesys.conf; sleep 2
     svc gdeliveryd "gdeliveryd gamesys.conf" gdeliveryd ./gdeliveryd gamesys.conf; sleep 3
     svc glinkd "glinkd gamesys.conf 1" glinkd ./glinkd gamesys.conf 1; sleep 3
-    maps="${*:-gs01}"
+    # sem mapas pedidos: o mundo (gs01) e, se o pacote tiver, o is61 (tag 161), onde nascem os personagens novos no
+    # 1.5.x; sem ele a tela de personagens abre e entrar no mundo falha (gdeliveryd: PlayerLogin ... gs_id -1)
+    if [ -n "$*" ]; then maps="$*"; else maps="gs01"; grep -q '^\[World_is61\]' "$P/gamed/gs.conf" && maps="$maps is61"; fi
     for m in $maps; do svc "gs-$m" "gs $m\$" gamed ./gs $m; sleep 5; done
     echo "##OK iniciado"
     ;;

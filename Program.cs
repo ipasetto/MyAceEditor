@@ -47,8 +47,30 @@ internal static class Program
         if (args.Length >= 4 && args[0] == "--adm")   // <pasta do servidor local> deleterole|deleteaccount <id>: o mesmo do painel (adm.txt)
         {
             var adm = new ServerAdmin(new LocalServer(args[1]));
-            string? err = args[2] == "deleterole" ? adm.DeleteRole(int.Parse(args[3])) : args[2] == "deleteaccount" ? adm.DeleteAccount(int.Parse(args[3])) : "comando?";
+            string? err = args[2] == "deleterole" ? adm.DeleteRole(int.Parse(args[3])) : args[2] == "deleteaccount" ? adm.DeleteAccount(int.Parse(args[3]))
+                : args[2] == "role" ? adm.RoleDetails(int.Parse(args[3]))?.ToString() ?? "não achei" : "comando?";
             File.WriteAllText("adm.txt", err ?? "OK", new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--el-translate")   // <elements destino> <elements traduzido>: quantos textos o plano troca (el-translate.txt)
+        {
+            var cur = CfgCatalog.Load(args[1]); var oth = CfgCatalog.Load(args[2]).Module;
+            var plan = ElementsTranslator.Plan(cur.Module, ElementsCfg.Load(cur.ConfigPath), oth);
+            File.WriteAllText("el-translate.txt", $"{plan.Count:N0} textos\n" + string.Join("\n", plan.Take(8).Select(c => $"{c.Block.Name} {c.Item.Id} {c.Field}: {c.Item.Fields[c.Field].Value} -> {c.Value}")), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--shop-translate")   // <gshop destino> <gshop traduzido>: quantos textos (shop-translate.txt)
+        {
+            var dst = GShopFile.ReadClient(File.ReadAllBytes(args[1])); var src = GShopFile.ReadClient(File.ReadAllBytes(args[2]));
+            int n = ClientTranslator.TranslateShop(dst, src, dryRun: false);
+            var back = GShopFile.ReadClient(dst.WriteClient());
+            File.WriteAllText("shop-translate.txt", $"{n:N0} textos · relido {back.Items.Count:N0} itens\n" + string.Join("\n", back.Items.Take(3).Select(i => $"{i.ItemId} {i.Name}: {i.Description[..Math.Min(80, i.Description.Length)]}")), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--names")   // <elements.data> <bloco>: ID e nome dos 15 primeiros itens (names.txt)
+        {
+            var list = CfgCatalog.Load(args[1]).Module.FindListByName(args[2]);
+            File.WriteAllText("names.txt", string.Join("\n", (list?.Items ?? new()).Take(15).Select(i => $"{i.Id}\t{i.Name}")), new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 3 && args[0] == "--fix-pair") { FixPairCli(args[1], args[2]); return; }   // <cliente> <servidor>: aplica as correções recomendadas

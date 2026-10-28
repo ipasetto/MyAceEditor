@@ -468,7 +468,7 @@ public sealed class LocalServer
     {
         EnsureTools();
         KeepAlive();
-        return Bash("pwctl start " + string.Join(' ', maps ?? new[] { "gs01" }), Log, timeoutMs: 600_000);
+        return Bash("pwctl start " + string.Join(' ', maps ?? Array.Empty<string>()), Log, timeoutMs: 600_000);   // sem mapas: o pwctl escolhe (mundo + mapa inicial)
     }
 
     public RunResult Stop()

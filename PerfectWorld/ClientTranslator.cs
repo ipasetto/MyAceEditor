@@ -122,6 +122,31 @@ public static class ClientTranslator
             catch (Exception ex) { steps.Add(new Step { Title = Loc.T("ct.ai", "Falas dos monstros (aipolicy.data)"), Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
 
+        // ---- loja do cliente: nomes e descrições pelo ID do item, qualquer formato (1380/1436 B) ----
+        foreach (var name in new[] { "gshop.data", "gshop1.data" })
+        {
+            var dst = Path.Combine(target, "data", name); var src = Path.Combine(source, "data", name);
+            if (!File.Exists(src) || !File.Exists(dst)) continue;
+            int n;
+            try { n = TranslateShop(GShopFile.ReadClient(File.ReadAllBytes(dst)), GShopFile.ReadClient(File.ReadAllBytes(src)), dryRun: true); }
+            catch (Exception ex) { steps.Add(new Step { Title = name, Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); continue; }
+            if (n == 0) continue;
+            steps.Add(new Step
+            {
+                Title = string.Format(Loc.T("ct.pckTextsTitle", "{0}: {1:N0} textos"), name, n),
+                Detail = Loc.T("ct.shopDetail", "nomes e descrições dos itens da loja pelo ID do item, e as categorias; preços, ordem e o par com o gshopsev do servidor ficam"),
+                Default = true, Enabled = true,
+                Apply = log =>
+                {
+                    var shop = GShopFile.ReadClient(File.ReadAllBytes(dst));
+                    int k = TranslateShop(shop, GShopFile.ReadClient(File.ReadAllBytes(src)), dryRun: false);
+                    var bk = AtomicFileSave.Write(dst, shop.WriteClient());
+                    log(string.Format(Loc.T("ct.pckTextsLog", "{0}: {1:N0} textos em {2} arquivo(s)"), name, k, 1) + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
+                    return dst;
+                },
+            });
+        }
+
         // ---- configs.pck e interfaces.pck: texto por texto, qualquer versão (a estrutura e as imagens daqui ficam) ----
         foreach (var p in TextPackages)
         {
@@ -210,6 +235,34 @@ public static class ClientTranslator
             if (na != nb || !ba.AsSpan(0, na).SequenceEqual(bb.AsSpan(0, nb))) return false;
             if (na == 0) return true;
         }
+    }
+
+    // ---------- loja (gshop.data / gshop1.data do cliente) ----------
+    /// <summary>
+    /// Nome e descrição de cada item da loja pelo ID do item (a 2ª vez que o mesmo ID aparece casa com a 2ª do outro…) e
+    /// os nomes das categorias pela posição. Só texto: preço, ordem e timestamp ficam (o par com o gshopsev não muda).
+    /// </summary>
+    public static int TranslateShop(GShopFile dst, GShopFile src, bool dryRun)
+    {
+        int n = 0;
+        void Take(string cur, string other, Action<string> set) { if (other.Length == 0 || other == cur) return; n++; if (!dryRun) set(other); }
+        var byId = src.Items.GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.ToList());
+        var seen = new Dictionary<int, int>();
+        foreach (var it in dst.Items)
+        {
+            int k = seen[it.ItemId] = seen.GetValueOrDefault(it.ItemId) + 1;
+            if (!byId.TryGetValue(it.ItemId, out var same)) continue;
+            var s = same[Math.Min(k, same.Count) - 1];
+            Take(it.Name, s.Name, v => it.Name = v);
+            Take(it.Description, s.Description, v => it.Description = v);
+        }
+        for (int c = 0; c < dst.Categories.Count && c < src.Categories.Count; c++)
+        {
+            var (a, b) = (dst.Categories[c], src.Categories[c]);
+            Take(a.Name, b.Name, v => a.Name = v);
+            for (int i = 0; i < a.Subs.Count && i < b.Subs.Count; i++) { int j = i; Take(a.Subs[j], b.Subs[j], v => a.Subs[j] = v); }
+        }
+        return n;
     }
 
     // ---------- tasks ----------
