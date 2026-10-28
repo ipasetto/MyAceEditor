@@ -119,7 +119,7 @@ public sealed class AiLayout
                 case '3': w.Write((byte[])v); break;
                 case 'a':
                     var g = AiPolicyFile.Gbk.GetBytes((string)v);
-                    if (g.Length > 127) throw new InvalidDataException($"'{f.Name}' passa de 127 bytes em GBK.");
+                    if (g.Length > 127) throw new InvalidDataException(string.Format(UI.Loc.T("aif.fieldTooLong", "'{0}' passa de 127 bytes em GBK."), f.Name));
                     w.Write(g); w.Write(new byte[128 - g.Length]); break;
                 case 't':
                     var s = (string)v;
@@ -339,7 +339,7 @@ public sealed class AiTrigger
         set
         {
             var g = AiPolicyFile.Gbk.GetBytes(value);
-            if (g.Length > 127) throw new InvalidDataException("Nome passa de 127 bytes em GBK.");
+            if (g.Length > 127) throw new InvalidDataException(UI.Loc.T("aif.nameTooLong", "Nome passa de 127 bytes em GBK."));
             var raw = new byte[128]; g.CopyTo(raw, 0); NameRaw = raw;
         }
     }
@@ -487,7 +487,7 @@ public sealed class AiPolicyFile
     /// <summary>Backup com data/hora + escrita atômica (mesma regra de elements.data/tasks.data).</summary>
     public string? Save(string path)
     {
-        if (!Ok) throw new InvalidOperationException("Arquivo não foi lido por inteiro; salvar poderia corromper o aipolicy.data.");
+        if (!Ok) throw new InvalidOperationException(UI.Loc.T("aif.incomplete", "Arquivo não foi lido por inteiro; salvar poderia corromper o aipolicy.data."));
         var bytes = Build();
         string? backup = null;
         if (File.Exists(path)) { backup = $"{path}.{DateTime.Now:yyyyMMdd-HHmmss}.bak"; File.Copy(path, backup, overwrite: false); }

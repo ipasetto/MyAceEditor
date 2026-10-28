@@ -30,8 +30,8 @@ public sealed class GShopFile
         // o formato certo é o único em que as 8 categorias terminam exatamente no fim do arquivo
         foreach (var lay in GShopLayout.All)
             if (TryReadClient(d, n, lay) is { } f) return f;
-        if (n < 0 || 8L + (long)n * GShopLayout.V1.ClientSize > d.Length) throw new InvalidDataException("gshop.data: número de itens inválido");
-        throw new InvalidDataException("gshop.data: formato de item desconhecido (nenhum tamanho conhecido fecha as categorias no fim do arquivo)");
+        if (n < 0 || 8L + (long)n * GShopLayout.V1.ClientSize > d.Length) throw new InvalidDataException(UI.Loc.T("gshopf.badCount", "gshop.data: número de itens inválido"));
+        throw new InvalidDataException(UI.Loc.T("gshopf.unknownFormat", "gshop.data: formato de item desconhecido (nenhum tamanho conhecido fecha as categorias no fim do arquivo)"));
     }
 
     static GShopFile? TryReadClient(byte[] d, int n, GShopLayout lay)
@@ -61,14 +61,14 @@ public sealed class GShopFile
     {
         var diffs = new List<string>();
         int ts = BitConverter.ToInt32(d, 0), n = BitConverter.ToInt32(d, 4), size = Layout.ServerSize;
-        if (8L + (long)n * size != d.Length) throw new InvalidDataException("gshopsev.data: tamanho não bate com o número de itens");
+        if (8L + (long)n * size != d.Length) throw new InvalidDataException(UI.Loc.T("gshopf.serverSize", "gshopsev.data: tamanho não bate com o número de itens"));
         if (ts != Timestamp) diffs.Add($"timestamp diferente (cliente {Timestamp}, servidor {ts})");
         if (n != Items.Count) diffs.Add($"quantidade diferente (cliente {Items.Count}, servidor {n})");
         for (int i = 0; i < Math.Min(n, Items.Count); i++)
         {
             var raw = d.AsSpan(8 + i * size, size).ToArray();
             Items[i].ServerRaw = raw;
-            if (!Items[i].ServerMatchesClient) diffs.Add($"item {i} (loja {Items[i].ShopId}): números diferentes entre cliente e servidor");
+            if (!Items[i].ServerMatchesClient) diffs.Add(string.Format(UI.Loc.T("gshopf.serverDiff", "item {0} (loja {1}): números diferentes entre cliente e servidor"), i, Items[i].ShopId));
         }
         return diffs;
     }
@@ -79,7 +79,7 @@ public sealed class GShopFile
     /// </summary>
     public List<string> ServerProblems() =>
         Items.Select((it, i) => (it, i)).Where(x => x.it.GetOption(0).Price <= 0)
-            .Select(x => $"posição {x.i + 1}: item {x.it.ItemId} \"{x.it.Name}\" sem preço (a 1ª opção de venda precisa custar pelo menos 0,01)").ToList();
+            .Select(x => string.Format(UI.Loc.T("gshopf.noPrice", "posição {0}: item {1} \"{2}\" sem preço (a 1ª opção de venda precisa custar pelo menos 0,01)"), x.i + 1, x.it.ItemId, x.it.Name)).ToList();
 
     public byte[] WriteClient()
     {
@@ -170,7 +170,7 @@ public sealed record GShopLayout(int ClientSize, int OptionSize, int ServerSize)
     public int Name => Desc + GShopItem.DescChars * 2;
     public int Gift => Name + GShopItem.NameChars * 2;
 
-    public static GShopLayout Of(int clientSize) => All.FirstOrDefault(l => l.ClientSize == clientSize) ?? throw new ArgumentException("registro de loja com tamanho errado");
+    public static GShopLayout Of(int clientSize) => All.FirstOrDefault(l => l.ClientSize == clientSize) ?? throw new ArgumentException(UI.Loc.T("gshopf.badRecord", "registro de loja com tamanho errado"));
 }
 
 public sealed class GShopItem

@@ -2446,5 +2446,19 @@
   "conv.noteZeroed": "{0} · ID {1} · {2}：{3}（已置零）",
   "conv.proofIncomplete": "结果未能用目标 .cfg 完整读取",
   "conv.proofCount": "{0}：源中 {1} 个物品，结果中 {2} 个",
-  "dlg.csvFilter": "CSV 表格"
+  "dlg.csvFilter": "CSV 表格",
+  "gshopf.badCount": "gshop.data：物品数量无效",
+  "gshopf.unknownFormat": "gshop.data：未知的物品格式（没有已知大小能使分类正好位于文件末尾）",
+  "gshopf.serverSize": "gshopsev.data：大小与物品数量不符",
+  "gshopf.serverDiff": "物品 {0}（商城 {1}）：客户端与服务器数值不同",
+  "gshopf.noPrice": "位置 {0}：物品 {1}“{2}”没有价格（第 1 个出售选项至少需要 0.01）",
+  "gshopf.badRecord": "商城记录大小错误",
+  "aif.fieldTooLong": "“{0}”在 GBK 编码下超过 127 字节。",
+  "aif.nameTooLong": "名称在 GBK 编码下超过 127 字节。",
+  "aif.incomplete": "文件未完整读取；保存可能会损坏 aipolicy.data。",
+  "npcf.version": "npcgen.data：未知版本 {0}",
+  "npcf.badCounts": "npcgen.data：文件头中的数量无效",
+  "npcf.truncated": "npcgen.data：文件提前结束（版本或格式不同）",
+  "npcf.leftover": "npcgen.data：末尾剩余 {0} 字节（格式不同）",
+  "regionf.version": "region.sev：未知版本 {0}"
 }

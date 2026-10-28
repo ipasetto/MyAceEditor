@@ -2444,5 +2444,19 @@
   "conv.noteZeroed": "{0} · ID {1} · {2}: {3} (set to zero)",
   "conv.proofIncomplete": "the result was not fully read with the target .cfg",
   "conv.proofCount": "{0}: {1} items in the source, {2} in the result",
-  "dlg.csvFilter": "CSV spreadsheet"
+  "dlg.csvFilter": "CSV spreadsheet",
+  "gshopf.badCount": "gshop.data: invalid item count",
+  "gshopf.unknownFormat": "gshop.data: unknown item format (no known size lines the categories up with the end of the file)",
+  "gshopf.serverSize": "gshopsev.data: size does not match the item count",
+  "gshopf.serverDiff": "item {0} (shop {1}): numbers differ between client and server",
+  "gshopf.noPrice": "position {0}: item {1} \"{2}\" has no price (the 1st sale option must cost at least 0.01)",
+  "gshopf.badRecord": "shop record with the wrong size",
+  "aif.fieldTooLong": "'{0}' exceeds 127 bytes in GBK.",
+  "aif.nameTooLong": "Name exceeds 127 bytes in GBK.",
+  "aif.incomplete": "The file was not fully read; saving could corrupt aipolicy.data.",
+  "npcf.version": "npcgen.data: unknown version {0}",
+  "npcf.badCounts": "npcgen.data: invalid counts in the header",
+  "npcf.truncated": "npcgen.data: the file ended earlier than expected (different version or format)",
+  "npcf.leftover": "npcgen.data: {0} bytes left over at the end (different format)",
+  "regionf.version": "region.sev: unknown version {0}"
 }

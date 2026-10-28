@@ -25,7 +25,7 @@ public sealed class RegionFile
         using var r = new BinaryReader(new MemoryStream(data));
         var f = new RegionFile { Version = r.ReadInt32() };
         int v = f.Version;
-        if (v < 1 || v > 5) throw new InvalidDataException($"region.sev: versão {v} desconhecida");
+        if (v < 1 || v > 5) throw new InvalidDataException(string.Format(UI.Loc.T("regionf.version", "region.sev: versão {0} desconhecida"), v));
         int nr = r.ReadInt32(), nt = v >= 2 ? r.ReadInt32() : 0;
         if (v >= 4) r.ReadUInt32();
         f.RegionCount = nr;

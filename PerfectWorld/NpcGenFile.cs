@@ -24,9 +24,9 @@ public sealed class NpcGenFile
         var r = new BinaryReader(new MemoryStream(d));
         var f = new NpcGenFile { Version = r.ReadInt32() };
         int v = f.Version;
-        if (v < 1 || v > 20) throw new InvalidDataException($"npcgen.data: versão {v} desconhecida");
+        if (v < 1 || v > 20) throw new InvalidDataException(string.Format(UI.Loc.T("npcf.version", "npcgen.data: versão {0} desconhecida"), v));
         int nc = r.ReadInt32(), nr = r.ReadInt32(), nd = v >= 6 ? r.ReadInt32() : 0, nt = v >= 7 ? r.ReadInt32() : 0;
-        if (nc < 0 || nr < 0 || nd < 0 || nt < 0) throw new InvalidDataException("npcgen.data: quantidades inválidas no cabeçalho");
+        if (nc < 0 || nr < 0 || nd < 0 || nt < 0) throw new InvalidDataException(UI.Loc.T("npcf.badCounts", "npcgen.data: quantidades inválidas no cabeçalho"));
         try
         {
             for (int i = 0; i < nc; i++) f.Spawns.Add(NpcGenSpawn.Read(r, v));
@@ -34,9 +34,9 @@ public sealed class NpcGenFile
             for (int i = 0; i < nd; i++) f.Dynamics.Add(NpcGenDynamic.Read(r, v));
             for (int i = 0; i < nt; i++) f.Triggers.Add(NpcGenTrigger.Read(r, v));
         }
-        catch (EndOfStreamException) { throw new InvalidDataException("npcgen.data: o arquivo acabou antes do esperado (versão ou formato diferente)"); }
+        catch (EndOfStreamException) { throw new InvalidDataException(UI.Loc.T("npcf.truncated", "npcgen.data: o arquivo acabou antes do esperado (versão ou formato diferente)")); }
         if (r.BaseStream.Position != d.Length)
-            throw new InvalidDataException($"npcgen.data: sobraram {d.Length - r.BaseStream.Position} bytes no fim (formato diferente)");
+            throw new InvalidDataException(string.Format(UI.Loc.T("npcf.leftover", "npcgen.data: sobraram {0} bytes no fim (formato diferente)"), d.Length - r.BaseStream.Position));
         return f;
     }
 

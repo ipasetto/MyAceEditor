@@ -2444,5 +2444,19 @@
   "conv.noteZeroed": "{0} · ID {1} · {2}: {3} (обнулено)",
   "conv.proofIncomplete": "результат не прочитан полностью с целевым .cfg",
   "conv.proofCount": "{0}: в исходнике {1} элементов, в результате {2}",
-  "dlg.csvFilter": "Таблица CSV"
+  "dlg.csvFilter": "Таблица CSV",
+  "gshopf.badCount": "gshop.data: неверное количество предметов",
+  "gshopf.unknownFormat": "gshop.data: неизвестный формат предметов (ни один известный размер не совпадает с категориями в конце файла)",
+  "gshopf.serverSize": "gshopsev.data: размер не соответствует количеству предметов",
+  "gshopf.serverDiff": "предмет {0} (магазин {1}): числа клиента и сервера различаются",
+  "gshopf.noPrice": "позиция {0}: предмет {1} «{2}» без цены (1-й вариант продажи должен стоить не меньше 0,01)",
+  "gshopf.badRecord": "запись магазина неверного размера",
+  "aif.fieldTooLong": "«{0}» превышает 127 байт в GBK.",
+  "aif.nameTooLong": "Имя превышает 127 байт в GBK.",
+  "aif.incomplete": "Файл прочитан не полностью; сохранение может повредить aipolicy.data.",
+  "npcf.version": "npcgen.data: неизвестная версия {0}",
+  "npcf.badCounts": "npcgen.data: неверные количества в заголовке",
+  "npcf.truncated": "npcgen.data: файл закончился раньше ожидаемого (другая версия или формат)",
+  "npcf.leftover": "npcgen.data: в конце осталось {0} байт (другой формат)",
+  "regionf.version": "region.sev: неизвестная версия {0}"
 }
