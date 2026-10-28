@@ -34,6 +34,16 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 4 && args[0] == "--local-send") { LocalSend(args[1], args[2], args[3]); return; }
+        if (args.Length >= 2 && args[0] == "--tasks-texts") { TestTaskTexts(args[1]); return; }   // <tasks.data>: textos em qualquer versão
+        if (args.Length >= 4 && args[0] == "--tasks-translate") { TasksTranslate(args[1], args[2], args[3]); return; }   // <destino> <traduzido> <saída>
+        if (args.Length >= 4 && args[0] == "--pck-texts")   // <pck destino> <pck traduzido> <cópia de saída>: textos por ID (pck-texts.txt)
+        {
+            File.Copy(args[1], args[3], true);
+            var (n, files) = PackTextTranslator.Plan(args[3], args[2], dryRun: false);
+            if (files.Count > 0) PckWriter.Write(args[3], files);
+            File.WriteAllText("pck-texts.txt", $"{n:N0} textos em {files.Count} arquivo(s)\n" + string.Join("\n", files.Keys.Order().Take(40)), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--fix-pair") { FixPairCli(args[1], args[2]); return; }   // <cliente> <servidor>: aplica as correções recomendadas
         if (args.Length >= 4 && args[0] == "--aipolicy-convert") { AiConvert(args[1], args[2], args[3]); return; }   // <entrada> <referência que o gs lê> <saída>
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
@@ -173,6 +183,59 @@ internal static class Program
             sb.AppendLine($"resumo detalhado de {nt:N0} triggers: {t0.ElapsedMilliseconds} ms");
         }
         File.WriteAllText("aipolicy-report.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --tasks-texts <tasks.data>: acha os textos de todas as quests (qualquer versão), regrava sem mudar (tem de sair
+    // idêntico) e, na v93, confere com o esquema completo. Relatório em tasks-texts.txt.
+    private static void TestTaskTexts(string path)
+    {
+        var sb = new StringBuilder();
+        var d = File.ReadAllBytes(path);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var r = TaskTexts.Read(d);
+            var all = TaskTexts.All(r.Roots).ToList();
+            sb.AppendLine($"versão {r.Version} · {r.Roots.Count:N0} quests de topo · {all.Count:N0} com subquests · {sw.ElapsedMilliseconds} ms");
+            sb.AppendLine($"com descrição: {all.Count(q => q.Texts[0].Text.Length > 0):N0} · janelas de diálogo: {all.Sum(q => q.Talks.Sum(t => t.Windows.Count)):N0}");
+            sb.AppendLine($"regravar sem mudar: {(TaskTexts.Build(d, r).AsSpan().SequenceEqual(d) ? "IDÊNTICO" : "DIFERENTE")}");
+            // reescreve todos os textos (codificados de novo): tem de sair igual também
+            static IEnumerable<TaskText> Texts(TaskTextNode q) => new[] { q.Name }.Concat(q.Texts).Concat(q.Talks.SelectMany(t => new[] { t.Title }
+                .Concat(t.Windows.SelectMany(w => new[] { w.Text }.Concat(w.Options.Select(o => o.Text))))));
+            foreach (var t in all.SelectMany(Texts)) t.Orig = "\u0001";
+            var again = TaskTexts.Build(d, r);
+            int diff = again.Length == d.Length ? Enumerable.Range(0, d.Length).Count(i => again[i] != d[i]) : -1;
+            sb.AppendLine($"reescrever todos os textos: {(diff == 0 ? "IDÊNTICO" : diff < 0 ? $"tamanho {again.Length:N0} × {d.Length:N0}" : $"{diff:N0} bytes diferentes (lixo depois do \0 em campos fixos)")}");
+            if (r.Version == 93 && new TasksFile(d) is { FullSchema: true } full)
+            {
+                var byId = full.AllNodes().GroupBy(q => q.Id).ToDictionary(g => g.Key, g => g.First());
+                int bad = all.Count(q => !byId.TryGetValue(q.Id, out var f) || !f.Texts.SequenceEqual(q.Texts.Select(t => t.Text))
+                    || f.Talks.Zip(q.Talks).Any(z => z.First.Windows.Count != z.Second.Windows.Count || z.First.Windows.Zip(z.Second.Windows).Any(w => w.First.Text.TrimEnd('\0') != w.Second.Text.Text)));
+                sb.AppendLine($"v93 × esquema completo: {all.Count - bad:N0} iguais, {bad:N0} diferentes · esquema completo tem {full.AllNodes().Count():N0} nós");
+                foreach (var q in all.Where(q => !byId.TryGetValue(q.Id, out var f) || !f.Texts.SequenceEqual(q.Texts.Select(t => t.Text))).Take(3))
+                    sb.AppendLine(byId.TryGetValue(q.Id, out var f)
+                        ? $"  {q.Id}: textos [{string.Join(" | ", q.Texts.Select(t => t.Text.Length > 30 ? t.Text[..30] : t.Text))}] × [{string.Join(" | ", f.Texts.Select(t => t.Length > 30 ? t[..30] : t))}]"
+                        : $"  {q.Id}: não existe no esquema completo (início {q.Start:N0}, textos em {q.TextStart:N0})");
+            }
+            var ex = all.FirstOrDefault(q => q.Texts[0].Text.Length > 20);
+            if (ex is not null) sb.AppendLine($"exemplo {ex.Id} \"{ex.Name.Text}\": {ex.Texts[0].Text[..Math.Min(100, ex.Texts[0].Text.Length)]}");
+        }
+        catch (Exception e) { sb.AppendLine($"FALHOU ({sw.ElapsedMilliseconds} ms): {e.Message}"); }
+        File.WriteAllText("tasks-texts.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --tasks-translate <destino> <traduzido> <saída>: traz os textos do traduzido (qualquer versão) pelo ID.
+    private static void TasksTranslate(string dst, string src, string output)
+    {
+        var sb = new StringBuilder();
+        var dd = File.ReadAllBytes(dst);
+        var rd = TaskTexts.Read(dd); var rs = TaskTexts.Read(File.ReadAllBytes(src));
+        int n = TaskTexts.Translate(rd, rs, dryRun: false);
+        var o = TaskTexts.Build(dd, rd);
+        File.WriteAllBytes(output, o);
+        var back = TaskTexts.Read(o);
+        sb.AppendLine($"destino v{rd.Version} · traduzido v{rs.Version} · {n:N0} textos trocados · relido: {back.Roots.Count:N0} quests · TasksFile: {(new TasksFile(o) is { } tf ? $"{tf.Quests.Count:N0} quests, regrava {(tf.CanWrite ? "OK" : tf.ReadOnlyReason)}" : "")}");
+        File.WriteAllText("tasks-translate.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --fix-pair <pasta element do cliente> <pasta home do servidor>: aplica as correções recomendadas do "Corrigir o par"

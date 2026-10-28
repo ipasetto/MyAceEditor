@@ -1679,17 +1679,25 @@ public sealed class EditorForm : Form
     // ---------- traduzir com outro elements.data (como o DataTranslator / "Localization" do RAE) ----------
     // Copia nomes e textos (campos de texto UTF-16) pelo ID, bloco a bloco, de outro elements.data já traduzido,
     // de qualquer versão. Só troca o que é diferente e não vazio no outro arquivo. Um passo de desfazer.
-    private void TranslateFromOther() => TranslateFromOther(null);
+    // O elements.data escolhido dentro de outro Perfect World (element\data\) traduz tudo o que aquele PW tiver
+    // (regra: o que está aberto é de um PW só): vai para a tradução a partir do cliente, com o elements incluído.
+    private void TranslateFromOther()
+    {
+        if (_store.Current?.Source is not ElementsLayout) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
+        using var dlg = new OpenFileDialog { Filter = "elements.data (*.data)|*.data|*.*|*.*", Title = Loc.T("tr.pick", "elements.data já traduzido (qualquer versão)") };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (Path.GetDirectoryName(Path.GetDirectoryName(dlg.FileName)) is { } other && IsClientElement(other)) TranslateFromClient(other);
+        else TranslateFromOther(dlg.FileName);
+    }
 
-    private void TranslateFromOther(string? otherPath)
+    /// <summary>Pasta element\ de um cliente: tem o executável ou algum dos arquivos de texto do jogo além do elements.</summary>
+    private static bool IsClientElement(string dir) =>
+        File.Exists(Path.Combine(dir, "elementclient.exe")) || File.Exists(Path.Combine(dir, "data", "tasks.data"))
+        || File.Exists(Path.Combine(dir, "configs.pck")) || File.Exists(Path.Combine(dir, "interfaces.pck"));
+
+    private void TranslateFromOther(string otherPath)
     {
         if (_store.Current is not { } mod || mod.Source is not ElementsLayout layout) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
-        if (otherPath is null)
-        {
-            using var dlg = new OpenFileDialog { Filter = "elements.data (*.data)|*.data|*.*|*.*", Title = Loc.T("tr.pick", "elements.data já traduzido (qualquer versão)") };
-            if (dlg.ShowDialog(this) != DialogResult.OK) return;
-            otherPath = dlg.FileName;
-        }
         Module other;
         try { Cursor = Cursors.WaitCursor; other = CfgCatalog.Load(otherPath).Module; }
         catch (Exception ex) { Error(Loc.T("tr.loadFail", "Não consegui ler o outro arquivo"), ex); return; }
@@ -1714,7 +1722,10 @@ public sealed class EditorForm : Form
     // ---------- traduzir a partir de outro cliente (mesma versão, mais alta ou mais baixa) ----------
     // Tudo o que é texto: elements (janela de revisão), quests, falas dos monstros e, se o jogo for o mesmo programa,
     // os pacotes de interface/descrições e a ajuda. O cliente aberto só recebe o que ele tem; estrutura e versão ficam.
-    private void TranslateFromClient()
+    private void TranslateFromClient() => TranslateFromClient(null);
+
+    /// <param name="sourceElement">pasta element\ do outro PW já escolhida (pelo elements.data); null = perguntar a pasta</param>
+    private void TranslateFromClient(string? sourceElement)
     {
         if (_dataPath is null || Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) is not { } target)
         { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
@@ -1723,17 +1734,23 @@ public sealed class EditorForm : Form
             MessageBox.Show(this, Loc.T("trc.saveFirst", "Há quests ou AI Policy com alterações não salvas. Salve (ou desfaça) antes de traduzir."), Loc.T("trc.title", "Traduzir a partir de outro cliente"));
             return;
         }
-        using var pick = new FolderBrowserDialog { Description = Loc.T("trc.pick", "Pasta do outro Perfect World (o já traduzido, de qualquer versão)"), SelectedPath = LoadSetting("translate_source") ?? "" };
-        if (pick.ShowDialog(this) != DialogResult.OK) return;
-        SaveSetting("translate_source", pick.SelectedPath);
-        var srcEl = FindFile(pick.SelectedPath, "elements.data");
+        string folder;
+        if (sourceElement is not null) folder = sourceElement;
+        else
+        {
+            using var pick = new FolderBrowserDialog { Description = Loc.T("trc.pick", "Pasta do outro Perfect World (o já traduzido, de qualquer versão)"), SelectedPath = LoadSetting("translate_source") ?? "" };
+            if (pick.ShowDialog(this) != DialogResult.OK) return;
+            folder = pick.SelectedPath;
+        }
+        SaveSetting("translate_source", folder);
+        var srcEl = FindFile(folder, "elements.data");
         if (srcEl is null || Path.GetDirectoryName(Path.GetDirectoryName(srcEl)) is not { } source) { Status(Loc.T("trc.noElements", "Não achei elements.data nessa pasta.")); return; }
         if (string.Equals(Path.GetFullPath(source), Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase)) { Status(Loc.T("trc.same", "É a mesma pasta do cliente aberto.")); return; }
 
         List<ClientTranslator.Step> steps;
-        try { Cursor = Cursors.WaitCursor; steps = ClientTranslator.Plan(target, source); }
+        // quests de qualquer versão e pacotes levam alguns segundos: fora da tela
+        try { steps = ReadProgressDialog.Run(this, Loc.T("trc.comparing", "Comparando os dois Perfect World"), _ => ClientTranslator.Plan(target, source), allowCancel: false); }
         catch (Exception ex) { Error(Loc.T("trc.planFail", "Não consegui comparar os clientes"), ex); return; }
-        finally { Cursor = Cursors.Default; }
         bool running = GameRunningFrom(target);
 
         using var f = new Form { Text = Loc.T("trc.title", "Traduzir a partir de outro cliente"), Width = 760, Height = 520, StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false, MinimizeBox = false, BackColor = CSurface, ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) };
@@ -1765,11 +1782,18 @@ public sealed class EditorForm : Form
         }
 
         var log = new List<string>(); var touched = new List<string>();
-        Cursor = Cursors.WaitCursor;
-        foreach (var s in chosen.OfType<ClientTranslator.Step>())
-            try { touched.Add(s.Apply(log.Add)); }
-            catch (Exception ex) { log.Add($"{s.Title}: " + Loc.T("trc.failed", "falhou — ") + ex.Message); }
-        Cursor = Cursors.Default;
+        var todo = chosen.OfType<ClientTranslator.Step>().ToList();
+        if (todo.Count > 0)
+            ReadProgressDialog.Run(this, Loc.T("trc.title", "Traduzir a partir de outro cliente"), ctx =>
+            {
+                for (int i = 0; i < todo.Count; i++)
+                {
+                    ctx.Report((double)i / todo.Count, todo[i].Title, indeterminate: true, force: true);
+                    try { touched.Add(todo[i].Apply(m => { lock (log) log.Add(m); })); }
+                    catch (Exception ex) { lock (log) log.Add($"{todo[i].Title}: " + Loc.T("trc.failed", "falhou — ") + ex.Message); }
+                }
+                return touched;
+            }, allowCancel: false);
         // o editor passa a mostrar o que foi gravado
         if (_tasksPath is not null && touched.Any(t => string.Equals(t, _tasksPath, StringComparison.OrdinalIgnoreCase))) LoadTasks(_tasksPath);
         if (touched.FirstOrDefault(t => t.EndsWith("aipolicy.data", StringComparison.OrdinalIgnoreCase)) is { } ai) _aiView?.LoadFile(ai);

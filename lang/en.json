@@ -2403,9 +2403,7 @@
   "ct.aiDetail": "only the text of each line; your file's conditions and actions stay",
   "ct.aiLog": "aipolicy.data: {0:N0} lines",
   "ct.ai": "Monster speech (aipolicy.data)",
-  "ct.pckInterfaces": "interface windows and texts",
   "ct.pckSurfaces": "interface images",
-  "ct.pckConfigs": "item and skill descriptions, messages (the announcements page is turned off again)",
   "ct.pckHelp": "help texts",
   "ct.wholeFile": "{0} (whole file)",
   "ct.notRecommended": "NOT recommended: ",
@@ -2488,5 +2486,14 @@
   "ls.aiAccepted": "The gs accepted the converted aipolicy.data.",
   "ls.aiNoReference": "The gs cannot read this aipolicy.data and no readable one was found to use as a reference (another package with a gs of the same version). Open an aipolicy.data of the server's version in the AI Policy tab and send again.",
   "fix.mapCopiesTitle": "Per-map copies: make {0} file(s) match the client's",
-  "fix.mapCopiesDetail": ". They are from another version; a map that uses them crashes when it opens. The current ones are kept as backup."
+  "fix.mapCopiesDetail": ". They are from another version; a map that uses them crashes when it opens. The current ones are kept as backup.",
+  "tasks.textsNotFound": "Could not find the quest texts at offset {0:N0} (version {1}).",
+  "ct.modeAnyVersion": "names, texts and dialogs of each quest by ID, subquests included (tasks v{0} here and v{1} in the other); a quest that exists on only one side stays as it is",
+  "ct.tasksChanged": "This client's tasks.data changed and could not be read again.",
+  "trc.comparing": "Comparing the two Perfect World installs",
+  "ct.pckTextsTitle": "{0}: {1:N0} texts",
+  "ct.pckConfigsTexts": "item and skill descriptions, buffs and messages",
+  "ct.pckInterfacesTexts": "interface window texts",
+  "ct.pckTextsDetail": " — by each text's ID, in any version; only replaced when the markers (%d, %s…) are the same. Fonts and images here stay.",
+  "ct.pckTextsLog": "{0}: {1:N0} texts in {2} file(s)"
 }

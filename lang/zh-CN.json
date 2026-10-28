@@ -2405,9 +2405,7 @@
   "ct.aiDetail": "仅替换每句台词文本；保留你文件中的条件和动作",
   "ct.aiLog": "aipolicy.data：{0:N0} 句台词",
   "ct.ai": "怪物台词（aipolicy.data）",
-  "ct.pckInterfaces": "界面窗口和文本",
   "ct.pckSurfaces": "界面图片",
-  "ct.pckConfigs": "物品和技能描述、消息（公告页面会再次关闭）",
   "ct.pckHelp": "帮助文本",
   "ct.wholeFile": "{0}（整个文件）",
   "ct.notRecommended": "不推荐：",
@@ -2490,5 +2488,14 @@
   "ls.aiAccepted": "gs 已接受转换后的 aipolicy.data。",
   "ls.aiNoReference": "gs 无法读取此 aipolicy.data，也找不到它能读取的参考文件（另一个 gs 版本相同的服务端包）。请在 AI 策略标签中打开服务器版本的 aipolicy.data 后重新发送。",
   "fix.mapCopiesTitle": "地图副本：使 {0} 个文件与客户端一致",
-  "fix.mapCopiesDetail": "。它们来自其他版本；使用它们的地图在打开时会崩溃。当前文件会保留为备份。"
+  "fix.mapCopiesDetail": "。它们来自其他版本；使用它们的地图在打开时会崩溃。当前文件会保留为备份。",
+  "tasks.textsNotFound": "在偏移 {0:N0} 处找不到任务文本（版本 {1}）。",
+  "ct.modeAnyVersion": "按 ID 替换每个任务（含子任务）的名称、文本和对话（此处为 tasks v{0}，另一个为 v{1}）；只存在于一侧的任务保持不变",
+  "ct.tasksChanged": "此客户端的 tasks.data 已更改，无法重新读取。",
+  "trc.comparing": "正在比较两个 Perfect World",
+  "ct.pckTextsTitle": "{0}：{1:N0} 条文本",
+  "ct.pckConfigsTexts": "物品和技能描述、状态和消息",
+  "ct.pckInterfacesTexts": "界面窗口文本",
+  "ct.pckTextsDetail": " —— 按每条文本的 ID，适用于任何版本；仅在占位符（%d、%s…）相同时替换。此处的字体和图片保持不变。",
+  "ct.pckTextsLog": "{0}：{2} 个文件中的 {1:N0} 条文本"
 }

@@ -21,7 +21,7 @@ restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | i
 ## §E2 MAPA ENGINE x JOGO (capacidade -> arquivos/sistemas -> secao PWKB)
 capacidade | client | server | PWKB | status
 itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; ESCRITA PRONTA byte-identica [T] (§E3)
-quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | v93 COMPLETO [T] (§E3c): campos, textos, dialogos, subquests; premios preservados
+quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | v93 COMPLETO [T] (§E3c): campos, textos, dialogos, subquests; premios preservados; TEXTOS em qualquer versao (TaskTexts.cs) [T]
 IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | [T] aba AI Policy + round-trip identico (1.4.4, v9); layouts de 16 operacoes ainda inferidos -> conferir com Policy.cpp oficial
 loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
 spawns | NpcGenFile.cs + UI/NpcGenView.cs | npcgen.data | §S6 §S22 | [T] leitura/gravacao identica v5/v6/v10 (49 arquivos); aba NPCGen; Mudar ID atualiza
@@ -80,6 +80,9 @@ prova (--tasks): 9.298 topo / 21.777 total; cada quest termina no offset da prox
 gravacao: reconstroi tabela de offsets; bloco fixo + textos originais (se nao mudaram) + filhos
 UI aba Quests: arvore (subquests ao expandir, cores ^RRGGBB), Dados (grade agrupada, nomes de item/monstro/quest), Textos, Dialogos (arvore janelas/opcoes editavel), Salvar c/ backup
 [T 24/10] listas e premios com nome (editaveis no lugar, mesmo tamanho): itens exigidos/dados/a coletar (ITEM_WANTED v93 17B: id, comum, qtd, chance, validade), monstros a matar (MONSTER_WANTED v93 30B: id, qtd, item que cai, qtd, comum, chance, nivel do matador, DPH, DPS), premio sucesso/falha (ouro, exp, nova quest, SP, reputacao, periodo, estacao, banco 1-4, inventario, inv. mascote, furia, teleporte, controlador, 4 flags, canal, grupos de itens c/ itens) - regravar continua IDENTICO; 6.911 quests c/ item de premio, 2.387 c/ monstros. Clonar/excluir quest principal (TasksFile.CloneRoot/DeleteRoot): IDs novos (max+1), textos/dialogos recodificados c/ a chave nova, vinculos Pai/Irmaos/Primeiro filho remapeados; teste: clone com 3 subquests relido igual; excluir o clone = arquivo identico ao original. pendente: mudar QUANTIDADE de itens/monstros (inserir/remover entradas), premios por razao/itens (preservados), outras versoes (so nomes), textos XOR dentro do bloco fixo em clones [?]
+
+[T 28/10] TaskTexts.cs: textos de quest em QUALQUER versao sem o esquema do bloco fixo: procura o bloco de textos depois do nome e so aceita se a quest inteira (subquests incluidas) fechar no offset da proxima; titulo/opcao exigem o \0 dentro dos 64 chars; 1a passada rejeita o char == chave (zero cru = lixo do bloco fixo), 2a aceita. v93: 21.975/21.975 iguais ao TaskSchema93; v128 PWI 36.575 e v129 PW155BR 31.837 nos; regravar sem mudanca IDENTICO; traducao v129->v128: 122.441 textos, relido OK. Grava so os textos alterados (bytes originais no resto). CLI --tasks-texts / --tasks-translate
+[T 28/10] StringTables.cs (PackTextTranslator): configs.pck (.txt c/ #_begin, #_index = por id, senao por posicao) e interfaces.pck (.stf indice<TAB>"texto") texto por texto entre versoes; pula fontes (###), badwords.txt e textos com marcadores %d/%s diferentes. PWI<-PW155BR: configs 23.617 textos/7 arquivos, interfaces 3.357/4. CLI --pck-texts
 
 ## §E3d CONFIGS DO CLIENTE (GameConfigs.cs) [T]
 configs.pck: item_color.txt (5.444; "ID<TAB>idx") + tabela oficial l_aNameCols (source_client EC_Game.cpp): 0 branco 1 azul-claro 8080ff 2 amarelo ffdc50 3 roxo aa32ff 4 dourado-escuro ff6000 5 branco 6 cinza b0b0b0 7 verde-agua 00ffae 8 vermelho [C][T]

@@ -6,13 +6,12 @@ namespace MyAceEditor.PerfectWorld;
 /// <summary>
 /// "Traduzir a partir de outro cliente": traz de outro cliente (mesma versão ou outra, mais alta ou mais baixa) os
 /// textos que ESTE cliente tem, sem trazer estrutura nem versão. Regra: só entra o que o cliente de destino possui.
-///   tasks.data   — nome da quest pelo ID (qualquer versão); textos e diálogos quando os dois são da mesma versão
-///                  lida por inteiro e o diálogo tem a mesma forma (janelas/opções).
+///   tasks.data   — nome, textos e diálogos de cada quest pelo ID, em qualquer versão (TaskTexts); se o bloco de textos
+///                  de um dos dois não for achado, só os nomes.
 ///   aipolicy     — falas dos monstros (operação "talk") por política/trigger/posição; só o texto é trocado, o resto
 ///                  dos parâmetros do destino fica (versões de trigger diferentes funcionam).
-///   pacotes      — interfaces.pck, surfaces.pck, help\script.pck, configs.pck e info\: arquivo inteiro, e só marcado
-///                  quando os executáveis são o mesmo programa (interface de outra versão não funciona); configs.pck
-///                  recebe de novo a correção da página de anúncios.
+///   configs.pck, interfaces.pck — texto por texto (PackTextTranslator), em qualquer versão.
+///   surfaces.pck, help\script.pck e info\ — arquivo inteiro, só marcado quando os executáveis são o mesmo programa.
 /// O elements.data é traduzido à parte, pela janela de revisão que já existe (casa por bloco/campo/ID).
 /// Nunca: executável, elements inteiro, mapas, construções, lista de servidores, patcher/launcher. Backup de tudo.
 /// </summary>
@@ -25,7 +24,8 @@ public static class ClientTranslator
         public Func<Action<string>, string> Apply = _ => "";
     }
 
-    static readonly string[] Packages = { "interfaces.pck", "surfaces.pck", @"help\script.pck", "configs.pck" };
+    static readonly string[] Packages = { "surfaces.pck", @"help\script.pck" };          // arquivo inteiro, só no mesmo programa
+    static readonly string[] TextPackages = { "configs.pck", "interfaces.pck" };       // texto por texto, qualquer versão
 
     /// <summary>Executáveis do jogo são o mesmo programa (mesmo tamanho e no máximo 16 bytes diferentes, ex.: só o número de versão).</summary>
     public static (bool Same, string Why) SameProgram(string target, string source)
@@ -51,22 +51,47 @@ public static class ClientTranslator
         {
             try
             {
-                var dst = new TasksFile(tT); var src = new TasksFile(tS);
-                int n = TranslateTasks(dst, src, dryRun: true, out var mode);
-                steps.Add(new Step
+                // textos de quest em qualquer versão (TaskTexts: nome, 4 textos e diálogos pelo ID); se o bloco de textos de
+                // um dos dois não for achado, fica o modo antigo (só nomes entre versões diferentes)
+                var dd = File.ReadAllBytes(tT); var sd = File.ReadAllBytes(tS);
+                if (TaskTextsOf(dd) is { } rd && TaskTextsOf(sd) is { } rs)
                 {
-                    Title = string.Format(Loc.T("ct.tasksTitle", "Quests (tasks.data): {0:N0} textos"), n),
-                    Detail = mode + (dst.CanWrite ? "" : Loc.T("ct.tasksReadOnly", " — o tasks deste cliente não pode ser gravado: ") + dst.ReadOnlyReason),
-                    Default = n > 0 && dst.CanWrite, Enabled = n > 0 && dst.CanWrite,
-                    Apply = log =>
+                    int n = TaskTexts.Translate(rd, rs, dryRun: true);
+                    steps.Add(new Step
                     {
-                        var d = new TasksFile(tT); var s2 = new TasksFile(tS);
-                        int k = TranslateTasks(d, s2, dryRun: false, out _);
-                        var bk = d.Save(tT);
-                        log(string.Format(Loc.T("ct.tasksLog", "tasks.data: {0:N0} textos"), k) + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
-                        return tT;
-                    },
-                });
+                        Title = string.Format(Loc.T("ct.tasksTitle", "Quests (tasks.data): {0:N0} textos"), n),
+                        Detail = string.Format(Loc.T("ct.modeAnyVersion", "nomes, textos e diálogos de cada quest pelo ID, subquests incluídas (tasks v{0} aqui e v{1} no outro); quest que só existe num dos lados fica como está"), rd.Version, rs.Version),
+                        Default = n > 0, Enabled = n > 0,
+                        Apply = log =>
+                        {
+                            var d = File.ReadAllBytes(tT);
+                            var r = TaskTextsOf(d) ?? throw new InvalidDataException(Loc.T("ct.tasksChanged", "O tasks.data deste cliente mudou e não foi lido de novo."));
+                            int k = TaskTexts.Translate(r, TaskTextsOf(File.ReadAllBytes(tS))!, dryRun: false);
+                            var bk = AtomicFileSave.Write(tT, TaskTexts.Build(d, r));
+                            log(string.Format(Loc.T("ct.tasksLog", "tasks.data: {0:N0} textos"), k) + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
+                            return tT;
+                        },
+                    });
+                }
+                else
+                {
+                    var dst = new TasksFile(dd); var src = new TasksFile(sd);
+                    int n = TranslateTasks(dst, src, dryRun: true, out var mode);
+                    steps.Add(new Step
+                    {
+                        Title = string.Format(Loc.T("ct.tasksTitle", "Quests (tasks.data): {0:N0} textos"), n),
+                        Detail = mode + (dst.CanWrite ? "" : Loc.T("ct.tasksReadOnly", " — o tasks deste cliente não pode ser gravado: ") + dst.ReadOnlyReason),
+                        Default = n > 0 && dst.CanWrite, Enabled = n > 0 && dst.CanWrite,
+                        Apply = log =>
+                        {
+                            var d = new TasksFile(tT); var s2 = new TasksFile(tS);
+                            int k = TranslateTasks(d, s2, dryRun: false, out _);
+                            var bk = d.Save(tT);
+                            log(string.Format(Loc.T("ct.tasksLog", "tasks.data: {0:N0} textos"), k) + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
+                            return tT;
+                        },
+                    });
+                }
             }
             catch (Exception ex) { steps.Add(new Step { Title = Loc.T("ct.tasks", "Quests (tasks.data)"), Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
@@ -97,16 +122,40 @@ public static class ClientTranslator
             catch (Exception ex) { steps.Add(new Step { Title = Loc.T("ct.ai", "Falas dos monstros (aipolicy.data)"), Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
 
-        // ---- pacotes de interface e textos (arquivo inteiro) ----
+        // ---- configs.pck e interfaces.pck: texto por texto, qualquer versão (a estrutura e as imagens daqui ficam) ----
+        foreach (var p in TextPackages)
+        {
+            var dst = Path.Combine(target, p); var src = Path.Combine(source, p);
+            if (!File.Exists(src) || !File.Exists(dst) || SameFile(dst, src)) continue;
+            int n;
+            try { n = PackTextTranslator.Plan(dst, src, dryRun: true).Count; }
+            catch (Exception ex) { steps.Add(new Step { Title = p, Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); continue; }
+            if (n == 0) continue;
+            steps.Add(new Step
+            {
+                Title = string.Format(Loc.T("ct.pckTextsTitle", "{0}: {1:N0} textos"), p, n),
+                Detail = (p == "configs.pck" ? Loc.T("ct.pckConfigsTexts", "descrições de itens e habilidades, buffs e mensagens")
+                                             : Loc.T("ct.pckInterfacesTexts", "textos das janelas da interface"))
+                    + Loc.T("ct.pckTextsDetail", " — pelo ID de cada texto, em qualquer versão; só troca quando os marcadores (%d, %s…) são os mesmos. Fontes e imagens daqui ficam."),
+                Default = true, Enabled = true,
+                Apply = log =>
+                {
+                    var (k, files) = PackTextTranslator.Plan(dst, src, dryRun: false);
+                    if (files.Count > 0) PckWriter.Write(dst, files);
+                    log(string.Format(Loc.T("ct.pckTextsLog", "{0}: {1:N0} textos em {2} arquivo(s)"), p, k, files.Count));
+                    return dst;
+                },
+            });
+        }
+
+        // ---- imagens e ajuda (arquivo inteiro) ----
         foreach (var p in Packages)
         {
             var dst = Path.Combine(target, p); var src = Path.Combine(source, p);
             if (!File.Exists(src) || !File.Exists(dst) || SameFile(dst, src)) continue;
             string what = p switch
             {
-                "interfaces.pck" => Loc.T("ct.pckInterfaces", "janelas e textos da interface"),
                 "surfaces.pck" => Loc.T("ct.pckSurfaces", "imagens da interface"),
-                "configs.pck" => Loc.T("ct.pckConfigs", "descrições de itens e habilidades, mensagens (a página de anúncios é desligada de novo)"),
                 _ => Loc.T("ct.pckHelp", "textos de ajuda"),
             };
             steps.Add(new Step
@@ -120,7 +169,6 @@ public static class ClientTranslator
                     File.Copy(dst, bk);
                     File.Copy(src, dst, overwrite: true);
                     log(string.Format(Loc.T("ct.copied", "{0}: copiado (backup {1})"), p, Path.GetFileName(bk)));
-                    if (p == "configs.pck") LocalServer.FixClientPages(target, log);
                     return dst;
                 },
             });
@@ -165,6 +213,13 @@ public static class ClientTranslator
     }
 
     // ---------- tasks ----------
+    /// <summary>Textos das quests (qualquer versão), só se acha todos e a regravação sem mudança sai idêntica; senão null.</summary>
+    static TaskTexts.Result? TaskTextsOf(byte[] d)
+    {
+        try { var r = TaskTexts.Read(d); return TaskTexts.Build(d, r).AsSpan().SequenceEqual(d) ? r : null; }
+        catch (InvalidDataException) { return null; }
+    }
+
     static IEnumerable<QuestNode> Flatten(IEnumerable<QuestNode> roots)
     {
         foreach (var r in roots) { yield return r; foreach (var c in Flatten(r.Children)) yield return c; }
