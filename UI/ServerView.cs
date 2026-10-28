@@ -166,7 +166,7 @@ public sealed class ServerView : UserControl
         Task.Run(async () =>
         {
             try { await s.InstallAsync(opt, prog, CancellationToken.None); BeginInvoke(() => { Busy(false, Loc.T("srv.installedClickStart", "Instalado. Clique em Iniciar.")); }); }
-            catch (Exception ex) { BeginInvoke(() => { Busy(false, Loc.T("srv.stopped", "Parou: ") + ex.Message); AppendLog("ERRO: " + ex.Message); }); }
+            catch (Exception ex) { BeginInvoke(() => { Busy(false, Loc.T("srv.stopped", "Parou: ") + ex.Message); AppendLog(Loc.T("srv.errorLog", "ERRO: ") + ex.Message); }); }
         });
     }
 
@@ -177,7 +177,7 @@ public sealed class ServerView : UserControl
         Task.Run(() =>
         {
             if (LocalServer.WslProblem() is { } p) { BeginInvoke(() => { Busy(false, p); AppendLog(p); }); return; }
-            try { act(s); } catch (Exception ex) { BeginInvoke(() => AppendLog("ERRO: " + ex.Message)); }
+            try { act(s); } catch (Exception ex) { BeginInvoke(() => AppendLog(Loc.T("srv.errorLog", "ERRO: ") + ex.Message)); }
             BeginInvoke(() => { Busy(false, ""); RefreshStatus(); });
         });
     }

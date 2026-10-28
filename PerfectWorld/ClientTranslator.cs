@@ -1,4 +1,5 @@
 using System.Text;
+using MyAceEditor.UI;
 
 namespace MyAceEditor.PerfectWorld;
 
@@ -30,12 +31,13 @@ public static class ClientTranslator
     public static (bool Same, string Why) SameProgram(string target, string source)
     {
         var a = Path.Combine(target, "elementclient.exe"); var b = Path.Combine(source, "elementclient.exe");
-        if (!File.Exists(a) || !File.Exists(b)) return (false, "elementclient.exe não encontrado nos dois clientes");
+        if (!File.Exists(a) || !File.Exists(b)) return (false, Loc.T("ct.noExe", "elementclient.exe não encontrado nos dois clientes"));
         var da = File.ReadAllBytes(a); var db = File.ReadAllBytes(b);
-        if (da.Length != db.Length) return (false, $"executáveis de tamanhos diferentes ({da.Length:N0} e {db.Length:N0} bytes): versões diferentes do jogo");
+        if (da.Length != db.Length) return (false, string.Format(Loc.T("ct.exeSizes", "executáveis de tamanhos diferentes ({0:N0} e {1:N0} bytes): versões diferentes do jogo"), da.Length, db.Length));
         int diff = 0;
         for (int i = 0; i < da.Length && diff <= 16; i++) if (da[i] != db[i]) diff++;
-        return diff <= 16 ? (true, diff == 0 ? "executáveis idênticos" : $"mesmo programa ({diff} bytes diferentes)") : (false, "executáveis diferentes: versões diferentes do jogo");
+        return diff <= 16 ? (true, diff == 0 ? Loc.T("ct.exeSame", "executáveis idênticos") : string.Format(Loc.T("ct.exeAlmost", "mesmo programa ({0} bytes diferentes)"), diff))
+            : (false, Loc.T("ct.exeDiffer", "executáveis diferentes: versões diferentes do jogo"));
     }
 
     public static List<Step> Plan(string target, string source)
@@ -53,20 +55,20 @@ public static class ClientTranslator
                 int n = TranslateTasks(dst, src, dryRun: true, out var mode);
                 steps.Add(new Step
                 {
-                    Title = $"Quests (tasks.data): {n:N0} textos",
-                    Detail = mode + (dst.CanWrite ? "" : " — o tasks deste cliente não pode ser gravado: " + dst.ReadOnlyReason),
+                    Title = string.Format(Loc.T("ct.tasksTitle", "Quests (tasks.data): {0:N0} textos"), n),
+                    Detail = mode + (dst.CanWrite ? "" : Loc.T("ct.tasksReadOnly", " — o tasks deste cliente não pode ser gravado: ") + dst.ReadOnlyReason),
                     Default = n > 0 && dst.CanWrite, Enabled = n > 0 && dst.CanWrite,
                     Apply = log =>
                     {
                         var d = new TasksFile(tT); var s2 = new TasksFile(tS);
                         int k = TranslateTasks(d, s2, dryRun: false, out _);
                         var bk = d.Save(tT);
-                        log($"tasks.data: {k:N0} textos" + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
+                        log(string.Format(Loc.T("ct.tasksLog", "tasks.data: {0:N0} textos"), k) + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
                         return tT;
                     },
                 });
             }
-            catch (Exception ex) { steps.Add(new Step { Title = "Quests (tasks.data)", Detail = "não consegui ler: " + ex.Message, Enabled = false }); }
+            catch (Exception ex) { steps.Add(new Step { Title = Loc.T("ct.tasks", "Quests (tasks.data)"), Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
 
         // ---- aipolicy.data ----
@@ -79,20 +81,20 @@ public static class ClientTranslator
                 int n = dst.Ok && src.Ok ? TranslateTalk(dst, src, dryRun: true) : 0;
                 steps.Add(new Step
                 {
-                    Title = $"Falas dos monstros (aipolicy.data): {n:N0}",
-                    Detail = !dst.Ok || !src.Ok ? "um dos aipolicy.data não foi lido por inteiro" : "só o texto de cada fala; condições e ações do seu arquivo ficam",
+                    Title = string.Format(Loc.T("ct.aiTitle", "Falas dos monstros (aipolicy.data): {0:N0}"), n),
+                    Detail = !dst.Ok || !src.Ok ? Loc.T("ct.aiIncomplete", "um dos aipolicy.data não foi lido por inteiro") : Loc.T("ct.aiDetail", "só o texto de cada fala; condições e ações do seu arquivo ficam"),
                     Default = n > 0, Enabled = n > 0,
                     Apply = log =>
                     {
                         var d = new AiPolicyFile(aT); var s2 = new AiPolicyFile(aS);
                         int k = TranslateTalk(d, s2, dryRun: false);
                         var bk = d.Save(aT);
-                        log($"aipolicy.data: {k:N0} falas" + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
+                        log(string.Format(Loc.T("ct.aiLog", "aipolicy.data: {0:N0} falas"), k) + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
                         return aT;
                     },
                 });
             }
-            catch (Exception ex) { steps.Add(new Step { Title = "Falas dos monstros (aipolicy.data)", Detail = "não consegui ler: " + ex.Message, Enabled = false }); }
+            catch (Exception ex) { steps.Add(new Step { Title = Loc.T("ct.ai", "Falas dos monstros (aipolicy.data)"), Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
 
         // ---- pacotes de interface e textos (arquivo inteiro) ----
@@ -102,22 +104,22 @@ public static class ClientTranslator
             if (!File.Exists(src) || !File.Exists(dst) || SameFile(dst, src)) continue;
             string what = p switch
             {
-                "interfaces.pck" => "janelas e textos da interface",
-                "surfaces.pck" => "imagens da interface",
-                "configs.pck" => "descrições de itens e habilidades, mensagens (a página de anúncios é desligada de novo)",
-                _ => "textos de ajuda",
+                "interfaces.pck" => Loc.T("ct.pckInterfaces", "janelas e textos da interface"),
+                "surfaces.pck" => Loc.T("ct.pckSurfaces", "imagens da interface"),
+                "configs.pck" => Loc.T("ct.pckConfigs", "descrições de itens e habilidades, mensagens (a página de anúncios é desligada de novo)"),
+                _ => Loc.T("ct.pckHelp", "textos de ajuda"),
             };
             steps.Add(new Step
             {
-                Title = $"{p} (arquivo inteiro)",
-                Detail = what + " — " + (same ? why : "NÃO recomendado: " + why),
+                Title = string.Format(Loc.T("ct.wholeFile", "{0} (arquivo inteiro)"), p),
+                Detail = what + " — " + (same ? why : Loc.T("ct.notRecommended", "NÃO recomendado: ") + why),
                 Default = same, Enabled = true,
                 Apply = log =>
                 {
                     var bk = $"{dst}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
                     File.Copy(dst, bk);
                     File.Copy(src, dst, overwrite: true);
-                    log($"{p}: copiado (backup {Path.GetFileName(bk)})");
+                    log(string.Format(Loc.T("ct.copied", "{0}: copiado (backup {1})"), p, Path.GetFileName(bk)));
                     if (p == "configs.pck") LocalServer.FixClientPages(target, log);
                     return dst;
                 },
@@ -132,15 +134,15 @@ public static class ClientTranslator
             if (files.Count > 0)
                 steps.Add(new Step
                 {
-                    Title = $"Ajuda (pasta info): {files.Count} arquivos",
-                    Detail = "textos e imagens da ajuda do jogo" + (same ? "" : " — de outra versão do jogo"),
+                    Title = string.Format(Loc.T("ct.infoTitle", "Ajuda (pasta info): {0} arquivos"), files.Count),
+                    Detail = Loc.T("ct.infoDetail", "textos e imagens da ajuda do jogo") + (same ? "" : Loc.T("ct.otherVersion", " — de outra versão do jogo")),
                     Default = same, Enabled = true,
                     Apply = log =>
                     {
                         var bkDir = Path.Combine(iT, $"_backup_{DateTime.Now:yyyyMMdd-HHmmss}");
                         Directory.CreateDirectory(bkDir);
                         foreach (var f in files) { File.Copy(Path.Combine(iT, f!), Path.Combine(bkDir, f!)); File.Copy(Path.Combine(iS, f!), Path.Combine(iT, f!), true); }
-                        log($"info: {files.Count} arquivos (backup em {Path.GetFileName(bkDir)})");
+                        log(string.Format(Loc.T("ct.infoLog", "info: {0} arquivos (backup em {1})"), files.Count, Path.GetFileName(bkDir)));
                         return iT;
                     },
                 });
@@ -175,7 +177,7 @@ public static class ClientTranslator
         bool full = dst.FullSchema && src.FullSchema && dst.Version == src.Version;
         if (full)
         {
-            mode = $"nomes, textos e diálogos de cada quest pelo ID (tasks v{dst.Version} nos dois)";
+            mode = string.Format(Loc.T("ct.modeFull", "nomes, textos e diálogos de cada quest pelo ID (tasks v{0} nos dois)"), dst.Version);
             var map = Flatten(src.Roots!).GroupBy(q => q.Id).ToDictionary(g => g.Key, g => g.First());
             foreach (var t in Flatten(dst.Roots!))
             {
@@ -202,8 +204,8 @@ public static class ClientTranslator
         }
         else
         {
-            mode = dst.Version == src.Version ? "só os nomes das quests (um dos tasks não foi lido por inteiro)"
-                : $"só os nomes das quests, pelo ID (tasks v{dst.Version} aqui e v{src.Version} no outro: textos e diálogos têm formatos diferentes)";
+            mode = dst.Version == src.Version ? Loc.T("ct.modeNamesIncomplete", "só os nomes das quests (um dos tasks não foi lido por inteiro)")
+                : string.Format(Loc.T("ct.modeNamesVersion", "só os nomes das quests, pelo ID (tasks v{0} aqui e v{1} no outro: textos e diálogos têm formatos diferentes)"), dst.Version, src.Version);
             var names = src.Quests.GroupBy(q => q.Id).ToDictionary(g => g.Key, g => g.First().Name);
             if (dst.FullSchema)
             {

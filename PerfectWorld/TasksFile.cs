@@ -43,7 +43,7 @@ public sealed class TasksFile
         context?.Check();
         Data = data;
         if (data.Length < 12 || BitConverter.ToUInt32(data, 0) is not (Magic or 0))
-            throw new InvalidDataException("Não é um tasks.data (assinatura inválida).");
+            throw new InvalidDataException(FieldKinds.Translate("tasks.badSignature", "Não é um tasks.data (assinatura inválida)."));
         Version = BitConverter.ToInt32(data, 4);
         int n = BitConverter.ToInt32(data, 8);
         if (n < 0 || n > (data.Length - 12) / 4) throw new InvalidDataException($"Contagem de quests inválida ({n}).");
@@ -62,12 +62,12 @@ public sealed class TasksFile
             int off = sortedOffsets[i];
             if (off < headerEnd || off > data.Length - (4 + NameChars * 2)
                 || i > 0 && (long)off < (long)sortedOffsets[i - 1] + 4 + NameChars * 2)
-                ReadOnlyReason = "A tabela de offsets das quests tem cabeçalhos fora do arquivo, repetidos ou sobrepostos; aberto só para leitura.";
+                ReadOnlyReason = FieldKinds.Translate("tasks.badOffsets", "A tabela de offsets das quests tem cabeçalhos fora do arquivo, repetidos ou sobrepostos; aberto só para leitura.");
         }
 
         for (int i = 0; i < n; i++)
         {
-            if ((i & 127) == 0) context?.Report(.1 * i / Math.Max(1, n), "Lendo nomes das quests", $"{i:N0}/{n:N0} quests");
+            if ((i & 127) == 0) context?.Report(.1 * i / Math.Max(1, n), FieldKinds.Translate("tasks.readingNames", "Lendo nomes das quests"), string.Format(FieldKinds.Translate("load.quests", "{0:N0}/{1:N0} quests"), i, n));
             int off = offsets[i];
             if (off < headerEnd || off > data.Length - (4 + NameChars * 2)) continue;
             int id = BitConverter.ToInt32(data, off);
@@ -82,7 +82,7 @@ public sealed class TasksFile
                 var roots = new List<QuestNode>(n);
                 for (int i = 0; i < n; i++)
                 {
-                    context?.Report(.1 + .82 * i / Math.Max(1, n), "Analisando quests", $"{i:N0}/{n:N0} quests principais");
+                    context?.Report(.1 + .82 * i / Math.Max(1, n), FieldKinds.Translate("tasks.parsing", "Analisando quests"), string.Format(FieldKinds.Translate("tasks.mainCount", "{0:N0}/{1:N0} quests principais"), i, n));
                     var schema = new TaskSchema93(data, context?.Token ?? default);
                     var q = schema.Read(offsets[i]);
                     int end = schema.Position, expected = i + 1 < n ? offsets[i + 1] : data.Length;
@@ -102,13 +102,13 @@ public sealed class TasksFile
             try
             {
                 RoundTripVerified = BuildCore(context?.Slice(.95, 1)).AsSpan().SequenceEqual(Data);
-                if (!RoundTripVerified) ReadOnlyReason = "A regravação das quests sem alterações difere do original; aberto só para leitura.";
+                if (!RoundTripVerified) ReadOnlyReason = FieldKinds.Translate("tasks.rewriteDiffers", "A regravação das quests sem alterações difere do original; aberto só para leitura.");
             }
             catch (Exception ex) when (ex is InvalidDataException or ArgumentException or OverflowException)
-            { ReadOnlyReason = "A verificação de regravação das quests falhou: " + ex.Message; }
+            { ReadOnlyReason = FieldKinds.Translate("tasks.verifyFailed", "A verificação de regravação das quests falhou: ") + ex.Message; }
         }
         context?.Check();
-        context?.Report(1, "Quests lidas", $"{Quests.Count:N0} quests principais", force: true);
+        context?.Report(1, FieldKinds.Translate("tasks.read", "Quests lidas"), string.Format(FieldKinds.Translate("tasks.mainTotal", "{0:N0} quests principais"), Quests.Count), force: true);
     }
 
     public IEnumerable<QuestNode> AllNodes() => Index.Nodes;
@@ -117,7 +117,7 @@ public sealed class TasksFile
     public byte[] Build(LoadContext? context = null)
     {
         context?.Check();
-        if (!CanWrite) throw new InvalidOperationException("As quests estão em somente leitura e não podem ser salvas. " + ReadOnlyReason);
+        if (!CanWrite) throw new InvalidOperationException(FieldKinds.Translate("tasks.readOnly", "As quests estão em somente leitura e não podem ser salvas. ") + ReadOnlyReason);
         return BuildCore(context);
     }
 
@@ -130,7 +130,7 @@ public sealed class TasksFile
             foreach (var q in Quests.Where(q => q.Changed))
             {
                 context?.Check();
-                if (q.Name.Length > MaxNameLength) throw new InvalidDataException($"O nome da quest {q.Id} passa de {MaxNameLength} caracteres.");
+                if (q.Name.Length > MaxNameLength) throw new InvalidDataException(string.Format(FieldKinds.Translate("tasks.nameTooLong", "O nome da quest {0} passa de {1} caracteres."), q.Id, MaxNameLength));
                 for (int i = 0; i < NameChars; i++)
                     BitConverter.GetBytes((ushort)((i < q.Name.Length && i < NameChars - 1 ? q.Name[i] : '\0') ^ (ushort)q.Id)).CopyTo(outBytes, q.Offset + 4 + i * 2);
             }
@@ -145,7 +145,7 @@ public sealed class TasksFile
         for (int i = 0; i < Roots.Count; i++)
         {
             context?.Check();
-            context?.Report(i / (double)Math.Max(1, Roots.Count), "Gerando tasks.data", $"{i:N0}/{Roots.Count:N0} quests principais");
+            context?.Report(i / (double)Math.Max(1, Roots.Count), FieldKinds.Translate("tasks.building", "Gerando tasks.data"), string.Format(FieldKinds.Translate("tasks.mainCount", "{0:N0}/{1:N0} quests principais"), i, Roots.Count));
             offs[i] = (int)ms.Position; TaskSchema93.Write(w, Roots[i]);
         }
         ms.Position = table;
@@ -176,7 +176,7 @@ public sealed class TasksFile
     /// </summary>
     public QuestNode CloneRoot(QuestNode src)
     {
-        if (Roots is null) throw new InvalidOperationException("Clonar exige o esquema completo do tasks.data.");
+        if (Roots is null) throw new InvalidOperationException(FieldKinds.Translate("tasks.cloneNeedsSchema", "Clonar exige o esquema completo do tasks.data."));
         int next = Index.Nodes.Max(n => n.Id) + 1;
         var map = new Dictionary<int, int>();
         void Plan(QuestNode q) { map[q.Id] = next++; foreach (var c in q.Children) Plan(c); }

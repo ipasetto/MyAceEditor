@@ -31,7 +31,7 @@ public sealed class TaskIndex
         }
         for (int i = 0; i < rows.Count; i++)
         {
-            if ((i & 127) == 0) context?.Report(i / (double)Math.Max(1, rows.Count), "Indexando quests", $"{i:N0}/{rows.Count:N0} quests");
+            if ((i & 127) == 0) context?.Report(i / (double)Math.Max(1, rows.Count), FieldKinds.Translate("load.indexQuests", "Indexando quests"), string.Format(FieldKinds.Translate("load.quests", "{0:N0}/{1:N0} quests"), i, rows.Count));
             _byId.TryAdd(IdOf(rows[i]), rows[i]);
         }
         Nodes = nodes.ToArray();

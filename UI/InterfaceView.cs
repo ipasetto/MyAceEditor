@@ -67,7 +67,7 @@ internal sealed class InterfaceView : UserControl
             _bar.Controls.Add(b);
             return b;
         }
-        B("ui.back", "◀ Voltar ao extrator", () => { if (!_dirty || MessageBox.Show(this, Loc.T("ui.discard", "A janela atual tem mudanças não salvas. Descartar?"), "Interface", MessageBoxButtons.YesNo) == DialogResult.Yes) { _dirty = false; _back(); } }, 150);
+        B("ui.back", "◀ Voltar ao extrator", () => { if (!_dirty || MessageBox.Show(this, Loc.T("ui.discard", "A janela atual tem mudanças não salvas. Descartar?"), Loc.T("tab.interface", "Interface"), MessageBoxButtons.YesNo) == DialogResult.Yes) { _dirty = false; _back(); } }, 150);
         var save = B("ui.save", "Salvar janela", Save);
         save.BackColor = Accent; save.ForeColor = Color.White;
         B("ui.undo", "↶ Desfazer", () => Undo(), 100);
@@ -152,7 +152,7 @@ internal sealed class InterfaceView : UserControl
 
     void OpenDialog(string file)
     {
-        if (_dirty && file != _file && MessageBox.Show(this, Loc.T("ui.discard", "A janela atual tem mudanças não salvas. Descartar?"), "Interface", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+        if (_dirty && file != _file && MessageBox.Show(this, Loc.T("ui.discard", "A janela atual tem mudanças não salvas. Descartar?"), Loc.T("tab.interface", "Interface"), MessageBoxButtons.YesNo) != DialogResult.Yes) return;
         try
         {
             byte[]? bytes = null;
@@ -168,7 +168,7 @@ internal sealed class InterfaceView : UserControl
             _undo.Clear(); _redo.Clear();
             ShowProps(); _canvas.Invalidate(); UpdateInfo();
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Interface", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("tab.interface", "Interface"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
     /// <summary>Diagnóstico (--snapshot ... ui:qshop.xml): abre a janela e seleciona o 1º botão.</summary>
@@ -201,7 +201,7 @@ internal sealed class InterfaceView : UserControl
             if (File.Exists(FolderPath(_file))) AtomicFileSave.Write(FolderPath(_file), bytes);
             var bak = WritePack(new Dictionary<string, byte[]> { [_file] = bytes });
             _dirty = false; UpdateInfo();
-            MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), "Interface");
+            MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), Loc.T("tab.interface", "Interface"));
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ui.saveFail", "Falha ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
@@ -220,14 +220,14 @@ internal sealed class InterfaceView : UserControl
                 if (_pck.Find(rel) is { } e && _pck.Read(e).AsSpan().SequenceEqual(bytes)) continue;
                 changed[rel] = bytes;
             }
-        if (changed.Count == 0) { MessageBox.Show(this, Loc.T("ui.packNone", "A pasta .files não tem nada diferente do pacote."), "Interface"); return; }
+        if (changed.Count == 0) { MessageBox.Show(this, Loc.T("ui.packNone", "A pasta .files não tem nada diferente do pacote."), Loc.T("tab.interface", Loc.T("tab.interface", "Interface"))); return; }
         if (MessageBox.Show(this, string.Format(Loc.T("ui.packAsk", "Gravar no {0} estes {1} arquivo(s) da pasta .files?\n\n{2}\n\nO pacote atual fica como backup."),
-                Path.GetFileName(_pckPath), changed.Count, string.Join("\n", changed.Keys.Take(20))), "Interface", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+                Path.GetFileName(_pckPath), changed.Count, string.Join("\n", changed.Keys.Take(20))), Loc.T("tab.interface", "Interface"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
         try
         {
             var bak = WritePack(changed);
             FillList();
-            MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), "Interface");
+            MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), Loc.T("tab.interface", "Interface"));
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ui.saveFail", "Falha ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }

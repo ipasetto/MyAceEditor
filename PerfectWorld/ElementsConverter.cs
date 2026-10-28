@@ -16,9 +16,9 @@ public static class ElementsConverter
     public static (byte[] Data, Report Report) Convert(Module source, ElementsCfg target, int targetVersion)
     {
         if (source.Source is not ElementsLayout layout || !layout.Complete)
-            throw new InvalidOperationException("O elements.data de origem precisa estar lido por completo.");
+            throw new InvalidOperationException(UI.Loc.T("conv.srcIncomplete", "O elements.data de origem precisa estar lido por completo."));
         if (layout.Format != ElementsReadFormat.CountOnly)
-            throw new NotSupportedException("Conversão só para o formato comum de listas (sem MPPC e sem tamanho por lista, v191+).");
+            throw new NotSupportedException(UI.Loc.T("conv.plainOnly", "Conversão só para o formato comum de listas (sem MPPC e sem tamanho por lista, v191+)."));
         var src = layout.Original;
         var notes = new List<string>();
 
@@ -48,7 +48,7 @@ public static class ElementsConverter
             if (block.Offset == "AUTO")
             {
                 if (prefix.TryGetValue(block.Name, out var p) && p.Length >= 8) ms.Write(p);
-                else { ms.Write(new byte[8]); notes.Add($"{block.Name}: marca de exportação criada vazia"); }
+                else { ms.Write(new byte[8]); notes.Add(string.Format(UI.Loc.T("conv.noteMark", "{0}: marca de exportação criada vazia"), block.Name)); }
             }
             else if (int.TryParse(block.Offset, out var n) && n > 0)
                 ms.Write(prefix.TryGetValue(block.Name, out var p) && p.Length == n ? p : new byte[n]);
@@ -56,13 +56,13 @@ public static class ElementsConverter
             if (block.Raw)
             {
                 if (opaque.TryGetValue(block.Name, out var raw)) ms.Write(raw);
-                else { ms.Write(BitConverter.GetBytes(0)); notes.Add($"{block.Name}: bloco bruto criado vazio"); }
+                else { ms.Write(BitConverter.GetBytes(0)); notes.Add(string.Format(UI.Loc.T("conv.noteRaw", "{0}: bloco bruto criado vazio"), block.Name)); }
                 continue;
             }
             if (!lists.TryGetValue(block.Name, out var span))
             {
                 ms.Write(BitConverter.GetBytes(0)); blocksAdded++;
-                notes.Add($"{block.Name}: lista nova nesta versão (vazia)");
+                notes.Add(string.Format(UI.Loc.T("conv.noteNewList", "{0}: lista nova nesta versão (vazia)"), block.Name));
                 continue;
             }
             var srcFields = new HashSet<string>(span.Block.Fields.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
@@ -92,7 +92,7 @@ public static class ElementsConverter
                     else if (item.Fields.TryGetValue(name, out var v) && !string.IsNullOrEmpty(v.Value))
                     {
                         try { ElementsWriter.EncodeField(f, v.Value, rec, at); }
-                        catch (Exception ex) { notes.Add($"{block.Name} · ID {item.Id} · {f.Name}: {ex.Message} (ficou zerado)"); }
+                        catch (Exception ex) { notes.Add(string.Format(UI.Loc.T("conv.noteZeroed", "{0} · ID {1} · {2}: {3} (ficou zerado)"), block.Name, item.Id, f.Name, ex.Message)); }
                     }
                     at += f.Size;
                 }
@@ -127,10 +127,10 @@ public static class ElementsConverter
         {
             File.WriteAllBytes(tmp, converted);
             var mod = new CfgElementsReader(tmp).Parse(target);
-            if (mod.Source is not ElementsLayout l || !l.Complete) return "o resultado não foi lido por inteiro com o .cfg de destino";
+            if (mod.Source is not ElementsLayout l || !l.Complete) return UI.Loc.T("conv.proofIncomplete", "o resultado não foi lido por inteiro com o .cfg de destino");
             foreach (var list in mod.Lists)
                 if (source.FindListByName(list.Name) is { } s && s.Items.Count != list.Items.Count)
-                    return $"{list.Name}: {s.Items.Count} itens na origem, {list.Items.Count} no resultado";
+                    return string.Format(UI.Loc.T("conv.proofCount", "{0}: {1} itens na origem, {2} no resultado"), list.Name, s.Items.Count, list.Items.Count);
             return null;
         }
         catch (Exception ex) { return ex.Message; }

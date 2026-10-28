@@ -24,10 +24,10 @@ public sealed class ElementsLayout
     public string? Failure { get; set; }
     public bool RoundTripVerified { get; set; }
     public bool CanWrite => Complete && Format != ElementsReadFormat.MppcLists && Warnings.Count == 0 && RoundTripVerified;
-    public string ReadOnlyReason => !Complete ? "Leitura incompleta: " + Failure
-        : Format == ElementsReadFormat.MppcLists ? "Formato comprimido MPPC: só leitura por enquanto, a regravação comprimida ainda não foi validada."
+    public string ReadOnlyReason => !Complete ? FieldKinds.Translate("save.incomplete", "Leitura incompleta: ") + Failure
+        : Format == ElementsReadFormat.MppcLists ? FieldKinds.Translate("save.mppc", "Formato comprimido MPPC: só leitura por enquanto, a regravação comprimida ainda não foi validada.")
         : Warnings.Count > 0 ? string.Join("\n", Warnings)
-        : !RoundTripVerified ? "A verificação de regravação sem alterações falhou." : "";
+        : !RoundTripVerified ? FieldKinds.Translate("save.verifyFailed", "A verificação de regravação sem alterações falhou.") : "";
     public ElementsLayout(byte[] original) => Original = original;
 }
 
@@ -49,15 +49,15 @@ public static class ElementsWriter
             byte[] rebuilt = BuildCore(layout, context);
             context?.Check();
             bool same = rebuilt.AsSpan().SequenceEqual(layout.Original);
-            context?.Report(1, "Verificando regravação", same ? "reconstrução idêntica ao original" : "reconstrução difere do original", force: true);
+            context?.Report(1, FieldKinds.Translate("load.verifyRewrite", "Verificando regravação"), same ? FieldKinds.Translate("load.rewriteSame", "reconstrução idêntica ao original") : FieldKinds.Translate("load.rewriteDiffers", "reconstrução difere do original"), force: true);
             return same;
         }
         catch (Exception ex) when (ex is InvalidDataException or FormatException or OverflowException or EncoderFallbackException) { return false; }
     }
     public static byte[] Build(Module module, LoadContext? context = null)
     {
-        if (module.Source is not ElementsLayout layout) throw new InvalidOperationException("Este módulo não tem o layout original do elements.data.");
-        if (!layout.CanWrite) throw new InvalidOperationException("Os dados estão em somente leitura e não podem ser salvos. " + layout.ReadOnlyReason);
+        if (module.Source is not ElementsLayout layout) throw new InvalidOperationException(FieldKinds.Translate("save.noLayout", "Este módulo não tem o layout original do elements.data."));
+        if (!layout.CanWrite) throw new InvalidOperationException(FieldKinds.Translate("save.readOnly", "Os dados estão em somente leitura e não podem ser salvos. ") + layout.ReadOnlyReason);
         return BuildCore(layout, context);
     }
     private static byte[] BuildCore(ElementsLayout layout, LoadContext? context = null)
@@ -83,7 +83,7 @@ public static class ElementsWriter
                 if ((done & 127) == 0)
                 {
                     context?.Check();
-                    context?.Report(done / (double)Math.Max(1, total), "Verificando regravação", $"{done:N0}/{total:N0} registros");
+                    context?.Report(done / (double)Math.Max(1, total), FieldKinds.Translate("load.verifyRewrite", "Verificando regravação"), string.Format(FieldKinds.Translate("load.records", "{0:N0}/{1:N0} registros"), done, total));
                 }
                 ms.Write(EncodeRecord(span.Block, item, span.RecordSize, context)); done++;
             }
@@ -112,7 +112,7 @@ public static class ElementsWriter
                     EncodeField(field, value.Value, raw, at);
             }
             catch (Exception ex) when (ex is InvalidDataException or FormatException or OverflowException or EncoderFallbackException)
-            { throw new InvalidDataException($"{block.Name} · ID {item.Id} · campo {field.Name}: {ex.Message}", ex); }
+            { throw new InvalidDataException(string.Format(FieldKinds.Translate("save.fieldError", "{0} · ID {1} · campo {2}: {3}"), block.Name, item.Id, field.Name, ex.Message), ex); }
             at += field.Size;
         }
         return raw;
@@ -126,13 +126,13 @@ public static class ElementsWriter
             byte[] bytes = unicode ? Encoding.Unicode.GetBytes(value) : Gbk.GetBytes(value);
             int limit = field.Size - (unicode ? 2 : 1);
             // Texto longo demais não é truncado em silêncio, para não cortar caractere GBK ou par substituto UTF-16.
-            if (bytes.Length > limit) throw new InvalidDataException($"{field.Name}: texto excede os {limit} bytes disponíveis.");
+            if (bytes.Length > limit) throw new InvalidDataException(string.Format(FieldKinds.Translate("save.textTooLong", "{0}: texto excede os {1} bytes disponíveis."), field.Name, limit));
             Array.Clear(raw, at, field.Size); bytes.CopyTo(raw, at); return;
         }
         if (t.StartsWith("byte:") || t.StartsWith("bytes:"))
         {
             byte[] bytes = Convert.FromHexString(value.Replace("-", "").Replace(" ", ""));
-            if (bytes.Length != field.Size) throw new InvalidDataException($"{field.Name}: são necessários {field.Size} bytes em hexadecimal.");
+            if (bytes.Length != field.Size) throw new InvalidDataException(string.Format(FieldKinds.Translate("save.hexSize", "{0}: são necessários {1} bytes em hexadecimal."), field.Name, field.Size));
             bytes.CopyTo(raw, at); return;
         }
         byte[] data = t switch

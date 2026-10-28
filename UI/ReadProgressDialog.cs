@@ -62,7 +62,7 @@ internal sealed class ReadProgressDialog : Form
     }
 
     public static T Run<T>(IWin32Window owner, string title, Func<LoadContext, T> work,
-        bool allowCancel = true, string completedStage = "Concluído") where T : class
+        bool allowCancel = true, string? completedStage = null) where T : class
     {
         using var dialog = new ReadProgressDialog(title, allowCancel);
         T? result = null; Exception? failure = null; bool cancelled = false;
@@ -75,7 +75,7 @@ internal sealed class ReadProgressDialog : Form
                 {
                     var context = new LoadContext(dialog._latest, dialog._cancellation.Token);
                     var loaded = work(context);
-                    context.Report(1, completedStage, "atualizando a tela…", force: true);
+                    context.Report(1, completedStage ?? Loc.T("progress.done", "Concluído"), Loc.T("progress.updatingScreen", "atualizando a tela…"), force: true);
                     return loaded;
                 }, dialog._cancellation.Token);
                 dialog._cancellation.Token.ThrowIfCancellationRequested();
@@ -90,9 +90,9 @@ internal sealed class ReadProgressDialog : Form
             }
         };
         dialog.ShowDialog(owner);
-        if (cancelled) throw new OperationCanceledException("Leitura cancelada.", dialog._cancellation.Token);
+        if (cancelled) throw new OperationCanceledException(Loc.T("progress.cancelled", "Leitura cancelada."), dialog._cancellation.Token);
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
-        return result ?? throw new InvalidOperationException("A operação não retornou resultado.");
+        return result ?? throw new InvalidOperationException(Loc.T("progress.noResult", "A operação não retornou resultado."));
     }
 
     protected override void Dispose(bool disposing)

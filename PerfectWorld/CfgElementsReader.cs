@@ -9,10 +9,10 @@ public static class ElementsFormatLabels
 {
     public static string Label(ElementsReadFormat format) => format switch
     {
-        ElementsReadFormat.CountOnly => "listas simples",
-        ElementsReadFormat.SizedLists => "listas com tamanho de registro",
-        ElementsReadFormat.MppcLists => "listas comprimidas MPPC",
-        _ => "layout desconhecido",
+        ElementsReadFormat.CountOnly => FieldKinds.Translate("fmt.countOnly", "listas simples"),
+        ElementsReadFormat.SizedLists => FieldKinds.Translate("fmt.sized", "listas com tamanho de registro"),
+        ElementsReadFormat.MppcLists => FieldKinds.Translate("fmt.mppc", "listas comprimidas MPPC"),
+        _ => FieldKinds.Translate("fmt.unknown", "layout desconhecido"),
     };
 }
 public sealed record ElementsProbe(ElementsReadFormat Format, bool Complete, int BlocksRead,
@@ -40,7 +40,7 @@ public sealed class CfgElementsReader
     public CfgElementsReader(string path, LoadContext? context = null) : this(context is null ? File.ReadAllBytes(path) : context.ReadFile(path)) { }
     public CfgElementsReader(byte[] data)
     {
-        if (data.Length < 4) throw new InvalidDataException("elements.data com cabeçalho menor que 4 bytes.");
+        if (data.Length < 4) throw new InvalidDataException(FieldKinds.Translate("cfg.shortHeader", "elements.data com cabeçalho menor que 4 bytes."));
         _d = data; RawVersion = BitConverter.ToUInt32(data, 0); _pos = 4;
     }
 
@@ -71,7 +71,7 @@ public sealed class CfgElementsReader
     {
         context?.Check();
         var parsing = materialize ? context?.Slice(0, .84) : context;
-        string stage = materialize ? "Decodificando dados" : "Casando CFG";
+        string stage = materialize ? FieldKinds.Translate("load.decoding", "Decodificando dados") : FieldKinds.Translate("load.matchCfg", "Casando CFG");
         _pos = 4; _blocksRead = 0; _records = 0; _unmapped = false; StoppedAt = null;
         var mod = new Module { Name = "elements.data", Version = unchecked((int)RawVersion) };
         var layout = new ElementsLayout(_d) { ConfigPath = cfg.SourcePath, Format = format };
@@ -109,7 +109,7 @@ public sealed class CfgElementsReader
                     if (stored != recordSize)
                     {
                         // o arquivo diz o tamanho real: a descrição se ajusta (campos finais saem ou viram "bytes extras")
-                        layout.Adjustments.Add($"{block.Name}: registro de {stored} bytes no arquivo, CFG define {recordSize}.");
+                        layout.Adjustments.Add(string.Format(FieldKinds.Translate("cfg.recordSize", "{0}: registro de {1} bytes no arquivo, CFG define {2}."), block.Name, stored, recordSize));
                         block = ResizeBlock(block, (int)stored);
                         recordSize = (int)stored;
                     }
@@ -121,7 +121,7 @@ public sealed class CfgElementsReader
                     int stride = DetectStride(cfg, index, block, _pos, count);
                     if (stride > 0 && stride != recordSize)
                     {
-                        layout.Adjustments.Add($"{block.Name}: registro de {stride} bytes no arquivo, CFG define {recordSize}.");
+                        layout.Adjustments.Add(string.Format(FieldKinds.Translate("cfg.recordSize", "{0}: registro de {1} bytes no arquivo, CFG define {2}."), block.Name, stride, recordSize));
                         block = ResizeBlock(block, stride);
                         recordSize = stride;
                     }
@@ -193,18 +193,18 @@ public sealed class CfgElementsReader
                 }
                 _blocksRead++;
             }
-            if (_pos != Length) StoppedAt = $"CFG processado, mas sobraram {Length - _pos:N0} bytes (offset {_pos:N0}).";
+            if (_pos != Length) StoppedAt = string.Format(FieldKinds.Translate("cfg.leftover", "CFG processado, mas sobraram {0:N0} bytes (offset {1:N0})."), Length - _pos, _pos);
         }
         catch (Exception ex) when (ex is InvalidDataException or OverflowException)
         { StoppedAt = $"{current}, offset {_pos:N0}: {ex.Message}"; }
         layout.Complete = _blocksRead == cfg.Blocks.Count && _pos == Length && StoppedAt is null;
         layout.Failure = StoppedAt;
-        if (!SignatureValid) layout.Warnings.Add($"Marca de cabeçalho 0x{Signature:X4}, não a usual 0x3000; validado só pela estrutura.");
+        if (!SignatureValid) layout.Warnings.Add(string.Format(FieldKinds.Translate("cfg.signature", "Marca de cabeçalho 0x{0:X4}, não a usual 0x3000; validado só pela estrutura."), Signature));
         if (materialize && layout.Complete && format != ElementsReadFormat.MppcLists && layout.Warnings.Count == 0)
         {
-            context?.Report(.84, "Verificando regravação", "comparando byte a byte a reconstrução sem alterações", force: true);
+            context?.Report(.84, FieldKinds.Translate("load.verifyRewrite", "Verificando regravação"), FieldKinds.Translate("load.verifyRewriteDetail", "comparando byte a byte a reconstrução sem alterações"), force: true);
             layout.RoundTripVerified = ElementsWriter.VerifyRoundTrip(mod, context?.Slice(.84, 1));
-            if (!layout.RoundTripVerified) layout.Warnings.Add("A regravação sem alterações difere do original; salvar foi desativado.");
+            if (!layout.RoundTripVerified) layout.Warnings.Add(FieldKinds.Translate("cfg.rewriteDiffers", "A regravação sem alterações difere do original; salvar foi desativado."));
         }
         LastResult = new ElementsProbe(format, layout.Complete, _blocksRead, cfg.Blocks.Count, _pos, Length, _records, _unmapped, StoppedAt);
         context?.Report(1, stage, $"{_blocksRead}/{cfg.Blocks.Count} blocos", force: true);

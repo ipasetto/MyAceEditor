@@ -165,7 +165,7 @@ public sealed class RefIndex
                 if ((done++ & 255) == 0)
                 {
                     context?.Check();
-                    context?.Report(done / (double)Math.Max(1, total), "Indexando IDs", $"{done:N0}/{total:N0} registros");
+                    context?.Report(done / (double)Math.Max(1, total), FieldKinds.Translate("load.indexIds", "Indexando IDs"), string.Format(FieldKinds.Translate("load.records", "{0:N0}/{1:N0} registros"), done, total));
                 }
                 if (it.Id.Length > 0 && it.Id != "0") target.TryAdd(it.Id, (l, it));
             }
@@ -228,7 +228,7 @@ public sealed class RefIndex
                 if ((done++ & 127) == 0)
                 {
                     context?.Check();
-                    context?.Report(done / (double)Math.Max(1, total), "Indexando referências", $"{done:N0}/{total:N0} registros · {list.Name}");
+                    context?.Report(done / (double)Math.Max(1, total), FieldKinds.Translate("load.indexRefs", "Indexando referências"), string.Format(FieldKinds.Translate("load.records", "{0:N0}/{1:N0} registros"), done, total) + " · " + list.Name);
                 }
                 foreach (var plan in plans)
                 {
@@ -242,7 +242,7 @@ public sealed class RefIndex
             }
         }
         context?.Check();
-        context?.Report(1, "Indexando referências", $"{total:N0} registros", force: true);
+        context?.Report(1, FieldKinds.Translate("load.indexRefs", "Indexando referências"), string.Format(FieldKinds.Translate("load.recordsTotal", "{0:N0} registros"), total), force: true);
         context?.Check();
         _usedBy = d;
     }

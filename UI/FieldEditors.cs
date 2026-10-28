@@ -55,7 +55,7 @@ internal static class FieldEditors
         bits.Sort();
         foreach (var b in bits)
         {
-            var name = table.FirstOrDefault(t => t.Bit == b).Name ?? $"{unknownPrefix} {b}";
+            var name = BitMasks.Name(table, b, unknownPrefix);
             list.Items.Add(new BitItem(b, name), (mask & (1L << b)) != 0);
         }
         var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(6, 4, 6, 0) };

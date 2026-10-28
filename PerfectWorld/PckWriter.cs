@@ -21,7 +21,7 @@ public static class PckWriter
     /// <summary>Grava <paramref name="files"/> (caminho no pacote → conteúdo) e devolve o caminho do backup.</summary>
     public static string Write(string pckPath, IReadOnlyDictionary<string, byte[]> files)
     {
-        if (File.Exists(Path.ChangeExtension(pckPath, ".pkx"))) throw new NotSupportedException("Pacote dividido em .pck + .pkx: gravar ainda não é suportado.");
+        if (File.Exists(Path.ChangeExtension(pckPath, ".pkx"))) throw new NotSupportedException(UI.Loc.T("pck.splitUnsupported", "Pacote dividido em .pck + .pkx: gravar ainda não é suportado."));
         var tmp = pckPath + ".tmp";
         File.Copy(pckPath, tmp, true);
         try
@@ -30,7 +30,7 @@ public static class PckWriter
             {
                 long len = fs.Length;
                 var tail = ReadAt(fs, len - 8, 8);
-                if (BitConverter.ToInt16(tail, 4) == 3) throw new NotSupportedException("Pacote v3: gravar ainda não é suportado.");
+                if (BitConverter.ToInt16(tail, 4) == 3) throw new NotSupportedException(UI.Loc.T("pck.v3Unsupported", "Pacote v3: gravar ainda não é suportado."));
                 var footer = ReadAt(fs, len - Footer, Footer);
                 int count = BitConverter.ToInt32(footer, 272);
                 long tableOff = (uint)(BitConverter.ToInt32(footer, 8) ^ Key1);
@@ -59,13 +59,13 @@ public static class PckWriter
                     {
                         var raw = new byte[EntrySize];
                         var p = Gbk.GetBytes(key);
-                        if (p.Length >= 260) throw new ArgumentException("Caminho longo demais para o pacote: " + key);
+                        if (p.Length >= 260) throw new ArgumentException(UI.Loc.T("pck.pathTooLong", "Caminho longo demais para o pacote: ") + key);
                         p.CopyTo(raw, 0);
                         raws.Add(raw); i = raws.Count - 1; index[key] = i;
                     }
                     var data = Deflate(content);
                     if (data.Length >= content.Length) data = content;   // o jogo lê cru quando csize == size
-                    if (fs.Position + data.Length > uint.MaxValue) throw new NotSupportedException("Pacote passaria de 4 GB.");
+                    if (fs.Position + data.Length > uint.MaxValue) throw new NotSupportedException(UI.Loc.T("pck.over4gb", "Pacote passaria de 4 GB."));
                     BitConverter.TryWriteBytes(raws[i].AsSpan(260), (uint)fs.Position);
                     BitConverter.TryWriteBytes(raws[i].AsSpan(264), content.Length);
                     BitConverter.TryWriteBytes(raws[i].AsSpan(268), data.Length);
@@ -86,7 +86,7 @@ public static class PckWriter
                 BitConverter.TryWriteBytes(footer.AsSpan(272), raws.Count);
                 fs.Write(footer);
                 fs.SetLength(fs.Position);
-                if (fs.Length > uint.MaxValue) throw new NotSupportedException("Pacote passaria de 4 GB.");
+                if (fs.Length > uint.MaxValue) throw new NotSupportedException(UI.Loc.T("pck.over4gb", "Pacote passaria de 4 GB."));
                 fs.Position = 4;                                   // cabeçalho: tamanho do pacote
                 fs.Write(BitConverter.GetBytes((uint)fs.Length));
             }
@@ -96,16 +96,16 @@ public static class PckWriter
             {
                 foreach (var (name, content) in files)
                     if (a.Find(Normalize(name)) is not { } e || !a.Read(e).AsSpan().SequenceEqual(content))
-                        throw new InvalidDataException("Releitura não confere: " + name);
+                        throw new InvalidDataException(UI.Loc.T("pck.rereadMismatch", "Releitura não confere: ") + name);
                 using var old = new PckArchive(pckPath);
-                if (a.Entries.Count < old.Entries.Count) throw new InvalidDataException("Releitura perdeu entradas.");
+                if (a.Entries.Count < old.Entries.Count) throw new InvalidDataException(UI.Loc.T("pck.rereadLost", "Releitura perdeu entradas."));
             }
 
             var stamp = pckPath + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss");
             var bak = stamp + ".bak";
             for (int n = 2; File.Exists(bak); n++) bak = $"{stamp}-{n}.bak";   // duas gravações no mesmo segundo
             try { File.Replace(tmp, pckPath, bak); }
-            catch (IOException ex) { throw new IOException($"Não consegui trocar o {Path.GetFileName(pckPath)}: está aberto em outro programa (o jogo?). Feche-o e tente de novo.\n\n{ex.Message}", ex); }
+            catch (IOException ex) { throw new IOException(string.Format(UI.Loc.T("pck.replaceLocked", "Não consegui trocar o {0}: está aberto em outro programa (o jogo?). Feche-o e tente de novo."), Path.GetFileName(pckPath)) + "\n\n" + ex.Message, ex); }
             return bak;
         }
         catch { try { File.Delete(tmp); } catch { } throw; }

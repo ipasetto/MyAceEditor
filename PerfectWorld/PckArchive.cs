@@ -47,7 +47,7 @@ public sealed class PckArchive : IDisposable
 
             var head = ReadAt(0, 4);
             if (BitConverter.ToInt32(head) != FSig1)
-                throw new InvalidDataException($"Não é um pacote Angelica válido: {pckPath}");
+                throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.invalid", "Não é um pacote Angelica válido: {0}"), pckPath));
 
             var tail = ReadAt(Length - 8, 8);
             int count = BitConverter.ToInt32(tail, 0);

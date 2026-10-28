@@ -14,9 +14,9 @@ public static class PckPatch
     {
         PckEntry e;
         using (var a = new PckArchive(pckPath))
-            e = a.Find(entryPath) ?? throw new FileNotFoundException($"{entryPath} não está em {pckPath}");
-        if (content.Length != e.Size) throw new InvalidOperationException($"Conteúdo novo precisa ter {e.Size} bytes (tem {content.Length}).");
-        if (e.Offset + e.CSize > new FileInfo(pckPath).Length) throw new InvalidOperationException("Entrada no .pkx: não suportado.");
+            e = a.Find(entryPath) ?? throw new FileNotFoundException(string.Format(UI.Loc.T("pck.notIn", "{0} não está em {1}"), entryPath, pckPath));
+        if (content.Length != e.Size) throw new InvalidOperationException(string.Format(UI.Loc.T("pck.sizeMust", "Conteúdo novo precisa ter {0} bytes (tem {1})."), e.Size, content.Length));
+        if (e.Offset + e.CSize > new FileInfo(pckPath).Length) throw new InvalidOperationException(UI.Loc.T("pck.inPkx", "Entrada no .pkx: não suportado."));
 
         byte[] payload;
         if (e.CSize >= e.Size) payload = content;
@@ -24,14 +24,14 @@ public static class PckPatch
         {
             using var ms = new MemoryStream();
             using (var z = new ZLibStream(ms, CompressionLevel.SmallestSize, true)) z.Write(content);
-            if (ms.Length > e.CSize) throw new InvalidOperationException($"Compactado ficou com {ms.Length} bytes; o espaço é {e.CSize}.");
+            if (ms.Length > e.CSize) throw new InvalidOperationException(string.Format(UI.Loc.T("pck.tooBig", "Compactado ficou com {0} bytes; o espaço é {1}."), ms.Length, e.CSize));
             payload = new byte[e.CSize];
             ms.ToArray().CopyTo(payload, 0);
         }
 
         // aberto em outro programa (jogo, outro editor): falha aqui, antes de deixar um backup à toa
         try { using (new FileStream(pckPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read)) { } }
-        catch (IOException) { throw new IOException($"{Path.GetFileName(pckPath)} está aberto em outro programa (o jogo ou outro editor). Feche-o e tente de novo."); }
+        catch (IOException) { throw new IOException(string.Format(UI.Loc.T("pck.locked", "{0} está aberto em outro programa (o jogo ou outro editor). Feche-o e tente de novo."), Path.GetFileName(pckPath))); }
         // duas trocas no mesmo segundo: o backup da primeira já guarda o original
         var bak = pckPath + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".bak";
         if (!File.Exists(bak)) File.Copy(pckPath, bak, false);
@@ -42,6 +42,6 @@ public static class PckPatch
         }
         using var check = new PckArchive(pckPath);
         if (!check.Read(check.Find(entryPath)!).AsSpan().SequenceEqual(content))
-            throw new InvalidDataException("Releitura não confere; restaure o .bak ao lado do .pck.");
+            throw new InvalidDataException(UI.Loc.T("pck.rereadRestore", "Releitura não confere; restaure o .bak ao lado do .pck."));
     }
 }

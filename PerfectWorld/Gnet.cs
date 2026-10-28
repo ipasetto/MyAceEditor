@@ -65,7 +65,7 @@ public sealed class GnetConnection : IDisposable
 
     public GnetConnection(string host, int port, int timeoutMs = 4000)
     {
-        if (!_tcp.ConnectAsync(host, port).Wait(timeoutMs)) throw new IOException($"Porta {port} não respondeu.");
+        if (!_tcp.ConnectAsync(host, port).Wait(timeoutMs)) throw new IOException(string.Format(UI.Loc.T("gnet.noPort", "Porta {0} não respondeu."), port));
         _s = _tcp.GetStream();
         _s.ReadTimeout = timeoutMs;
     }
@@ -88,11 +88,11 @@ public sealed class GnetConnection : IDisposable
                 if (t != type) continue;
                 if (match is null || match(new GnetReader(data))) return new GnetReader(data);
             }
-            if (Environment.TickCount64 > until) throw new TimeoutException($"O servidor não respondeu (pacote {type}).");
+            if (Environment.TickCount64 > until) throw new TimeoutException(string.Format(UI.Loc.T("gnet.timeout", "O servidor não respondeu (pacote {0})."), type));
             int n;
             try { n = _s.Read(chunk); }
             catch (IOException) when (Environment.TickCount64 < until) { continue; }
-            if (n <= 0) throw new IOException("O servidor fechou a conexão.");
+            if (n <= 0) throw new IOException(UI.Loc.T("gnet.closed", "O servidor fechou a conexão."));
             _buf.AddRange(chunk.AsSpan(0, n).ToArray());
         }
     }

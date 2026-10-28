@@ -13,7 +13,7 @@ public static class AtomicFileSave
         string full = Path.GetFullPath(path);
         string temp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
         string? backup = null;
-        string stage = "Gravando arquivo temporário";
+        string stage = FieldKinds.Translate("fsave.writeTemp", "Gravando arquivo temporário");
         try
         {
             context?.Check();
@@ -29,10 +29,10 @@ public static class AtomicFileSave
                 }
                 stream.Flush(flushToDisk: true);
             }
-            stage = "Conferindo arquivo temporário";
+            stage = FieldKinds.Translate("fsave.checkTemp", "Conferindo arquivo temporário");
             using (var stream = new FileStream(temp, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                if (stream.Length != bytes.Length) throw new IOException("O tamanho do arquivo gravado não confere.");
+                if (stream.Length != bytes.Length) throw new IOException(FieldKinds.Translate("fsave.sizeMismatch", "O tamanho do arquivo gravado não confere."));
                 var buffer = new byte[1024 * 1024];
                 int at = 0;
                 while (at < bytes.Length)
@@ -40,7 +40,7 @@ public static class AtomicFileSave
                     context?.Check();
                     int count = stream.Read(buffer, 0, Math.Min(buffer.Length, bytes.Length - at));
                     if (count == 0 || !buffer.AsSpan(0, count).SequenceEqual(bytes.AsSpan(at, count)))
-                        throw new IOException("A releitura do temporário difere dos dados a salvar.");
+                        throw new IOException(FieldKinds.Translate("fsave.rereadMismatch", "A releitura do temporário difere dos dados a salvar."));
                     at += count;
                     context?.Report(.65 + .25 * at / Math.Max(1, bytes.Length), stage, Path.GetFileName(full));
                 }
@@ -48,19 +48,19 @@ public static class AtomicFileSave
             context?.Check();
             if (File.Exists(full))
             {
-                stage = "Criando backup";
+                stage = FieldKinds.Translate("fsave.backup", "Criando backup");
                 context?.Report(.90, stage, Path.GetFileName(full), force: true);
                 backup = full + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "." + Guid.NewGuid().ToString("N") + ".bak";
                 File.Copy(full, backup, overwrite: false);
                 // A última checagem de cancelamento vem antes da substituição; depois dela nunca se reporta cancelamento.
                 context?.Check();
-                stage = "Substituindo o arquivo";
+                stage = FieldKinds.Translate("fsave.replace", "Substituindo o arquivo");
                 try { File.Replace(temp, full, null); }
                 catch (NotSupportedException) { File.Move(temp, full, overwrite: true); }
             }
             else
             {
-                stage = "Criando o arquivo";
+                stage = FieldKinds.Translate("fsave.create", "Criando o arquivo");
                 context?.Check();
                 File.Move(temp, full);
             }
@@ -68,8 +68,8 @@ public static class AtomicFileSave
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException)
         {
-            throw new FileSaveException($"Falha em: {stage}.\nDestino: {full}\n" +
-                (backup is null ? "" : $"Backup em: {backup}\n") + $"Motivo: {ex.Message}", ex);
+            throw new FileSaveException(string.Format(FieldKinds.Translate("fsave.failedAt", "Falha em: {0}.\nDestino: {1}\n"), stage, full) +
+                (backup is null ? "" : string.Format(FieldKinds.Translate("fsave.backupAt", "Backup em: {0}\n"), backup)) + string.Format(FieldKinds.Translate("fsave.reason", "Motivo: {0}"), ex.Message), ex);
         }
         finally
         {

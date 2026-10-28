@@ -550,7 +550,7 @@ internal sealed class GShopView : UserControl
             var f = _v._shops[_v._which];
             if (Img(D?.Frame) is { } frame) g.DrawImage(frame, new Rectangle(Point.Empty, win));
             else using (var b = new SolidBrush(Color.FromArgb(28, 40, 58))) g.FillRectangle(b, new Rectangle(Point.Empty, win));
-            GameDraw.Text(g, D?["titletxt"]?.Text ?? "LOJA", R("titletxt", new Rectangle(291, 37, 206, 35)), Gold, 24, false, ContentAlignment.MiddleCenter, D?["titletxt"]?.FontName);   // fonte do título do jogo (隶二)
+            GameDraw.Text(g, D?["titletxt"]?.Text ?? Loc.T("gshop.pvTitle", "LOJA"), R("titletxt", new Rectangle(291, 37, 206, 35)), Gold, 24, false, ContentAlignment.MiddleCenter, D?["titletxt"]?.FontName);   // fonte do título do jogo (隶二)
 
             // abas Loja / Butique de Eventos (gshop / gshop1)
             for (int i = 0; i < 2; i++)
@@ -559,7 +559,7 @@ internal sealed class GShopView : UserControl
                 var r = TabBtn(i);
                 var img = Img(ImgOf(ctl, i == _v._which ? 1 : 0));
                 if (img is not null) g.DrawImage(img, r); else using (var b = new SolidBrush(i == _v._which ? Color.SteelBlue : Color.SlateGray)) g.FillRectangle(b, r);
-                Text(g, D?[ctl]?.Text ?? (i == 0 ? "Loja" : "Eventos"), r, _v._shops[i] is null ? Color.Gray : Cream, 9, true);
+                Text(g, D?[ctl]?.Text ?? (i == 0 ? Loc.T("gshop.pvShop", "Loja") : Loc.T("gshop.pvEvents", "Eventos")), r, _v._shops[i] is null ? Color.Gray : Cream, 9, true);
             }
             if (f is null) { Text(g, Loc.T("gshop.none", "Nenhuma loja aberta."), new Rectangle(258, 300, 450, 40), Cream, 14); return; }
 
@@ -580,7 +580,7 @@ internal sealed class GShopView : UserControl
                 var r = SubBtn(i);
                 var img = Img(ImgOf($"Btn_SubType{i}", i == _v._sub ? 1 : 0) ?? ImgOf("Btn_SubType0", i == _v._sub ? 1 : 0));
                 if (img is not null) g.DrawImage(img, r); else using (var b = new SolidBrush(i == _v._sub ? Color.FromArgb(70, 110, 160) : Color.FromArgb(40, 60, 90))) g.FillRectangle(b, r);
-                Text(g, i < 0 ? D?["Btn_SubType-1"]?.Text ?? "Tudo" : subs[i], r, Cream, 9);
+                Text(g, i < 0 ? D?["Btn_SubType-1"]?.Text ?? Loc.T("gshop.pvAll", "Tudo") : subs[i], r, Cream, 9);
             }
 
             // 8 células: 2 colunas x 4 linhas, rolando de 2 em 2
@@ -612,7 +612,7 @@ internal sealed class GShopView : UserControl
                 var dr = R("Txt_ItemDesc", new Rectangle(71, 315, 160, 180));
                 DrawRich(g, s.Description, dr);
             }
-            Text(g, D?["cash"]?.Text ?? "Total:", R("cash", new Rectangle(68, 507, 42, 16)), Gold, 10, true, ContentAlignment.MiddleLeft);
+            Text(g, D?["cash"]?.Text ?? Loc.T("gshop.pvTotal", "Total:"), R("cash", new Rectangle(68, 507, 42, 16)), Gold, 10, true, ContentAlignment.MiddleLeft);
             Text(g, string.Format(Loc.T("gshop.count", "{0} itens"), vis.Count), R("Txt_Cash", new Rectangle(113, 507, 120, 15)), Color.White, 10, true, ContentAlignment.MiddleLeft);
         }
 
@@ -642,7 +642,7 @@ internal sealed class GShopView : UserControl
             {
                 var br = C("Btn_Buy", new Rectangle(167, 61, 50, 24));
                 g.DrawImage(buy, br);
-                Text(g, c?["Btn_Buy"]?.Text ?? "Comprar", Rectangle.Inflate(br, 6, 0), Color.FromArgb(255, 251, 202), 8.5f);
+                Text(g, c?["Btn_Buy"]?.Text ?? Loc.T("gshop.pvBuy", "Comprar"), Rectangle.Inflate(br, 6, 0), Color.FromArgb(255, 251, 202), 8.5f);
             }
             // mais de uma opção de venda: o jogo mostra botões de tempo; aqui um aviso discreto
             int more = Enumerable.Range(1, 3).Count(k => !it.GetOption(k).IsEmpty);

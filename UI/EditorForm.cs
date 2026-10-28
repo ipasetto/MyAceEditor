@@ -371,7 +371,7 @@ public sealed class EditorForm : Form
         _search.TextChanged += (_, _) => { searchDelay.Stop(); searchDelay.Start(); };
         _searchAll.ForeColor = CTreeFg; _searchAll.BackColor = CTreeBg;
         _searchAll.CheckedChanged += (_, _) => RefreshView();
-        _tip.SetToolTip(_searchAll, "Buscar em todos os blocos");
+        Bind(() => _tip.SetToolTip(_searchAll, Loc.T("list.searchAll", "Buscar em todos os blocos")));
         searchRow.Controls.Add(_search);
         searchRow.Controls.Add(_searchAll);
 
@@ -857,7 +857,7 @@ public sealed class EditorForm : Form
 
     private void OpenElements()
     {
-        using var dlg = new OpenFileDialog { Filter = "Perfect World elements (*.data)|*.data|Todos (*.*)|*.*" };
+        using var dlg = new OpenFileDialog { Filter = "Perfect World elements (*.data)|*.data|" + Loc.T("dlg.allFiles", "Todos") + " (*.*)|*.*" };
         if (dlg.ShowDialog(this) == DialogResult.OK && ConfirmLeaveGame()) LoadElements(dlg.FileName);
     }
 
@@ -885,7 +885,7 @@ public sealed class EditorForm : Form
             };
             if (dlg.ShowDialog(this) == DialogResult.OK) LoadElements(path, dlg.FileName);
         }
-        catch (Exception ex) { Error("Falha ao ler elements.data", ex); }
+        catch (Exception ex) { Error(Loc.T("status.readFail", "Falha ao ler elements.data"), ex); }
     }
 
     // Só leitura de arquivos: não toca em nenhum controle (roda em outra thread).
@@ -899,13 +899,13 @@ public sealed class EditorForm : Form
 
         var pck = IconAtlas.FindSurfacesPck(path);
         IconAtlas? atlas = null;
-        ctx.Report(.70, "Lendo ícones", indeterminate: true, force: true);
+        ctx.Report(.70, Loc.T("load.icons", "Lendo ícones"), indeterminate: true, force: true);
         if (pck is not null)
             try { atlas = IconAtlas.Load(pck, ctx.Slice(.70, .85)); }
-            catch (Exception ex) when (ex is not OperationCanceledException) { warnings.Add("Ícones: " + ex.Message); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { warnings.Add(Loc.T("load.iconsFail", "Ícones não carregados: ") + ex.Message); }
 
         GameConfigs? cfgs = null;
-        ctx.Report(.85, "Lendo descrições", indeterminate: true, force: true);
+        ctx.Report(.85, Loc.T("load.descriptions", "Lendo descrições"), indeterminate: true, force: true);
         try { cfgs = GameConfigs.FindConfigsPck(path) is { } cp ? GameConfigs.Load(cp, ctx.Slice(.85, .92)) : null; }
         catch (Exception ex) when (ex is not OperationCanceledException) { warnings.Add("configs.pck: " + ex.Message); }
 
@@ -1073,12 +1073,12 @@ public sealed class EditorForm : Form
     {
         var block = _curBlock ?? CurrentItemBlock;
         if (block is null || block.Items.Count == 0) { Status(Loc.T("status.exportNoBlock", "Escolha um bloco com itens para exportar.")); return; }
-        using var dlg = new SaveFileDialog { Filter = "Planilha CSV (*.csv)|*.csv", FileName = block.Name + ".csv" };
+        using var dlg = new SaveFileDialog { Filter = Loc.T("dlg.csvFilter", "Planilha CSV") + " (*.csv)|*.csv", FileName = block.Name + ".csv" };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         var keys = block.Items.SelectMany(i => i.Fields.Keys).Distinct().ToList();
         string Q(string v) => v.Contains(';') || v.Contains('"') || v.Contains('\n') ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine(string.Join(";", new[] { "ID", "Nome" }.Concat(keys).Select(Q)));
+        sb.AppendLine(string.Join(";", new[] { "ID", Loc.T("list.name", "Nome") }.Concat(keys).Select(Q)));
         foreach (var it in block.Items)
             sb.AppendLine(string.Join(";", new[] { it.Id, it.Name }.Concat(keys.Select(k => it.Fields.TryGetValue(k, out var f) ? f.Value : "")).Select(Q)));
         File.WriteAllText(dlg.FileName, sb.ToString(), new System.Text.UTF8Encoding(true));   // BOM: abre certo no Excel
@@ -1088,7 +1088,7 @@ public sealed class EditorForm : Form
     private void SaveElements(bool saveAs)
     {
         _grid.EndEdit();                                // célula em edição entra no item antes de gravar
-        if (_store.Current?.Source is not ElementsLayout || _dataPath is null) { Status("Abra um elements.data primeiro"); return; }
+        if (_store.Current?.Source is not ElementsLayout || _dataPath is null) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
         var target = _dataPath;
         if (saveAs)
         {
@@ -1096,8 +1096,8 @@ public sealed class EditorForm : Form
             if (dlg.ShowDialog(this) != DialogResult.OK) return;
             target = dlg.FileName;
         }
-        else if (MessageBox.Show($"Gravar as alterações em:\n{target}\n\nUma cópia de segurança do arquivo atual será criada ao lado dele.",
-                     "Salvar elements.data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        else if (MessageBox.Show(string.Format(Loc.T("save.confirm", "Gravar as alterações em:\n{0}\n\nUma cópia de segurança do arquivo atual será criada ao lado dele."), target),
+                     Loc.T("save.title", "Salvar elements.data"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
         SaveElementsCore(target);
     }
 
@@ -1117,11 +1117,11 @@ public sealed class EditorForm : Form
                 if (keep is { } k && _store.Current?.FindListByName(k.Block ?? "")?.FindById(k.Id) is { } again)
                 { _current = again; SelectItem(again); ShowItem(again); }
             }
-            Status($"Salvo em {Path.GetFileName(target)}" + (backup is null ? "" : $" · backup: {Path.GetFileName(backup)}"));
+            Status(string.Format(Loc.T("status.savedTo", "Salvo em {0}"), Path.GetFileName(target)) + (backup is null ? "" : $" · backup: {Path.GetFileName(backup)}"));
             MarkElementsSaved();
             return true;
         }
-        catch (Exception ex) { Error("Falha ao salvar", ex); return false; }
+        catch (Exception ex) { Error(Loc.T("status.saveFail", "Falha ao salvar"), ex); return false; }
         finally { UseWaitCursor = false; }
     }
 
@@ -1178,7 +1178,7 @@ public sealed class EditorForm : Form
         {
             var lists = _store.Current.Lists;
             foreach (var l in lists) foreach (var it in l.Items) _owner[it] = l;
-            _blockCombo.Items.Add(new BlockEntry(null, $"★ Favoritos ({_favorites.Count})",
+            _blockCombo.Items.Add(new BlockEntry(null, $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})",
                 Dyn: () => $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})"));
             // "Todos": itens de todos os blocos numa lista só (pedido do usuário, logo abaixo dos favoritos)
             _blockCombo.Items.Add(new BlockEntry(null, "", All: true,
@@ -1230,7 +1230,7 @@ public sealed class EditorForm : Form
             var majors = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_MAJOR_TYPE"));
             var subs = NameMap(all.FirstOrDefault(l => l.Name == prefix + "_SUB_TYPE"));
             int nAll = b.Items.Count;
-            _typeCombo.Items.Add(new TypeEntry(null, null, $"Todos os tipos ({nAll:N0})",
+            _typeCombo.Items.Add(new TypeEntry(null, null, string.Format(Loc.T("filter.allTypes", "Todos os tipos ({0:N0})"), nAll),
                 () => string.Format(Loc.T("filter.allTypes", "Todos os tipos ({0:N0})"), nAll)));
             foreach (var byMajor in b.Items.GroupBy(i => Fv(i, "id_major_type")))
             {
@@ -1489,7 +1489,7 @@ public sealed class EditorForm : Form
         _list.BeginUpdate();
         for (int i = 0; i < _view.Count; i++) _list.SelectedIndices.Add(i);
         _list.EndUpdate();
-        Status($"{_view.Count:N0} itens selecionados");
+        Status(string.Format(Loc.T("status.selectedCount", "{0:N0} itens selecionados"), _view.Count));
     }
 
     private void BulkClone()
@@ -1508,21 +1508,21 @@ public sealed class EditorForm : Form
         if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         RefreshView();
         if (last is not null) { _current = last; SelectItem(last); ShowItem(last); }
-        Status($"{sel.Count} item(ns) clonado(s)");
+        Status(string.Format(Loc.T("status.clonedCount", "{0} item(ns) clonado(s)"), sel.Count));
     }
 
     private void BulkDelete()
     {
         var sel = SelectedItems();
         if (sel.Count == 0) return;
-        if (MessageBox.Show($"Excluir {sel.Count} item(ns) selecionado(s)?", "Excluir", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (MessageBox.Show(string.Format(Loc.T("confirm.deleteSelected", "Excluir {0} item(ns) selecionado(s)?"), sel.Count), Loc.T("confirm.delete", "Excluir"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         using (_edits.Batch(string.Format(Loc.T("hist.delete", "Excluir {0} item(ns)"), sel.Count)))
             foreach (var it in sel) if (_owner.TryGetValue(it, out var b)) { _edits.RemoveItem(b, it, ""); _owner.Remove(it); _favorites.Remove(FavKey(b, it)); }
         SaveFavorites();
         if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         _current = null;
         RefreshView();
-        Status($"{sel.Count} item(ns) excluído(s)");
+        Status(string.Format(Loc.T("status.deletedCount", "{0} item(ns) excluído(s)"), sel.Count));
     }
 
     private void BulkChange() => BulkChangeOn(SelectedItems(), _grid.CurrentRow?.Tag as string);
@@ -1584,7 +1584,7 @@ public sealed class EditorForm : Form
                 hit = any;
             }
         }
-        if (hit is null) { Status($"ID {id} não encontrado"); return; }
+        if (hit is null) { Status(string.Format(Loc.T("status.idNotFound", "ID {0} não encontrado"), id)); return; }
         _current = hit; SelectItem(hit); ShowItem(hit);
     }
 
@@ -1795,7 +1795,7 @@ public sealed class EditorForm : Form
         var dir = Path.Combine(AppContext.BaseDirectory, "PerfectWorld", "cfg");
         var cfgs = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.cfg")
             .Select(f => (Path: f, Ver: CfgCatalog.VersionFromName(f))).Where(x => x.Ver is not null).OrderByDescending(x => x.Ver).ThenBy(x => x.Path).ToList() : new();
-        if (cfgs.Count == 0) { Status("Nenhum .cfg encontrado."); return; }
+        if (cfgs.Count == 0) { Status(Loc.T("status.noCfg", "Nenhum .cfg encontrado.")); return; }
         int cur = mod.Version & 0xFFFF;
         using var f = new Form { Text = Loc.T("conv.title", "Salvar em outra versão"), Width = 520, Height = 200, StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false, MinimizeBox = false, MaximizeBox = false, FormBorderStyle = FormBorderStyle.FixedDialog, BackColor = CSurface, ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) };
         var info = new Label { Dock = DockStyle.Top, Height = 54, Padding = new Padding(10), ForeColor = CMuted,
@@ -2448,7 +2448,9 @@ public sealed class EditorForm : Form
                     }
                 for (int i = 0; i < slots.Count && i < picked.Count; i++) SetField(item, slots[i], picked[i].Id, refresh: false);
                 FillGrid(item);
-                Status(picked.Count > slots.Count ? $"{slots.Count} de {picked.Count} escolhidos couberam nos campos disponíveis" : $"{picked.Count} valor(es) aplicado(s)");
+                Status(picked.Count > slots.Count
+                    ? string.Format(Loc.T("status.pickedFit", "{0} de {1} escolhidos couberam nos campos disponíveis"), slots.Count, picked.Count)
+                    : string.Format(Loc.T("status.pickedApplied", "{0} valor(es) aplicado(s)"), picked.Count));
                 return true;
             }
         }
@@ -2626,7 +2628,7 @@ public sealed class EditorForm : Form
         PutTooltipSummary(item, Put);
         if (_cfgs is not null && int.TryParse(item.Id, out var id) && _cfgs.ItemDescs.TryGetValue(id, out var desc))
             foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg)) Put(t, c);
-        else Put(_cfgs is null ? "(configs.pck não encontrado)" : "(este item não tem descrição no configs.pck)", CMuted);
+        else Put(_cfgs is null ? Loc.T("desc.noConfigs", "(configs.pck não encontrado)") : Loc.T("desc.none", "(este item não tem descrição no configs.pck)"), CMuted);
         _descBox.SelectionStart = 0; _descBox.SelectionLength = 0; _descBox.ScrollToCaret();   // AppendText rola até o fim
     }
 
@@ -2899,7 +2901,7 @@ public sealed class EditorForm : Form
             _list.Invalidate();
             _header.Text = TasksFile.SplitColor(val).Text;   // o ID já aparece no quadro ao lado
         }
-        Status($"'{FieldLabels.Label(key)}' atualizado");
+        Status(string.Format(Loc.T("status.fieldUpdated", "'{0}' atualizado"), FieldLabels.Label(key)));
     }
 
     // ---------- menu de contexto (clicar direito) ----------
@@ -2983,7 +2985,7 @@ public sealed class EditorForm : Form
     private void NewItem()
     {
         var block = _curBlock ?? CurrentItemBlock;
-        if (block is null) { Status("Escolha um bloco primeiro"); return; }
+        if (block is null) { Status(Loc.T("status.pickBlock", "Escolha um bloco primeiro")); return; }
         long code = NextCode(block);
         Item ni;
         if ((_store.Current?.Source as ElementsLayout)?.Blocks.FirstOrDefault(b => ReferenceEquals(b.List, block)) is { } span)
@@ -3001,12 +3003,12 @@ public sealed class EditorForm : Form
         }
         SetIdName(ni);
         InsertNewItem(block, ni);
-        Status($"Novo item {code} criado em {Pretty(block.Name)} — preencha os campos à direita.");
+        Status(string.Format(Loc.T("status.newItem", "Novo item {0} criado em {1} — preencha os campos à direita."), code, Pretty(block.Name)));
     }
 
     private void CloneItem()
     {
-        if (_current is null || CurrentItemBlock is not { } block) { Status("Selecione um item para clonar"); return; }
+        if (_current is null || CurrentItemBlock is not { } block) { Status(Loc.T("status.pickToClone", "Selecione um item para clonar")); return; }
         long code = NextCode(block);
         var ni = new Item
         {
@@ -3017,22 +3019,22 @@ public sealed class EditorForm : Form
         };
         SetIdName(ni);
         InsertNewItem(block, ni);
-        Status($"Item clonado como código {code}.");
+        Status(string.Format(Loc.T("status.clonedAs", "Item clonado como código {0}."), code));
     }
 
     private void AddItem() => NewItem();
 
     private void RemoveItem()
     {
-        if (_current is null || CurrentItemBlock is not { } block) { Status("Selecione um item"); return; }
-        if (MessageBox.Show($"Excluir \"{_current.Name}\" (ID {_current.Id})?", "Excluir item",
+        if (_current is null || CurrentItemBlock is not { } block) { Status(Loc.T("status.pickItem", "Selecione um item")); return; }
+        if (MessageBox.Show(string.Format(Loc.T("confirm.deleteOne", "Excluir \"{0}\" (ID {1})?"), _current.Name, _current.Id), Loc.T("ctx.delete", "Excluir item"),
             MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         _favorites.Remove(FavKey(block, _current)); SaveFavorites();
         _edits.RemoveItem(block, _current, string.Format(Loc.T("hist.deleteOne", "Excluir item {0}"), _current.Id)); _owner.Remove(_current);
         if (_store.Current is not null) _refs = new RefIndex(_store.Current);
         _current = null;
         RefreshView();
-        Status("Item removido");
+        Status(Loc.T("status.itemRemoved", "Item removido"));
     }
 
     // ---------- favoritos ----------
@@ -3044,9 +3046,9 @@ public sealed class EditorForm : Form
         if (!_favorites.Remove(key)) _favorites.Add(key);
         SaveFavorites();
         if (_blockCombo.Items.Count > 0 && _blockCombo.Items[0] is BlockEntry fav)
-            _blockCombo.Items[0] = fav with { Label = $"★ Favoritos ({_favorites.Count})" };
+            _blockCombo.Items[0] = fav with { Label = $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})" };
         RefreshView();
-        Status(_favorites.Contains(key) ? "Adicionado aos favoritos" : "Removido dos favoritos");
+        Status(_favorites.Contains(key) ? Loc.T("status.favAdded", "Adicionado aos favoritos") : Loc.T("status.favRemoved", "Removido dos favoritos"));
     }
     private static string FavFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "favorites.txt");
     private void SaveFavorites()
@@ -3079,7 +3081,7 @@ public sealed class EditorForm : Form
             int lw = line.Sum(r => TextRenderer.MeasureText(r.Text, r.Bold ? TipBold : TipFont, Size.Empty, TipFlags).Width);
             w = Math.Max(w, lw); h += 18;
         }
-        foreach (var d in _tipDrops) w = Math.Max(w, TextRenderer.MeasureText($"Item: {d.Text}  {d.Pct}", TipFont, Size.Empty, TipFlags).Width + 26);
+        foreach (var d in _tipDrops) w = Math.Max(w, TextRenderer.MeasureText($"{Loc.T("tip.item", "Item:")} {d.Text}  {d.Pct}", TipFont, Size.Empty, TipFlags).Width + 26);
         if (_tipDrops.Count > 0) h += _tipDrops.Count * 20 + 6;
         e.ToolTipSize = new Size(Math.Min(w + 22, 560), h);
     }
@@ -3110,7 +3112,7 @@ public sealed class EditorForm : Form
                 y += 3;
                 foreach (var d in _tipDrops)
                 {
-                    TextRenderer.DrawText(e.Graphics, "Item:", TipFont, new Point(10, y + 1), TipText, TipFlags);
+                    TextRenderer.DrawText(e.Graphics, Loc.T("tip.item", "Item:"), TipFont, new Point(10, y + 1), TipText, TipFlags);
                     int x = 46;
                     if (d.Icon is not null) e.Graphics.DrawImage(d.Icon, x, y, 18, 18);
                     x += 22;
@@ -3225,7 +3227,7 @@ public sealed class EditorForm : Form
     private string? _tasksPath;
     private QuestNode? _qCur;
     private readonly TreeView _qTree = new() { Dock = DockStyle.Fill, HideSelection = false, FullRowSelect = true, BorderStyle = BorderStyle.None, ItemHeight = 22, ShowLines = false, DrawMode = TreeViewDrawMode.OwnerDrawText };
-    private readonly TextBox _qSearch = new() { Dock = DockStyle.Top, PlaceholderText = "  Pesquisar quest por nome ou ID…", BorderStyle = BorderStyle.FixedSingle };
+    private readonly TextBox _qSearch = new() { Dock = DockStyle.Top, BorderStyle = BorderStyle.FixedSingle };
     private readonly TextBox _qName = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 11) };
     private readonly Label _qInfo = new() { Dock = DockStyle.Top, Height = 46, Font = new Font("Segoe UI Semibold", 13), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0) };
     private readonly Label _qStatus = new() { Dock = DockStyle.Bottom, Height = 26, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0) };
@@ -3239,6 +3241,7 @@ public sealed class EditorForm : Form
     {
         var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, SplitterWidth = 6, BackColor = CLine, Panel1MinSize = 300 };
         var left = new Panel { Dock = DockStyle.Fill, BackColor = CTreeBg, Padding = new Padding(8) };
+        Bind(() => _qSearch.PlaceholderText = Loc.T("quest.search", "  Pesquisar quest por nome ou ID…"));
         _qSearch.BackColor = CTreeInput; _qSearch.ForeColor = CTreeFg; _qSearch.Font = new Font("Segoe UI", 10);
         _qSearch.TextChanged += (_, _) => RefreshQuests();
         _qTree.BackColor = CTreeBg; _qTree.ForeColor = CTreeFg; _qTree.Font = new Font("Segoe UI", 10);
@@ -3383,7 +3386,7 @@ public sealed class EditorForm : Form
     // tasks.data ao lado do elements.data (data\tasks.data)
     private void OpenTasksDialog()
     {
-        using var dlg = new OpenFileDialog { Filter = "tasks.data (*.data)|*.data|Todos (*.*)|*.*" };
+        using var dlg = new OpenFileDialog { Filter = "tasks.data (*.data)|*.data|" + Loc.T("dlg.allFiles", "Todos") + " (*.*)|*.*" };
         if (dlg.ShowDialog(this) == DialogResult.OK) LoadTasks(dlg.FileName);
     }
 
@@ -3758,7 +3761,7 @@ public sealed class EditorForm : Form
     // Correção automática do par (issue #26): o usuário escolhe o que trocar; o cliente é a referência.
     private void FixPair()
     {
-        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status("Escolha as pastas do cliente e do servidor."); return; }
+        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(Loc.T("chk.pickBothFolders", "Escolha as pastas do cliente e do servidor.")); return; }
         var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text);
         if (fixes.Count == 0) { MessageBox.Show(this, Loc.T("fix.none", "Nada para corrigir: o servidor já está igual ao cliente no que o login exige."), Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         using var f = new Form

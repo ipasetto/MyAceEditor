@@ -21,12 +21,12 @@ public static class IdRefactor
     /// <summary>Mensagem do problema, ou null se o novo ID serve.</summary>
     public static string? Validate(Module module, ItemList block, Item item, string newId)
     {
-        if (!int.TryParse(newId, out var n) || n <= 0) return "O novo ID precisa ser um número maior que zero.";
-        if (newId == item.Id) return "O novo ID é igual ao atual.";
+        if (!int.TryParse(newId, out var n) || n <= 0) return UI.Loc.T("idref.positive", "O novo ID precisa ser um número maior que zero.");
+        if (newId == item.Id) return UI.Loc.T("idref.same", "O novo ID é igual ao atual.");
         var space = IdSpaces.Of(block.Name);
         foreach (var l in module.Lists.Where(l => IdSpaces.Of(l.Name) == space))
             if (l.Items.FirstOrDefault(i => i.Id == newId) is { } other)
-                return $"O ID {newId} já existe em {l.Name} ({other.Name}).";
+                return string.Format(UI.Loc.T("idref.exists", "O ID {0} já existe em {1} ({2})."), newId, l.Name, other.Name);
         return null;
     }
 

@@ -77,10 +77,19 @@ public static class BitMasks
         for (int b = 0; b < 32; b++)
         {
             if ((value & (1L << b)) == 0) continue;
-            var hit = table.FirstOrDefault(t => t.Bit == b);
-            names.Add(hit.Name ?? $"{unknownPrefix} {b}");
+            names.Add(Name(table, b, unknownPrefix));
         }
         return string.Join(", ", names);
+    }
+
+    /// <summary>Nome do bit no idioma da interface (chave mask.&lt;tabela&gt;.&lt;bit&gt;; o português da tabela é o padrão).</summary>
+    public static string Name((int Bit, string Name)[] table, int bit, string unknownPrefix = "Bit")
+    {
+        var pt = table.FirstOrDefault(t => t.Bit == bit).Name;
+        if (pt is null) return $"{unknownPrefix} {bit}";
+        string prefix = ReferenceEquals(table, Proc) ? "mask.proc." : ReferenceEquals(table, Immune) ? "mask.immune."
+            : ReferenceEquals(table, Food) ? "mask.food." : ReferenceEquals(table, Services) ? "mask.svc." : "";
+        return prefix.Length == 0 ? pt : FieldKinds.Translate(prefix + bit, pt);
     }
 
     public static bool TryParse(string v, out long value) => long.TryParse(v, out value) && value >= 0;

@@ -119,7 +119,7 @@ public sealed class AiPolicyView : UserControl
             catch { /* tamanho ainda pequeno: fica no padrão */ }
         };
 
-        _open.Click += (_, _) => { using var d = new OpenFileDialog { Filter = "aipolicy.data|aipolicy.data|Todos|*.*" }; if (d.ShowDialog() == DialogResult.OK) LoadFile(d.FileName); };
+        _open.Click += (_, _) => { using var d = new OpenFileDialog { Filter = "aipolicy.data|aipolicy.data|" + Loc.T("dlg.allFiles", "Todos") + "|*.*" }; if (d.ShowDialog() == DialogResult.OK) LoadFile(d.FileName); };
         _save.Click += (_, _) => SaveFile();
         _policies.AfterSelect += (_, e) =>
         {

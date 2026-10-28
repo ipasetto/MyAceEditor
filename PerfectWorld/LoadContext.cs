@@ -50,21 +50,21 @@ public sealed class LoadContext
     public byte[] ReadFile(string path)
     {
         Check();
-        Report(0, "Lendo arquivo", Path.GetFileName(path), force: true);
+        Report(0, FieldKinds.Translate("load.readingFile", "Lendo arquivo"), Path.GetFileName(path), force: true);
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.SequentialScan);
-        if (stream.Length > int.MaxValue) throw new InvalidDataException("Arquivo maior que o permitido pelo leitor.");
+        if (stream.Length > int.MaxValue) throw new InvalidDataException(FieldKinds.Translate("load.fileTooBig", "Arquivo maior que o permitido pelo leitor."));
         var data = GC.AllocateUninitializedArray<byte>((int)stream.Length);
         int done = 0;
         while (done < data.Length)
         {
             Check();
             int read = stream.Read(data, done, Math.Min(1024 * 1024, data.Length - done));
-            if (read == 0) throw new EndOfStreamException("Arquivo incompleto; a leitura terminou antes do esperado.");
+            if (read == 0) throw new EndOfStreamException(FieldKinds.Translate("load.fileTruncated", "Arquivo incompleto; a leitura terminou antes do esperado."));
             done += read;
-            Report(done / (double)Math.Max(1, data.Length), "Lendo arquivo", $"{done:N0} / {data.Length:N0} bytes");
+            Report(done / (double)Math.Max(1, data.Length), FieldKinds.Translate("load.readingFile", "Lendo arquivo"), $"{done:N0} / {data.Length:N0} bytes");
         }
         Check();
-        Report(1, "Lendo arquivo", $"{data.Length:N0} bytes", force: true);
+        Report(1, FieldKinds.Translate("load.readingFile", "Lendo arquivo"), $"{data.Length:N0} bytes", force: true);
         return data;
     }
 }
