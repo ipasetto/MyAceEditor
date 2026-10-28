@@ -163,6 +163,17 @@ public static class VersionCheck
                     .Select(kv => kv.Value.GetValueOrDefault("version")).Where(v => v is not null).Distinct().Select(HexVersion)) : null;
             rows.Add(Compare(local + Loc.T("chk.glinkdInstalled", "glinkd versão (desta pasta × instalado)"), Versions(serverHome), Versions(liveHome),
                 Loc.T("chk.glinkdInstalledDiffers", "O servidor local roda programas de outra versão: o cliente ouve \"versão do cliente baixa\" e o login é recusado. Use Corrigir (ou Enviar ao servidor): instala os programas desta pasta.")));
+            // o gs terminou de carregar? Sem ele a tela de personagens abre, mas entrar no mundo derruba e o login seguinte
+            // cai como "versão diferente" (o glinkd responde sem a versão). Ex.: aipolicy.data mais novo que o gs.
+            if (LocalServer.GsLog() is { } gsLog)
+            {
+                bool failed = gsLog.Contains("Failed to Load AIPolicy"), ready = gsLog.Contains("announceproviderid");
+                rows.Add(new(local + Loc.T("chk.gsLoaded", "gs (mundo) carregado"), "—",
+                    ready ? Loc.T("chk.yes", "sim") : failed ? Loc.T("chk.gsAiRefused", "recusou o aipolicy.data") : Loc.T("chk.no", "não"),
+                    ready ? CheckLevel.Ok : CheckLevel.Erro,
+                    ready ? Loc.T("chk.gsLoadedOk", "O mundo está no ar.")
+                          : Loc.T("chk.gsNotLoaded", "O gs não terminou de carregar (ou está parado): entrar no mundo derruba e o login cai como \"versão diferente\". Use \"Enviar ao servidor\" (converte o aipolicy.data que ele não lê) ou veja o log do gs na administração.")));
+            }
             // o que decide: o gs instalado é da versão do elementclient.exe? (para cima ou para baixo, o Corrigir troca)
             var inst = LocalServer.InstalledVersion();
             if (cExe is not null && inst is not null)

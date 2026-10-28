@@ -7,10 +7,11 @@ namespace MyAceEditor.PerfectWorld;
 
 /// <summary>
 /// Painel de administração do servidor local (o que o iweb do pacote faz, PW-KB §S8 §S30):
-///   contas (MySQL "pw", via pwctl)      — listar, criar, senha, GM, gold, banir/liberar;
+///   contas (MySQL "pw", via pwctl)      — listar, criar, senha, GM, gold, banir/liberar, excluir;
 ///   gdeliveryd :29100 (GNET)            — online, atributos do mundo (EXP/dinheiro/drop/SP em dobro, travas), aviso geral,
 ///                                         expulsar e calar;
-///   gamedbd :29400 (GNET)               — personagens de uma conta e dados básicos de cada um (só leitura);
+///   gamedbd :29400 (GNET)               — personagens de uma conta, dados básicos de cada um e excluir (com o
+///                                         uniquenamed :29401 liberando o nome); excluir conta leva os personagens;
 ///   mapas (pwctl)                       — quais gs estão rodando, RAM, iniciar/parar instância.
 /// Tudo na máquina local; nenhuma senha ou chave aparece aqui.
 /// </summary>
@@ -167,6 +168,50 @@ public sealed class ServerAdmin
     }
 
     static DateTime? Unix(int t) => t > 0 ? DateTimeOffset.FromUnixTimeSeconds(t).LocalDateTime : null;
+
+    // ---------- excluir (como o deleterole.jsp do iweb) ----------
+    public const int UniqueNamePort = 29401;
+
+    /// <summary>
+    /// Exclui o personagem de vez: DBDeleteRole (3008) no gamedbd, depois PostDeleteRole (3039) no uniquenamed para o
+    /// nome ficar livre. null = ok; senão, o erro. Quem estiver com ele no jogo deve sair antes.
+    /// </summary>
+    public string? DeleteRole(int roleid)
+    {
+        int userid; byte[] name;
+        using (var c = Db())
+        {
+            var r = c.Rpc(3008, w => w.Int(roleid).Byte(0));                                  // DBDeleteRole, sem rollback
+            int ret = r.Int();
+            if (ret != 0) return string.Format(Loc.T("adm.deleteRoleRefused", "O banco do jogo recusou excluir o personagem (código {0})."), ret);
+            userid = r.Int(); r.Int(); r.Int(); name = r.Octets();
+        }
+        try
+        {
+            using var u = new GnetConnection(Host, UniqueNamePort);
+            u.Rpc(3039, w => w.Int(userid).Int(ZoneId()).Int(roleid).Octets(name));          // PostDeleteRole
+        }
+        catch (Exception ex) when (ex is IOException or TimeoutException)
+        { return Loc.T("adm.roleDeletedNameKept", "Personagem excluído, mas o nome não foi liberado (o uniquenamed não respondeu)."); }
+        return null;
+    }
+
+    /// <summary>Exclui a conta e, antes, os personagens dela (o banco do jogo não apaga sozinho). null = ok.</summary>
+    public string? DeleteAccount(int uid)
+    {
+        foreach (var role in Roles(uid))
+            if (DeleteRole(role.Id) is { } err) return $"{role.Name}: {err}";
+        _srv.EnsureTools();   // pwctl desta versão (com "deluser") no Linux
+        return Ok(_srv.Bash($"pwctl deluser {uid}", timeoutMs: 60_000));
+    }
+
+    /// <summary>zoneid do gdeliveryd instalado (1 no pacote padrão).</summary>
+    int ZoneId()
+    {
+        var o = _srv.Bash("grep -m1 -E '^zoneid' /home/gdeliveryd/gamesys.conf", timeoutMs: 30_000).Output;
+        var m = Regex.Match(o, @"zoneid\s*=\s*(\d+)");
+        return m.Success ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : 1;
+    }
 
     /// <summary>Classes (playertemplate.h USER_CLASS_*): nomes da versão brasileira onde conhecidos.</summary>
     public static string ClassName(int cls) => cls switch

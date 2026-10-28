@@ -44,6 +44,13 @@ internal static class Program
             File.WriteAllText("pck-texts.txt", $"{n:N0} textos em {files.Count} arquivo(s)\n" + string.Join("\n", files.Keys.Order().Take(40)), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 4 && args[0] == "--adm")   // <pasta do servidor local> deleterole|deleteaccount <id>: o mesmo do painel (adm.txt)
+        {
+            var adm = new ServerAdmin(new LocalServer(args[1]));
+            string? err = args[2] == "deleterole" ? adm.DeleteRole(int.Parse(args[3])) : args[2] == "deleteaccount" ? adm.DeleteAccount(int.Parse(args[3])) : "comando?";
+            File.WriteAllText("adm.txt", err ?? "OK", new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--fix-pair") { FixPairCli(args[1], args[2]); return; }   // <cliente> <servidor>: aplica as correções recomendadas
         if (args.Length >= 4 && args[0] == "--aipolicy-convert") { AiConvert(args[1], args[2], args[3]); return; }   // <entrada> <referência que o gs lê> <saída>
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }

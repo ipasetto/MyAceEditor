@@ -145,6 +145,21 @@ public sealed class LocalServer
     /// <summary>A home/ instalada no Linux, vista do Windows (null sem a distro ou sem servidor instalado).</summary>
     public static string? LiveHome => DistroExists() && Directory.Exists($@"\\wsl.localhost\{Distro}\home\glinkd") ? $@"\\wsl.localhost\{Distro}\home" : null;
 
+    /// <summary>Log do gs do mundo (gs01) no servidor local, como está agora (null sem servidor ou sem log).</summary>
+    public static string? GsLog()
+    {
+        if (LiveHome is not { } h) return null;
+        var p = Path.Combine(h, "logs", "gs-gs01.log");
+        try
+        {
+            if (!File.Exists(p)) return null;
+            using var fs = new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var r = new StreamReader(fs, Encoding.Latin1);
+            return r.ReadToEnd();
+        }
+        catch (IOException) { return null; }
+    }
+
     /// <summary>Versão do elements compilada no gs instalado no servidor local (null sem servidor ou não identificada).</summary>
     public static int? InstalledVersion() => LiveHome is { } h ? ProgramVersion.ElementsVersion(Path.Combine(h, "gamed", "gs")) : null;
 
@@ -379,7 +394,7 @@ public sealed class LocalServer
     void FixRejectedAiPolicy(string serverFiles)
     {
         var sent = Path.Combine(BaseDir, "envio", "aipolicy.data");
-        if (!File.Exists(sent) || !GsRejectedAiPolicy()) return;
+        if (!File.Exists(sent) || !GsRejectedAiPolicy(out bool hung)) return;
         Log("##PASSO " + Loc.T("ls.aiRejected", "O gs recusou o aipolicy.data (versão mais nova que a dele): convertendo"));
         int have;
         try { var f = new AiPolicyFile(sent); if (!f.Ok) return; have = f.Limits().TriggerVersion; } catch { return; }
@@ -400,14 +415,19 @@ public sealed class LocalServer
                 lim.TriggerVersion, refPath, ai.Policies.Count, rep.TriggersDropped, rep.OpsDropped));
             Bash($"cp -f '{ToWslPath(conv)}' /home/gamed/config/aipolicy.data && chmod a+rw /home/gamed/config/aipolicy.data; pkill -9 -x gs; true", Log, timeoutMs: 120_000);
             Start();
-            if (!GsRejectedAiPolicy()) { Log(Loc.T("ls.aiAccepted", "O gs aceitou o aipolicy.data convertido.")); return; }
+            if (!GsRejectedAiPolicy(out _)) { Log(Loc.T("ls.aiAccepted", "O gs aceitou o aipolicy.data convertido.")); return; }
         }
-        Log("##ERRO " + Loc.T("ls.aiNoReference", "O gs não lê este aipolicy.data e não achei um que ele leia para servir de referência (outro pacote com o gs da mesma versão). Abra na aba AI Policy um aipolicy.data da versão do servidor e envie de novo."));
+        if (hung) Log("##ERRO " + Loc.T("ls.gsNotReady", "O gs não terminou de carregar em 2 minutos: o login vai ser recusado como \"versão diferente\". Veja o log do gs na administração do servidor."));
+        else Log("##ERRO " + Loc.T("ls.aiNoReference", "O gs não lê este aipolicy.data e não achei um que ele leia para servir de referência (outro pacote com o gs da mesma versão). Abra na aba AI Policy um aipolicy.data da versão do servidor e envie de novo."));
     }
 
-    /// <summary>Espera o gs terminar de carregar (até ~2 min): true se ele recusou o aipolicy.data.</summary>
-    bool GsRejectedAiPolicy()
+    /// <summary>
+    /// Espera o gs terminar de carregar (até ~2 min): true se ele recusou o aipolicy.data — com a mensagem, ou travado
+    /// sem terminar (o 1.5.5 com o aipolicy do PWI traduzido fica em 100% de CPU; o login cai como "versão diferente").
+    /// </summary>
+    bool GsRejectedAiPolicy(out bool hung)
     {
+        hung = false;
         for (int i = 0; i < 24; i++)
         {
             var o = Bash("grep -a -c 'Failed to Load AIPolicy' /home/logs/gs-gs01.log; grep -a -c announceproviderid /home/logs/gs-gs01.log", timeoutMs: 60_000).Output
@@ -419,7 +439,8 @@ public sealed class LocalServer
             }
             Thread.Sleep(5000);
         }
-        return false;
+        hung = true;
+        return true;
     }
 
     /// <summary>null = ok; senão, o erro.</summary>

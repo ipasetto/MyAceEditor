@@ -111,6 +111,12 @@ unban)
     uid=$(( $2 + 0 ))
     mysql pw -e "DELETE FROM forbid WHERE userid=$uid" && echo "##OK liberada"
     ;;
+deluser)  # pwctl deluser <uid>: apaga a conta do banco de contas (os personagens o painel apaga antes, no gamedbd)
+    uid=$(( $2 + 0 ))
+    [ $uid -gt 0 ] || { echo "##ERRO conta"; exit 1; }
+    mysql pw -e "DELETE FROM auth WHERE userid=$uid; DELETE FROM forbid WHERE userid=$uid; DELETE FROM point WHERE uid=$uid;
+                 DELETE FROM usecashnow WHERE userid=$uid; DELETE FROM users WHERE ID=$uid" && echo "##OK conta excluída"
+    ;;
 maps)     # mapas em execução: "<tag> <RAM em MB>" + memória do Linux
     for pid in $(pgrep -x gs); do
         tag=$(tr '\0' ' ' < /proc/$pid/cmdline | awk '{print $2}')

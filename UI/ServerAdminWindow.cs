@@ -203,6 +203,7 @@ public sealed class ServerAdminWindow : Form
             Btn(Loc.T("adm.giveCashById", "Dar CASH por ID…"), GiveCashById),
             Btn(Loc.T("adm.ban", "Banir…"), BanAccount),
             Btn(Loc.T("adm.unban", "Liberar"), () => { if (Sel() is { } a) Work(Loc.T("adm.unbanning", "Liberando…"), () => Done(_adm.Unban(a.Id), Loc.T("adm.accountUnbanned", "Conta liberada.")), RefreshAccounts); }),
+            Btn(Loc.T("adm.deleteAccount", "Excluir conta…"), DeleteAccount),
             Btn(Loc.T("adm.refresh", "Atualizar"), RefreshAccounts));
         var hint = new Label { Dock = DockStyle.Bottom, Height = 56, ForeColor = Color.DimGray, Padding = new Padding(4),
             Text = Loc.T("adm.gold1Gold100Cash", "Gold: 1 gold = 100 de cash. O authd entrega uns 4 minutos depois de enviar (e só começa 10 minutos depois de ligar o servidor); até lá aparece em GoldPendente. Banir também derruba a conta se ela estiver no jogo.") };
@@ -321,12 +322,31 @@ public sealed class ServerAdminWindow : Form
         }, RefreshAccounts);
     }
 
+    void DeleteAccount()
+    {
+        if (Sel() is not { } a) return;
+        if (a.Online) { _status.Text = Loc.T("adm.deleteOnline", "Esta conta está no jogo: expulse-a antes de excluir."); return; }
+        if (MessageBox.Show(this, string.Format(Loc.T("adm.deleteAccountConfirm", "Excluir a conta \"{0}\" (ID {1}) e todos os personagens dela?\n\nNão dá para desfazer."), a.Login, a.Id),
+                Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        Work(Loc.T("adm.deletingAccount", "Excluindo conta…"), () => Done(_adm.DeleteAccount(a.Id), string.Format(Loc.T("adm.accountDeleted", "Conta {0} excluída."), a.Login)), RefreshAccounts);
+    }
+
+    void DeleteRole()
+    {
+        if (_roles.SelectedIndex < 0 || _roles.SelectedIndex >= _roleList.Count) { _status.Text = Loc.T("adm.pickACharacter", "Escolha um personagem na lista."); return; }
+        var r = _roleList[_roles.SelectedIndex];
+        if (MessageBox.Show(this, string.Format(Loc.T("adm.deleteRoleConfirm", "Excluir o personagem \"{0}\" (ID {1})?\n\nNão dá para desfazer. Se ele estiver no jogo, expulse a conta antes."), r.Name, r.Id),
+                Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        Work(Loc.T("adm.deletingCharacter", "Excluindo personagem…"), () => Done(_adm.DeleteRole(r.Id), string.Format(Loc.T("adm.characterDeleted", "Personagem {0} excluído."), r.Name)), LoadRoles);
+    }
+
     // ---------- personagens ----------
     Control BuildRoles()
     {
         var p = new Panel { Dock = DockStyle.Fill };
         var bar = Bar(new Label { Text = Loc.T("adm.account", "Conta:"), AutoSize = true, Padding = new Padding(0, 10, 0, 0) }, _roleAcc,
-            Btn(Loc.T("adm.showCharacters", "Ver personagens"), LoadRoles, true));
+            Btn(Loc.T("adm.showCharacters", "Ver personagens"), LoadRoles, true),
+            Btn(Loc.T("adm.deleteCharacter", "Excluir personagem…"), DeleteRole));
         _roleAcc.SelectedIndexChanged += (_, _) => LoadRoles();
         _roles.SelectedIndexChanged += (_, _) => LoadRole();
         var note = new Label { Dock = DockStyle.Bottom, Height = 26, ForeColor = Color.DimGray, Text = Loc.T("adm.readStraightFromTheGame", "Leitura direta do banco do jogo (gamedbd). Editar personagem fica para uma próxima etapa.") };
