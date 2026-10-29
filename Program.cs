@@ -77,6 +77,22 @@ internal static class Program
             var sb = new StringBuilder();
             var t = TerrainFile.Open(Path.Combine(args[1], "maps", args[2]));
             sb.AppendLine(t is null ? "terreno: NÃO ABRIU" : $"terreno: {t.Width}×{t.Height} m · {t.Rows}×{t.Cols} pedaços · altura em (0,0) = {t.HeightAt(0, 0)}");
+            if (t is not null)
+                using (var tp = new PckArchive(Path.Combine(args[1], "textures.pck")))
+                {
+                    // camadas do chão das primeiras áreas e se cada textura existe no textures.pck
+                    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    for (int ar = 0; ar < 4; ar++)
+                        for (int ac = 0; ac < 4; ac++)
+                        {
+                            TerrainFile.GroundLayer[]? ls = null;
+                            try { ls = t.Ground(ar, ac); } catch (Exception ex) { sb.AppendLine($"área {ar},{ac}: ERRO {ex.Message}"); }
+                            if (ls is null) continue;
+                            sb.AppendLine($"área {ar},{ac}: {ls.Length} camadas");
+                            foreach (var l in ls)
+                                if (seen.Add(l.Texture)) sb.AppendLine($"  {l.Texture} ×{l.UScale}/{l.VScale} máscara {(l.Mask is null ? "-" : l.MaskSide.ToString())} · {(tp.Find(l.Texture.ToLowerInvariant()) is null ? "NÃO EXISTE" : "ok")}");
+                        }
+                }
             using (var lit = new PckArchive(Path.Combine(args[1], "litmodels.pck")))
             {
                 var bmds = lit.Entries.Where(e => e.Path.StartsWith($@"litmodels\{args[2]}\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -839,7 +855,9 @@ internal static class Program
                 if (f.LeafMaps.Count > 0 && m.Leaves.Count > 0)
                 {
                     float rad = 0;
-                    var (lv, li) = MyAceEditor.UI.WorldTrees.LeafCards(f, m, ref rad);
+                    var (set, li) = MyAceEditor.UI.WorldTrees.Leaves(f, m, ref rad);
+                    set.Fill(OpenTK.Mathematics.Vector3.UnitX, OpenTK.Mathematics.Vector3.UnitY);
+                    var lv = set.Buf;
                     using var lb = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(60, 0, 140, 0));
                     for (int i = 0; i + 2 < li.Length; i += 3)
                     {

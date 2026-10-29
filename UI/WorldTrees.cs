@@ -12,7 +12,30 @@ namespace MyAceEditor.UI;
 internal sealed class WorldTrees : IDisposable
 {
     sealed record Part(int Vbo, int Ibo, int Count, int Tex);
-    sealed record Kind(Part? Wood, Part? Leaves, float Radius);
+    sealed record Kind(Part? Wood, Part? Leaves, LeafSet? Set, float Radius);
+
+    /// <summary>Folhas de um tipo: centro + canto de cada cartão; os vértices são refeitos quando a câmera gira (viram para ela).</summary>
+    internal sealed class LeafSet
+    {
+        public float[] Center = [], Corner = [], Rest = [];   // por folha xyz; por vértice ox,oy; por vértice cor,s,t
+        public float[] Buf = [];
+        public Vector3 R, U;
+
+        public void Fill(Vector3 right, Vector3 up)
+        {
+            int nv = Corner.Length / 2;
+            if (Buf.Length != nv * 6) Buf = new float[nv * 6];
+            for (int i = 0; i < nv; i++)
+            {
+                int c = i / 4 * 3;
+                var p = new Vector3(Center[c], Center[c + 1], Center[c + 2]) + right * Corner[i * 2] + up * Corner[i * 2 + 1];
+                int o = i * 6;
+                Buf[o] = p.X; Buf[o + 1] = p.Y; Buf[o + 2] = p.Z;
+                Buf[o + 3] = Rest[i * 3]; Buf[o + 4] = Rest[i * 3 + 1]; Buf[o + 5] = Rest[i * 3 + 2];
+            }
+            R = right; U = up;
+        }
+    }
 
     readonly PckArchive? _pck;
     readonly WorldScene? _scene;
@@ -71,35 +94,60 @@ internal sealed class WorldTrees : IDisposable
             // casca: mesma pasta do .spt, extensão .dds (como CELTree::Init)
             var bark = Path.Combine(Path.GetDirectoryName(e.Path) ?? "", Path.ChangeExtension(f.BarkTexture, ".dds")).ToLowerInvariant();
             var wood = m.Index.Count == 0 ? null : Upload(v, m.Index.ToArray(), Texture(bark, 256));
-            // folhas: dois cartões cruzados por folha, recorte do mapa composto do tipo (.ecwld)
-            Part? leaves = null;
+            // folhas: um cartão por folha virado para a câmera (como o runtime), recorte do mapa composto do tipo (.ecwld)
+            Part? leaves = null; LeafSet? set = null;
             if (m.Leaves.Count > 0 && f.LeafMaps.Count > 0)
             {
-                var (lv, li) = LeafCards(f, m, ref radius);
-                leaves = Upload(lv, li, Texture(_scene.TreeTypes[type].CompositeMap.Replace('/', '\\').ToLowerInvariant(), 512));
+                (set, var li) = Leaves(f, m, ref radius);
+                set.Fill(Vector3.UnitX, Vector3.UnitY);
+                leaves = Upload(set.Buf, li, Texture(_scene.TreeTypes[type].CompositeMap.Replace('/', '\\').ToLowerInvariant(), 512, true), BufferUsageHint.DynamicDraw);
             }
-            return new Kind(wood, leaves, radius);
+            return new Kind(wood, leaves, set, radius);
         }
         catch (Exception ex) { AppLog.Info($"árvore {type}: {ex.Message}"); return null; }
     }
 
-    int Texture(string path, int max)
+    /// <summary>Textura do trees.pck. Recorte (folhas): mipmaps próprios com alfa 0/255 e cor só dos pixels opacos — a média
+    /// comum mistura o fundo transparente e as folhas viram quadrados claros de longe.</summary>
+    int Texture(string path, int max, bool cutout = false)
     {
         if (_pck?.Find(path) is not { } te || DdsDecoder.DecodeMax(_pck.Read(te), max) is not { } img) return 0;
         int tex = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, tex);
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.Width, img.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Pixels);
-        GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+        var (px, w, h) = img;
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, w, h, 0, PixelFormat.Bgra, PixelType.UnsignedByte, px);
+        if (!cutout) GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+        else
+            for (int level = 1; w > 1 || h > 1; level++)
+            {
+                int nw = Math.Max(1, w / 2), nh = Math.Max(1, h / 2);
+                var o = new int[nw * nh];
+                for (int y = 0; y < nh; y++)
+                    for (int x = 0; x < nw; x++)
+                    {
+                        int r = 0, g = 0, b = 0, n = 0, a = 0;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            int sx = Math.Min(w - 1, x * 2 + (k & 1)), sy = Math.Min(h - 1, y * 2 + (k >> 1));
+                            int c = px[sy * w + sx]; int ca = (c >> 24) & 255;
+                            a += ca;
+                            if (ca > 127) { r += (c >> 16) & 255; g += (c >> 8) & 255; b += c & 255; n++; }
+                        }
+                        o[y * nw + x] = n == 0 ? 0 : (a / 4 >= 100 ? unchecked((int)0xFF000000) : 0) | (r / n << 16) | (g / n << 8) | b / n;
+                    }
+                px = o; w = nw; h = nh;
+                GL.TexImage2D(TextureTarget.Texture2D, level, PixelInternalFormat.Rgba, w, h, 0, PixelFormat.Bgra, PixelType.UnsignedByte, px);
+            }
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
         return tex;
     }
 
-    static Part Upload(float[] v, int[] idx, int tex)
+    static Part Upload(float[] v, int[] idx, int tex, BufferUsageHint hint = BufferUsageHint.StaticDraw)
     {
         int vbo = GL.GenBuffer(), ibo = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, v.Length * 4, v, BufferUsageHint.StaticDraw);
+        GL.BufferData(BufferTarget.ArrayBuffer, v.Length * 4, v, hint);
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, ibo);
         GL.BufferData(BufferTarget.ElementArrayBuffer, idx.Length * 4, idx, BufferUsageHint.StaticDraw);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
@@ -107,44 +155,41 @@ internal sealed class WorldTrees : IDisposable
     }
 
     /// <summary>
-    /// Cartões das folhas: cada folha sorteia uma textura de folha do .spt; o cartão tem o tamanho dela (unidades da árvore,
-    /// já em metros pela escala da árvore), preso pela âncora, com os 4 cantos (s,t) do mapa composto. O runtime vira as
-    /// folhas para a câmera; aqui são dois cartões em pé cruzados, com giro sorteado.
+    /// Folhas: cada folha sorteia uma textura de folha do .spt; o cartão tem o tamanho dela (unidades da árvore, já em metros
+    /// pela escala da árvore), preso pela âncora, com os 4 cantos (s,t) do mapa composto e um giro pequeno no plano.
     /// </summary>
-    internal static (float[] V, int[] I) LeafCards(SptFile f, SptMesh m, ref float radius)
+    internal static (LeafSet Set, int[] Index) Leaves(SptFile f, SptMesh m, ref float radius)
     {
-        var v = new float[m.Leaves.Count * 8 * 6]; var idx = new int[m.Leaves.Count * 12];
+        int n = m.Leaves.Count;
+        var set = new LeafSet { Center = new float[n * 3], Corner = new float[n * 8], Rest = new float[n * 12] };
+        var idx = new int[n * 6];
         var rng = new SptRandom(f.Seed + 7);
-        int n = 0, q = 0;
-        foreach (var (pos, _) in m.Leaves)
+        for (int l = 0; l < n; l++)
         {
+            var pos = m.Leaves[l].Pos;
             var map = f.LeafMaps[Math.Min((int)(rng.Uniform() * f.LeafMaps.Count), f.LeafMaps.Count - 1)];
             float w = map.Size.X * m.Scale, h = map.Size.Y * m.Scale;
             float s0 = MathF.Min(MathF.Min(map.Uv[0], map.Uv[2]), MathF.Min(map.Uv[4], map.Uv[6])), s1 = MathF.Max(MathF.Max(map.Uv[0], map.Uv[2]), MathF.Max(map.Uv[4], map.Uv[6]));
             float t0 = MathF.Min(MathF.Min(map.Uv[1], map.Uv[3]), MathF.Min(map.Uv[5], map.Uv[7])), t1 = MathF.Max(MathF.Max(map.Uv[1], map.Uv[3]), MathF.Max(map.Uv[5], map.Uv[7]));
-            float yaw = rng.Range(0, MathF.PI);
+            float spin = MathHelper.DegreesToRadians(rng.Range(-15, 15)), cs = MathF.Cos(spin), sn = MathF.Sin(spin);
             byte c = (byte)Math.Clamp((0.40f + rng.Range(-0.06f, 0.06f)) * 255, 0, 255);
             float col = BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(c << 16) | (uint)(c << 8) | c)));
-            for (int card = 0; card < 2; card++)
+            set.Center[l * 3] = pos.X; set.Center[l * 3 + 1] = pos.Y; set.Center[l * 3 + 2] = pos.Z;
+            radius = MathF.Max(radius, pos.Length + MathF.Max(w, h));
+            for (int k = 0; k < 4; k++)
             {
-                float a = yaw + card * MathF.PI / 2;
-                var right = new Vector3(MathF.Cos(a), 0, MathF.Sin(a));
-                int first = n;
-                for (int k = 0; k < 4; k++)
-                {
-                    float su = map.Uv[k * 2], tv = map.Uv[k * 2 + 1];
-                    float ax = s1 > s0 ? (su - s0) / (s1 - s0) : 0, by = t1 > t0 ? (tv - t0) / (t1 - t0) : 0;   // by = 0 no alto da imagem
-                    var p = pos + right * ((ax - map.Origin.X) * w) + Vector3.UnitY * ((map.Origin.Y - by) * h);
-                    radius = MathF.Max(radius, p.Length);
-                    int o = n * 6;
-                    v[o] = p.X; v[o + 1] = p.Y; v[o + 2] = p.Z; v[o + 3] = col; v[o + 4] = su; v[o + 5] = tv;
-                    n++;
-                }
-                idx[q++] = first; idx[q++] = first + 1; idx[q++] = first + 2;
-                idx[q++] = first; idx[q++] = first + 2; idx[q++] = first + 3;
+                float su = map.Uv[k * 2], tv = map.Uv[k * 2 + 1];
+                float ax = s1 > s0 ? (su - s0) / (s1 - s0) : 0, by = t1 > t0 ? (tv - t0) / (t1 - t0) : 0;   // by = 0 no alto da imagem
+                float ox = (ax - map.Origin.X) * w, oy = (map.Origin.Y - by) * h;
+                int v = l * 4 + k;
+                set.Corner[v * 2] = ox * cs - oy * sn; set.Corner[v * 2 + 1] = ox * sn + oy * cs;
+                set.Rest[v * 3] = col; set.Rest[v * 3 + 1] = su; set.Rest[v * 3 + 2] = tv;
             }
+            int b = l * 4;
+            idx[l * 6] = b; idx[l * 6 + 1] = b + 1; idx[l * 6 + 2] = b + 2;
+            idx[l * 6 + 3] = b; idx[l * 6 + 4] = b + 2; idx[l * 6 + 5] = b + 3;
         }
-        return (v, idx);
+        return (set, idx);
     }
 
     /// <summary>Desenha as árvores perto e na frente da câmera (cam e forward no espaço do OpenGL: z = −z do jogo).</summary>
@@ -152,6 +197,10 @@ internal sealed class WorldTrees : IDisposable
     {
         if (_scene is null) return;
         int built = 0;
+        // folhas viram para a câmera: base da tela (direita, cima) no espaço do OpenGL
+        var camRight = Vector3.Cross(forward, Vector3.UnitY);
+        camRight = camRight.LengthSquared > 1e-6f ? camRight.Normalized() : Vector3.UnitX;
+        var camUp = Vector3.Cross(camRight, forward).Normalized();
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
         GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE: textura × cor × 2
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);
@@ -182,6 +231,12 @@ internal sealed class WorldTrees : IDisposable
                     GL.PushMatrix();
                     GL.Translate(at);
                     DrawPart(k.Wood, false);
+                    if (k.Set is { } ls && k.Leaves is { } lp && (Vector3.Dot(ls.R, camRight) < 0.9995f || Vector3.Dot(ls.U, camUp) < 0.9995f))
+                    {
+                        ls.Fill(camRight, camUp);   // uma vez por tipo quando a câmera gira (todas as árvores do tipo usam)
+                        GL.BindBuffer(BufferTarget.ArrayBuffer, lp.Vbo);
+                        GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, ls.Buf.Length * 4, ls.Buf);
+                    }
                     DrawPart(k.Leaves, true);
                     GL.PopMatrix();
                 }

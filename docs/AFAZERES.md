@@ -30,7 +30,7 @@
 [ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | [x] outras versoes na aba Quests (TaskLayout: v128/129/187/198 testadas; campos com chaves m_..., sem rotulo PT)
 [x] traduzir a partir de outro cliente (elements + quests + falas do aipolicy + pacotes de interface/ajuda quando o jogo e o mesmo programa)
 [x] GShop (cliente+servidor juntos, tela igual a do jogo; falta validar no jogo e desfazer)
-[ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [x] modelos de monstro/NPC, construcoes, texturas e luz do chao, agua, mapa pintado (M) | [x] arvores (.ecwld + nossa versao do SpeedTree: tronco, galhos, folhas em cartoes) | [ ] frondes, grama, folhas viradas p/ camera, animacao | [ ] objetos e gatilhos (hoje so preservados)
+[ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [x] modelos de monstro/NPC, construcoes, texturas e luz do chao, agua, mapa pintado (M) | [x] arvores (.ecwld + nossa versao do SpeedTree: tronco, galhos, folhas viradas p/ camera) | [ ] frondes, grama, animacao | [ ] objetos e gatilhos (hoje so preservados)
 [x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)
 
 ## QUESTS NO MUNDO 3D (spec docs/QUESTS-3D.md)
