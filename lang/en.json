@@ -2534,5 +2534,20 @@
   "ls.bkSql": "Exporting the account database (SQL)",
   "ls.bkSqlFailed": "Could not export the account database: ",
   "ls.bkRestart": "Starting the server again",
-  "chk.running": "Checking client and server"
+  "chk.running": "Checking client and server",
+  "ls.aiSavedLocal": "Conversion also saved to {0}{1}: the next send will not convert again.",
+  "ct.stTasks": "Quests (tasks.data)",
+  "ct.stAi": "Monster speech (aipolicy.data)",
+  "ct.stShop": "Shop (gshop)",
+  "ct.stPacks": "Package texts (configs, interfaces)",
+  "ct.stFiles": "Images and help",
+  "trc.stepOf": "{0} of {1}",
+  "tr.reading": "Reading the translated elements.data",
+  "ls.pctStop": "Stopping the server",
+  "ls.pctPrograms": "Replacing the server programs",
+  "ls.pctConfig": "Copying the server config folder (maps, npcgen…)",
+  "ls.pctClient": "Sending the client's elements, tasks, shop and AI",
+  "ls.pctStart": "Starting the services and maps",
+  "ls.pctWorld": "Waiting for the world to load",
+  "ls.pctDone": "Done"
 }

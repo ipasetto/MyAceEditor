@@ -130,6 +130,16 @@ public sealed class ServerView : UserControl
     /// <summary>Linha do log com cor: etapa em destaque, erro em vermelho, aviso em laranja, o resto na cor normal.</summary>
     void AppendLog(string line, Color? color = null)
     {
+        if (line.StartsWith("##PCT "))   // andamento do envio: barra cheia até n% e a etapa ao lado
+        {
+            var parts = line[6..].Split(' ', 2);
+            if (int.TryParse(parts[0], out int n))
+            {
+                _bar.Style = ProgressBarStyle.Continuous; _bar.Value = Math.Clamp(n, 0, 100);
+                _step.Text = $"{n}% · " + (parts.Length > 1 ? parts[1] : "");
+            }
+            return;
+        }
         Color c = color ?? (line.StartsWith("##ERRO") || line.StartsWith(Loc.T("srv.errorLog", "ERRO: ")) ? Color.IndianRed
             : line.StartsWith("##AVISO") || line.StartsWith("⚠") ? Color.DarkOrange
             : line.StartsWith("##PASSO ") ? _accent : _log.ForeColor);
@@ -144,6 +154,7 @@ public sealed class ServerView : UserControl
     void Busy(bool on, string text = "")
     {
         _busy = on; _bar.Visible = on; _step.Text = text;
+        if (on) { _bar.Style = ProgressBarStyle.Marquee; _bar.Value = 0; }   // até a 1ª etapa com %
         foreach (var b in _buttons) b.Enabled = !on;
     }
 

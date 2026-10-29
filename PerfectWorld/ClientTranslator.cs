@@ -40,11 +40,12 @@ public static class ClientTranslator
             : (false, Loc.T("ct.exeDiffer", "executáveis diferentes: versões diferentes do jogo"));
     }
 
-    public static List<Step> Plan(string target, string source)
+    public static List<Step> Plan(string target, string source, LoadContext? ctx = null)
     {
         var steps = new List<Step>();
         var (same, why) = SameProgram(target, source);
 
+        ctx?.Report(0.02, Loc.T("ct.stTasks", "Quests (tasks.data)"), force: true);
         // ---- tasks.data ----
         var tT = Path.Combine(target, "data", "tasks.data"); var tS = Path.Combine(source, "data", "tasks.data");
         if (File.Exists(tT) && File.Exists(tS))
@@ -96,6 +97,7 @@ public static class ClientTranslator
             catch (Exception ex) { steps.Add(new Step { Title = Loc.T("ct.tasks", "Quests (tasks.data)"), Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
 
+        ctx?.Report(0.45, Loc.T("ct.stAi", "Falas dos monstros (aipolicy.data)"), force: true);
         // ---- aipolicy.data ----
         var aT = Path.Combine(target, "data", "aipolicy.data"); var aS = Path.Combine(source, "data", "aipolicy.data");
         if (File.Exists(aT) && File.Exists(aS))
@@ -122,6 +124,7 @@ public static class ClientTranslator
             catch (Exception ex) { steps.Add(new Step { Title = Loc.T("ct.ai", "Falas dos monstros (aipolicy.data)"), Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
 
+        ctx?.Report(0.55, Loc.T("ct.stShop", "Loja (gshop)"), force: true);
         // ---- loja do cliente: nomes e descrições pelo ID do item, qualquer formato (1380/1436 B) ----
         foreach (var name in new[] { "gshop.data", "gshop1.data" })
         {
@@ -147,6 +150,7 @@ public static class ClientTranslator
             });
         }
 
+        ctx?.Report(0.62, Loc.T("ct.stPacks", "Textos dos pacotes (configs, interfaces)"), force: true);
         // ---- configs.pck e interfaces.pck: texto por texto, qualquer versão (a estrutura e as imagens daqui ficam) ----
         foreach (var p in TextPackages)
         {
@@ -173,6 +177,7 @@ public static class ClientTranslator
             });
         }
 
+        ctx?.Report(0.95, Loc.T("ct.stFiles", "Imagens e ajuda"), force: true);
         // ---- imagens e ajuda (arquivo inteiro) ----
         foreach (var p in Packages)
         {

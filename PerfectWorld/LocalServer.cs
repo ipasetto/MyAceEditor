@@ -371,6 +371,7 @@ public sealed class LocalServer
         var ai = new[] { aiPolicy, Path.Combine(data, "aipolicy.data"), serverConfig is null ? null : Path.Combine(serverConfig, "aipolicy.data") }
             .Where(p => p is not null && File.Exists(p)).Select(p => p!).ToList();
         var pick = aiPolicy is not null && File.Exists(aiPolicy) ? aiPolicy : ai.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
+        _aiSource = pick;
         if (pick is not null) { File.Copy(pick, Path.Combine(stage, "aipolicy.data")); Log(string.Format(Loc.T("ls.sendingAi", "enviando aipolicy.data de {0}"), pick)); }
         Bash($"cp -f '{ToWslPath(stage)}'/*.data /home/gamed/config/ && chmod a+rw /home/gamed/config/*.data", Log, timeoutMs: 300_000);
     }
@@ -381,14 +382,22 @@ public sealed class LocalServer
     /// </summary>
     public RunResult SendAll(string serverFiles, string clientElement, string? aiPolicy = null, ProgramSwap? swap = null)
     {
+        // "##PCT n etapa": a tela mostra a barra cheia até n% (não vai para o log)
+        void Pct(int n, string what) => Log($"##PCT {n} {what}");
+        Pct(2, Loc.T("ls.pctStop", "Parando o servidor"));
         Stop();
         // programas de outra versão que a do cliente: o glinkd recusaria o login ("versão baixa"); troca antes dos dados
-        if (swap is not null) { InstallPrograms(swap); serverFiles = swap.Package; }
+        if (swap is not null) { Pct(8, Loc.T("ls.pctPrograms", "Trocando os programas do servidor")); InstallPrograms(swap); serverFiles = swap.Package; }
         var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
+        Pct(30, Loc.T("ls.pctConfig", "Copiando a pasta config do servidor (mapas, npcgen…)"));
         Bash($"cp -a '{ToWslPath(cfg)}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", Log, timeoutMs: 1_800_000);
+        Pct(60, Loc.T("ls.pctClient", "Enviando elements, tasks, loja e IA do cliente"));
         FixPair(clientElement, aiPolicy, cfg);
+        Pct(72, Loc.T("ls.pctStart", "Iniciando os serviços e os mapas"));
         var r = Start();
+        Pct(88, Loc.T("ls.pctWorld", "Esperando o mundo carregar"));
         FixRejectedAiPolicy(serverFiles);
+        Pct(100, Loc.T("ls.pctDone", "Pronto"));
         return r;
     }
 
@@ -397,6 +406,8 @@ public sealed class LocalServer
     /// gatilhos v33, num gs 1.5.5 que lê até v23). Converte o enviado com os limites de um aipolicy.data que um gs da
     /// mesma versão lê (de outro pacote no disco) e reinicia o gs; os arquivos do usuário não mudam.
     /// </summary>
+    string? _aiSource;   // de onde veio o aipolicy.data do último envio
+
     void FixRejectedAiPolicy(string serverFiles)
     {
         var sent = Path.Combine(BaseDir, "envio", "aipolicy.data");
@@ -421,7 +432,21 @@ public sealed class LocalServer
                 lim.TriggerVersion, refPath, ai.Policies.Count, rep.TriggersDropped, rep.OpsDropped));
             Bash($"cp -f '{ToWslPath(conv)}' /home/gamed/config/aipolicy.data && chmod a+rw /home/gamed/config/aipolicy.data; pkill -9 -x gs; true", Log, timeoutMs: 120_000);
             Start();
-            if (!GsRejectedAiPolicy(out _)) { Log(Loc.T("ls.aiAccepted", "O gs aceitou o aipolicy.data convertido.")); return; }
+            if (!GsRejectedAiPolicy(out _))
+            {
+                Log(Loc.T("ls.aiAccepted", "O gs aceitou o aipolicy.data convertido."));
+                // grava a conversão também no arquivo de origem (cliente ou o aberto na aba AI Policy), com backup:
+                // o próximo envio já vai no formato do gs e não converte de novo
+                if (_aiSource is not null && File.Exists(_aiSource) && !_aiSource.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
+                    try
+                    {
+                        var bk = AtomicFileSave.Write(_aiSource, File.ReadAllBytes(conv));
+                        Log(string.Format(Loc.T("ls.aiSavedLocal", "Conversão gravada também em {0}{1}: o próximo envio não converte de novo."), _aiSource, bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
+                        AppLog.Info($"aipolicy.data convertido gravado em {_aiSource}");
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log("##AVISO " + ex.Message); }
+                return;
+            }
         }
         if (hung) Log("##ERRO " + Loc.T("ls.gsNotReady", "O gs não terminou de carregar em 2 minutos: o login vai ser recusado como \"versão diferente\". Veja o log do gs na administração do servidor."));
         else Log("##ERRO " + Loc.T("ls.aiNoReference", "O gs não lê este aipolicy.data e não achei um que ele leia para servir de referência (outro pacote com o gs da mesma versão). Abra na aba AI Policy um aipolicy.data da versão do servidor e envie de novo."));

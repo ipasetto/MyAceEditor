@@ -2536,5 +2536,20 @@
   "ls.bkSql": "正在导出账号数据库（SQL）",
   "ls.bkSqlFailed": "无法导出账号数据库：",
   "ls.bkRestart": "正在重新启动服务器",
-  "chk.running": "正在检查客户端和服务器"
+  "chk.running": "正在检查客户端和服务器",
+  "ls.aiSavedLocal": "转换结果也已保存到 {0}{1}：下次发送不会再转换。",
+  "ct.stTasks": "任务（tasks.data）",
+  "ct.stAi": "怪物台词（aipolicy.data）",
+  "ct.stShop": "商城（gshop）",
+  "ct.stPacks": "资源包文本（configs、interfaces）",
+  "ct.stFiles": "图片和帮助",
+  "trc.stepOf": "第 {0} / {1} 项",
+  "tr.reading": "正在读取已翻译的 elements.data",
+  "ls.pctStop": "正在停止服务器",
+  "ls.pctPrograms": "正在替换服务器程序",
+  "ls.pctConfig": "正在复制服务器 config 文件夹（地图、npcgen…）",
+  "ls.pctClient": "正在发送客户端的 elements、tasks、商城和 AI",
+  "ls.pctStart": "正在启动服务和地图",
+  "ls.pctWorld": "正在等待世界加载",
+  "ls.pctDone": "完成"
 }

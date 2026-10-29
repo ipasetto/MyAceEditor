@@ -2534,5 +2534,20 @@
   "ls.bkSql": "Экспорт базы аккаунтов (SQL)",
   "ls.bkSqlFailed": "Не удалось экспортировать базу аккаунтов: ",
   "ls.bkRestart": "Повторный запуск сервера",
-  "chk.running": "Проверка клиента и сервера"
+  "chk.running": "Проверка клиента и сервера",
+  "ls.aiSavedLocal": "Преобразование также сохранено в {0}{1}: следующая отправка не будет преобразовывать снова.",
+  "ct.stTasks": "Квесты (tasks.data)",
+  "ct.stAi": "Реплики монстров (aipolicy.data)",
+  "ct.stShop": "Магазин (gshop)",
+  "ct.stPacks": "Тексты пакетов (configs, interfaces)",
+  "ct.stFiles": "Изображения и справка",
+  "trc.stepOf": "{0} из {1}",
+  "tr.reading": "Чтение переведённого elements.data",
+  "ls.pctStop": "Остановка сервера",
+  "ls.pctPrograms": "Замена программ сервера",
+  "ls.pctConfig": "Копирование папки config сервера (карты, npcgen…)",
+  "ls.pctClient": "Отправка elements, tasks, магазина и ИИ клиента",
+  "ls.pctStart": "Запуск служб и карт",
+  "ls.pctWorld": "Ожидание загрузки мира",
+  "ls.pctDone": "Готово"
 }

@@ -58,20 +58,27 @@ grep -rl -E "192\.168\.[0-9]+\.[0-9]+" /home --include=*.conf 2>/dev/null | whil
 sed -i -E 's/^(name_charset[[:space:]]*=[[:space:]]*)GB2312/\1UTF-8/' /home/gdeliveryd/gamesys.conf
 
 step "Login (authd em Java)"
-cat > /home/mauthd/build/authd.sh <<'EOF'
+# o authd do próprio pacote: /home/authd (1.5.x: java direto + table.xml ao lado) ou /home/mauthd/build (1.4.4).
+# Um script authd.sh igual para os dois, com o Java do sistema (o Java 6 do pacote perde links ao vir do Windows).
+# O 1.5.x tem outro application.jar (entrega de cash etc.): usar o do 1.4.4 com servidor 1.5.x deixa cash pendente.
+make_authd() {   # pasta, table.xml
+    local dir=$1 tbl=$2 lib
+    lib=$(cd "$dir" && { [ -d lib ] && echo "$dir/lib" || echo "$dir/../lib"; })
+    cat > "$dir/authd.sh" <<EOF
 #!/bin/sh
-# authd do pacote, com o Java do sistema (o Java 6 do pacote perde links ao vir do Windows)
-cd /home/mauthd/build
-AULIB=/home/mauthd/lib
-cp=$AULIB/mysql-connector-java-5.1.10-bin.jar:.:$AULIB/jio.jar:$AULIB/application.jar:$AULIB/commons-collections-3.1.jar:$AULIB/commons-dbcp-1.2.1.jar:$AULIB/commons-pool-1.2.jar:$AULIB/commons-logging-1.0.4.jar:$AULIB/log4j-1.2.9.jar:.
-case $1 in
-  start) setsid nohup java -Dcom.wanmei.au.HitEncoding=GBK -cp $cp authd /etc/table.xml Enthrallment > /home/logs/authd.log 2>&1 < /dev/null & echo $! > service.pid ;;
-  stop) [ -f service.pid ] && kill -9 "$(cat service.pid)"; rm -f service.pid ;;
+cd $dir
+cp=\$(ls $lib/*.jar | paste -sd: -):.
+case \$1 in
+  start) setsid nohup java -Dcom.wanmei.au.HitEncoding=GBK -cp \$cp authd $tbl Enthrallment > /home/logs/authd.log 2>&1 < /dev/null & echo \$! > service.pid ;;
+  stop) [ -f service.pid ] && kill -9 "\$(cat service.pid)"; rm -f service.pid ;;
 esac
 EOF
-chmod +x /home/mauthd/build/authd.sh
-# conexão do authd com o banco: usuário próprio "pw" com a senha gerada pelo programa
-sed -i -E "s/username=\"[^\"]*\"/username=\"pw\"/; s/password=\"[^\"]*\"/password=\"$DBPASS\"/" /etc/table.xml
+    chmod +x "$dir/authd.sh"
+    # conexão com o banco: usuário próprio "pw" com a senha gerada pelo programa
+    sed -i -E "s/username=\"[^\"]*\"/username=\"pw\"/; s/password=\"[^\"]*\"/password=\"$DBPASS\"/" "$tbl"
+}
+if [ -f /home/authd/authd.class ]; then dos2unix -q /home/authd/table.xml 2>/dev/null; make_authd /home/authd /home/authd/table.xml; fi
+if [ -d /home/mauthd/build ]; then make_authd /home/mauthd/build /etc/table.xml; fi
 
 step "Banco de dados"
 service mariadb start >/dev/null 2>&1 || service mysql start >/dev/null 2>&1 || fail "não consegui iniciar o MariaDB"

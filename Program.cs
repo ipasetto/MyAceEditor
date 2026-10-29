@@ -49,7 +49,8 @@ internal static class Program
             var adm = new ServerAdmin(new LocalServer(args[1]));
             string? err = args[2] == "deleterole" ? adm.DeleteRole(int.Parse(args[3])) : args[2] == "deleteaccount" ? adm.DeleteAccount(int.Parse(args[3]))
                 : args[2] == "role" ? adm.RoleDetails(int.Parse(args[3]))?.ToString() ?? "não achei"
-                : args[2] == "broadcast" ? Run(() => adm.Broadcast(args[3])) : "comando?";
+                : args[2] == "broadcast" ? Run(() => adm.Broadcast(args[3]))
+                : args[2] == "start" ? new LocalServer(args[1]).Start().Output : "comando?";
             static string? Run(Action a) { a(); return null; }
             File.WriteAllText("adm.txt", err ?? "OK", new UTF8Encoding(false));
             return;

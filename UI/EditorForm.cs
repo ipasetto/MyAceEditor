@@ -1747,9 +1747,10 @@ public sealed class EditorForm : Form
     {
         if (_store.Current is not { } mod || mod.Source is not ElementsLayout layout) { Status(Loc.T("status.openFirst", "Abra um elements.data primeiro")); return; }
         Module other;
-        try { Cursor = Cursors.WaitCursor; other = CfgCatalog.Load(otherPath).Module; }
+        // com andamento: ler e conferir outro elements.data leva alguns segundos
+        try { other = ReadProgressDialog.Run(this, Loc.T("tr.reading", "Lendo o elements.data traduzido"), ctx => CfgCatalog.Load(otherPath, context: ctx).Module); }
+        catch (OperationCanceledException) { return; }
         catch (Exception ex) { Error(Loc.T("tr.loadFail", "Não consegui ler o outro arquivo"), ex); return; }
-        finally { Cursor = Cursors.Default; }
         var plan = ElementsTranslator.Plan(mod, ElementsCfg.Load(layout.ConfigPath), other);
         if (plan.Count == 0) { MessageBox.Show(this, Loc.T("tr.none", "Nada a traduzir: os textos já são iguais ao outro arquivo."), Loc.T("tr.title", "Traduzir")); return; }
         using var win = new TranslateWindow(plan, other.Version & 0xFFFF, Pretty);
@@ -1797,7 +1798,7 @@ public sealed class EditorForm : Form
 
         List<ClientTranslator.Step> steps;
         // quests de qualquer versão e pacotes levam alguns segundos: fora da tela
-        try { steps = ReadProgressDialog.Run(this, Loc.T("trc.comparing", "Comparando os dois Perfect World"), _ => ClientTranslator.Plan(target, source), allowCancel: false); }
+        try { steps = ReadProgressDialog.Run(this, Loc.T("trc.comparing", "Comparando os dois Perfect World"), ctx => ClientTranslator.Plan(target, source, ctx), allowCancel: false); }
         catch (Exception ex) { Error(Loc.T("trc.planFail", "Não consegui comparar os clientes"), ex); return; }
         bool running = GameRunningFrom(target);
 
@@ -1836,7 +1837,7 @@ public sealed class EditorForm : Form
             {
                 for (int i = 0; i < todo.Count; i++)
                 {
-                    ctx.Report((double)i / todo.Count, todo[i].Title, indeterminate: true, force: true);
+                    ctx.Report((double)i / todo.Count, todo[i].Title, string.Format(Loc.T("trc.stepOf", "{0} de {1}"), i + 1, todo.Count), force: true);
                     try { touched.Add(todo[i].Apply(m => { lock (log) log.Add(m); })); }
                     catch (Exception ex) { lock (log) log.Add($"{todo[i].Title}: " + Loc.T("trc.failed", "falhou — ") + ex.Message); }
                 }
@@ -3859,7 +3860,7 @@ public sealed class EditorForm : Form
             for (int k = 0; k < marked.Count; k++)
             {
                 var fx = fixes[marked[k]];
-                ctx.Report((double)k / marked.Count, fx.Title, indeterminate: true, force: true);
+                ctx.Report((double)k / marked.Count, fx.Title, string.Format(Loc.T("trc.stepOf", "{0} de {1}"), k + 1, marked.Count), force: true);
                 try { fx.Apply(); done.Add(fx.Title); }
                 catch (Exception ex) { failed.Add($"{fx.Title}: {ex.Message}"); }
             }
