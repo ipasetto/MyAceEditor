@@ -295,7 +295,7 @@ public static partial class TaskLayout
 
     static void F09(TaskIO v, int version)
     {
-            if (version >= 198)
+            if (version >= 187) // RAE: 198; v187 (Maori 1.7.2) provado; 135-186 sem arquivo para provar
             {
                 v.I32("m_ulChangeKeyCnt");
                 v.I32("m_ulChangePersonKeyCnt");
@@ -1513,6 +1513,7 @@ public static partial class TaskLayout
             if (version >= 135)
             {
                 v.Bytes("CombinedSwitches", TaskVer.GetCombinedSwitches(version));
+                ApplyCombinedSwitchesParameters(v, version);
             }
     }
 
@@ -1912,7 +1913,298 @@ public static partial class TaskLayout
             }
             if (version >= 146)
             {
-                v.In("SpecialParameters", () => L_SPECIAL_PARAMETERS(v, version, (int)v.N("x_SpecialParametersCount")));
+                { int c = (int)v.N("x_SpecialParametersCount"); v.In("SpecialParameters", () => L_SPECIAL_PARAMETERS(v, version, c)); }
+            }
+    }
+
+    static void ApplyCombinedSwitchesParameters(TaskIO v, int version)
+    {
+            v.Set("m_bShowByTransformed", v.Switch(version, 0)); // bit em CombinedSwitches
+            v.Set("m_bShowByLev", v.Switch(version, 1)); // bit em CombinedSwitches
+            v.Set("m_bPremCheckReincarnation", v.Switch(version, 2)); // bit em CombinedSwitches
+            v.Set("m_bShowByReincarnation", v.Switch(version, 3)); // bit em CombinedSwitches
+            v.Set("m_bPremCheckRealmLevel", v.Switch(version, 4)); // bit em CombinedSwitches
+            v.Set("m_bPremCheckRealmExpFull", v.Switch(version, 5)); // bit em CombinedSwitches
+            if (version >= 232)
+            {
+                v.Set("m_bCheckTradeTime", v.Switch(version, 6)); // bit em CombinedSwitches
+                v.Set("m_bShowByTradeTime", v.Switch(version, 7)); // bit em CombinedSwitches
+            }
+            v.Set("m_bShowByRealmLevel", v.Switch(version, 8)); // bit em CombinedSwitches
+            v.Set("m_bShowByItems", v.Switch(version, 9)); // bit em CombinedSwitches
+            v.Set("m_bPremItemsAnyOne", v.Switch(version, 10)); // bit em CombinedSwitches
+            if (version >= 215)
+            {
+                v.Set("m_bMethodItemsRandOne", v.Switch(version, 11)); // bit em CombinedSwitches
+            }
+            v.Set("m_bNotOpenWithItem", v.Switch(version, 12)); // bit em CombinedSwitches
+            v.Set("m_bShowByDeposit", v.Switch(version, 13)); // bit em CombinedSwitches
+            v.Set("m_bShowByRepu", v.Switch(version, 14)); // bit em CombinedSwitches
+            v.Set("m_bShowByPreTask", v.Switch(version, 15)); // bit em CombinedSwitches
+            v.Set("m_bShowByPeriod", v.Switch(version, 16)); // bit em CombinedSwitches
+            v.Set("m_bShowByFaction", v.Switch(version, 17)); // bit em CombinedSwitches
+            v.Set("m_bShowByGender", v.Switch(version, 18)); // bit em CombinedSwitches
+            v.Set("m_bShowByOccup", v.Switch(version, 19)); // bit em CombinedSwitches
+            v.Set("m_bPremise_Spouse", v.Switch(version, 20)); // bit em CombinedSwitches
+            v.Set("m_bShowBySpouse", v.Switch(version, 21)); // bit em CombinedSwitches
+            v.Set("m_bPremiseWeddingOwner", v.Switch(version, 22)); // bit em CombinedSwitches
+            v.Set("m_bShowByWeddingOwner", v.Switch(version, 23)); // bit em CombinedSwitches
+            v.Set("m_bGM", v.Switch(version, 24)); // bit em CombinedSwitches
+            v.Set("m_bShieldUser", v.Switch(version, 25)); // bit em CombinedSwitches
+            v.Set("m_bShowByRMB", v.Switch(version, 26)); // bit em CombinedSwitches
+            v.Set("m_bCharTime", v.Switch(version, 27)); // bit em CombinedSwitches
+            v.Set("m_bShowByCharTime", v.Switch(version, 28)); // bit em CombinedSwitches
+            v.Set("m_bTeamwork", v.Switch(version, 29)); // bit em CombinedSwitches
+            v.Set("m_bRcvByTeam", v.Switch(version, 30)); // bit em CombinedSwitches
+            v.Set("m_bSharedTask", v.Switch(version, 31)); // bit em CombinedSwitches
+            v.Set("m_bSharedAchieved", v.Switch(version, 32)); // bit em CombinedSwitches
+            v.Set("m_bCheckTeammate", v.Switch(version, 33)); // bit em CombinedSwitches
+            v.Set("m_bAllFail", v.Switch(version, 34)); // bit em CombinedSwitches
+            v.Set("m_bCapFail", v.Switch(version, 35)); // bit em CombinedSwitches
+            v.Set("m_bCapSucc", v.Switch(version, 36)); // bit em CombinedSwitches
+            v.Set("m_bDismAsSelfFail", v.Switch(version, 37)); // bit em CombinedSwitches
+            v.Set("m_bRcvChckMem", v.Switch(version, 38)); // bit em CombinedSwitches
+            v.Set("m_bCntByMemPos", v.Switch(version, 39)); // bit em CombinedSwitches
+            v.Set("m_bAllSucc", v.Switch(version, 40)); // bit em CombinedSwitches
+            v.Set("m_bCoupleOnly", v.Switch(version, 41)); // bit em CombinedSwitches
+            v.Set("m_bDistinguishedOcc", v.Switch(version, 42)); // bit em CombinedSwitches
+            v.Set("m_bShowByTeam", v.Switch(version, 43)); // bit em CombinedSwitches
+            v.Set("m_bPremNeedComp", v.Switch(version, 44)); // bit em CombinedSwitches
+            if (version >= 178)
+            {
+                v.Set("m_bPremHistoryNeedComp", v.Switch(version, 45)); // bit em CombinedSwitches
+            }
+            if (version >= 185)
+            {
+                v.Set("m_bPremNeedCompHistory", v.Switch(version, 46)); // bit em CombinedSwitches
+            }
+            v.Set("m_bPremCheckForce", v.Switch(version, 47)); // bit em CombinedSwitches
+            v.Set("m_bShowByForce", v.Switch(version, 48)); // bit em CombinedSwitches
+            v.Set("m_bShowByForceReputation", v.Switch(version, 49)); // bit em CombinedSwitches
+            v.Set("m_bShowByForceContribution", v.Switch(version, 50)); // bit em CombinedSwitches
+            v.Set("m_bShowByForceExp", v.Switch(version, 51)); // bit em CombinedSwitches
+            v.Set("m_bShowByForceSP", v.Switch(version, 52)); // bit em CombinedSwitches
+            v.Set("m_bShowByForceActivityLevel", v.Switch(version, 53)); // bit em CombinedSwitches
+            v.Set("m_bPremIsKing", v.Switch(version, 54)); // bit em CombinedSwitches
+            v.Set("m_bShowByKing", v.Switch(version, 55)); // bit em CombinedSwitches
+            v.Set("m_bPremNotInTeam", v.Switch(version, 56)); // bit em CombinedSwitches
+            v.Set("m_bShowByNotInTeam", v.Switch(version, 57)); // bit em CombinedSwitches
+            v.Set("m_bShowByTitle", v.Switch(version, 58)); // bit em CombinedSwitches
+            v.Set("m_bShowByHistoryStage", v.Switch(version, 59)); // bit em CombinedSwitches
+            v.Set("m_bShowByGeneralCard", v.Switch(version, 60)); // bit em CombinedSwitches
+            v.Set("m_bShowByGeneralCardRank", v.Switch(version, 61)); // bit em CombinedSwitches
+            v.Set("m_bShowByIconStateID", v.Switch(version, 62)); // bit em CombinedSwitches
+            v.Set("m_bShowByVIPLevel", v.Switch(version, 63)); // bit em CombinedSwitches
+            v.Set("m_bPremNoHome", v.Switch(version, 64)); // bit em CombinedSwitches
+            v.Set("m_bShowByHomeLevel", v.Switch(version, 65)); // bit em CombinedSwitches
+            v.Set("m_bShowByHomeResourceLevel", v.Switch(version, 66)); // bit em CombinedSwitches
+            v.Set("m_bShowByHomeFactoryLevel", v.Switch(version, 67)); // bit em CombinedSwitches
+            v.Set("m_bShowByHomeFlourish", v.Switch(version, 68)); // bit em CombinedSwitches
+            v.Set("m_bPremHomeStorageTask", v.Switch(version, 69)); // bit em CombinedSwitches
+            v.Set("m_bShowByHomeStorageTask", v.Switch(version, 70)); // bit em CombinedSwitches
+            v.Set("m_bMonsterTotalCount", v.Switch(version, 71)); // bit em CombinedSwitches
+            if (version >= 195)
+            {
+                v.Set("m_bDoNotShowGfx", v.Switch(version, 72)); // bit em CombinedSwitches
+            }
+            v.Set("m_bFinNeedComp", v.Switch(version, 73)); // bit em CombinedSwitches
+            if (version >= 178)
+            {
+                v.Set("m_bFinPersonNeedComp", v.Switch(version, 74)); // bit em CombinedSwitches
+            }
+            if (version >= 185)
+            {
+                v.Set("m_bFinHistoryNeedComp", v.Switch(version, 75)); // bit em CombinedSwitches
+            }
+            v.Set("m_bIsLibraryTask", v.Switch(version, 76)); // bit em CombinedSwitches
+            v.Set("m_bIsUniqueStorageTask", v.Switch(version, 77)); // bit em CombinedSwitches
+            v.Set("m_bHasSign", v.Switch(version, 78)); // bit em CombinedSwitches
+            v.Set("m_bOfflineFail", v.Switch(version, 79)); // bit em CombinedSwitches
+            v.Set("m_bItemNotTakeOff", v.Switch(version, 80)); // bit em CombinedSwitches
+            v.Set("m_bAbsTime", v.Switch(version, 81)); // bit em CombinedSwitches
+            if (version >= 180)
+            {
+                v.Set("m_bMultiNpcTalk", v.Switch(version, 82)); // bit em CombinedSwitches
+            }
+            v.Set("m_bChooseOne", v.Switch(version, 83)); // bit em CombinedSwitches
+            v.Set("m_bRandOne", v.Switch(version, 84)); // bit em CombinedSwitches
+            v.Set("m_bExeChildInOrder", v.Switch(version, 85)); // bit em CombinedSwitches
+            v.Set("m_bParentAlsoFail", v.Switch(version, 86)); // bit em CombinedSwitches
+            v.Set("m_bParentAlsoSucc", v.Switch(version, 87)); // bit em CombinedSwitches
+            v.Set("m_bCanGiveUp", v.Switch(version, 88)); // bit em CombinedSwitches
+            v.Set("m_bCanRedo", v.Switch(version, 89)); // bit em CombinedSwitches
+            v.Set("m_bCanRedoAfterFailure", v.Switch(version, 90)); // bit em CombinedSwitches
+            v.Set("m_bClearAsGiveUp", v.Switch(version, 91)); // bit em CombinedSwitches
+            v.Set("m_bNeedRecord", v.Switch(version, 92)); // bit em CombinedSwitches
+            v.Set("m_bFailAsPlayerDie", v.Switch(version, 93)); // bit em CombinedSwitches
+            v.Set("m_bDelvInZone", v.Switch(version, 94)); // bit em CombinedSwitches
+            v.Set("m_bEnterRegionFail", v.Switch(version, 95)); // bit em CombinedSwitches
+            v.Set("m_bLeaveRegionFail", v.Switch(version, 96)); // bit em CombinedSwitches
+            v.Set("m_bLeaveForceFail", v.Switch(version, 97)); // bit em CombinedSwitches
+            v.Set("m_bTransTo", v.Switch(version, 98)); // bit em CombinedSwitches
+            v.Set("m_bTrigCtrl", v.Switch(version, 99)); // bit em CombinedSwitches
+            v.Set("m_bAutoDeliver", v.Switch(version, 100)); // bit em CombinedSwitches
+            if (version >= 240)
+            {
+                v.Set("m_bAutoDeliverHighPriority", v.Switch(version, 101)); // bit em CombinedSwitches
+            }
+            v.Set("m_bDisplayInExclusiveUI", v.Switch(version, 102)); // bit em CombinedSwitches
+            v.Set("m_bReadyToNotifyServer", v.Switch(version, 103)); // bit em CombinedSwitches
+            v.Set("m_bUsedInTokenShop", v.Switch(version, 104)); // bit em CombinedSwitches
+            v.Set("m_bDeathTrig", v.Switch(version, 105)); // bit em CombinedSwitches
+            v.Set("m_bClearAcquired", v.Switch(version, 106)); // bit em CombinedSwitches
+            v.Set("m_bShowPrompt", v.Switch(version, 107)); // bit em CombinedSwitches
+            v.Set("m_bKeyTask", v.Switch(version, 108)); // bit em CombinedSwitches
+            v.Set("m_bSkillTask", v.Switch(version, 109)); // bit em CombinedSwitches
+            v.Set("m_bCanSeekOut", v.Switch(version, 110)); // bit em CombinedSwitches
+            v.Set("m_bShowDirection", v.Switch(version, 111)); // bit em CombinedSwitches
+            v.Set("m_bMarriage", v.Switch(version, 112)); // bit em CombinedSwitches
+            v.Set("m_bSwitchSceneFail", v.Switch(version, 113)); // bit em CombinedSwitches
+            v.Set("m_bHidden", v.Switch(version, 114)); // bit em CombinedSwitches
+            v.Set("m_bDeliverySkill", v.Switch(version, 115)); // bit em CombinedSwitches
+            v.Set("m_bShowGfxFinished", v.Switch(version, 116)); // bit em CombinedSwitches
+            v.Set("m_bChangePQRanking", v.Switch(version, 117)); // bit em CombinedSwitches
+            v.Set("m_bCompareItemAndInventory", v.Switch(version, 118)); // bit em CombinedSwitches
+            v.Set("m_bTowerTask", v.Switch(version, 119)); // bit em CombinedSwitches
+            v.Set("m_bHomeTask", v.Switch(version, 120)); // bit em CombinedSwitches
+            v.Set("m_bDeliverInHostHome", v.Switch(version, 121)); // bit em CombinedSwitches
+            v.Set("m_bFinishInHostHome", v.Switch(version, 122)); // bit em CombinedSwitches
+            v.Set("m_bPQTask", v.Switch(version, 123)); // bit em CombinedSwitches
+            v.Set("m_bPQSubTask", v.Switch(version, 124)); // bit em CombinedSwitches
+            v.Set("m_bClearContrib", v.Switch(version, 125)); // bit em CombinedSwitches
+            v.Set("m_bShowByNeedRecordTasksNum", v.Switch(version, 126)); // bit em CombinedSwitches
+            v.Set("m_bShowByFactionContrib", v.Switch(version, 127)); // bit em CombinedSwitches
+            v.Set("m_bAccountTaskLimit", v.Switch(version, 128)); // bit em CombinedSwitches
+            v.Set("m_bRoleTaskLimit", v.Switch(version, 129)); // bit em CombinedSwitches
+            v.Set("m_bLeaveFactionFail", v.Switch(version, 130)); // bit em CombinedSwitches
+            v.Set("m_bNotIncCntWhenFailed", v.Switch(version, 131)); // bit em CombinedSwitches
+            v.Set("m_bNotClearItemWhenFailed", v.Switch(version, 132)); // bit em CombinedSwitches
+            v.Set("m_bDisplayInTitleTaskUI", v.Switch(version, 133)); // bit em CombinedSwitches
+            v.Set("m_bCanAwardOnCarrier", v.Switch(version, 134)); // bit em CombinedSwitches
+            if (version >= 137)
+            {
+                v.Set("m_bPremReachArenaWinCount", v.Switch(version, 135)); // bit em CombinedSwitches
+                v.Set("m_bShowByReachArenaWinCount", v.Switch(version, 136)); // bit em CombinedSwitches
+            }
+            if (version >= 140)
+            {
+                v.Set("m_bWriteSpecialLog", v.Switch(version, 137)); // bit em CombinedSwitches
+            }
+            if (version >= 146)
+            {
+                v.Set("m_bShowByFactionScore", v.Switch(version, 138)); // bit em CombinedSwitches
+                v.Set("m_bShowByFactionMoney", v.Switch(version, 139)); // bit em CombinedSwitches
+                v.Set("m_bShowByFactionPersonScore", v.Switch(version, 140)); // bit em CombinedSwitches
+                v.Set("m_bCheckFactionMember", v.Switch(version, 141)); // bit em CombinedSwitches
+                v.Set("m_bPremFaction", v.Switch(version, 142)); // bit em CombinedSwitches
+                v.Set("m_bSpecialLogic", v.Switch(version, 143)); // bit em CombinedSwitches
+            }
+            if (version >= 153)
+            {
+                v.Set("m_bBecomeMentor", v.Switch(version, 144)); // bit em CombinedSwitches
+                v.Set("m_bShowMentorMorality", v.Switch(version, 145)); // bit em CombinedSwitches
+                v.Set("m_bShowMentorStudentValue", v.Switch(version, 146)); // bit em CombinedSwitches
+                v.Set("m_bDiscardedTask", v.Switch(version, 147)); // bit em CombinedSwitches
+                v.Set("m_bNoCheckTitleGot", v.Switch(version, 148)); // bit em CombinedSwitches
+            }
+            if (version >= 156)
+            {
+                v.Set("m_bShowCoupleIntimacy", v.Switch(version, 149)); // bit em CombinedSwitches
+            }
+            if (version >= 158)
+            {
+                v.Set("m_bShowDeposit2", v.Switch(version, 150)); // bit em CombinedSwitches
+            }
+            if (version >= 194)
+            {
+                v.Set("m_bCrossServer", v.Switch(version, 151)); // bit em CombinedSwitches
+            }
+            if (version >= 163)
+            {
+                v.Set("m_bRecordFnshCnt", v.Switch(version, 152)); // bit em CombinedSwitches
+            }
+            if (version >= 198)
+            {
+                v.Set("m_bRecordReset", v.Switch(version, 153)); // bit em CombinedSwitches
+            }
+            if (version >= 167)
+            {
+                v.Set("m_bShowCamp", v.Switch(version, 154)); // bit em CombinedSwitches
+                v.Set("m_bShowCampPower", v.Switch(version, 155)); // bit em CombinedSwitches
+                v.Set("m_bReturnCampPower", v.Switch(version, 156)); // bit em CombinedSwitches
+                v.Set("m_bTeamHaveRecaller", v.Switch(version, 157)); // bit em CombinedSwitches
+                v.Set("m_bBindedRecaller", v.Switch(version, 158)); // bit em CombinedSwitches
+                v.Set("m_bShowNeedFriendPoint", v.Switch(version, 159)); // bit em CombinedSwitches
+            }
+            if (version >= 175)
+            {
+                v.Set("m_bHistoryVarTask", v.Switch(version, 160)); // bit em CombinedSwitches
+                v.Set("m_bRankPre", v.Switch(version, 161)); // bit em CombinedSwitches
+                v.Set("m_bDeliverByUI", v.Switch(version, 162)); // bit em CombinedSwitches
+            }
+            if (version >= 177)
+            {
+                v.Set("m_bWarTaskAward", v.Switch(version, 163)); // bit em CombinedSwitches
+            }
+            if (version >= 180)
+            {
+                v.Set("m_bHideOtherPlayer", v.Switch(version, 164)); // bit em CombinedSwitches
+            }
+            if (version >= 187)
+            {
+                v.Set("m_bRecordDeliverTime", v.Switch(version, 165)); // bit em CombinedSwitches
+            }
+            if (version >= 194)
+            {
+                v.Set("m_bShowMethod", v.Switch(version, 166)); // bit em CombinedSwitches
+            }
+            if (version >= 198)
+            {
+                v.Set("m_bPremCheckPanguLevel", v.Switch(version, 167)); // bit em CombinedSwitches
+                v.Set("m_bShowAchievementSeriesId", v.Switch(version, 168)); // bit em CombinedSwitches
+                v.Set("m_bVaguePromptingMode", v.Switch(version, 169)); // bit em CombinedSwitches
+            }
+            if (version >= 215)
+            {
+                v.Set("m_bCheckPanguEquip", v.Switch(version, 170)); // bit em CombinedSwitches
+                v.Set("m_bShowPanguEquipPremise", v.Switch(version, 171)); // bit em CombinedSwitches
+                v.Set("m_bShowExploreIcon", v.Switch(version, 172)); // bit em CombinedSwitches
+            }
+            if (version >= 234)
+            {
+                v.Set("m_bShowByExpNotFull", v.Switch(version, 173)); // bit em CombinedSwitches
+            }
+            if (version >= 218)
+            {
+                v.Set("m_bCheckInventorySize", v.Switch(version, 174)); // bit em CombinedSwitches
+                v.Set("m_bCheckStorageSize", v.Switch(version, 175)); // bit em CombinedSwitches
+                v.Set("m_bShowPackSizePremise", v.Switch(version, 176)); // bit em CombinedSwitches
+            }
+            if (version >= 234)
+            {
+                v.Set("m_bShowByRealmExpNotFull", v.Switch(version, 177)); // bit em CombinedSwitches
+                v.Set("m_bAllowBatchAward", v.Switch(version, 178)); // bit em CombinedSwitches
+            }
+            if (version >= 223)
+            {
+                v.Set("m_bCheckExp", v.Switch(version, 179)); // bit em CombinedSwitches
+                v.Set("m_bCheckRealmExp", v.Switch(version, 180)); // bit em CombinedSwitches
+                v.Set("m_bShowPropertyPremis", v.Switch(version, 181)); // bit em CombinedSwitches
+                v.Set("m_bCheckLieMoLevel", v.Switch(version, 182)); // bit em CombinedSwitches
+                v.Set("m_bCheckYuMoLevel", v.Switch(version, 183)); // bit em CombinedSwitches
+            }
+            if (version >= 229)
+            {
+                v.Set("m_bShowDailyActivityPremise", v.Switch(version, 184)); // bit em CombinedSwitches
+            }
+            if (version >= 236)
+            {
+                v.Set("m_bFailIconStateID", v.Switch(version, 185)); // bit em CombinedSwitches
+            }
+            if (version >= 238)
+            {
+                v.Set("m_bPremTotalItemsWanted", v.Switch(version, 186)); // bit em CombinedSwitches
+                v.Set("m_bMethodTotalItemsWanted", v.Switch(version, 187)); // bit em CombinedSwitches
             }
     }
 
@@ -2469,7 +2761,7 @@ public static partial class TaskLayout
     {
             if (version >= 194 && v.N("m_uiGroupNum") > 0 && v.N("m_uiNumPerGroup") > 0)
             {
-                v.In("AwardRandomDialogGroupData", () => L_RANDOM_DIALOG_GROUP_DATA(v, version, (int)v.N("m_uiGroupNum"), (int)v.N("m_uiNumPerGroup")));
+                { int g = (int)v.N("m_uiGroupNum"), k = (int)v.N("m_uiNumPerGroup"); v.In("AwardRandomDialogGroupData", () => L_RANDOM_DIALOG_GROUP_DATA(v, version, g, k)); }
             }
     }
 
@@ -3023,5 +3315,198 @@ public static partial class TaskLayout
         ("CheckYuMoLevel", 223, 0),
         ("ShowDailyActivityPremise", 229, 0),
         ("FailIconStateID", 236, 0),
+    };
+
+    /// <summary>Nomes das chaves na ordem do enum (o número usado em v.Switch).</summary>
+    public static readonly string[] SwitchParams =
+    {
+        "ShowByTransformed",
+        "ShowByLev",
+        "PremCheckReincarnation",
+        "ShowByReincarnation",
+        "PremCheckRealmLevel",
+        "PremCheckRealmExpFull",
+        "CheckTradeTime",
+        "ShowByTradeTime",
+        "ShowByRealmLevel",
+        "ShowByItems",
+        "PremItemsAnyOne",
+        "MethodItemsRandOne",
+        "NotOpenWithItem",
+        "ShowByDeposit",
+        "ShowByRepu",
+        "ShowByPreTask",
+        "ShowByPeriod",
+        "ShowByFaction",
+        "ShowByGender",
+        "ShowByOccup",
+        "Premise_Spouse",
+        "ShowBySpouse",
+        "PremiseWeddingOwner",
+        "ShowByWeddingOwner",
+        "GM",
+        "ShieldUser",
+        "ShowByRMB",
+        "CharTime",
+        "ShowByCharTime",
+        "Teamwork",
+        "RcvByTeam",
+        "SharedTask",
+        "SharedAchieved",
+        "CheckTeammate",
+        "AllFail",
+        "CapFail",
+        "CapSucc",
+        "DismAsSelfFail",
+        "RcvChckMem",
+        "CntByMemPos",
+        "AllSucc",
+        "CoupleOnly",
+        "DistinguishedOcc",
+        "ShowByTeam",
+        "PremNeedComp",
+        "PremNeedCompPerson",
+        "PremNeedCompHistory",
+        "PremCheckForce",
+        "ShowByForce",
+        "ShowByForceReputation",
+        "ShowByForceContribution",
+        "ShowByForceExp",
+        "ShowByForceSP",
+        "ShowByForceActivityLevel",
+        "PremIsKing",
+        "ShowByKing",
+        "PremNotInTeam",
+        "ShowByNotInTeam",
+        "ShowByTitle",
+        "ShowByHistoryStage",
+        "ShowByGeneralCard",
+        "ShowByGeneralCardRank",
+        "ShowByIconStateID",
+        "ShowByVIPLevel",
+        "PremNoHome",
+        "ShowByHomeLevel",
+        "ShowByHomeResourceLevel",
+        "ShowByHomeFactoryLevel",
+        "ShowByHomeFlourish",
+        "PremHomeStorageTask",
+        "ShowByHomeStorageTask",
+        "MonsterTotalCount",
+        "NotShowGfx",
+        "FinNeedComp",
+        "FinNeedCompPerson",
+        "FinNeedCompHistory",
+        "IsLibraryTask",
+        "IsUniqueStorageTask",
+        "HasSign",
+        "OfflineFail",
+        "ItemNotTakeOff",
+        "AbsTime",
+        "MultiNpcTalk",
+        "ChooseOne",
+        "RandOne",
+        "ExeChildInOrder",
+        "ParentAlsoFail",
+        "ParentAlsoSucc",
+        "CanGiveUp",
+        "CanRedo",
+        "CanRedoAfterFailure",
+        "ClearAsGiveUp",
+        "NeedRecord",
+        "FailAsPlayerDie",
+        "DelvInZone",
+        "EnterRegionFail",
+        "LeaveRegionFail",
+        "LeaveForceFail",
+        "TransTo",
+        "TrigCtrl",
+        "AutoDeliver",
+        "AutoDeliverHighPriority",
+        "DisplayInExclusiveUI",
+        "ReadyToNotifyServer",
+        "UsedInTokenShop",
+        "DeathTrig",
+        "ClearAcquired",
+        "ShowPrompt",
+        "KeyTask",
+        "SkillTask",
+        "CanSeekOut",
+        "ShowDirection",
+        "Marriage",
+        "SwitchSceneFail",
+        "Hidden",
+        "DeliverySkill",
+        "ShowGfxFinished",
+        "ChangePQRanking",
+        "CompareItemAndInventory",
+        "TowerTask",
+        "HomeTask",
+        "DeliverInHostHome",
+        "FinishInHostHome",
+        "PQTask",
+        "PQSubTask",
+        "ClearContrib",
+        "ShowByNeedRecordTasksNum",
+        "ShowByFactionContrib",
+        "AccountTaskLimit",
+        "RoleTaskLimit",
+        "LeaveFactionFail",
+        "NotIncCntWhenFailed",
+        "NotClearItemWhenFailed",
+        "DisplayInTitleTaskUI",
+        "CanAwardOnCarrier",
+        "PreReachArenaWinCount",
+        "ShowByReachArenaWinCount",
+        "WriteSpecialLog",
+        "ShowByPreFactionScore",
+        "ShowByPreFactionMoney",
+        "ShowByPreFactionPersonScore",
+        "CheckFactionMem",
+        "ByFactionScore",
+        "SpecailLogicTask",
+        "BecomeMentor",
+        "ShowMentorMorality",
+        "ShowMentorStudent",
+        "DiscardedTask",
+        "NoCheckTitleGot",
+        "ShowCoupleIntimacy",
+        "ShowByDeposit2",
+        "CrossServer",
+        "RecordFinishCount",
+        "RecordReset",
+        "ShowCamp",
+        "ShowCampPower",
+        "ReturnCampPower",
+        "TeamHaveRecaller",
+        "BindedRecaller",
+        "ShowNeedFriendPoint",
+        "HistoryVarTask",
+        "PremRank",
+        "DeliverByUI",
+        "WarTaskAward",
+        "HideOtherPlayer",
+        "RecordDeliverTime",
+        "ShowMethod",
+        "CheckPanguLevel",
+        "AchievementSeriesId",
+        "VaguePromptingMode",
+        "CheckPanguEquip",
+        "ShowPanguEquipPremise",
+        "ShowExploreIcon",
+        "ShowByExpNotFull",
+        "CheckInventorySize",
+        "CheckStorageSize",
+        "ShowPackSizePremise",
+        "ShowByRealmExpNotFull",
+        "AllowBatchAward",
+        "CheckExp",
+        "CheckRealmExp",
+        "ShowPropertyPremis",
+        "CheckLieMoLevel",
+        "CheckYuMoLevel",
+        "ShowDailyActivityPremise",
+        "FailIconStateID",
+        "PremTotalItemsWanted",
+        "MethodTotalItemsWanted",
     };
 }

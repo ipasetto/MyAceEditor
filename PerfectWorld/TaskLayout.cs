@@ -14,6 +14,8 @@ public sealed class TaskRec
 {
     public readonly Dictionary<string, object> V = new();
     public readonly List<(string Key, TT Type)> Order = new();
+    /// <summary>Posição de cada campo de <see cref="Order"/> no bloco (só na leitura).</summary>
+    public readonly List<int> Pos = new();
 
     public long Int(string key) => V.TryGetValue(key, out var o) ? Convert.ToInt64(o) : 0;
     public void Set(string key, object value) => V[key] = value;
@@ -33,13 +35,24 @@ public sealed class TaskIO
     readonly Dictionary<string, string> _last = new();
     string _prefix = "";
     int _ops;
-    void Tick(string n) { if (++_ops > 2_000_000) throw new InvalidDataException("laço sem fim em " + _prefix + n); }
+    void Tick(string n) { if (++_ops > 1_000_000) throw new InvalidDataException("laço sem fim em " + _prefix + n); }
 
     public TaskIO(BinaryReader r) { _r = r; Rec = new TaskRec(); }
     public TaskIO(BinaryWriter w, TaskRec rec) { _w = w; Rec = rec; }
 
+    /// <summary>Diagnóstico: TL_GAPS="campo:bytes,..." lê bytes extras antes do campo (testar hipóteses de layout).</summary>
+    static readonly Dictionary<string, int> Gaps = (Environment.GetEnvironmentVariable("TL_GAPS") ?? "")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries).Select(g => g.Split(':')).ToDictionary(g => g[0], g => int.Parse(g[1]));
+
     string Key(string n)
     {
+        Tick(n);
+        if (Gaps.Count > 0 && Gaps.TryGetValue(_prefix + n, out int gap) && !_seen.ContainsKey(_prefix + n))
+        {
+            var gk = "_gap." + _prefix + n;
+            if (_r != null) { Rec.Pos.Add((int)_r.BaseStream.Position); Rec.V[gk] = _r.ReadBytes(gap); Rec.Order.Add((gk, TT.Bytes)); }
+            else _w!.Write(Rec.V.TryGetValue(gk, out var g) ? (byte[])g : new byte[gap]);
+        }
         if (_r != null && _r.BaseStream.Position >= _r.BaseStream.Length) throw new EndOfStreamException("fim do arquivo no campo " + _prefix + n);
         var full = _prefix + n;
         if (_seen.TryGetValue(full, out int c)) { _seen[full] = ++c; var k = full + "#" + c; _last[full] = k; return k; }
@@ -58,7 +71,7 @@ public sealed class TaskIO
                 TT.I32 => _r.ReadInt32(), TT.I16 => _r.ReadInt16(), TT.U16 => _r.ReadUInt16(), TT.U32 => _r.ReadUInt32(),
                 TT.I64 => _r.ReadInt64(), TT.U64 => (long)_r.ReadUInt64(), _ => _r.ReadByte(),
             };
-            Rec.V[k] = x; Rec.Order.Add((k, t));
+            Rec.V[k] = x; Rec.Order.Add((k, t)); Rec.Pos.Add((int)_r.BaseStream.Position - Size(t));
             return x;
         }
         long y = Rec.Int(k);
@@ -75,6 +88,8 @@ public sealed class TaskIO
         return y;
     }
 
+    static int Size(TT t) => t switch { TT.I32 or TT.U32 => 4, TT.I16 or TT.U16 => 2, TT.I64 or TT.U64 => 8, _ => 1 };
+
     public long I32(string n) => Int(n, TT.I32);
     public long I16(string n) => Int(n, TT.I16);
     public long U16(string n) => Int(n, TT.U16);
@@ -88,21 +103,21 @@ public sealed class TaskIO
     public void F32(string n)
     {
         var k = Key(n);
-        if (_r != null) { Rec.V[k] = _r.ReadSingle(); Rec.Order.Add((k, TT.F32)); return; }
+        if (_r != null) { Rec.V[k] = _r.ReadSingle(); Rec.Order.Add((k, TT.F32)); Rec.Pos.Add((int)_r.BaseStream.Position - 4); return; }
         _w!.Write(Rec.V.TryGetValue(k, out var o) ? Convert.ToSingle(o) : 0f);
     }
 
     public void F64(string n)
     {
         var k = Key(n);
-        if (_r != null) { Rec.V[k] = _r.ReadDouble(); Rec.Order.Add((k, TT.F64)); return; }
+        if (_r != null) { Rec.V[k] = _r.ReadDouble(); Rec.Order.Add((k, TT.F64)); Rec.Pos.Add((int)_r.BaseStream.Position - 8); return; }
         _w!.Write(Rec.V.TryGetValue(k, out var o) ? Convert.ToDouble(o) : 0d);
     }
 
     void Raw(string n, int bytes, TT t)
     {
         var k = Key(n);
-        if (_r != null) { Rec.V[k] = _r.ReadBytes(bytes); Rec.Order.Add((k, t)); return; }
+        if (_r != null) { Rec.Pos.Add((int)_r.BaseStream.Position); Rec.V[k] = _r.ReadBytes(bytes); Rec.Order.Add((k, t)); return; }
         var b = Rec.V.TryGetValue(k, out var o) ? (byte[])o : Array.Empty<byte>();
         if (b.Length >= bytes) _w!.Write(b, 0, bytes);
         else { _w!.Write(b); _w.Write(new byte[bytes - b.Length]); }
@@ -120,6 +135,25 @@ public sealed class TaskIO
         var full = _prefix + n;
         if (_derived.TryGetValue(full, out var d)) return Convert.ToInt64(d);
         return Rec.Int(_last.TryGetValue(full, out var k) ? k : full);
+    }
+
+    /// <summary>Bit de uma chave em CombinedSwitches (v135+): a posição depende de quais chaves existem na versão.</summary>
+    public long Switch(int version, int param)
+    {
+        var name = TaskLayout.SwitchParams[param];
+        int idx = 0;
+        foreach (var s in TaskLayout.Switches)
+        {
+            if (!TaskVer.Has(version, s)) continue;
+            if (s.Name == name)
+            {
+                var full = _prefix + "CombinedSwitches";
+                var b = Rec.V.TryGetValue(_last.TryGetValue(full, out var k) ? k : full, out var o) ? (byte[])o : Array.Empty<byte>();
+                return idx / 8 < b.Length && ((b[idx / 8] >> (idx % 8)) & 1) != 0 ? 1 : 0;
+            }
+            idx++;
+        }
+        return 0;
     }
 
     /// <summary>Valor que o RAE calcula para o modelo dele; não existe no arquivo.</summary>
@@ -178,6 +212,14 @@ public static partial class TaskLayout
     /// <summary>Último registro em leitura (diagnóstico de erro de layout).</summary>
     public static TaskRec? LastRead;
 
+    /// <summary>Só o bloco fixo (diagnóstico: comparar com o início dos textos).</summary>
+    public static TaskRec ReadFixed(BinaryReader r, int version)
+    {
+        var io = new TaskIO(r);
+        Fixed(io, version);
+        return io.Rec;
+    }
+
     public static TaskQuest Read(BinaryReader r, int version)
     {
         var io = new TaskIO(r);
@@ -207,6 +249,8 @@ public static partial class TaskLayout
         for (int i = 0; i < subs; i++) q.Subs.Add(Read(r, version));
         return q;
     }
+
+    public static void WriteFixed(BinaryWriter w, int version, TaskRec rec) => Fixed(new TaskIO(w, rec), version);
 
     public static void Write(BinaryWriter w, int version, TaskQuest q)
     {

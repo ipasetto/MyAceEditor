@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 
 namespace MyAceEditor.PerfectWorld;
 
@@ -45,7 +45,7 @@ public static class TaskTexts
 
     public static IEnumerable<TaskTextNode> All(IEnumerable<TaskTextNode> n) => n.SelectMany(x => new[] { x }.Concat(All(x.Children)));
 
-    public static Result Read(byte[] d)
+    public static Result Read(byte[] d, bool skipMissing = false, int max = int.MaxValue)
     {
         if (d.Length < 12 || BitConverter.ToUInt32(d, 0) is not (TasksFile.Magic or 0))
             throw new InvalidDataException(FieldKinds.Translate("tasks.badSignature", "Não é um tasks.data (assinatura inválida)."));
@@ -57,11 +57,13 @@ public static class TaskTexts
         var sorted = offs.Order().ToArray();
         var reader = new Reader(d, ver);
         var roots = new List<TaskTextNode>(n);
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < Math.Min(n, max); i++)
         {
             int k = Array.BinarySearch(sorted, offs[i]);
             int end = k + 1 < sorted.Length ? sorted[k + 1] : d.Length;
-            roots.Add(reader.Quest(offs[i], end)
+            var q = reader.Quest(offs[i], end);
+            if (q == null && skipMissing) continue;
+            roots.Add(q
                 ?? throw new InvalidDataException(string.Format(FieldKinds.Translate("tasks.textsNotFound", "Não achei os textos da quest no offset {0:N0} (versão {1})."), offs[i], ver)));
         }
         return new(ver, table, offs, roots);

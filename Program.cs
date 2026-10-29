@@ -34,6 +34,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 4 && args[0] == "--local-send") { LocalSend(args[1], args[2], args[3]); return; }
+        if (args.Length >= 2 && args[0] == "--tasks-fixdiff") { TaskFixDiff(args[1]); return; }   // <tasks.data>: bloco fixo × início dos textos (tasks-fixdiff.txt)
         if (args.Length >= 2 && args[0] == "--tasks-layout") { TestTaskLayout(args.Skip(1).ToArray()); return; }   // <tasks.data>...: lê e regrava cada quest (tasks-layout.txt)
         if (args.Length >= 2 && args[0] == "--tasks-texts") { TestTaskTexts(args[1]); return; }   // <tasks.data>: textos em qualquer versão
         if (args.Length >= 4 && args[0] == "--tasks-translate") { TasksTranslate(args[1], args[2], args[3]); return; }   // <destino> <traduzido> <saída>
@@ -267,6 +268,39 @@ internal static class Program
 
     // --tasks-texts <tasks.data>: acha os textos de todas as quests (qualquer versão), regrava sem mudar (tem de sair
     // idêntico) e, na v93, confere com o esquema completo. Relatório em tasks-texts.txt.
+    private static void TaskFixDiff(string path)
+    {
+        var d = File.ReadAllBytes(path);
+        int vv = BitConverter.ToInt32(d, 4);
+        var empty = new MemoryStream();
+        using (var ew = new BinaryWriter(empty, Encoding.UTF8, true)) TaskLayout.WriteFixed(ew, vv, new TaskRec());
+        var res = TaskTexts.Read(d, skipMissing: true, max: int.TryParse(Environment.GetEnvironmentVariable("TL_MAX"), out int mx) ? mx : int.MaxValue);
+        var hist = new Dictionary<string, int>();
+        var parentOf = new Dictionary<int, int>();
+        foreach (var p in TaskTexts.All(res.Roots)) foreach (var c in p.Children) parentOf[c.Id] = p.Id;
+        int dumped = 0;
+        var samples = new List<string>();
+        using var ms = new MemoryStream(d);
+        using var r = new BinaryReader(ms);
+        foreach (var n in TaskTexts.All(res.Roots))
+        {
+            string key;
+            TaskRec? rec = null;
+            try { using var qs = new MemoryStream(d, n.Start, n.End - n.Start); using var qr = new BinaryReader(qs); rec = TaskLayout.ReadFixed(qr, res.Version); key = (qs.Position - (n.TextStart - n.Start)).ToString(); }
+            catch (Exception ex) { key = "erro " + ex.GetType().Name; }
+            hist[key] = hist.GetValueOrDefault(key) + 1;
+            if (rec != null && parentOf.ContainsKey(n.Id) && Environment.GetEnvironmentVariable("TL_DUMP") is { } dk && dk == key && dumped++ < 6)
+            {
+                File.WriteAllBytes($"real_{n.Id}.bin", d[n.Start..n.TextStart]);
+                File.WriteAllLines($"ours_{n.Id}.txt", rec.Order.Select((f, i) => $"{rec.Pos[i]}\t{f.Key}\t{f.Type}\t{(rec.V[f.Key] is byte[] ? "" : rec.V[f.Key])}")
+                    .Prepend($"parent\t{parentOf[n.Id]}"));
+            }
+            if (key != "0" && samples.Count < 12)
+                samples.Add($"{n.Id} fixo={n.TextStart - n.Start} dif={key}: " + (rec == null ? "" : string.Join(" ", rec.Order.Where(o => (o.Key.Contains("Cnt") || o.Key.Contains("Num") || o.Key.StartsWith("m_ul")) && rec.Int(o.Key) != 0 && !o.Key.Contains('[')).Take(40).Select(o => $"{o.Key}={rec.Int(o.Key)}"))));
+        }
+        File.WriteAllText("tasks-fixdiff.txt", $"v{res.Version} vazio={empty.Length} menores={string.Join(",", TaskTexts.All(res.Roots).Select(n => n.TextStart - n.Start).Distinct().Order().Take(8))}\n" + string.Join("\n", hist.OrderByDescending(h => h.Value).Select(h => $"{h.Key}: {h.Value}")) + "\n\n" + string.Join("\n", samples), new UTF8Encoding(false));
+    }
+
     private static void TestTaskLayout(string[] paths)
     {
         var sb = new StringBuilder();
