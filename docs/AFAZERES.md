@@ -38,6 +38,7 @@
 [x] aba Quests: todas as versoes, rotulos/dicas PT+en/ru/zh | [x] Mundo 3D: filtro por tipo, barra do NPC, ver quests do NPC
 [~] criar quest tipo 1 (recado) pelo Mundo 3D + dar quest existente (falta testar no app e no jogo) | [x] requisitos/premios por lista de opcoes + "outro campo" | [x] brilho do "Salvar e enviar ao servidor" (tudo, sessao) | [ ] tipos 2-10
 [ ] depois da 1a etapa das quests: arvores, grama e objetos no Mundo 3D (.ecwld/.spt) em todas as versoes (usuario 29/10)
+[ ] futuro (usuario 29/10, "nao agora"): editor de mapa que cria o cenario (arvores, grama, objetos no .ecwld)
 
 ## FASE 4 — engine
 [ ] corrigir automaticamente o par (exportar loja/elements/tasks p/ os 2 lados)
