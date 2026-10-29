@@ -38,13 +38,24 @@
 - Envio: GameConsole — traz o jogo à frente, Shift+VK_OEM_3 abre o console, digita a linha (SendInput Unicode), Enter,
   fecha o console e volta ao painel. Se o console já estiver aberto quando o painel age, o atalho o FECHA e a linha
   vai para o chat: deixe o console fechado.
-- Comandos usados: d 205, d 10837 1/0, d 8903 73125, d 10852 1, d 2000, d 10993, d 1988, d 10889 n, d 1989 n,
+- Comandos usados: d 205, d 10837 1/0, d 8903 73125, d 10852 1, d 2000, d 10822, d 10850 n, d 1988, d 10889 n, d 1989 n,
   d 2016 n, d 10853, d_goto x z, d 8888 tag x z, d_showpos, d 10800 id qtd, d 2001 id, d 8900 id,
   d 10802 id qtd tempo 0, d 10857 id qtd tempo, d 10855 10855, d_settimeofday h,mm; gm_showid, gm_online_num,
   gm_moveto_player id, gm_callin_player id, gm_kickout_role id s "motivo", gm_shutup_role id s "motivo",
   gm_forbid_role 100|102 id s "motivo", gm_broadcast "texto", gm_restart_sev s.
 - Ainda não: dar/completar/zerar quest (não achei comando do console para isso), correio, EXP/drop em dobro, lista
   de quem está online com nomes (gm_list_user não faz nada no cliente 1.5.3).
+
+## Teste do usuário 29/10 e correções
+- Aspa antes do comando: a tecla do console (aspas no ABNT2) abre o console no "apertar" e o caractere entra nele;
+  agora um Backspace o apaga. Fecha com Esc (não pela tecla, que deixava a aspa e às vezes jogava o texto no chat).
+  O foco fica no jogo. Várias linhas vão numa abertura só (ex.: subir N níveis = N × d 2000).
+- gs 1.5.5 (disassembly do DebugCommandHandler): NÃO tem d 10993 (nível máximo) nem d 205 nesse handler; tem
+  2000, 1988, 1989, 2016, 8903 (só com 73125), 10822 (renascer), 10850 (fama), 10889 (EXP, 1 int), 10800, 2001,
+  8900, 10802, 10857, 10853, 10855, 10837, 8888, 10852. Fonte: source_server_153 cgame/gs/playercmd.cpp.
+- gm_broadcast do console não chegou ao servidor (glinkd/gdeliveryd sem registro); com o servidor neste PC o aviso e
+  a lista de quem está online vão pelo gdeliveryd (como o Administrar). gm_online_num só abre a janela do Ctrl+G.
+- Mapa: arrastar com o esquerdo, ir com o direito. Itens: lista virtual com todos (antes parava em 500 = só armas).
 
 ## Em aberto (conferir antes de prometer)
 - Números dos comandos `d <n>` por versão (lista triviapw 2017 não diz a versão).

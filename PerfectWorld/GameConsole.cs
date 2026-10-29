@@ -6,8 +6,8 @@ namespace MyAceEditor.PerfectWorld;
 /// <summary>
 /// Console do jogo aberto (elementclient.exe), para o Painel do GM (docs/GM-PAINEL.md). O console só existe com
 /// "console:1" na linha de comando (glb_IsConsoleEnable), abre e fecha com Shift + VK_OEM_3 (LKEY_UI_SHOW_CONSOLE,
-/// EC_HostInputFilter.cpp) e executa a linha com Enter (EC_DlgCmdConsole.cpp). O texto é digitado como entrada real
-/// (SendInput), então a janela do jogo vem para a frente por um instante. Nada é gravado nos arquivos do jogo.
+/// EC_HostInputFilter.cpp), executa a linha com Enter (EC_DlgCmdConsole.cpp) e fecha com Esc. O texto é digitado como
+/// entrada real (SendInput): o jogo vem para a frente e fica com o foco. Nada é gravado nos arquivos do jogo.
 /// </summary>
 public static class GameConsole
 {
@@ -24,26 +24,33 @@ public static class GameConsole
 
     public static bool Running => Window() != IntPtr.Zero;
 
-    /// <summary>Abre o console, digita a linha, Enter e fecha. false = jogo não aberto ou não deu para trazê-lo à frente.</summary>
-    public static bool Send(string line, IntPtr returnTo)
+    /// <summary>
+    /// Abre o console, digita cada linha com Enter e fecha com Esc; o foco fica no jogo. false = jogo não aberto ou não
+    /// deu para trazê-lo à frente. O console abre no "apertar" da tecla e o caractere dela (a aspa no teclado ABNT2)
+    /// chega depois, já dentro do console: um Backspace o apaga antes da primeira linha.
+    /// </summary>
+    public static bool Send(IReadOnlyList<string> lines)
     {
         var w = Window();
         if (w == IntPtr.Zero || !Front(w)) return false;
-        Thread.Sleep(120);
-        Toggle();
         Thread.Sleep(150);
-        var inputs = new List<INPUT>();
-        foreach (var ch in line) { inputs.Add(Unicode(ch, false)); inputs.Add(Unicode(ch, true)); }
-        Push(inputs);
-        Thread.Sleep(60);
-        Push(new() { Key(VK_RETURN, false), Key(VK_RETURN, true) });
-        Thread.Sleep(150);
-        Toggle();
-        if (returnTo != IntPtr.Zero) { Thread.Sleep(80); Front(returnTo); }
+        Push(new() { Key(VK_SHIFT, false), Key(VK_OEM_3, false), Key(VK_OEM_3, true), Key(VK_SHIFT, true) });
+        Thread.Sleep(250);
+        if (GetForegroundWindow() != w) return false;
+        Push(new() { Key(VK_BACK, false), Key(VK_BACK, true) });
+        Thread.Sleep(40);
+        foreach (var line in lines)
+        {
+            var inputs = new List<INPUT>();
+            foreach (var ch in line) { inputs.Add(Unicode(ch, false)); inputs.Add(Unicode(ch, true)); }
+            Push(inputs);
+            Thread.Sleep(60);
+            Push(new() { Key(VK_RETURN, false), Key(VK_RETURN, true) });
+            Thread.Sleep(120);
+        }
+        Push(new() { Key(VK_ESCAPE, false), Key(VK_ESCAPE, true) });
         return true;
     }
-
-    static void Toggle() => Push(new() { Key(VK_SHIFT, false), Key(VK_OEM_3, false), Key(VK_OEM_3, true), Key(VK_SHIFT, true) });
 
     // a janela de outro programa só vem à frente se esta thread "participar" da entrada da que está na frente
     static bool Front(IntPtr w)
@@ -62,7 +69,7 @@ public static class GameConsole
     static INPUT Key(ushort vk, bool up) => new() { type = 1, u = new() { ki = new() { wVk = vk, wScan = (ushort)MapVirtualKey(vk, 0), dwFlags = up ? KEYEVENTF_KEYUP : 0 } } };
     static INPUT Unicode(char c, bool up) => new() { type = 1, u = new() { ki = new() { wScan = c, dwFlags = KEYEVENTF_UNICODE | (up ? KEYEVENTF_KEYUP : 0) } } };
 
-    const ushort VK_SHIFT = 0x10, VK_RETURN = 0x0D, VK_OEM_3 = 0xC0;
+    const ushort VK_SHIFT = 0x10, VK_RETURN = 0x0D, VK_OEM_3 = 0xC0, VK_BACK = 0x08, VK_ESCAPE = 0x1B;
     const uint KEYEVENTF_KEYUP = 2, KEYEVENTF_UNICODE = 4;
     const int SW_RESTORE = 9;
 
