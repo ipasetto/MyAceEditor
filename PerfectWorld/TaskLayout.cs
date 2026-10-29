@@ -55,6 +55,7 @@ public sealed class TaskIO
         }
         if (_r != null && _r.BaseStream.Position >= _r.BaseStream.Length) throw new EndOfStreamException("fim do arquivo no campo " + _prefix + n);
         var full = _prefix + n;
+        _derived.Remove(full); // vale a última atribuição, como no RAE (v182+: m_ulMonsterNum derivado e depois lido)
         if (_seen.TryGetValue(full, out int c)) { _seen[full] = ++c; var k = full + "#" + c; _last[full] = k; return k; }
         _seen[full] = 1;
         _last.Remove(full);
