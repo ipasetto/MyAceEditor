@@ -26,6 +26,9 @@ internal sealed class NpcGenView : UserControl
     public Func<int, NpcQuestInfo?>? QuestsOfNpc { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Action<int>? OpenQuest { get; set; }
+    /// <summary>NPC com serviço de venda (filtro "Comerciantes" do Mundo 3D).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<int, bool>? IsMerchant { get; set; }
     readonly Func<int, string?> _blockOf;   // ID → bloco do elements (NPC em ponto de monstro = guarda)
     readonly Action<int> _editItem;         // abre o registro no editor (aba Elements)
 
@@ -44,7 +47,10 @@ internal sealed class NpcGenView : UserControl
     readonly Label _info2 = new() { Dock = DockStyle.Top, Height = 22, ForeColor = Muted, Padding = new Padding(4, 4, 0, 0) };
     readonly ComboBox _fileBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
     readonly ComboBox _kindBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
-    readonly TextBox _search = new() { Width = 170 };
+    readonly TextBox _search = new() { Width = 220 };
+    /// <summary>Linha de filtros abaixo dos botões (fundo preto, rótulos destacados): mapa, tipo de ponto, procura, quantos sobraram.</summary>
+    readonly FlowLayoutPanel _filters = new() { Dock = DockStyle.Top, Height = 38, BackColor = Color.FromArgb(20, 22, 26), WrapContents = false, Padding = new Padding(6, 6, 0, 4) };
+    readonly Label _count = new() { AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(10, 6, 0, 0) };
     readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, VirtualMode = true, HideSelection = false, MultiSelect = false, GridLines = true };
     readonly ImageList _icons = new() { ImageSize = new Size(20, 20), ColorDepth = ColorDepth.Depth32Bit };
     readonly Dictionary<int, int> _iconIndex = new();
@@ -77,7 +83,7 @@ internal sealed class NpcGenView : UserControl
         BuildBar(); BuildList(); BuildEditor();
         var split = new Panel { Dock = DockStyle.Fill };
         split.Controls.Add(_list); split.Controls.Add(_edit);
-        Controls.Add(split); Controls.Add(_info2); Controls.Add(_bar);
+        Controls.Add(split); Controls.Add(_info2); Controls.Add(_filters); Controls.Add(_bar);
         VisibleChanged += (_, _) => { if (Visible && _configDir is null) TryOpenServer(); };
         AppLang.Changed += () => { FillKindBox(); UpdateInfo(); ShowPoint(); };
     }
@@ -97,11 +103,20 @@ internal sealed class NpcGenView : UserControl
         B("npcgen.open", "Abrir pasta…", OpenFolder, 110);
         var save = B("npcgen.save", "Salvar", Save, 90);
         save.BackColor = Accent; save.ForeColor = Color.White;
-        _bar.Controls.Add(new Label { Width = 8 });
-        _bar.Controls.Add(_fileBox);
-        _bar.Controls.Add(_kindBox);
-        _bar.Controls.Add(_search);
-        _bar.Controls.Add(new Label { Width = 8 });
+        // filtros na linha própria, cada um com rótulo
+        void Caption(string key, string pt)
+        {
+            var l = new Label { AutoSize = true, ForeColor = Color.FromArgb(120, 190, 255), Font = new Font("Segoe UI", 9.5f, FontStyle.Bold), Margin = new Padding(8, 6, 2, 0) };
+            AppLang.Changed += () => l.Text = Loc.T(key, pt);
+            l.Text = Loc.T(key, pt);
+            _filters.Controls.Add(l);
+        }
+        foreach (var c in new Control[] { _fileBox, _kindBox, _search }) { c.BackColor = Color.Black; c.ForeColor = Color.White; c.Margin = new Padding(0, 2, 6, 0); }
+        _fileBox.FlatStyle = FlatStyle.Flat; _kindBox.FlatStyle = FlatStyle.Flat; _search.BorderStyle = BorderStyle.FixedSingle;
+        Caption("npcgen.fMap", "Mapa:"); _filters.Controls.Add(_fileBox);
+        Caption("npcgen.fKind", "Mostrar:"); _filters.Controls.Add(_kindBox);
+        Caption("npcgen.fSearch", "Procurar:"); _filters.Controls.Add(_search);
+        _filters.Controls.Add(_count);
         B("npcgen.new", "＋ Ponto", NewPoint, 90);
         B("npcgen.clone", "Clonar", ClonePoint, 80);
         B("npcgen.delete", "Excluir", DeletePoint, 80);
@@ -356,6 +371,7 @@ internal sealed class NpcGenView : UserControl
             }
         }
         _list.VirtualListSize = _rows.Count;
+        _count.Text = string.Format(Loc.T("npcgen.count", "{0:N0} pontos"), _rows.Count);
         _list.SelectedIndices.Clear();
         int at = prev is { } p ? _rows.IndexOf(p) : -1;
         if (at < 0 && _rows.Count > 0) at = 0;
@@ -634,6 +650,12 @@ internal sealed class NpcGenView : UserControl
                     : tg.AutoStart != 0 ? normal : Color.Violet;
                 // só o que cai no terreno do cliente: a a26 do servidor tem 8 cópias do mapa de 1 km lado a lado (x a cada
                 // 1024 m) e só a do meio coincide com o mapa do cliente (PW-KB §S22)
+                // filtro do Mundo 3D: tipo do ponto + gatilho (evento agendado / fase ou GM)
+                WorldView.MarkKind TriggerKind(int id) => id == 0 || !triggers.TryGetValue(id, out var tg) ? 0
+                    : tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? WorldView.MarkKind.Event
+                    : tg.AutoStart != 0 ? 0 : WorldView.MarkKind.Trigger;
+                WorldView.MarkKind SpawnKind(NpcGenSpawn sp, int id) => _blockOf(id) != "NPC_ESSENCE" ? WorldView.MarkKind.Monster
+                    : sp.Type == 0 ? WorldView.MarkKind.Guard : IsMerchant?.Invoke(id) == true ? WorldView.MarkKind.Merchant : WorldView.MarkKind.Npc;
                 bool Inside(Vec3 p) => MathF.Abs(p.X) <= t.Width / 2 + 16 && MathF.Abs(p.Z) <= t.Height / 2 + 16;
                 foreach (var s in f.Spawns)
                 {
@@ -641,14 +663,15 @@ internal sealed class NpcGenView : UserControl
                     int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
                     var label = TriggerColor(s.Trigger, s.Type == 0 && _blockOf(id0) == "NPC_ESSENCE" ? Color.OrangeRed : Color.White);
                     list.Add(new(s.Position.X, s.Position.Y, s.Position.Z, s.Type == 1 ? Color.DeepSkyBlue : Color.Red, NameOf(id0), s,
-                        _modelOf(id0), MathF.Atan2(s.Direction.X, s.Direction.Z) * 180 / MathF.PI, label, s.Location == 0, id0));
+                        _modelOf(id0), MathF.Atan2(s.Direction.X, s.Direction.Z) * 180 / MathF.PI, label, s.Location == 0, id0,
+                        SpawnKind(s, id0) | TriggerKind(s.Trigger)));
                 }
                 foreach (var r in f.Resources)
                 {
                     if (!Inside(r.Position)) continue;
                     int id0 = r.Items.FirstOrDefault()?.Id ?? 0;
                     list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(id0), r, _modelOf(id0), 0,
-                        TriggerColor(r.Trigger, Color.Cyan), true, id0));
+                        TriggerColor(r.Trigger, Color.Cyan), true, id0, WorldView.MarkKind.Mine | TriggerKind(r.Trigger)));
                 }
                 return list;
             }, Sel, SelectObject,

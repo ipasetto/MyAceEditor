@@ -7,8 +7,8 @@ public sealed record NpcQuestRef(int Id, string Name, bool InService, bool InFie
 public sealed record NpcQuestInfo(int NpcId, string NpcName, IReadOnlyList<NpcQuestRef> Gives, IReadOnlyList<NpcQuestRef> Takes);
 
 /// <summary>
-/// Painel "Quests deste NPC" do Mundo 3D: sobe de baixo para cima ao clicar num NPC, pode ser minimizado.
-/// Duplo clique abre a quest; "Criar quest" só aparece quando há quem crie (<see cref="CreateQuest"/>).
+/// Painel do NPC no Mundo 3D: ao clicar num NPC sobe só a barra (nome + Criar quest, Dar quest existente, Ver quests);
+/// "Ver quests" abre as listas de quests que ele dá e recebe (duplo clique abre a quest na aba Quests).
 /// </summary>
 internal sealed class WorldQuestPanel : Panel
 {
@@ -18,7 +18,7 @@ internal sealed class WorldQuestPanel : Panel
 
     readonly Label _title = new() { AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.White, Font = new Font("Segoe UI", 10f, FontStyle.Bold), Padding = new Padding(8, 0, 0, 0) };
     readonly FlowLayoutPanel _buttons = new() { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(0, 3, 4, 0) };
-    readonly Button _create, _min, _close;
+    readonly Button _create, _link, _min, _close;
     readonly Label _givesTitle = Caption(), _takesTitle = Caption();
     readonly ListView _gives = List(), _takes = List();
     readonly ToolTip _tip = new();
@@ -28,19 +28,22 @@ internal sealed class WorldQuestPanel : Panel
     NpcQuestInfo? _info;
 
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? OpenQuest { get; set; }
-    /// <summary>Criar quest para o NPC (ID do NPC). Null = botão escondido.</summary>
-    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? CreateQuest { get => _createQuest; set { _createQuest = value; _create.Visible = value is not null; } }
+    /// <summary>Criar quest com o NPC como NPC que dá (ID do NPC). Null = botão desligado.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? CreateQuest { get => _createQuest; set { _createQuest = value; ApplyText(); } }
     Action<int>? _createQuest;
+    /// <summary>Dar uma quest existente ao NPC (ID do NPC). Null = botão desligado.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? LinkQuest { get => _linkQuest; set { _linkQuest = value; ApplyText(); } }
+    Action<int>? _linkQuest;
 
     public WorldQuestPanel()
     {
         Dock = DockStyle.Bottom; Height = 0; Visible = false; BackColor = Bg; ForeColor = Fg;
         Button Btn(Action a) { var b = new Button { AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Bg2, Margin = new Padding(3, 0, 0, 0), Height = 26 }; b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 90); b.Click += (_, _) => a(); return b; }
         _create = Btn(() => { if (_info is not null) _createQuest?.Invoke(_info.NpcId); });
-        _create.Visible = false;
+        _link = Btn(() => { if (_info is not null) _linkQuest?.Invoke(_info.NpcId); });
         _min = Btn(() => SetMinimized(!_minimized));
         _close = Btn(HidePanel);
-        _buttons.Controls.AddRange(new Control[] { _create, _min, _close });
+        _buttons.Controls.AddRange(new Control[] { _create, _link, _min, _close });
         var head = new Panel { Dock = DockStyle.Top, Height = Header, BackColor = Bg2 };
         head.Controls.Add(_title); head.Controls.Add(_buttons);
         head.DoubleClick += (_, _) => SetMinimized(!_minimized);
@@ -80,10 +83,15 @@ internal sealed class WorldQuestPanel : Panel
 
     void ApplyText()
     {
-        _create.Text = Loc.T("wq.create", "+ Criar quest");
-        _min.Text = _minimized ? "▴" : "▾";
+        _create.Text = Loc.T("wq.create", "+ Criar quest com este NPC");
+        _link.Text = Loc.T("wq.link", "Dar quest existente");
+        _create.Enabled = _createQuest is not null; _link.Enabled = _linkQuest is not null;
+        var soon = Loc.T("wq.soon", "Em construção: próximo passo.");
+        _tip.SetToolTip(_create, _createQuest is null ? soon : Loc.T("wq.createTip", "Nova quest com este NPC como o NPC que dá a quest."));
+        _tip.SetToolTip(_link, _linkQuest is null ? soon : Loc.T("wq.linkTip", "Escolher uma quest que já existe para este NPC dar (aplicado no Salvar)."));
+        _min.Text = _info is null ? "" : ListText();
         _close.Text = "✕";
-        _tip.SetToolTip(_min, _minimized ? Loc.T("wq.restore", "Mostrar a lista") : Loc.T("wq.minimize", "Minimizar"));
+        _tip.SetToolTip(_min, Loc.T("wq.listTip", "Mostra ou esconde as quests que este NPC já dá e recebe."));
         _tip.SetToolTip(_close, Loc.T("wq.close", "Fechar"));
         foreach (var lv in new[] { _gives, _takes })
         {
@@ -102,7 +110,8 @@ internal sealed class WorldQuestPanel : Panel
         Fill(_takes, info.Takes, gives: false);
         _tip.SetToolTip(_title, Loc.T("wq.hint", "Clique duas vezes numa quest para abrir. Clique duas vezes aqui para minimizar."));
         Visible = true; BringToFront();
-        SetMinimized(false);
+        SetMinimized(true);   // primeiro só a barra; a lista abre em "Ver quests"
+        ApplyText();
     }
 
     void Fill(ListView lv, IReadOnlyList<NpcQuestRef> list, bool gives)
@@ -129,11 +138,14 @@ internal sealed class WorldQuestPanel : Panel
         lv.EndUpdate();
     }
 
+    string ListText() => _minimized
+        ? string.Format(Loc.T("wq.showList", "Ver quests ({0} dá / {1} recebe) ▴"), _info!.Gives.Count, _info.Takes.Count)
+        : Loc.T("wq.hideList", "Esconder quests ▾");
+
     void SetMinimized(bool min)
     {
         _minimized = min;
-        _min.Text = min ? "▴" : "▾";
-        _tip.SetToolTip(_min, min ? Loc.T("wq.restore", "Mostrar a lista") : Loc.T("wq.minimize", "Minimizar"));
+        if (_info is not null) _min.Text = ListText();
         Animate(min ? Header : Full);
     }
 

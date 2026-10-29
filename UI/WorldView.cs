@@ -17,7 +17,15 @@ internal sealed class WorldView : Form
 {
     /// <summary>LabelColor = cor do nome (legenda); OnGround = "no chão" (desenha na altura do terreno quando perto dela).</summary>
     public sealed record Marker(float X, float Y, float Z, Color Color, string Name, object Tag, string? Model = null, float Yaw = 0,
-        Color LabelColor = default, bool OnGround = false, int Id = 0);
+        Color LabelColor = default, bool OnGround = false, int Id = 0, MarkKind Kind = 0);
+
+    /// <summary>Tipo do ponto para o filtro da barra (tipo + gatilho). 0 = sempre visível.</summary>
+    [Flags] public enum MarkKind { Monster = 1, Npc = 2, Merchant = 4, Guard = 8, Mine = 16, Event = 32, Trigger = 64 }
+    const MarkKind Types = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine, Triggers = MarkKind.Event | MarkKind.Trigger;
+    /// <summary>Filtro "Mostrar" (vale para a sessão toda): por padrão monstros, NPCs comuns e comerciantes.</summary>
+    static MarkKind _show = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant;
+    List<Marker> _allMarks = new();
+    static bool Visible(Marker m) => m.Kind == 0 || (m.Kind & Types & _show) != 0 && ((m.Kind & Triggers) == 0 || (m.Kind & Triggers & _show) != 0);
 
     const System.ComponentModel.DesignerSerializationVisibility Hidden = System.ComponentModel.DesignerSerializationVisibility.Hidden;
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, Vector3>? CloneHere { get; set; }
@@ -92,6 +100,24 @@ internal sealed class WorldView : Form
         _bar.Items.Add(_mapBox);
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", () => { _legendOpen = !_legendOpen; _gl.Invalidate(); }));
+        _bar.Items.Add(new ToolStripSeparator());
+        _bar.Items.Add(new ToolStripLabel(Loc.T("world.show", "Mostrar:")) { ForeColor = Color.Silver });
+        foreach (var (kind, key, pt, tip) in new[]
+        {
+            (MarkKind.Monster, "world.fMonster", "Monstros", "Pontos de monstro."),
+            (MarkKind.Npc, "world.fNpc", "NPCs comuns", "NPCs sem loja."),
+            (MarkKind.Merchant, "world.fMerchant", "Comerciantes", "NPCs com serviço de venda."),
+            (MarkKind.Guard, "world.fGuard", "Guardas", "NPC em ponto de monstro (nome vermelho)."),
+            (MarkKind.Mine, "world.fMine", "Coletáveis", "Minas, plantas e outros coletáveis."),
+            (MarkKind.Event, "world.fEvent", "Eventos", "Pontos ligados por gatilho com data/hora (nome verde). Aparecem se o tipo também estiver marcado."),
+            (MarkKind.Trigger, "world.fTrigger", "Gatilhos", "Pontos ligados por gatilho sem agenda: fase de DG, GM (nome lilás). Aparecem se o tipo também estiver marcado."),
+        })
+        {
+            var cb = new CheckBox { Text = Loc.T(key, pt), Checked = (_show & kind) != 0, ForeColor = Color.White, BackColor = Color.Transparent, AutoSize = true, Padding = new Padding(2, 2, 0, 0) };
+            var host = new ToolStripControlHost(cb) { ToolTipText = Loc.T(key + ".h", tip), Margin = new Padding(2, 0, 2, 0) };
+            cb.CheckedChanged += (_, _) => { _show = cb.Checked ? _show | kind : _show & ~kind; RefreshMarkers(); _gl.Focus(); };
+            _bar.Items.Add(host);
+        }
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
@@ -216,7 +242,7 @@ internal sealed class WorldView : Form
     bool Confirm() => MessageBox.Show(this, Loc.T("world.deleteAsk", "Excluir este ponto? (Ctrl+Z desfaz)"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
 
     /// <summary>Relê os pontos (depois de criar, mover, excluir ou trocar o arquivo).</summary>
-    public void RefreshMarkers() { _marks = _markerSrc().ToList(); _nearAt = new(float.MaxValue); _marksDirty = false; _marksAt = _clock.Elapsed.TotalSeconds; _gl?.Invalidate(); }
+    public void RefreshMarkers() { _allMarks = _markerSrc().ToList(); _marks = _allMarks.Where(Visible).ToList(); _nearAt = new(float.MaxValue); _marksDirty = false; _marksAt = _clock.Elapsed.TotalSeconds; _gl?.Invalidate(); }
 
     /// <summary>Algo mudou fora: relê os pontos no próximo quadro (no máximo ~3 vezes por segundo).</summary>
     public void MarkDirty() { _marksDirty = true; _gl?.Invalidate(); }
@@ -224,7 +250,7 @@ internal sealed class WorldView : Form
     /// <summary>Leva a câmera até o ponto (lista da aba NPCGen ou "Ir para").</summary>
     public void GoTo(object tag)
     {
-        if (_marks.FirstOrDefault(m => m.Tag == tag) is { } m) { LookAt(PosOf(m)); _gl.Invalidate(); }
+        if ((_marks.FirstOrDefault(m => m.Tag == tag) ?? _allMarks.FirstOrDefault(m => m.Tag == tag)) is { } m) { LookAt(PosOf(m)); _gl.Invalidate(); }
     }
 
     /// <summary>Câmera acima do ponto, olhando para baixo (abrir sem nada selecionado). high: vista alta do mapa inteiro.</summary>
