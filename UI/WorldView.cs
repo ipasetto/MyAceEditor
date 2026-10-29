@@ -22,8 +22,8 @@ internal sealed class WorldView : Form
     /// <summary>Tipo do ponto para o filtro da barra (tipo + gatilho). 0 = sempre visível.</summary>
     [Flags] public enum MarkKind { Monster = 1, Npc = 2, Merchant = 4, Guard = 8, Mine = 16, Event = 32, Trigger = 64 }
     const MarkKind Types = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine, Triggers = MarkKind.Event | MarkKind.Trigger;
-    /// <summary>Filtro "Mostrar" (vale para a sessão toda): por padrão monstros, NPCs comuns e comerciantes.</summary>
-    static MarkKind _show = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant;
+    /// <summary>Filtro "Mostrar" (vale para a sessão toda): por padrão tudo menos eventos e gatilhos.</summary>
+    static MarkKind _show = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine;
     List<Marker> _allMarks = new();
     static bool Visible(Marker m) => m.Kind == 0 || (m.Kind & Types & _show) != 0 && ((m.Kind & Triggers) == 0 || (m.Kind & Triggers & _show) != 0);
 
@@ -52,7 +52,7 @@ internal sealed class WorldView : Form
     readonly Func<object?> _selected;
     readonly Action<object> _select;
     readonly GLControl _gl;
-    readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.Gainsboro };
+    readonly StatusLine _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.Gainsboro };
     readonly ToolStrip _bar = new() { GripStyle = ToolStripGripStyle.Hidden, RenderMode = ToolStripRenderMode.System, BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Padding = new Padding(4, 3, 4, 3) };
     readonly ToolStripTextBox _find = new() { Width = 220, BackColor = Color.Black, ForeColor = Color.White };
     readonly ToolStripComboBox _mapBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, BackColor = Color.Black, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -164,13 +164,15 @@ internal sealed class WorldView : Form
                     if (mk is { Id: > 0 } && NpcQuests is not null)
                     {
                         if (NpcQuests(mk.Id) is { } qi) _quests.ShowNpc(qi);   // NPC: quests que dá e recebe
-                        else _status.Text += "   ·   " + Loc.T("wq.notNpc", "não é NPC: o painel de quests abre ao clicar num NPC");
+                        else { _quests.HidePanel(); _status.Text += "   ·   " + Loc.T("wq.notNpc", "não é NPC: o painel de quests abre ao clicar num NPC"); }
                     }
                 }
                 _movingTag = null; _movePos = null; _gl.Invalidate();
                 return;
             }
             if (e.Button == MouseButtons.Right) RightClick(e.Location);
+            // clique esquerdo no vazio (sem arrastar a câmera): o NPC perde a seleção e a barra de quests some
+            else if (e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4) _quests.HidePanel();
         };
         _gl.MouseMove += (_, e) =>
         {
@@ -792,6 +794,14 @@ internal sealed class WorldView : Form
         ["a39"] = "Endless Universe", ["a40"] = "Rat Lurk Pits",
     };
     sealed record MapItem(string Key) { public override string ToString() => MapNames.TryGetValue(Key, out var n) ? $"{Key} — {n}" : Key; }
+
+    /// <summary>Barra de status sem piscar: desenha com buffer duplo e só repinta quando o texto muda.</summary>
+    sealed class StatusLine : Label
+    {
+        public StatusLine() { DoubleBuffered = true; SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true); }
+        [System.Diagnostics.CodeAnalysis.AllowNull]
+        public override string Text { get => base.Text; set { if (value != base.Text) base.Text = value; } }
+    }
 
     sealed class DoubleBufferedPanel : Panel { public DoubleBufferedPanel() { DoubleBuffered = true; SetStyle(ControlStyles.Selectable, true); } }
 }
