@@ -477,11 +477,12 @@ internal static class Program
         foreach (var (id, val) in new (string, object)[]
         {
             ("classes", new List<int> { 0, 6 }), ("gender", 2L), ("preTasks", new List<int> { tpl.Id }), ("premItems", new List<(int, int)> { (11208, 1) }),
-            ("spouse", true), ("redo", true), ("newTask", new List<int> { tpl.Id }), ("bank", 2L), ("randItem", true), ("levCo", true),
+            ("spouse", true), ("redo", true), ("newTask", new List<int> { tpl.Id }), ("bank", 2L), ("levCo", true),
         })
             if (QuestOptions.Available(Opt(id), t.Version, model)) d.Choices.Add(new QuestChoice(Opt(id), val));
         sb.AppendLine("opções: " + string.Join(", ", d.Choices.Select(c => c.Option.Id)) + " · indisponíveis nesta versão: "
             + string.Join(", ", QuestOptions.All.Where(o => !QuestOptions.Available(o, t.Version, model)).Select(o => o.Id)));
+        d.RandomItem = true;
         var errors = QuestBuilder.Validate(t, d, _ => true, _ => true);
         sb.AppendLine("validação: " + (errors.Count == 0 ? "OK" : string.Join("; ", errors)));
         var q = QuestBuilder.Build(t, d);

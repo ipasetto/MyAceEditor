@@ -3497,7 +3497,7 @@
   "qe.rep": "声望",
   "qe.repHint": "获得的声望。",
   "qe.items": "物品",
-  "qe.itemsHint": "交任务时获得的物品（全部给予，不随机）。",
+  "qe.itemsHint": "交任务时获得的物品。在列表下方选择全部给予还是随机一个。",
   "qe.stepTexts": "文本",
   "qe.desc": "描述",
   "qe.descHint": "任务日志中的文本：玩家需要做什么。",
@@ -3572,8 +3572,6 @@
   "qo.redo.h": "完成后可以再次进行。",
   "qo.reqField": "其他字段（高级）",
   "qo.reqField.h": "格式中的任何其他条件字段；选择字段和值。",
-  "qo.randItem": "随机给予一个物品",
-  "qo.randItem.h": "开启：玩家只从物品列表中随机获得一个。",
   "qo.newTask": "完成后的新任务",
   "qo.newTask.h": "完成时自动给予的任务（任务链）。只计第一个。",
   "qo.bank": "仓库格子",
@@ -3593,5 +3591,11 @@
   "qo.msg": "在聊天中公告",
   "qo.msg.h": "有人完成时在聊天中显示消息。",
   "qo.awardField": "其他字段（高级）",
-  "qo.awardField.h": "格式中的任何其他奖励字段；选择字段和值。"
+  "qo.awardField.h": "格式中的任何其他奖励字段；选择字段和值。",
+  "qe.allItems": "玩家获得全部物品",
+  "qe.oneItem": "玩家从列表中随机获得一个物品",
+  "qe.noMoreAward": "没有额外奖励：只有上面的内容。",
+  "qe.noReq": "无条件：达到最低等级的任何玩家都可接受。",
+  "qb.sumOneItem": "物品（随机获得一个）：",
+  "qb.sumAllItems": "物品（全部获得）："
 }

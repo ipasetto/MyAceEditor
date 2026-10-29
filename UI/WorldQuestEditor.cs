@@ -29,6 +29,7 @@ internal sealed class WorldQuestEditor : Panel
     readonly TextBox _name = Text(false), _desc = Text(true), _offer = Text(true), _reward = Text(true), _summary = Text(true);
     readonly Label _giverName = Muted(), _receiverName = Muted(), _itemName = Muted(), _errors = new() { AutoSize = true, ForeColor = Bad, MaximumSize = new Size(330, 0) };
     readonly List<QuestChoiceBlock> _choices = new();
+    readonly ComboBox _howItems = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 330, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(3, 4, 3, 2) };
     readonly ListView _items = new() { View = View.Details, FullRowSelect = true, Height = 130, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
 
     /// <summary>Quest criada (ID) — o Mundo 3D fecha o painel e mostra o NPC.</summary>
@@ -135,16 +136,19 @@ internal sealed class WorldQuestEditor : Panel
             (_rep, "qe.rep", "Reputação", "qe.repHint", "Reputação ganha."),
         })
         { Caption(award, key, pt, hk, hint); award.Controls.Add(num); }
-        Caption(award, "qe.items", "Itens", "qe.itemsHint", "Itens ganhos ao entregar (todos, não sorteados).");
+        Caption(award, "qe.items", "Itens", "qe.itemsHint", "Itens ganhos ao entregar. Abaixo da lista, escolha se o jogador ganha todos ou um sorteado.");
         _items.Columns.Add(Loc.T("wq.colId", "ID"), 70); _items.Columns.Add(Loc.T("qe.itemCol", "Item"), 190); _items.Columns.Add(Loc.T("qe.countCol", "Qtd."), 60);
         award.Controls.Add(_items);
         var addRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 4, 0, 0) };
-        _itemN.Width = 70;
+        _itemId.Width = 96; _itemN.Width = 58;   // cabe na largura do painel com os dois botões
         addRow.Controls.Add(_itemId); addRow.Controls.Add(_itemN);
         addRow.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), AddItem));
         addRow.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), () => { foreach (ListViewItem it in _items.SelectedItems) _items.Items.Remove(it); }));
         award.Controls.Add(addRow);
         award.Controls.Add(_itemName);
+        _howItems.Items.AddRange(new object[] { Loc.T("qe.allItems", "O jogador ganha todos os itens"), Loc.T("qe.oneItem", "O jogador ganha um item sorteado da lista") });
+        _howItems.SelectedIndex = 0;
+        award.Controls.Add(_howItems);
         AddChooser(award, reward: true);
         _itemId.ValueChanged += (_, _) => _itemName.Text = _itemId.Value <= 0 ? "" : _host.NameOf((int)_itemId.Value) ?? Loc.T("qe.unknown", "(não existe no elements.data)");
 
@@ -175,6 +179,11 @@ internal sealed class WorldQuestEditor : Panel
         foreach (var o in opts) box.Items.Add(o.Text);
         if (box.Items.Count > 0) box.SelectedIndex = 0;
         var holder = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
+        // nada escolhido = sem requisitos / sem prêmios a mais (dito na tela)
+        var none = new Label { AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Good, Margin = new Padding(3, 6, 3, 3),
+            Text = reward ? Loc.T("qe.noMoreAward", "Nenhum prêmio a mais: só o que está acima.") : Loc.T("qe.noReq", "Sem requisitos: qualquer jogador a partir do nível mínimo pode aceitar.") };
+        holder.Controls.Add(none);
+        void Sync() => none.Visible = !holder.Controls.OfType<QuestChoiceBlock>().Any();
         var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
         row.Controls.Add(box);
         row.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), () =>
@@ -183,8 +192,8 @@ internal sealed class WorldQuestEditor : Panel
             var o = opts[box.SelectedIndex];
             if (o.Type != QOType.Field && _choices.Any(c => c.Option == o)) return;   // cada opção uma vez (menos "outro campo")
             var b = new QuestChoiceBlock(o, _host, _tip);
-            b.Removed += x => { _choices.Remove(x); holder.Controls.Remove(x); x.Dispose(); };
-            _choices.Add(b); holder.Controls.Add(b);
+            b.Removed += x => { _choices.Remove(x); holder.Controls.Remove(x); x.Dispose(); Sync(); };
+            _choices.Add(b); holder.Controls.Add(b); Sync();
         }));
         box.SelectedIndexChanged += (_, _) => { if (box.SelectedIndex >= 0) _tip.SetToolTip(box, opts[box.SelectedIndex].Tip); };
         page.Controls.Add(row);
@@ -215,6 +224,7 @@ internal sealed class WorldQuestEditor : Panel
         _d.Items = _items.Items.Cast<ListViewItem>().Select(i => ((int, int))i.Tag!).ToList();
         _d.Description = _desc.Text.Trim(); _d.OfferText = _offer.Text.Trim(); _d.RewardText = _reward.Text.Trim();
         _d.Choices = _choices.Select(c => c.Choice).ToList();
+        _d.RandomItem = _howItems.SelectedIndex == 1;
         return _d;
     }
 

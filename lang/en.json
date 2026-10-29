@@ -3495,7 +3495,7 @@
   "qe.rep": "Reputation",
   "qe.repHint": "Reputation earned.",
   "qe.items": "Items",
-  "qe.itemsHint": "Items earned on hand-in (all of them, not drawn).",
+  "qe.itemsHint": "Items earned on hand-in. Below the list, choose whether the player gets all of them or one drawn.",
   "qe.stepTexts": "Texts",
   "qe.desc": "Description",
   "qe.descHint": "Quest text in the log: what the player has to do.",
@@ -3570,8 +3570,6 @@
   "qo.redo.h": "Can be done again after completion.",
   "qo.reqField": "Other field (advanced)",
   "qo.reqField.h": "Any other requirement field of the format; pick the field and the value.",
-  "qo.randItem": "Draw one of the items",
-  "qo.randItem.h": "On: the player gets only one item drawn from the item list.",
   "qo.newTask": "New quest on completion",
   "qo.newTask.h": "Quest given automatically on completion (chain). Only the first counts.",
   "qo.bank": "Bank slots",
@@ -3591,5 +3589,11 @@
   "qo.msg": "Announce in chat",
   "qo.msg.h": "Shows a chat message when someone completes it.",
   "qo.awardField": "Other field (advanced)",
-  "qo.awardField.h": "Any other reward field of the format; pick the field and the value."
+  "qo.awardField.h": "Any other reward field of the format; pick the field and the value.",
+  "qe.allItems": "The player gets all the items",
+  "qe.oneItem": "The player gets one item drawn from the list",
+  "qe.noMoreAward": "No extra rewards: only what is above.",
+  "qe.noReq": "No requirements: any player from the minimum level can accept.",
+  "qb.sumOneItem": "Items (gets one, drawn):",
+  "qb.sumAllItems": "Items (gets all):"
 }

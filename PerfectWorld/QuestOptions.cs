@@ -38,7 +38,6 @@ public static class QuestOptions
         new("redo", false, QOType.Flag, "Pode refazer", "Pode ser feita de novo depois de concluída.", "m_bCanRedo"),
         new("reqField", false, QOType.Field, "Outro campo (avançado)", "Qualquer outro campo de requisito do formato; escolha o campo e o valor.", ""),
         // prêmios (além de ouro, experiência, espírito, reputação e itens)
-        new("randItem", true, QOType.Flag, "Sortear um dos itens", "Ligado: o jogador ganha só um item sorteado da lista de itens.", AwardPrefix + "m_CandItems[0].m_bRandChoose"),
         new("newTask", true, QOType.Quests, "Nova quest ao concluir", "Quest dada automaticamente ao concluir (cadeia). Só a 1ª conta.", AwardPrefix + "m_ulNewTask"),
         new("bank", true, QOType.Number, "Espaços no banco", "Espaços a mais no banco.", AwardPrefix + "m_ulStorehouseSize"),
         new("inventory", true, QOType.Number, "Espaços no inventário", "Espaços a mais no inventário.", AwardPrefix + "m_lInventorySize"),
@@ -70,7 +69,7 @@ public static class QuestOptions
 
     /// <summary>A versão tem a opção (o campo existe no bloco do modelo ou é um bit de CombinedSwitches).</summary>
     public static bool Available(QuestOption o, int version, TaskRec model) => o.Type == QOType.Field
-        || o.Keys[0].Contains("m_CandItems[0]") || model.V.ContainsKey(o.Keys[0]) || model.V.ContainsKey(o.Keys[0] + "[0]") || SwitchIndex(version, o.Keys[0]) >= 0;
+        || model.V.ContainsKey(o.Keys[0]) || model.V.ContainsKey(o.Keys[0] + "[0]") || SwitchIndex(version, o.Keys[0]) >= 0;
 
     /// <summary>Liga/desliga um campo booleano: bit de CombinedSwitches na v135+ ou o próprio campo.</summary>
     public static void SetFlag(TaskRec rec, int version, string key, bool on)

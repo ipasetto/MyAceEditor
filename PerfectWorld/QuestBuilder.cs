@@ -9,6 +9,8 @@ public sealed class QuestDraft
     public int MinLevel, MaxLevel;
     public long Gold, Exp, Sp, Reputation;
     public List<(int Id, int Count)> Items = new();
+    /// <summary>true = o jogador ganha só um dos itens, sorteado; false = ganha todos.</summary>
+    public bool RandomItem;
     public string Description = "", OfferText = "", RewardText = "";
     /// <summary>Requisitos e prêmios a mais, escolhidos na lista (<see cref="QuestOptions"/>).</summary>
     public List<QuestChoice> Choices = new();
@@ -125,7 +127,7 @@ public static class QuestBuilder
                     e.Add(string.Format(T("qb.optField", "{0}: escolha o campo e um valor numérico."), name)); break;
             }
         }
-        if (d.Choices.Any(c => c.Option.Id == "randItem") && d.Items.Count < 2) e.Add(T("qb.randNeedsItems", "Para sortear um item, coloque pelo menos 2 itens no prêmio."));
+        if (d.RandomItem && d.Items.Count < 2) e.Add(T("qb.randNeedsItems", "Para sortear um item, coloque pelo menos 2 itens no prêmio."));
         return e;
     }
 
@@ -152,7 +154,7 @@ public static class QuestBuilder
         if (d.Items.Count > 0)
         {
             const string g = "m_Award_S.m_CandItems[0].";
-            S(g + "m_bRandChoose", 0); S(g + "m_ulAwardItems", d.Items.Count);
+            S(g + "m_bRandChoose", d.RandomItem ? 1 : 0); S(g + "m_ulAwardItems", d.Items.Count);
             for (int i = 0; i < d.Items.Count; i++)
             {
                 var it = g + $"m_AwardItems[{i}].";

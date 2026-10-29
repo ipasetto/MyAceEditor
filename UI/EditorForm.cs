@@ -2646,6 +2646,7 @@ public sealed class EditorForm : Form
         sb.AppendLine(string.Format(Loc.T("qb.sumReceiver", "Entregue a: {0}"), N(d.Receiver)));
         sb.AppendLine(d.MaxLevel > 0 ? string.Format(Loc.T("qb.sumLevels", "Nível: {0} a {1}"), d.MinLevel, d.MaxLevel) : string.Format(Loc.T("qb.sumLevelMin", "Nível: a partir de {0}"), d.MinLevel));
         sb.AppendLine(string.Format(Loc.T("qb.sumAward", "Prêmio: {0:N0} de ouro, {1:N0} de experiência, {2:N0} de espírito, {3:N0} de reputação"), d.Gold, d.Exp, d.Sp, d.Reputation));
+        if (d.Items.Count > 0) sb.AppendLine(d.RandomItem ? Loc.T("qb.sumOneItem", "Itens (ganha um, sorteado):") : Loc.T("qb.sumAllItems", "Itens (ganha todos):"));
         foreach (var (id, n) in d.Items) sb.AppendLine(string.Format(Loc.T("qb.sumItem", "  + {0} × {1}"), n, N(id)));
         string Val(QuestChoice c) => c.Value switch
         {
