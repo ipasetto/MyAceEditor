@@ -455,6 +455,16 @@ internal static class Program
         var edited = t.Build();
         var again = new TasksFile(edited);
         sb.AppendLine($"editar descrição: {(again.FullSchema && again.Roots![1].Texts[0] == "Descrição de teste ✓" ? "OK" : "FALHOU " + again.SchemaError)} ({edited.Length - original.Length:+#;-#;0} bytes)");
+        // NPC que dá / recebe: mesma posição em todas as quests (índice por NPC do Mundo 3D lê direto do bloco)
+        foreach (var key in new[] { "m_ulDelvNPC", "m_ulAwardNPC" })
+        {
+            int off0 = all[0].Field(key)!.Offset;
+            int bad = all.Count(n => n.Field(key)?.Offset != off0);
+            sb.AppendLine($"posição de {key}: {(bad == 0 ? $"fixa em {off0} em todas" : $"VARIA em {bad:N0} quests")}");
+            foreach (var n in all) n.Fields = null!;   // solta a memória dos campos montados
+        }
+        var giver = all.Select(n => n.Get(n.Field("m_ulDelvNPC")!)).Where(v => v != "0").GroupBy(v => v).OrderByDescending(g => g.Count()).First();
+        sb.AppendLine($"NPC que mais dá quests: {giver.Key} ({giver.Count()}); índice por NPC: {t.QuestsOfNpc(int.Parse(giver.Key), true).Count}");
         // campo escalar (mesmo nome em todas as versões via QuestKeys) e clonar
         var fAward = again.Roots![1].Field("NPC do prêmio")!;
         again.Roots[1].Set(fAward, "12345");

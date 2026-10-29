@@ -21,6 +21,11 @@ internal sealed class NpcGenView : UserControl
     readonly Func<IWin32Window, Kind, int, int?> _pick;
     readonly Func<string?> _elementDir;
     readonly Func<int, string?> _modelOf;   // ID → .ecm do elements (file_model)
+    /// <summary>Quests que o NPC dá/recebe (painel do Mundo 3D); fornecido pelo editor.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<int, NpcQuestInfo?>? QuestsOfNpc { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Action<int>? OpenQuest { get; set; }
     readonly Func<int, string?> _blockOf;   // ID → bloco do elements (NPC em ponto de monstro = guarda)
     readonly Action<int> _editItem;         // abre o registro no editor (aba Elements)
 
@@ -655,6 +660,7 @@ internal sealed class NpcGenView : UserControl
             },
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
         w.Tag = _cur;
+        w.NpcQuests = QuestsOfNpc; w.OpenQuest = OpenQuest;
         w.CloneHere = (o, g) =>
         {
             SelectObject(o);

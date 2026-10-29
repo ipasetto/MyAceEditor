@@ -354,6 +354,8 @@ public sealed class EditorForm : Form
             }));
         tabs.TabPages.Add(tN);
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
+        _npcgen.QuestsOfNpc = NpcQuests;
+        _npcgen.OpenQuest = id => { GoToQuest(id); Activate(); };
         // servidor escolhido no NPCGen (pasta gamed\config) vira o servidor do programa todo
         _npcgen.ServerFolderPicked = config => { if (Path.GetDirectoryName(config) is { } gamed) SetServerFolder(gamed); };
         var tAi = new TabPage() { BackColor = CBg };
@@ -2551,6 +2553,38 @@ public sealed class EditorForm : Form
     // número num bloco diferente); refeito a cada mudança no histórico e ao trocar de arquivo.
     private Dictionary<string, (ItemList Block, Item Item)>? _creatureCache;
     private Module? _creatureCacheFor;
+    /// <summary>
+    /// Quests que o NPC dá e recebe (Mundo 3D): serviços do NPC no elements (NPC_TASK_OUT/IN_SERVICE, campos id_tasks_N)
+    /// e campos das quests (m_ulDelvNPC / m_ulAwardNPC). Null se o ID não é um NPC.
+    /// </summary>
+    private NpcQuestInfo? NpcQuests(int npcId)
+    {
+        if (CreatureItem(npcId) is not { } npc || npc.Block.Name != "NPC_ESSENCE") return null;
+        var m = _store.Current;
+        List<int> Service(string field, string block)
+        {
+            var ids = new List<int>();
+            if (m is null || !npc.Item.Fields.TryGetValue(field, out var sf) || sf.Value is "0" or "" || m.FindListByName(block) is not { } bl) return ids;
+            if (bl.Items.FirstOrDefault(i => i.Id == sf.Value) is not { } svc) return ids;
+            foreach (var (k, f) in svc.Fields)
+                if (k.Contains("id_tasks") && !k.Contains("space") && int.TryParse(f.Value, out var q) && q > 0) ids.Add(q);
+            return ids;
+        }
+        List<NpcQuestRef> Merge(List<int> service, IReadOnlyList<QuestNode> byField)
+        {
+            var list = new List<NpcQuestRef>();
+            var fieldIds = byField.Select(q => q.Id).ToHashSet();
+            foreach (var id in service.Distinct())
+                list.Add(new(id, _tasks?.Index.Find(id) is { } row ? TasksFile.SplitColor(TaskIndex.NameOf(row)).Text : "", true, fieldIds.Contains(id)));
+            foreach (var q in byField)
+                if (!service.Contains(q.Id)) list.Add(new(q.Id, TasksFile.SplitColor(q.Name).Text, false, true));
+            return list;
+        }
+        var gives = Merge(Service("id_task_out_service", "NPC_TASK_OUT_SERVICE"), _tasks?.QuestsOfNpc(npcId, true) ?? Array.Empty<QuestNode>());
+        var takes = Merge(Service("id_task_in_service", "NPC_TASK_IN_SERVICE"), _tasks?.QuestsOfNpc(npcId, false) ?? Array.Empty<QuestNode>());
+        return new NpcQuestInfo(npcId, TasksFile.SplitColor(npc.Item.Name).Text, gives, takes);
+    }
+
     private (ItemList Block, Item Item)? CreatureItem(int id)
     {
         if (_store.Current is not { } m) return null;

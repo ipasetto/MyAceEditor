@@ -116,6 +116,43 @@ public sealed class TasksFile
 
     public IEnumerable<QuestNode> AllNodes() => Index.Nodes;
 
+    // ---------- quests por NPC (Mundo 3D) ----------
+
+    Dictionary<int, List<QuestNode>>? _byDelvNpc, _byAwardNpc;
+
+    /// <summary>Quests cujo campo "NPC que dá" (m_ulDelvNPC) ou "NPC que recebe" (m_ulAwardNPC) é o NPC.</summary>
+    public IReadOnlyList<QuestNode> QuestsOfNpc(int npcId, bool gives)
+    {
+        if (Roots is null) return Array.Empty<QuestNode>();
+        _byDelvNpc ??= ByScalar("m_ulDelvNPC");
+        _byAwardNpc ??= ByScalar("m_ulAwardNPC");
+        return (gives ? _byDelvNpc : _byAwardNpc).TryGetValue(npcId, out var l) ? l : Array.Empty<QuestNode>();
+    }
+
+    /// <summary>
+    /// Índice valor → quests de um campo escalar. Os campos antes das listas variáveis ficam na mesma posição em todas as
+    /// quests da versão; a posição vem da 1ª quest e é conferida em cada uma pelo tamanho do bloco (senão monta os campos).
+    /// </summary>
+    Dictionary<int, List<QuestNode>> ByScalar(string key)
+    {
+        var map = new Dictionary<int, List<QuestNode>>();
+        int? off = Index.Nodes.FirstOrDefault()?.Field(key)?.Offset;
+        if (off is null) return map;
+        foreach (var q in Index.Nodes)
+        {
+            int at = q.Fixed.Length >= off.Value + 4 ? off.Value : q.Field(key)?.Offset ?? -1;
+            if (at < 0) continue;
+            int v = BitConverter.ToInt32(q.Fixed, at);
+            if (v == 0) continue;
+            if (!map.TryGetValue(v, out var l)) map[v] = l = new();
+            l.Add(q);
+        }
+        return map;
+    }
+
+    /// <summary>Esquece os índices por NPC (depois de editar, criar ou excluir quests).</summary>
+    public void InvalidateNpcIndex() { _byDelvNpc = null; _byAwardNpc = null; }
+
     /// <summary>Bytes do arquivo com as alterações aplicadas.</summary>
     public byte[] Build(LoadContext? context = null)
     {

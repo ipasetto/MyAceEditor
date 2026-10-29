@@ -30,6 +30,10 @@ internal sealed class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<string>? SwitchMap { get; set; }
     /// <summary>Pasta watermap do servidor: N.wmap = i32 versão, 2f lado, i32 n, n × (centro x, z relativos ao centro do pedaço, meia-largura x, z, altura).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public string? WaterDir { get; set; }
+    /// <summary>Quests que o NPC (ID do elements) dá e recebe; null = não é NPC. Clicar num NPC abre o painel de baixo.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<int, NpcQuestInfo?>? NpcQuests { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<int>? OpenQuest { get => _quests.OpenQuest; set => _quests.OpenQuest = value; }
+    readonly WorldQuestPanel _quests = new();
 
     const float Speed = 40;           // m/s andando; Shift = ×4
 
@@ -90,7 +94,7 @@ internal sealed class WorldView : Form
         _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", () => { _legendOpen = !_legendOpen; _gl.Invalidate(); }));
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
-        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_status);
+        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         _terrain = new WorldTerrain(t, _load, element, start);
         _models = new WorldModels(element, _load);
@@ -126,7 +130,13 @@ internal sealed class WorldView : Form
             {
                 bool moved = _movePos is not null && (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4);
                 if (moved && _moveHere is not null) { _moveHere(tag, _movePos!.Value); RefreshMarkers(); }
-                else { _select(tag); _status.Text = _marks.FirstOrDefault(m => m.Tag == tag)?.Name ?? ""; }
+                else
+                {
+                    _select(tag);
+                    var mk = _marks.FirstOrDefault(m => m.Tag == tag);
+                    _status.Text = mk?.Name ?? "";
+                    if (mk is { Id: > 0 } && NpcQuests?.Invoke(mk.Id) is { } qi) _quests.ShowNpc(qi);   // NPC: quests que dá e recebe
+                }
                 _movingTag = null; _movePos = null; _gl.Invalidate();
                 return;
             }
