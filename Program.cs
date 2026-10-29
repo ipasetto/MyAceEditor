@@ -122,6 +122,7 @@ internal static class Program
         if (args.Length >= 4 && args[0] == "--aipolicy-convert") { AiConvert(args[1], args[2], args[3]); return; }   // <entrada> <referência que o gs lê> <saída>
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
         if (args.Length >= 1 && args[0] == "--translate-selftest") { TranslateSelfTest().GetAwaiter().GetResult(); return; }
         if (args.Length >= 2 && args[0] == "--addons") { TestAddons(args[1]); return; }
@@ -420,6 +421,14 @@ internal static class Program
         var back = new AiPolicyFile(output);
         sb.AppendLine($"{rep}\nresultado: {(back.Ok ? back.Limits().ToString() : "NÃO RELÊ: " + back.Error)} · {back.Policies.Count:N0} políticas · {back.Policies.Sum(p => p.Triggers.Count):N0} gatilhos");
         File.WriteAllText("aipolicy-convert.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --tasks-labels: revisar rótulos/dicas da tabela de campos (PerfectWorld/cfg/quest_fields.pt.tsv)
+    private static void TaskLabels(string path)
+    {
+        var t = new TasksFile(path);
+        var q = t.AllNodes().First(n => n.Fields.Count(f => f.Name.Contains("m_CandItems")) > 4);
+        File.WriteAllLines("tasks-labels.txt", q.Fields.Select(f => $"{QuestFieldInfo.GroupLabel(f.Group)} | {QuestFieldInfo.Label(f.Name, true)} = {q.Get(f)}   [{f.Name}]   {QuestFieldInfo.Tip(f.Name).Replace('\n', '/')}"));
     }
 
     // --tasks <tasks.data>: lista amostra de quests e prova a gravação de nomes (tasks-report.txt).

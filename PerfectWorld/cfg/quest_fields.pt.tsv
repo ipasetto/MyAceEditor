@@ -1,0 +1,714 @@
+# Rótulos e dicas dos campos de quest (chaves do TaskLayout). Português = fonte; en/ru/zh-CN em lang/*.json
+# (qf.<chave>, qf.<chave>.h, qs.<escopo>, qg.<área>). Formato: "@área<TAB>rótulo" abre uma área; "$escopo<TAB>rótulo<TAB>dica";
+# "chave<TAB>rótulo<TAB>dica". A chave é a última parte do caminho, sem índices ([n]) e sem sufixo #n.
+@basic	Básico
+m_usIDSpace	Espaço de IDs	Grupo de IDs ao qual o ID pertence (versões novas). Normalmente 0.
+m_ID	ID da quest	Número único da quest. Também é a chave que codifica nome e textos.
+m_szName	Nome	Nome da quest (até 29 caracteres).
+m_bHasSign	Tem assinatura	Ligado: a quest guarda um texto de assinatura (30 caracteres) no fim do bloco.
+m_pszSignature	Assinatura	Texto de assinatura gravado na quest.
+m_ulType	Tipo da quest	Categoria mostrada no diário (principal, diária, evento etc.).
+m_ulTimeLimit	Tempo limite (s)	Segundos para concluir depois de aceitar. 0 = sem limite.
+m_ulSuitableLevel	Nível sugerido	Nível recomendado mostrado ao jogador; não bloqueia.
+m_bKeyTask	Quest principal	Marca como quest da história principal.
+m_bShowPrompt	Mostrar aviso	Mostra o aviso de quest disponível ao jogador.
+m_bHidden	Oculta	Não aparece no diário de quests.
+m_bCanSeekOut	Pode procurar	Aparece na busca de quests (lista "quests disponíveis").
+m_bShowDirection	Mostrar direção	Mostra a seta/direção do objetivo.
+m_bSkillTask	Quest de habilidade	Quest ligada ao aprendizado de habilidade.
+m_bMarriage	Casamento	Quest do sistema de casamento.
+m_bIsLibraryTask	Quest de biblioteca	Sorteada de uma biblioteca de quests (com a probabilidade abaixo).
+m_fLibraryTasksProbability	Chance na biblioteca	Probabilidade de ser sorteada na biblioteca (0 a 1).
+m_bIsUniqueStorageTask	Única no depósito de quests
+m_iWorldContribution	Contribuição ao mundo
+m_iMaskDisableIcon	Esconder ícones	Máscara de ícones desligados na interface.
+m_DynTaskType	Tipo de quest dinâmica
+m_ulSpecialAward	Prêmio especial	ID de prêmio especial do servidor.
+m_bWriteSpecialLog	Gravar registro especial	O servidor anota a quest num registro à parte.
+m_ulCrossServerId	Servidor cruzado
+m_iGfxType	Tipo de efeito visual
+m_iCameraMovementID	Movimento de câmera	Cena de câmera ao aceitar.
+m_iHideOtherPlayerTime	Esconder outros jogadores (s)
+m_bUsedInTokenShop	Usada na loja de fichas
+@time	Tempo e repetição
+m_bOfflineFail	Falha ao sair do jogo	Ligado: a quest falha se o jogador desconectar.
+m_bAbsFail	Falha em data fixa	Ligado: falha na data/hora de "Data de falha".
+m_bNextTimeFail	Falha no próximo horário
+m_bItemNotTakeOff	Item não sai do inventário
+m_bAbsTime	Só em horários	Ligado: só pode ser aceita nos horários da lista abaixo.
+m_ulTimetable	Nº de horários	Quantos horários existem na lista.
+m_tmType	Tipo do horário	Forma de repetir o horário (dia, semana, mês…).
+m_lAvailFrequency	Frequência	Repetição: 0 = sem limite, 1 = por dia, 2 = por semana, 3 = por mês…
+m_lFrequencyNum	Vezes por período	Quantas vezes pode ser feita em cada período da frequência.
+m_lPeriodLimit	Limite do período
+m_bAvailFrequency	Usar frequência
+$m_tmAbsFailTime	Data de falha
+$m_tmNextFailTime	Próxima falha
+$m_tmAvailFrequency	Data da frequência
+$m_tmStart	Início do horário
+$m_tmEnd	Fim do horário
+@sub	Subquests
+m_bChooseOne	Jogador escolhe uma	O jogador escolhe uma das subquests.
+m_bRandOne	Sorteia uma	O jogo sorteia uma das subquests.
+m_bExeChildInOrder	Em ordem	As subquests são feitas uma depois da outra.
+m_bParentAlsoFail	Falha leva o pai	Se esta falhar, a quest pai falha junto.
+m_bParentAlsoSucc	Conclusão leva o pai	Se esta concluir, a quest pai conclui junto.
+m_bCanGiveUp	Pode desistir
+m_bCanRedo	Pode refazer	Pode ser feita de novo depois de concluída.
+m_bCanRedoAfterFailure	Pode refazer após falhar
+m_bClearAsGiveUp	Limpar ao desistir	Ao desistir, apaga o registro (pode aceitar de novo).
+m_bNeedRecord	Gravar no histórico	Fica registrada como concluída (usada por "quest anterior").
+m_bFailAsPlayerDie	Falha ao morrer
+m_ulMaxReceiver	Máx. de jogadores	Quantos jogadores no servidor podem ter a quest ao mesmo tempo. 0 = sem limite.
+m_bNotIncCntWhenFailed	Falha não conta vez
+m_bNotClearItemWhenFailed	Falha não tira itens
+@npc	NPCs e entrega
+m_ulDelvNPC	NPC que dá a quest	NPC onde o jogador aceita a quest.
+m_ulAwardNPC	NPC que recebe (prêmio)	NPC onde o jogador entrega a quest e ganha o prêmio. 0 = conclui sozinha.
+m_bAutoDeliver	Aceitar automaticamente	A quest é dada sem falar com NPC (ao cumprir os requisitos).
+m_bDelvInZone	Dar ao entrar na área	A quest é dada ao entrar nas regiões de entrega.
+m_ulDelvWorld	Mapa da entrega	ID do mapa das regiões de entrega.
+m_ulDelvRegionCnt	Nº de regiões de entrega
+m_bDisplayInExclusiveUI	Mostrar em janela própria
+m_bReadyToNotifyServer	Avisar o servidor
+m_bDeathTrig	Dar ao morrer
+m_bClearAcquired	Limpar itens ao concluir	Ao concluir, remove os itens de quest obtidos.
+m_bShowGfxFinished	Efeito ao concluir
+m_bDisplayInTitleTaskUI	Mostrar na janela de títulos
+m_bDeliverySkill	Dar habilidade ao aceitar
+m_iDeliveredSkillID	Habilidade dada	ID da habilidade dada ao aceitar.
+m_iDeliveredSkillLevel	Nível da habilidade dada
+m_bCompareItemAndInventory	Conferir espaço no inventário	Só aceita se couber no inventário.
+m_ulInventorySlotNum	Espaços livres exigidos
+$m_GivenItems	Item dado	Dado ao aceitar.
+$m_pDelvRegion	Região de entrega
+@regions	Regiões
+m_bEnterRegionFail	Falha ao entrar na região
+m_ulEnterRegionWorld	Mapa (entrar)
+m_ulEnterRegionCnt	Nº de regiões (entrar)
+m_bLeaveRegionFail	Falha ao sair da região
+m_ulLeaveRegionWorld	Mapa (sair)
+m_ulLeaveRegionCnt	Nº de regiões (sair)
+m_bLeaveForceFail	Falha ao sair da força
+m_bSwitchSceneFail	Falha ao trocar de mapa
+m_ulChangeSceneRemoveItemRegionNum	Regiões que tiram itens
+m_ulChangeSceneRemoveNum	Itens tirados ao trocar de mapa
+MapID	Mapa
+RegionID	Região
+$m_pEnterRegion	Região (entrar)
+$m_pLeaveRegion	Região (sair)
+$m_pChangeSceneRemoveItemRegionNum	Região que tira itens
+$m_pChangeSceneRemoveNum	Item tirado ao trocar de mapa
+$zvMin	Canto mínimo
+$zvMax	Canto máximo
+@accept	Ao aceitar
+m_bTransTo	Teleportar	Ao aceitar, leva o jogador ao ponto abaixo.
+m_ulTransWldId	Mapa do teleporte
+m_lMonsCtrl	Controlador de monstros	ID do controlador (npcgen) ligado ou desligado.
+m_bTrigCtrl	Ligar controlador	Ligado: ativa o controlador; desligado: desativa.
+$m_TransPt	Ponto do teleporte
+@tower	Torre e casa
+m_bTowerTask	Quest da torre
+m_bHomeTask	Quest da casa
+m_bDeliverInHostHome	Dar na casa do dono
+m_bFinishInHostHome	Concluir na casa do dono
+@pq	PQ e contribuição
+m_bPQTask	Quest PQ	Quest pública (PQ): conta contribuição de todos no evento.
+m_ulPQExpCnt	Nº de expressões PQ
+m_bPQSubTask	Subquest PQ
+m_bClearContrib	Zerar contribuição
+m_ulMonsterContribCnt	Nº de monstros (contribuição)
+m_bChangePQRanking	Altera ranking PQ
+m_iWholeContrib	Contribuição total
+m_iShareContrib	Contribuição dividida
+m_iPersonalWholeContrib	Contribuição pessoal
+$m_MonstersContrib	Monstro (contribuição)
+$PropMonsterSummoned	Monstros invocados (exibição)
+$m_pPQExpArr	Expressão PQ
+@keys	Chaves (variáveis)
+m_ulChangeKeyCnt	Nº de chaves globais alteradas	Chaves = variáveis guardadas no servidor que a quest muda.
+m_ulChangePersonKeyCnt	Nº de chaves pessoais alteradas
+m_ulChangeHistoryKeyCnt	Nº de chaves de histórico alteradas
+m_plChangeKey	Chave global
+m_plChangeKeyValue	Valor
+m_plChangeKeyValue2	Valor 2
+m_pbChangeType	Tipo de mudança
+m_plPersonChangeKey	Chave pessoal
+m_plPersonChangeKeyValue	Valor
+m_plPersonChangeKeyValue2	Valor 2
+m_pbPersonChangeType	Tipo de mudança
+m_plHistoryChangeKey	Chave de histórico
+m_plHistoryChangeKeyValue	Valor
+m_plHistoryChangeKeyValue2	Valor 2
+m_pbHistoryChangeType	Tipo de mudança
+key	Chave
+value	Valor
+value2	Valor 2
+type	Tipo
+m_ulIconStateIDForAwardVar	Ícone de estado (prêmio variável)
+m_lGlobalKeyForAwardVar	Chave global (prêmio variável)
+m_lPersonKeyForAwardVar	Chave pessoal (prêmio variável)
+m_lHistoryKeyForAwardVar	Chave de histórico (prêmio variável)
+m_bPropNeedComp	Comparar chaves (exibição)
+m_nPropExp1AndOrExp2	E/OU (exibição)	0 = E, 1 = OU entre as duas comparações.
+m_bPropNeedComp_personal	Comparar chaves pessoais (exibição)
+m_nPropExp1AndOrExp2_personal	E/OU pessoal (exibição)
+nLeftType	Tipo à esquerda	0 = valor fixo, 1 = chave global, 2 = chave pessoal…
+lLeftNum	Valor à esquerda
+nCompOper	Comparação	0 = maior, 1 = igual, 2 = menor…
+nRightType	Tipo à direita
+lRightNum	Valor à direita
+m_ulExpCnt	Nº de expressões
+m_ulPersonExpCnt	Nº de expressões pessoais
+m_ulHistoryExpCnt	Nº de expressões de histórico
+m_ulTaskCharCnt	Nº de textos de quest
+m_ulPersonTaskCharCnt	Nº de textos pessoais
+m_ulHistoryTaskCharCnt	Nº de textos de histórico
+m_pszExp	Expressão
+m_pTaskChar	Texto da expressão
+PersonExp	Expressão pessoal
+PersonTaskChar	Texto pessoal
+HistoryExp	Expressão de histórico
+HistoryTaskChar	Texto de histórico
+m_pszPQExp	Expressão PQ
+$m_pChangeKey	Chave global
+$m_pPersonChangeKey	Chave pessoal
+$m_pHistoryChangeKey	Chave de histórico
+$m_pExpArr	Expressão
+$PersonExpArr	Expressão pessoal
+$HistoryExpArr	Expressão de histórico
+$m_Prop1KeyValue	Comparação 1 (exibição)
+$m_Prop2KeyValue	Comparação 2 (exibição)
+$m_Prop1KeyValue_personal	Comparação pessoal 1 (exibição)
+$m_Prop2KeyValue_personal	Comparação pessoal 2 (exibição)
+@hint	Dica de localização
+m_fVaguePromptRadius	Raio da dica de lugar	A seta mostra só uma área aproximada deste raio.
+m_fVaguePromptX	X da dica de lugar
+m_fVaguePromptY	Y da dica de lugar
+m_ulVaguePromptNumbers	Nº de dicas de lugar
+$m_pVaguePromptInfo	Dica de lugar
+@req	Requisitos
+m_ulPremise_Lev_Min	Nível mínimo
+m_ulPremise_Lev_Max	Nível máximo	0 = sem limite.
+m_bShowByLev	Só mostrar com o nível	Ligado: a quest só aparece na lista quando o nível é cumprido.
+m_bPremCheckMaxHistoryLevel	Usar maior nível já atingido
+m_ucPremiseTransformedForm	Forma transformada exigida
+m_bShowByTransformed	Só mostrar transformado
+m_bPremCheckReincarnation	Exigir renascimento
+m_ulPremReincarnationMin	Renascimentos mín.
+m_ulPremReincarnationMax	Renascimentos máx.
+m_bShowByReincarnation	Só mostrar com renascimento
+m_bPremCheckRealmLevel	Exigir nível de reino
+m_ulPremRealmLevelMin	Nível de reino mín.
+m_ulPremRealmLevelMax	Nível de reino máx.
+m_bPremCheckRealmExpFull	Exigir reino com exp cheia
+m_bShowByRealmLevel	Só mostrar com reino
+m_ulPremItems	Nº de itens exigidos	Itens que o jogador precisa ter para aceitar.
+m_bShowByItems	Só mostrar com os itens
+m_bPremItemsAnyOne	Basta um dos itens
+m_ulGivenItems	Nº de itens dados	Itens entregues ao jogador ao aceitar.
+m_ulGivenCmnCount	Itens comuns dados
+m_ulGivenTskCount	Itens de quest dados
+m_ulGivenRelicCount	Relíquias dadas
+m_ulGivenDongluCmnCount	Itens Donglu dados
+m_ulPremise_Deposit	Ouro exigido (depósito)
+m_bShowByDeposit	Só mostrar com o ouro
+m_lPremise_Reputation	Reputação mín.
+m_lPremise_RepuMax	Reputação máx.
+m_bShowByRepu	Só mostrar com a reputação
+m_ulPremise_Task_Count	Nº de quests anteriores	Quests que precisam estar concluídas antes.
+m_ulPremise_Tasks	Quest anterior
+m_usPremise_Tasks_Space	Espaço de ID (quest anterior)
+m_bShowByPreTask	Só mostrar com as anteriores
+m_ulPremise_Task_Least_Num	Mín. de anteriores concluídas	Quantas das quests anteriores bastam. 0 = todas.
+m_ulPremise_Period	Período exigido
+m_bShowByPeriod	Só mostrar no período
+m_ulPremise_Faction	Clã exigido
+m_iPremise_FactionRole	Cargo no clã
+m_bShowByFaction	Só mostrar com o clã
+m_iPremiseFactionContrib	Contribuição de clã
+m_bShowByFactionContrib	Só mostrar com a contribuição
+m_iFactionMember	Membro de clã
+m_bLeaveFactionFail	Falha ao sair do clã
+m_ulGender	Gênero	0 = qualquer, 1 = masculino, 2 = feminino.
+m_bShowByGender	Só mostrar para o gênero
+m_ulOccupations	Nº de classes	Classes que podem aceitar. 0 = todas.
+m_Occupations	Classe
+m_bShowByOccup	Só mostrar para as classes
+m_bPremise_Spouse	Exige cônjuge
+m_bShowBySpouse	Só mostrar casado
+m_bPremiseWeddingOwner	Exige ser dono do casamento
+m_bShowByWeddingOwner	Só mostrar ao dono do casamento
+m_bGM	Somente GM
+m_bShieldUser	Bloquear jogador
+m_bShowByRMB	Só mostrar com recarga
+m_ulPremRMBMin	Recarga mín.	Valor recarregado (cash) exigido.
+m_ulPremRMBMax	Recarga máx.
+m_bCharTime	Exigir idade do personagem
+m_bShowByCharTime	Só mostrar pela idade
+m_iCharStartTime	Idade inicial
+m_iCharEndTime	Idade final
+m_ulCharTimeGreaterThan	Idade maior que
+m_ulPremise_Cotask	Quest conjunta	Quest que precisa estar ativa/concluída junto.
+m_usPremise_Cotask_Space	Espaço de ID (conjunta)
+m_ulCoTaskCond	Condição da conjunta
+m_ulMutexTaskCount	Nº de quests exclusivas	Quests que não podem estar ativas ao mesmo tempo.
+m_ulMutexTasks	Quest exclusiva
+m_usMutexTasksSpace	Espaço de ID (exclusiva)
+m_lSkillLev	Nível de habilidade
+m_iPremNeedRecordTasksNum	Quests registradas necessárias
+m_bShowByNeedRecordTasksNum	Só mostrar com as registradas
+m_bAccountTaskLimit	Limite por conta
+m_bRoleTaskLimit	Limite por personagem
+m_ulAccountTaskLimitCnt	Vezes por conta
+m_bPremNeedComp	Comparar chaves (requisito)
+m_nPremExp1AndOrExp2	E/OU (requisito)	0 = E, 1 = OU.
+m_nPremPersonExp1AndOrExp2	E/OU pessoal (requisito)
+m_nPremHistoryExp1AndOrExp2	E/OU histórico (requisito)
+$m_PremItems	Item exigido	Precisa ter para aceitar.
+$m_tmCharEndTime	Data final do personagem
+$m_Prem1KeyValue	Comparação 1 (requisito)
+$m_Prem2KeyValue	Comparação 2 (requisito)
+$m_Prem1PersonKeyValue	Comparação pessoal 1 (requisito)
+$m_Prem2PersonKeyValue	Comparação pessoal 2 (requisito)
+$m_Prem1HistoryKeyValue	Comparação de histórico 1 (requisito)
+$m_Prem2HistoryKeyValue	Comparação de histórico 2 (requisito)
+@req2	Requisitos (outros)
+m_bPremCheckForce	Exigir força
+m_iPremForce	Força
+m_bShowByForce	Só mostrar na força
+m_iPremForceReputation	Reputação na força
+m_bShowByForceReputation	Só mostrar com a reputação na força
+m_iPremForceContribution	Contribuição na força
+m_bShowByForceContribution	Só mostrar com a contribuição na força
+m_iPremForceExp	Exp. na força
+m_bShowByForceExp	Só mostrar com a exp. na força
+m_iPremForceSP	SP na força
+m_bShowByForceSP	Só mostrar com o SP na força
+m_iPremForceActivityLevel	Atividade na força
+m_bShowByForceActivityLevel	Só mostrar com a atividade
+m_bPremIsKing	Exige ser rei
+m_bShowByKing	Só mostrar ao rei
+m_bPremNotInTeam	Exige estar sem grupo
+m_bShowByNotInTeam	Só mostrar sem grupo
+m_iPremTitleNumTotal	Nº de títulos
+m_iPremTitleNumRequired	Títulos necessários
+m_PremTitles	Título exigido
+m_bShowByTitle	Só mostrar com os títulos
+m_iPremHistoryStageIndex	Fase do servidor
+m_bShowByHistoryStage	Só mostrar na fase
+m_ulPremGeneralCardCount	Cartas exigidas
+m_bShowByGeneralCard	Só mostrar com as cartas
+m_iPremGeneralCardRank	Raridade da carta
+m_ulPremGeneralCardRankCount	Cartas da raridade
+m_bShowByGeneralCardRank	Só mostrar com a raridade
+m_ulPremIconStateID	Estado exigido
+m_bShowByIconStateID	Só mostrar com o estado
+m_ulFailIconStateID	Estado que faz falhar
+m_iVIPLevelMin	VIP mín.
+m_iVIPLevelMax	VIP máx.
+m_bShowByVIPLevel	Só mostrar pelo VIP
+m_bPremNoHome	Exige não ter casa
+m_iPremHomeLevelMin	Nível da casa mín.
+m_iPremHomeLevelMax	Nível da casa máx.
+m_bShowByHomeLevel	Só mostrar pelo nível da casa
+m_iPremHomeResourceLevelType	Recurso da casa
+m_iPremHomeResourceLevelMin	Nível do recurso mín.
+m_iPremHomeResourceLevelMax	Nível do recurso máx.
+m_bShowByHomeResourceLevel	Só mostrar pelo recurso
+m_iPremHomeFactoryLevelType	Oficina da casa
+m_iPremHomeFactoryLevelMin	Nível da oficina mín.
+m_iPremHomeFactoryLevelMax	Nível da oficina máx.
+m_bShowByHomeFactoryLevel	Só mostrar pela oficina
+m_iPremHomeFlourishMin	Prosperidade mín.
+m_iPremHomeFlourishMax	Prosperidade máx.
+m_bShowByHomeFlourish	Só mostrar pela prosperidade
+m_bPremHomeStorageTask	Quest do depósito da casa
+m_bShowByHomeStorageTask	Só mostrar pelo depósito
+m_iPremArenaWinCount	Vitórias na arena
+m_iPremFactionScore	Pontos do clã
+m_iPremFactionMoney	Fundos do clã
+m_iPremFactionPersonScore	Pontos pessoais no clã
+m_iPremMentorMorality	Moral de mestre
+m_iPremMentorStudentValue	Valor mestre-aprendiz
+m_iPremCoupleIntimacy	Intimidade do casal
+m_ulPremDeposit2	Ouro exigido 2
+m_ulNeededTaskCount	Nº de quests necessárias
+m_ulNeededTasks	Quest necessária
+m_usNeededTasksSpace	Espaço de ID (necessária)
+m_iNeededTasksLeastNum	Mín. de necessárias
+m_iCamp	Lado
+m_iCampPower	Poder do lado
+m_iNeedFriendPoint	Pontos de amizade
+m_iRankType	Tipo de ranking
+m_iRankGradeMin	Posição mín. no ranking
+m_iRankGradeMax	Posição máx. no ranking
+m_ulPremPanguLevelMin	Nível Pangu mín.
+m_ulPremPanguLevelMax	Nível Pangu máx.
+m_ulPremPanguLevelYear	Ano Pangu
+m_iAchievementSeriesId	Série de conquistas
+m_iPanguEquipYear	Ano do equipamento Pangu
+m_iPanguEquipSlot	Espaço do equipamento Pangu
+m_iPanguEquipQuality	Qualidade do equipamento Pangu
+m_iPanguEquipLevel	Nível do equipamento Pangu
+m_cPremInventorySizeMin	Inventário mín.
+m_cPremInventorySizeMax	Inventário máx.
+m_cPremStorageSizeMin	Banco mín.
+m_cPremStorageSizeMax	Banco máx.
+m_iPremLieMoLevelMin	Nível LieMo mín.
+m_iPremLieMoLevelMax	Nível LieMo máx.
+m_iPremYuMoLevelMin	Nível YuMo mín.
+m_iPremYuMoLevelMax	Nível YuMo máx.
+m_cEffectiveGameServer	Servidor válido
+m_iPremDailyActivityValue	Atividade diária
+@team	Equipe
+m_bTeamwork	Quest em grupo
+m_bRcvByTeam	Todo o grupo recebe	Ao aceitar, o grupo inteiro recebe a quest.
+m_bSharedTask	Quest compartilhada
+m_bSharedAchieved	Conclusão compartilhada
+m_bCheckTeammate	Conferir companheiros
+m_fTeammateDist	Distância dos companheiros
+m_bAllFail	Todos falham juntos
+m_bCapFail	Falha se o líder falhar
+m_bCapSucc	Conclui se o líder concluir
+m_fSuccDist	Distância para concluir
+m_bDismAsSelfFail	Falha ao sair do grupo
+m_bRcvChckMem	Conferir membros ao receber
+m_fRcvMemDist	Distância ao receber
+m_bCntByMemPos	Contar pela posição dos membros
+m_fCntMemDist	Distância para contar
+m_bAllSucc	Todos concluem juntos
+m_bCoupleOnly	Só casais
+m_bDistinguishedOcc	Classes diferentes
+m_ulTeamMemsWanted	Nº de requisitos de membros
+m_bShowByTeam	Só mostrar em grupo
+m_ulLevelMin	Nível mín.
+m_ulLevelMax	Nível máx.
+m_ulRace	Raça
+m_ulOccupation	Classe
+m_ulMinCount	Quantidade mín.
+m_ulMaxCount	Quantidade máx.
+m_ulTask	Quest
+TeamMemTaskSpace	Espaço de ID (quest)
+$m_TeamMemsWanted	Membro exigido no grupo
+@goal	Objetivo
+m_enumMethod	Objetivo	0 = nenhum, 1 = matar monstros, 2 = coletar itens, 3 = falar com NPC, 4 = alcançar lugar, 5 = esperar tempo…
+m_enumFinishType	Como conclui	0 = falando com o NPC que recebe, 1 = sozinha ao cumprir.
+m_ulMonsterWanted	Nº de monstros a matar
+m_ulItemsWanted	Nº de itens a coletar
+m_ulPlayerWanted	Nº de jogadores a derrotar
+m_ulMonsterUnwanted	Nº de monstros proibidos
+m_ulGoldWanted	Ouro exigido	Ouro entregue ao concluir.
+m_ulGoldWanted2	Ouro exigido 2
+m_iFactionContribWanted	Contribuição de clã exigida
+m_iFactionExpContribWanted	Exp. de clã exigida
+m_ulNPCToProtect	NPC a proteger
+m_ulProtectTimeLen	Tempo de proteção (s)
+m_ulNPCMoving	NPC a escoltar
+m_ulNPCDestSite	Destino do NPC
+m_ulReachSiteCnt	Nº de lugares a alcançar
+m_ulReachSiteId	Mapa do lugar
+m_ulWaitTime	Tempo de espera (s)
+m_ucZonesNumX	Zonas em X
+m_ucZonesNumZ	Zonas em Z
+m_ucZoneSide	Lado da zona
+m_usZoneMapID	Mapa das zonas
+m_ulLeaveSiteCnt	Nº de lugares a sair
+m_ulLeaveSiteId	Mapa (sair do lugar)
+m_bFinNeedComp	Comparar chaves (conclusão)
+m_nFinExp1AndOrExp2	E/OU (conclusão)	0 = E, 1 = OU.
+m_nFinPersonExp1AndOrExp2	E/OU pessoal (conclusão)
+m_nFinHistoryExp1AndOrExp2	E/OU histórico (conclusão)
+m_ulMonsterTemplId	ID do monstro
+m_ulMonsterNum	Quantidade
+m_ulDropItemId	Item que cai	Item de quest que o monstro solta durante a quest.
+m_ulDropItemCount	Qtd. do item
+m_bDropCmnItem	Item comum	Ligado: o item que cai é comum (não de quest).
+m_fDropProb	Chance de cair	0 a 1.
+m_bKillerLev	Conta pelo nível do matador
+m_iDPH	DPH
+m_iDPS	DPS
+m_iWorldLevel	Nível do mundo
+m_ulPlayerNum	Jogadores
+m_iMinLevel	Nível mín.
+m_iMaxLevel	Nível máx.
+m_iGender	Gênero
+m_iForce	Força
+ModelCheck	Conferir aparência
+ModelType	Aparência
+m_ulItemTemplId	ID do item
+m_bCommonItem	Comum	Ligado: item comum; desligado: item de quest.
+m_ulItemNum	Quantidade
+m_fProb	Chance	0 a 1.
+m_lPeriod	Validade (s)	0 = permanente.
+m_ulServerLimit	Limite no servidor
+m_ulHomeItemTid	Item da casa
+m_ulHomeItemCount	Quantidade
+$m_ItemsWanted	Item a coletar
+$m_HomeItemsWanted	Item da casa a coletar
+$m_MonsterWanted	Monstro a matar
+$m_MonsterUnwanted	Monstro proibido
+$m_PlayerWanted	Jogador a derrotar
+$m_Requirements	Requisitos
+$m_TreasureStartZone	Início da área do tesouro
+$m_pReachSite	Lugar a alcançar
+$m_pLeaveSite	Lugar a sair
+$m_Fin1KeyValue	Comparação 1 (conclusão)
+$m_Fin2KeyValue	Comparação 2 (conclusão)
+$m_Fin1PersonKeyValue	Comparação pessoal 1 (conclusão)
+$m_Fin2PersonKeyValue	Comparação pessoal 2 (conclusão)
+$m_Fin1HistoryKeyValue	Comparação de histórico 1 (conclusão)
+$m_Fin2HistoryKeyValue	Comparação de histórico 2 (conclusão)
+$m_pSubmitItemWanted	Item a entregar
+$submit_rank	Ranking da entrega
+@goalx	Objetivo (outros)
+m_ucTransformedForm	Forma transformada
+m_ulMonsterShapeID	Forma de monstro
+TransformedDescID	Texto da transformação
+m_ulReachLevel	Nível a alcançar
+m_ulReachReincarnationCount	Renascimentos a alcançar
+m_ulReachRealmLevel	Reino a alcançar
+m_uiEmotion	Emoção	Ação de emoção que o jogador precisa fazer.
+m_ulGrowthTarget	Meta de crescimento
+m_uSpecialMethodType	Objetivo especial
+m_uSpecialMethodParm1	Parâmetro 1
+m_uSpecialMethodParm2	Parâmetro 2
+m_uSpecialMethodParm3	Parâmetro 3
+m_uSpecialMethodNpcServicesCount	Nº de serviços de NPC
+m_uSpecialMethodNpcServicesLeastLeastCount	Mín. de serviços
+m_uSpecialMethodTargetTaskCount	Nº de quests alvo
+m_uSpecialMethodTargetTaskLeastCount	Mín. de quests alvo
+service1	Serviço 1
+service2	Serviço 2
+service3	Serviço 3
+service4	Serviço 4
+target1	Alvo 1
+target2	Alvo 2
+m_ulTMIconStateID	Estado a alcançar
+TMIconStateDescID	Texto do estado
+m_ulTMHomeLevelType	Tipo de nível da casa
+m_ulTMReachHomeLevel	Nível da casa a alcançar
+m_ulTMReachHomeFlourish	Prosperidade a alcançar
+m_ulHomeItemsWanted	Nº de itens da casa
+m_ulBindOnCarrierId	Veículo
+m_ulTMReachArenaCount	Lutas na arena
+m_ulTMReachArenaWinCount	Vitórias na arena
+m_ulTransmitPointID	Ponto de teleporte
+m_szShowDialogName	Janela a abrir
+m_iTriggerEvent	Evento disparado
+m_iVerifyStateLayer	Camada de estado
+m_ulVerifyStateLayerID	ID da camada
+m_iKeyWordIndex	Palavra-chave
+m_TaskEventName	Nome do evento
+m_TaskEventType	Tipo do evento
+m_usTaskEventTimeOrScore	Tempo ou pontos
+m_usTaskEventMonsterCount	Nº de monstros do evento
+m_usTaskEventMineCount	Nº de minas do evento
+m_usTaskEventTaskCount	Nº de quests do evento
+IdSpace	Espaço de ID
+Id	ID
+Value	Valor
+m_FactionPersonScore	Pontos pessoais no clã
+m_iTinyGameType	Minijogo
+m_iSlotMachineType	Caça-níquel
+m_chatGroupId	Grupo de conversa
+m_HintConfigId	Configuração de dica
+m_iGuessStringID	Texto de adivinhação
+m_ulSubmitItemWantedNum	Nº de itens a entregar
+m_ulDailyActivityValue	Atividade diária
+m_iSubmitType	Tipo de entrega
+m_iRankID	Ranking
+m_iTempRankID	Ranking temporário
+$m_pTSMNPCServices	Serviços de NPC
+$m_pTSMTargetTask	Quests alvo
+$TaskEventMonsterData	Monstro do evento
+$TaskEventMineData	Mina do evento
+$TaskEventTaskData	Quest do evento
+@camera	Câmera
+camera_pos_x	Câmera X
+camera_pos_y	Câmera Y
+camera_pos_z	Câmera Z
+camera_quat_x	Rotação X
+camera_quat_y	Rotação Y
+camera_quat_z	Rotação Z
+camera_quat_a	Rotação W
+camera_target_pos_x	Alvo X
+camera_target_pos_y	Alvo Y
+camera_target_pos_z	Alvo Z
+camera_target_quat_x	Rotação do alvo X
+camera_target_quat_y	Rotação do alvo Y
+camera_target_quat_z	Rotação do alvo Z
+camera_target_quat_a	Rotação do alvo W
+camera_rotate_axis	Eixo de giro
+camera_rotate_angle	Ângulo de giro
+camera_take_seconds	Duração (s)
+CameraRotateAxis	Eixo de giro
+CameraRotateAngle	Ângulo de giro
+CameraTakeSeconds	Duração (s)
+x	X
+y	Y
+z	Z
+a	W
+v	Coordenada	X, Y, Z na ordem.
+$pos	Posição
+$quat	Rotação
+@award	Prêmios
+m_ulAwardType_S	Tipo de prêmio (sucesso)	0 = normal, 1 = por razão (tempo), 2 = por itens, …
+m_ulAwardType_F	Tipo de prêmio (falha)
+m_ulGoldNum	Ouro
+m_ulExp	Experiência
+m_ulRealmExp	Exp. de reino
+m_ulPanguExp	Exp. Pangu
+m_ulPanguExpYear	Ano da exp. Pangu
+m_bExpandRealmLevelMax	Aumenta o reino máximo
+NewTaskSpace	Espaço de ID (nova quest)
+m_ulNewTask	Nova quest	Quest dada ao concluir (cadeia).
+m_ulSP	Espírito (SP)
+m_lReputation	Reputação
+m_ulNewPeriod	Novo período
+m_ulNewRelayStation	Estação de transporte	Libera uma estação de teleporte.
+m_ulStorehouseSize	Banco	Espaços a mais no banco.
+m_ulStorehouseSize2	Banco 2
+m_ulStorehouseSize3	Banco 3
+m_ulStorehouseSize4	Banco 4
+m_lInventorySize	Inventário	Espaços a mais no inventário.
+m_ulPetInventorySize	Inventário do mascote
+m_ulFuryULimit	Limite de fúria
+m_ulCrossServerWldId	Mapa (servidor cruzado)
+m_bUseLevCo	Multiplicar pelo nível	O prêmio é multiplicado por um fator do nível do jogador.
+m_bDivorce	Divórcio
+m_bSendMsg	Enviar mensagem	Anuncia no chat ao concluir.
+m_nMsgChannel	Canal da mensagem
+m_ulCandItems	Nº de grupos de itens
+m_ulSummonedMonsters	Nº de monstros invocados
+m_bAwardDeath	Morte como prêmio
+m_bAwardDeathWithLoss	Morte com perda
+m_ulDividend	Dividendo
+m_bRepairShentongSearchBug	Correção Shentong
+m_bAwardSkill	Dá habilidade
+m_iAwardSkillID	Habilidade
+m_iAwardSkillLevel	Nível da habilidade
+m_iSoloTowerChallengeScore	Pontos da torre solo
+m_iOpenSystem	Libera sistema
+m_ulSpecifyContribTaskID	Quest da contribuição
+m_ulSpecifyContribSubTaskID	Subquest da contribuição
+m_ulSpecifyContrib	Contribuição exigida
+m_ulContrib	Contribuição
+m_ulRandContrib	Contribuição aleatória
+m_ulLowestcontrib	Contribuição mínima
+m_iFactionContrib	Contribuição de clã
+m_iFactionExpContrib	Exp. de clã
+m_ulPQRankingAwardCnt	Nº de prêmios de ranking PQ
+m_ulChangeKeyPointer	Ponteiro de chaves
+m_ulPersonChangeKeyCnt	Nº de chaves pessoais
+m_ulCarrierChangeCnt	Nº de mudanças de veículo
+m_ulHistoryChangeCnt	Nº de chaves de histórico
+m_bMulti	Vários
+m_nNumType	Tipo de número
+m_lNum	Número
+m_ulDisplayKeyCnt	Nº de chaves exibidas
+m_plDisplayKey	Chave exibida
+m_iForceContribution	Contribuição na força
+m_iForceReputation	Reputação na força
+m_iForceActivity	Atividade na força
+m_iForceSetRepu	Define reputação na força
+m_iTaskLimit	Limite de quests
+m_ulTitleNum	Nº de títulos
+m_ulTitleID	Título
+m_iLeaderShip	Liderança
+m_iHomeResource	Recurso da casa
+m_bCreateHome	Cria casa
+m_bLeaveCarrier	Sai do veículo
+m_faction_money	Fundos do clã
+m_faction_person_score	Pontos pessoais no clã
+m_usFactionTargetCount	Nº de metas do clã
+FactionTargetId	Meta do clã
+FactionNum	Quantidade
+m_bSubmitRankScore	Envia pontos ao ranking
+m_iMentorStudentValue	Valor mestre-aprendiz
+m_iCoupleIntimacy	Intimidade do casal
+m_ulRedBookExp	Exp. do livro vermelho
+m_iCampScore	Pontos do lado
+m_iCrossServerMoney	Moeda do servidor cruzado
+m_iInviterAwardItem	Item para quem convidou
+m_iRewardFriendPoint	Pontos de amizade
+m_iInviterAwardNum	Qtd. para quem convidou
+m_iPerceptionVal	Percepção
+m_uiGroupNum	Nº de grupos de falas
+m_uiNumPerGroup	Falas por grupo
+TextGroups	Fala
+m_iNewPlayerEvent	Evento de novato
+m_iFactionAwardConfig	Prêmio do clã
+m_iAwardRedBookKey	Chave do livro vermelho
+m_iAwardRedBookKeyType	Tipo da chave
+m_iAwardRedBookKeyCount	Quantidade da chave
+m_iAwardCameraMovementID	Movimento de câmera
+PersonChangeKey	Chave pessoal
+PersonChangeKeyValue	Valor
+PersonChangeKeyValue2	Valor 2
+PersonChangeType	Tipo de mudança
+NewChangeKey	Chave
+NewChangeKeyValue	Valor
+NewChangeKeyValue2	Valor 2
+NewChangeType	Tipo de mudança
+m_bRandChoose	Sortear um	Ligado: o jogador ganha só um item sorteado do grupo.
+m_ulAwardItems	Nº de itens
+m_ulItemId	ID do item
+m_Counts	Quantidade
+m_ulScales	Nº de faixas
+m_Ratios	Faixa
+AwardCarrierHp	Faixa de vida do veículo
+m_ulSummonRadius	Raio de invocação
+m_bDeathDisappear	Some ao morrer
+m_fSummonProb	Chance
+m_bAwardByProf	Por classe
+m_iRankingStart	Posição inicial
+m_iRankingEnd	Posição final
+m_ulAwardItemId	ID do item
+m_ulAwardItemNum	Quantidade
+m_ulPropSummonedMonsters	Nº de monstros invocados (exibição)
+$m_Award_S	Prêmio (sucesso)	Ganho ao concluir.
+$m_Award_F	Prêmio (falha)	Ganho ao falhar.
+$m_AwByRatio_S	Prêmio por tempo (sucesso)	Varia conforme a fração do tempo usado.
+$m_AwByRatio_F	Prêmio por tempo (falha)
+$m_AwByItems_S	Prêmio por itens (sucesso)	Varia conforme a quantidade de itens entregues.
+$m_AwByItems_F	Prêmio por itens (falha)
+$AwByTaskEventRatio_S	Prêmio por evento (sucesso)
+$AwByTaskEventRatio_F	Prêmio por evento (falha)
+$AwByCarrierHp_S	Prêmio por vida do veículo (sucesso)
+$AwByCarrierHp_F	Prêmio por vida do veículo (falha)
+$AwByVar_S	Prêmio por variável (sucesso)
+$AwByVar_F	Prêmio por variável (falha)
+$m_Awards	Faixa de prêmio
+$m_CandItems	Grupo de itens
+$m_AwardItems	Item
+$m_SummonedMonsters	Monstros invocados
+$m_Monsters	Monstro
+$m_PQRankingAward	Prêmio do ranking PQ
+$m_RankingAward	Faixa do ranking
+$m_pTitleAward	Título ganho
+$AwardFactionTargetData	Meta do clã
+$AwardRandomDialogGroupData	Falas aleatórias
+$AwardVar	Prêmio variável
+@tree	Árvore
+m_ulParent	Quest pai
+m_ulPrevSibling	Quest irmã anterior
+m_ulNextSibling	Próxima quest irmã
+m_ulFirstChild	Primeira subquest
+@special	Parâmetros especiais
+x_SpecialParametersCount	Nº de parâmetros especiais
+ParameterTypes	Tipo do parâmetro
+Param	Valor do parâmetro
+unk176	Desconhecido
+UseItemIDs	Item usado
+CompleteTaskIDs	Quest concluída
+CompleteTaskIDsSpace	Espaço de ID
+$SpecialParameters	Parâmetros especiais
+@time2	Data e hora
+year	Ano
+month	Mês
+day	Dia
+hour	Hora
+min	Minuto
+wday	Dia da semana	0 = domingo.
+CombinedSwitches	Opções (bits)	Várias opções liga/desliga guardadas juntas (v135+).

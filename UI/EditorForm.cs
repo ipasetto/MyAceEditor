@@ -3618,8 +3618,9 @@ public sealed class EditorForm : Form
                 hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
             var v = _qCur.Get(f);
-            int r = _qGrid.Rows.Add("  " + QuestLabels.Show(f.Name), v, QuestFieldHint(f, v));
+            int r = _qGrid.Rows.Add("  " + QuestLabels.Row(f.Name), v, QuestFieldHint(f, v));
             _qGrid.Rows[r].Tag = f;
+            _qGrid.Rows[r].Cells[0].ToolTipText = QuestLabels.Tip(f.Name) + (f.Editable ? "" : "\n" + Loc.T("quest.structural", "Contagem ou condição: muda pelas telas de lista (mudar só o número desalinharia o arquivo)."));
             if (!f.Editable) { _qGrid.Rows[r].ReadOnly = true; _qGrid.Rows[r].Cells[1].Style.ForeColor = CMuted; }
         }
         // Textos

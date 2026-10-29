@@ -51,7 +51,7 @@ public sealed class QuestNode
     List<TaskField>? _fields;
     /// <summary>Versões ≠ 93: campos montados do bloco fixo só quando a quest é aberta (TaskLayout; economiza memória).</summary>
     internal Func<QuestNode, List<TaskField>>? FieldsFactory;
-    public List<TaskField> Fields { get => _fields ??= FieldsFactory?.Invoke(this) ?? new(); set => _fields = value; }
+    public List<TaskField> Fields { get => _fields ??= FieldsFactory?.Invoke(this) ?? new(); set => _fields = value; }   // null = montar de novo
     public bool FieldsLoaded => _fields is not null;
     /// <summary>Posição do ID e do nome no bloco fixo (v153+: i16 do espaço de IDs antes do ID).</summary>
     public int IdOffset, NameOffset = 4;
@@ -134,7 +134,7 @@ public sealed class TaskSchema93
         var q = new QuestNode { Parent = parent };
         var saveQ = _q; _q = q; _base = offset; _p = offset;
 
-        if (_version == 93) ReadFixed();
+        if (_version == 93) { ReadFixed(); q.FieldsFactory = n => LayoutFields(n.Fixed, 93); }   // mesmos campos/rótulos de todas as versões
         else LayoutFixed(q);
         q.Fixed = _d.AsSpan(offset, _p - offset).ToArray();
         q.Id = BitConverter.ToInt32(q.Fixed, q.IdOffset);
@@ -170,7 +170,8 @@ public sealed class TaskSchema93
     byte U8(string? name = null) { byte v = _d[_p]; Rec(name, TF.U8); _p += 1; return v; }
     void F(string? name = null) { Rec(name, TF.F32); _p += 4; }
     void Skip(int n) { _token.ThrowIfCancellationRequested(); _p += n; if (_p > _d.Length) throw new EndOfStreamException(); }
-    void Rec(string? name, TF t, int? preservedValue = null) { if (name is not null && _q is not null) _q.Fields.Add(new TaskField(_group, name, t, _p - _bases.GetValueOrDefault(_q, _base), preservedValue)); }
+    // os campos exibidos/editados vêm do TaskLayout (LayoutFields) em todas as versões; aqui os nomes só documentam o layout v93
+    void Rec(string? name, TF t, int? preservedValue = null) { }
     void G(string g) { _group = g; }
     void Tm(string name) { foreach (var n in new[] { "ano", "mês", "dia", "hora", "min", "dia da semana" }) I($"{name} ({n})"); }
     void Zone(string name) { F($"{name} X"); F($"{name} Y"); F($"{name} Z"); }
@@ -196,12 +197,12 @@ public sealed class TaskSchema93
             var (k, t) = rec.Order[i];
             TF? tf = t switch { TT.I32 => TF.I32, TT.Bool => TF.Bool, TT.U8 => TF.U8, TT.F32 => TF.F32, _ => null };
             if (tf is null || k.StartsWith("_gap.")) continue;
-            int off = rec.Pos[i], dot = k.IndexOf('.');
-            string group = dot > 0 ? k[..dot] : FieldKinds.Translate("tasks.groupMain", "Principal");
+            int off = rec.Pos[i];
             int? keep = rec.Structural.Contains(k) || k == "m_ID" ? (tf == TF.I32 ? BitConverter.ToInt32(fixedBytes, off) : fixedBytes[off]) : null;
-            list.Add(new TaskField(group, k, tf.Value, off, keep));
+            list.Add(new TaskField(QuestFieldInfo.Group(k), k, tf.Value, off, keep));
         }
-        return list;
+        // grupos contíguos na tela: áreas na ordem da tabela, escopos (prêmios, listas) depois, cada um na ordem do arquivo
+        return list.Select((f, i) => (f, i)).OrderBy(x => QuestFieldInfo.GroupRank(x.f.Group)).ThenBy(x => x.i).Select(x => x.f).ToList();
     }
 
     void ReadFixed()
