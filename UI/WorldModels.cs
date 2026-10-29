@@ -16,7 +16,7 @@ internal sealed class WorldModels : IDisposable
     sealed record Model(List<Part> Parts, float Top);
     sealed record Cpu(SkiModel Ski, List<(int[] Px, int W, int H)?> Textures);
 
-    readonly PckArchive? _pck;
+    readonly ModelPacks _packs;
     readonly WorldLoader _load;
     readonly Dictionary<string, Model?> _models = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> _waiting = new(StringComparer.OrdinalIgnoreCase);
@@ -27,7 +27,7 @@ internal sealed class WorldModels : IDisposable
     public WorldModels(string? elementDir, WorldLoader load)
     {
         _load = load;
-        try { if (elementDir is not null && File.Exists(Path.Combine(elementDir, "models.pck"))) _pck = new PckArchive(Path.Combine(elementDir, "models.pck")); } catch { _pck = null; }
+        _packs = new ModelPacks(elementDir);
     }
 
     /// <summary>Altura do topo do modelo (para o nome ficar em cima); null se ainda não carregado ou sem modelo.</summary>
@@ -36,17 +36,18 @@ internal sealed class WorldModels : IDisposable
     /// <summary>Pede o modelo (uma vez); fica pronto alguns quadros depois.</summary>
     public void Request(string ecm)
     {
-        if (_pck is null || _models.ContainsKey(ecm) || !_waiting.Add(ecm)) return;
+        if (!_packs.Any || _models.ContainsKey(ecm) || !_waiting.Add(ecm)) return;
         _load.Work(() =>
         {
             (SkiModel, string)? s;
-            try { lock (_pck) s = ResolveSki(_pck, ecm); } catch { s = null; }
+            if (_packs.For(ecm) is not { } pck) return null;   // models.pck ou, no PWI 1.6, textures.pck (pela 1ª pasta)
+            try { lock (pck) s = ResolveSki(pck, ecm); } catch { s = null; }
             if (s is not var (ski, dir)) return null;
             var tex = new List<(int[], int, int)?>();
             foreach (var name in ski.Textures)
             {
                 byte[]? d;
-                lock (_pck) d = FindTexture(_pck, dir, name, ref _ddsByName) is { } e ? _pck.Read(e) : null;
+                lock (pck) d = FindTexture(pck, dir, name, ref _ddsByName) is { } e ? pck.Read(e) : null;
                 try { tex.Add(d is null ? null : DdsDecoder.DecodeMax(d, 512)); } catch { tex.Add(null); }
             }
             return new Cpu(ski, tex);
@@ -170,6 +171,6 @@ internal sealed class WorldModels : IDisposable
     {
         foreach (var m in _models.Values) if (m is not null) foreach (var p in m.Parts) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
         foreach (var t in _textures) GL.DeleteTexture(t);
-        _pck?.Dispose();
+        _packs.Dispose();
     }
 }

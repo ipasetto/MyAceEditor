@@ -8,14 +8,15 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed class ModelPreview : IDisposable
 {
-    readonly PckArchive? _pck;
+    readonly ModelPacks _packs;
+    PckArchive? _pck;   // pacote do modelo que está sendo desenhado (models.pck ou textures.pck)
     readonly Dictionary<string, Bitmap?> _cache = new(StringComparer.OrdinalIgnoreCase);
     Dictionary<string, PckEntry>? _ddsByName;
     readonly Dictionary<string, (int[] Px, int W, int H)?> _texCache = new(StringComparer.OrdinalIgnoreCase);   // texturas já decodificadas
 
     public ModelPreview(string? elementDir)
     {
-        try { if (elementDir is not null && File.Exists(Path.Combine(elementDir, "models.pck"))) _pck = new PckArchive(Path.Combine(elementDir, "models.pck")); } catch { _pck = null; }
+        _packs = new ModelPacks(elementDir);
     }
 
     readonly Dictionary<string, (SkiModel Ski, string Dir)?> _skis = new(StringComparer.OrdinalIgnoreCase);
@@ -23,7 +24,7 @@ internal sealed class ModelPreview : IDisposable
     /// <summary>Imagem do modelo girado yaw graus (arrastar na prévia gira). Guarda as imagens por ângulo de 10°.</summary>
     public Image? Render(string? ecm, int size = 240, float yaw = 0, bool transparent = false)
     {
-        if (ecm is null || _pck is null) return null;
+        if (ecm is null || !_packs.Any || (_pck = _packs.For(ecm)) is null) return null;
         int step = ((int)MathF.Round(yaw / 10f) % 36 + 36) % 36;
         var key = ecm + "|" + step + "|" + size + (transparent ? "|t" : "");
         if (_cache.TryGetValue(key, out var b)) return b;
@@ -122,6 +123,6 @@ internal sealed class ModelPreview : IDisposable
     public void Dispose()
     {
         foreach (var x in _cache.Values) x?.Dispose();
-        _pck?.Dispose();
+        _packs.Dispose();
     }
 }

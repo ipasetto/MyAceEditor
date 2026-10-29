@@ -97,6 +97,19 @@ internal static class Program
             File.WriteAllText("npcgen.txt", rep, new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--model")   // <pasta element> <.ecm>: acha o .ski do modelo (model.txt)
+        {
+            using var packs = new MyAceEditor.UI.ModelPacks(args[1]);
+            var r = packs.For(args[2]) is { } mp ? MyAceEditor.UI.WorldModels.ResolveSki(mp, args[2]) : null;
+            File.WriteAllText("model.txt", r is { } x ? $"OK {x.Dir}" : "NÃO ACHEI", new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 4 && args[0] == "--field")   // <elements.data> <bloco> <campo>: valor nos 8 primeiros itens (field.txt)
+        {
+            var list = CfgCatalog.Load(args[1]).Module.FindListByName(args[2]);
+            File.WriteAllText("field.txt", string.Join("\n", (list?.Items ?? new()).Take(8).Select(i => $"{i.Id}\t{i.Name}\t{(i.Fields.TryGetValue(args[3], out var f) ? $"{f.Type}: {f.Value}" : "(sem o campo)")}")), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--names")   // <elements.data> <bloco>: ID e nome dos 15 primeiros itens (names.txt)
         {
             var list = CfgCatalog.Load(args[1]).Module.FindListByName(args[2]);
