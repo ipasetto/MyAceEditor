@@ -1438,8 +1438,13 @@ public sealed class EditorForm : Form
         _view = Sorted(src).ToList();
 
         UpdateCounters();
-        _list.VirtualListSize = _view.Count;
+        // a lista virtual guarda a rolagem antiga ao encolher (linhas vazias no topo até clicar): zera antes
+        _list.BeginUpdate();
         _list.SelectedIndices.Clear();
+        _list.VirtualListSize = 0;
+        _list.VirtualListSize = _view.Count;
+        if (_view.Count > 0) _list.EnsureVisible(0);
+        _list.EndUpdate();
         _list.Invalidate();
         if (_current is not null && _view.Contains(_current)) SelectItem(_current, focus: false);
         else if (_view.Count > 0) { _current = _view[0]; SelectItem(_current, focus: false); ShowItem(_current); }

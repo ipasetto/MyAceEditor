@@ -373,6 +373,7 @@ internal sealed class NpcGenView : UserControl
                 for (int i = 0; i < f.Spawns.Count; i++) if (f.Spawns[i].Type == type && Match(f.Spawns[i].Creatures.Select(x => x.Id))) _rows.Add(i);
             }
         }
+        _list.VirtualListSize = 0;   // zera a rolagem antiga (senão sobram linhas vazias ao encolher)
         _list.VirtualListSize = _rows.Count;
         _count.Text = string.Format(Loc.T("npcgen.count", "{0:N0} pontos"), _rows.Count);
         _list.SelectedIndices.Clear();

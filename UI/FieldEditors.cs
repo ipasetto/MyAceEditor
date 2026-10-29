@@ -106,6 +106,7 @@ internal static class FieldEditors
             view = source.Where(it => (g is null || group!(it) == g) &&
                                       (q.Length == 0 || it.Id.Contains(q) || it.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || describe(it).Contains(q, StringComparison.OrdinalIgnoreCase)))
                          .Take(20000).ToList();
+            lv.VirtualListSize = 0;   // zera a rolagem antiga (senão sobram linhas vazias ao encolher)
             lv.VirtualListSize = view.Count;
             lv.Invalidate();
             f.Text = $"{title} — {view.Count:N0}";
