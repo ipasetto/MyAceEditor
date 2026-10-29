@@ -2546,7 +2546,7 @@
   "tr.reading": "Reading the translated elements.data",
   "ls.pctStop": "Stopping the server",
   "ls.pctPrograms": "Replacing the server programs",
-  "ls.pctConfig": "Copying the server config folder (maps, npcgen…)",
+  "ls.pctConfig": "Copying the files that changed",
   "ls.pctClient": "Sending the client's elements, tasks, shop and AI",
   "ls.pctStart": "Starting the services and maps",
   "ls.pctWorld": "Waiting for the world to load",
@@ -3657,5 +3657,14 @@
   "qb.stepNoArea": "mark at least one area in the world.",
   "qb.stepAreasMax": "at most {0} areas in this version.",
   "qb.stepBadArea": "area {0} must be at least 1 m in X, height and Z (maximum greater than minimum).",
-  "qb.anyOneNeeds2": "\"Any one of the steps\" needs at least 2 steps."
+  "qb.anyOneNeeds2": "\"Any one of the steps\" needs at least 2 steps.",
+  "ls.pctCompare": "Comparing with what the server already has",
+  "ls.nothingChanged": "The server already has exactly these files: nothing sent, it stays online.",
+  "ls.filesToSend": "{0} different file(s): {1}",
+  "ls.copyToConfigFailed": "Could not copy the files to the server:",
+  "ls.accountInAdmin": "Create your account (and GM) in Manage → Accounts.",
+  "srvdiff.ask": "The local server differs from your client in {0} file(s):\n• {1}\n\nSend now? Only what changed is copied and the server restarts.",
+  "srvdiff.title": "Local server out of date",
+  "glow.differs": "{0} (different on the server)",
+  "srv.sendingChanged": "Sending what changed and restarting…"
 }

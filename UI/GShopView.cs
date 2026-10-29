@@ -216,10 +216,17 @@ internal sealed class GShopView : UserControl
         }
         try
         {
-            // o jogo compara o timestamp do cliente com o do servidor: os dois recebem o mesmo, novo
-            f.Timestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            AtomicFileSave.Write(cp, f.WriteClient());
-            AtomicFileSave.Write(_serverPath[_which]!, f.WriteServer());
+            // o jogo compara o timestamp do cliente com o do servidor: os dois recebem o mesmo, novo; só quando a loja
+            // mudou de fato (senão um Salvar sem mudança deixaria o servidor já enviado "diferente" do cliente)
+            bool same = File.Exists(cp) && File.ReadAllBytes(cp).AsSpan().SequenceEqual(f.WriteClient());
+            if (!same)
+            {
+                f.Timestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                AtomicFileSave.Write(cp, f.WriteClient());
+            }
+            var sp = _serverPath[_which]!;
+            var sv = f.WriteServer();
+            if (!same || !File.Exists(sp) || !File.ReadAllBytes(sp).AsSpan().SequenceEqual(sv)) AtomicFileSave.Write(sp, sv);
             _dirty[_which] = false;
             UpdateInfo();
             if (quiet) return true;

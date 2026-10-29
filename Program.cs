@@ -210,6 +210,15 @@ internal static class Program
             File.WriteAllText("entrance.txt", sb.ToString());
             return;
         }
+        if (args.Length >= 3 && args[0] == "--server-diff")   // <base do servidor local> <pasta server files> [element do cliente]: o que o envio copiaria (não para nada)
+        {
+            var ls = new LocalServer(args[1]);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var diff = args.Length >= 4 ? ls.PendingDiff(args[2], args[3], args.Length >= 5 ? args[4] : null) ?? new()
+                : ls.ConfigDiff(Path.Combine(args[2], "home", "gamed", "config"), null);
+            File.WriteAllText("server-diff.txt", $"{diff.Count} diferentes em {sw.Elapsed.TotalSeconds:0.0} s\n" + string.Join("\n", diff.Select(d => d.Rel)));
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--world-shot") { WorldShot(args[1], args[2], args.Skip(3).ToArray()); return; }   // <pasta do mapa> <saída> x,y,z,yaw,pitch[,nome] ...
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }
         AppLog.Info($"início · {Application.ProductVersion} · {Environment.OSVersion} · idioma {AppLang.Current}");

@@ -142,6 +142,7 @@ public sealed class EditorForm : Form
             if (_split is not null) _split.SplitterDistance = 430;
             var last = LoadLast();
             if (last is not null && File.Exists(last)) LoadElements(last);
+            CheckServer(ask: true);   // o servidor local ficou para trás desde a última vez? (ex.: salvo e não enviado)
         };
     }
 
@@ -378,7 +379,7 @@ public sealed class EditorForm : Form
             () => _chkClient.Text.Length > 0 ? VersionCheck.ClientElement(_chkClient.Text)
                 : _dataPath is null ? "" : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "",
             () => _chkServer.Text, LoadSetting, SaveSetting) { AiPolicyPath = () => _aiView?.FilePath });
-        _serverView.FilesSent += ok => { if (ok) _unsent.Clear(); UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
+        _serverView.FilesSent += ok => { if (ok) { _unsent.Clear(); _serverDiff = null; } UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
         tabs.TabPages.Add(tSrv);
         var tPck = new TabPage() { BackColor = CBg };
         _tabPck = tPck;
@@ -1066,7 +1067,7 @@ public sealed class EditorForm : Form
     private void MarkElementsSaved() => _savedStep = _edits.UndoSteps.FirstOrDefault();
 
     /// <summary>Grava de uma vez tudo o que mudou: elements.data, tasks.data, lojas (cliente + servidor) e npcgen.</summary>
-    private void SaveAll(bool quiet)
+    private void SaveAll(bool quiet, bool checkServer = true)
     {
         _grid.EndEdit(); _qGrid.EndEdit();
         var pending = new List<string>();
@@ -1086,6 +1087,7 @@ public sealed class EditorForm : Form
         if (_aiView?.SaveIfDirty() is { } ai) done.Add(Path.GetFileName(ai));
         foreach (var d in done) _unsent.Add(d);
         UpdateSendGlow();
+        if (checkServer && done.Count > 0) CheckServer(ask: !quiet);
         Status((quiet ? Loc.T("status.autoSaved", "Salvo automaticamente: ") : Loc.T("status.savedAll", "Salvo: ")) + (done.Count == 0 ? "—" : string.Join(", ", done)) + $" ({DateTime.Now:HH:mm})");
     }
 
@@ -1104,7 +1106,33 @@ public sealed class EditorForm : Form
         if (_npcgen?.HasUnsaved == true) l.Add(Loc.T("glow.npcgen", "npcgen.data (não salvo)"));
         if (_aiView?.HasUnsaved == true) l.Add(Loc.T("glow.ai", "aipolicy.data (não salvo)"));
         foreach (var f in _unsent) l.Add(string.Format(Loc.T("glow.saved", "{0} (salvo só no cliente)"), f));
+        if (_serverDiff is { Count: > 0 } sd)
+        {
+            var extra = sd.Where(f => !_unsent.Contains(Path.GetFileName(f))).ToList();
+            l.AddRange(extra.Take(8).Select(f => string.Format(Loc.T("glow.differs", "{0} (diferente no servidor)"), f)));
+            if (extra.Count > 8) l.Add($"… +{extra.Count - 8}");
+        }
         return l;
+    }
+
+    // ---------- servidor local diferente do cliente (conferido de verdade, não só nesta sessão) ----------
+    private List<string>? _serverDiff;   // arquivos que o envio levaria; null = não conferido / sem servidor local
+    private bool _checkingServer;
+
+    /// <summary>Compara em segundo plano o servidor local com o que o envio levaria; com <paramref name="ask"/>, oferece enviar.</summary>
+    private async void CheckServer(bool ask)
+    {
+        if (_serverView is null || _checkingServer) return;
+        _checkingServer = true;
+        try { _serverDiff = await _serverView.ServerDiffAsync(); }
+        finally { _checkingServer = false; }
+        if (IsDisposed) return;
+        UpdateSendGlow();
+        if (!ask || _serverDiff is not { Count: > 0 } d) return;
+        var list = string.Join("\n• ", d.Take(10)) + (d.Count > 10 ? $"\n… +{d.Count - 10}" : "");
+        if (MessageBox.Show(this, string.Format(Loc.T("srvdiff.ask", "O servidor local está diferente do seu cliente em {0} arquivo(s):\n• {1}\n\nEnviar agora? Só o que mudou é copiado e o servidor reinicia."), d.Count, list),
+                Loc.T("srvdiff.title", "Servidor local desatualizado"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            SaveAndSend();
     }
 
     private void UpdateSendGlow()
@@ -1128,7 +1156,7 @@ public sealed class EditorForm : Form
             MessageBox.Show(this, GShopView.ProblemText(bad), Loc.T("tb.saveSend", "💾 Salvar e enviar ao servidor"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        SaveAll(quiet: true);
+        SaveAll(quiet: true, checkServer: false);
         if (_serverView is null) return;
         if (_tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;
         _serverView.SendFiles();

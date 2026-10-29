@@ -15,9 +15,6 @@ public sealed class ServerView : UserControl
     readonly Action<string, string> _save;
     readonly TextBox _pkg = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
     readonly TextBox _base = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
-    readonly TextBox _login = new() { Width = 160, BorderStyle = BorderStyle.FixedSingle };
-    readonly TextBox _pass = new() { Width = 160, BorderStyle = BorderStyle.FixedSingle, UseSystemPasswordChar = true };
-    readonly CheckBox _gm = new() { AutoSize = true, Checked = true };
     readonly RichTextBox _log = new() { Dock = DockStyle.Fill, ReadOnly = true, ScrollBars = RichTextBoxScrollBars.Vertical, Font = new Font("Consolas", 9.5f), WordWrap = true, BorderStyle = BorderStyle.None };
     readonly Label _step = new() { Dock = DockStyle.Top, Height = 28, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 10.5f, FontStyle.Bold) };
     readonly ProgressBar _bar = new() { Dock = DockStyle.Top, Height = 8, Style = ProgressBarStyle.Marquee, Visible = false };
@@ -35,30 +32,26 @@ public sealed class ServerView : UserControl
         BackColor = bg; ForeColor = fg; Dock = DockStyle.Fill; Padding = new Padding(10); _accent = accent;
         var intro = new Label { Dock = DockStyle.Top, Height = 46, ForeColor = fg };
         Bind(() => intro.Text = Loc.T("srv.testServerOnYourPc", "Servidor de teste no seu PC (Linux do Windows, WSL). Clique em Instalar uma vez; depois é só Iniciar e entrar no jogo pelo servidor \"Local\". Seus arquivos originais do servidor não são alterados: o programa trabalha numa cópia."));
-        var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 104, ColumnCount = 3, RowCount = 3 };
-        for (int i = 0; i < 3; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 70, ColumnCount = 3, RowCount = 2 };
+        for (int i = 0; i < 2; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         Label Lb(Func<string> t) { var l = new Label { AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = fg }; Bind(() => l.Text = t()); return l; }
         form.Controls.Add(Lb(() => Loc.T("srv.serverPackageServerFiles", "Pacote do servidor (\"server files\")")), 0, 0); form.Controls.Add(_pkg, 1, 0);
         form.Controls.Add(Btn(() => Loc.T("srv.browse", "Procurar…"), () => Pick(_pkg)), 2, 0);
         form.Controls.Add(Lb(() => Loc.T("srv.localServerFolder", "Pasta do servidor local")), 0, 1); form.Controls.Add(_base, 1, 1);
         form.Controls.Add(Btn(() => Loc.T("srv.browse", "Procurar…"), () => Pick(_base)), 2, 1);
-        var acc = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        acc.Controls.AddRange(new Control[] { Lb(() => Loc.T("srv.login", "Login")), _login, Lb(() => Loc.T("srv.password", "Senha")), _pass, _gm });
-        Bind(() => _gm.Text = Loc.T("srv.gm", "GM"));
-        form.Controls.Add(Lb(() => Loc.T("srv.yourGameAccount", "Sua conta no jogo")), 0, 2); form.Controls.Add(acc, 1, 2);
+        // contas (criar, senha, GM) ficam no Administrar
         var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, WrapContents = false };
         bar.Controls.Add(Btn(() => Loc.T("srv.installComplete", "⬇ Instalar / completar"), Install, accent));
         bar.Controls.Add(Btn(() => Loc.T("srv.start", "▶ Iniciar"), () => Run(Loc.T("srv.starting", "Iniciando…"), s => s.Start()), accent));
         bar.Controls.Add(Btn(() => Loc.T("srv.stop", "■ Parar"), () => Run(Loc.T("srv.stopping", "Parando…"), s => s.Stop())));
         bar.Controls.Add(Btn(() => Loc.T("srv.sendMyFilesAndRestart", "⟳ Enviar meus arquivos e reiniciar"), SendFiles));
-        bar.Controls.Add(Btn(() => Loc.T("srv.createChangeAccount", "👤 Criar/trocar conta"), CreateAccount));
         bar.Controls.Add(Btn(() => Loc.T("srv.status", "Estado"), RefreshStatus));
         bar.Controls.Add(Btn(() => Loc.T("srv.admin", "🛠 Administrar…"), OpenAdmin, accent));
         // tudo numa tabela de linhas automáticas (o log ocupa o resto): nada depende da ordem de encaixe
         var root = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 1, RowCount = 6, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        intro.AutoSize = false; intro.Height = 46; form.Height = 104; bar.Height = 40; _step.Height = 30; _lights.Height = 34; _bar.Height = 8;
+        intro.AutoSize = false; intro.Height = 46; form.Height = 70; bar.Height = 40; _step.Height = 30; _lights.Height = 34; _bar.Height = 8;
         foreach (var c in new Control[] { intro, form, bar, _step, _lights, _bar })
         {
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, c.Height));
@@ -67,7 +60,6 @@ public sealed class ServerView : UserControl
         Controls.Add(_log); Controls.Add(root);   // o log ocupa o resto
         _log.BackColor = Color.FromArgb(Math.Max(0, bg.R - 12), Math.Max(0, bg.G - 12), Math.Max(0, bg.B - 12)); _log.ForeColor = fg;
 
-        _login.Text = _load("server_login") ?? "";
         VisibleChanged += (_, _) => { if (Visible) Fill(); };
         Loc.Changed += ApplyTexts;
     }
@@ -172,11 +164,10 @@ public sealed class ServerView : UserControl
         var pkg = _pkg.Text.Trim();
         if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickThePackageSServer", "Escolha a pasta \"server files\" do pacote (a que tem home, etc e lib).")); return; }
         if (SqlDir() is not { } sql) { Warn(Loc.T("srv.sqlFolderPwTabelsSql", "Não achei a pasta SQL (PW_tabels.sql) ao lado do pacote.")); return; }
-        if (!Valid(_login.Text) || !Valid(_pass.Text)) { Warn(Loc.T("srv.loginAndPasswordLettersAnd", "Login e senha: só letras e números.")); return; }
         var client = _client();
         if (!Directory.Exists(Path.Combine(client, "data"))) { Warn(Loc.T("srv.setTheClientElementFolder", "Abra o cliente na aba Verificação (pasta element).")); return; }
-        _save("server_pkg", pkg); _save("server_base", _base.Text.Trim()); _save("server_login", _login.Text.Trim());
-        var opt = new LocalServer.InstallOptions(pkg, sql, client, _login.Text.Trim(), _pass.Text, _gm.Checked);
+        _save("server_pkg", pkg); _save("server_base", _base.Text.Trim());
+        var opt = new LocalServer.InstallOptions(pkg, sql, client, "", "", false);   // conta: no Administrar, depois
         var s = NewServer();
         Busy(true, Loc.T("srv.installing", "Instalando…"));
         var prog = new Progress<(string Step, double? Fraction)>(p =>
@@ -229,9 +220,28 @@ public sealed class ServerView : UserControl
                 Busy(false);
                 if (missing is not null) AppendLog("⚠ " + missing);
                 if (sw is not null && !AskSwap(this, sw)) { AppendLog("⚠ " + Loc.T("srv.swapSkipped", "Programas de outra versão mantidos: o login continuará recusado.")); sw = null; }
-                // tudo, sempre: config inteira do servidor + elements/tasks/loja/IA do cliente (LocalServer.SendAll)
-                Run(Loc.T("srv.sendingAllFilesAndRestarting", "Enviando todos os arquivos e reiniciando…"), s => s.SendAll(pkg, client, ai, sw), ok => FilesSent?.Invoke(ok));
+                // config inteira do servidor + elements/tasks/loja/IA do cliente, comparados pelo conteúdo: só o que difere vai (LocalServer.SendAll)
+                Run(Loc.T("srv.sendingChanged", "Enviando o que mudou e reiniciando…"), s => s.SendAll(pkg, client, ai, sw), ok => FilesSent?.Invoke(ok));
             });
+        });
+    }
+
+    /// <summary>
+    /// Arquivos em que o servidor local está diferente do que o envio levaria (segundo plano: MD5 dos dois lados, alguns
+    /// segundos). null = não deu para comparar (servidor não instalado, pasta não escolhida, WSL ausente).
+    /// </summary>
+    public Task<List<string>?> ServerDiffAsync()
+    {
+        Fill();
+        var pkg = _pkg.Text.Trim(); var client = _client(); var ai = AiPolicyPath?.Invoke(); var baseDir = _base.Text.Trim();
+        return Task.Run(() =>
+        {
+            try
+            {
+                if (_busy || !Directory.Exists(Path.Combine(pkg, "home")) || !Directory.Exists(baseDir) || LocalServer.WslProblem() is not null) return null;
+                return new LocalServer(baseDir).PendingDiff(pkg, client, ai)?.Select(d => d.Rel).ToList();
+            }
+            catch (Exception ex) { AppLog.Error("conferir o servidor local", ex); return null; }
         });
     }
 
@@ -264,18 +274,6 @@ public sealed class ServerView : UserControl
         if (f.ShowDialog(owner) != DialogResult.OK) return false;
         s.Backup = backup.Checked; s.FreshDatabase = fresh.Checked;
         return true;
-    }
-
-    void CreateAccount()
-    {
-        if (!Valid(_login.Text) || !Valid(_pass.Text)) { Warn(Loc.T("srv.loginAndPasswordLettersAnd", "Login e senha: só letras e números.")); return; }
-        _save("server_login", _login.Text.Trim());
-        Run(Loc.T("srv.creatingTheAccount", "Criando a conta…"), s =>
-        {
-            var err = s.Account(_login.Text.Trim(), _pass.Text, _gm.Checked);
-            s.Log(err ?? Loc.T("srv.accountReady", "Conta pronta."));
-            return new LocalServer.RunResult(err is null ? 0 : 1, err ?? "");
-        });
     }
 
     void RefreshStatus()
@@ -320,6 +318,5 @@ public sealed class ServerView : UserControl
         w.Show(FindForm());
     }
 
-    static bool Valid(string s) => s.Trim().Length is >= 3 and <= 20 && s.Trim().All(char.IsAsciiLetterOrDigit);
     void Warn(string msg) => MessageBox.Show(this, msg, Loc.T("srv.server", "Servidor"), MessageBoxButtons.OK, MessageBoxIcon.Information);
 }

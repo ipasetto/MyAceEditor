@@ -2548,7 +2548,7 @@
   "tr.reading": "正在读取已翻译的 elements.data",
   "ls.pctStop": "正在停止服务器",
   "ls.pctPrograms": "正在替换服务器程序",
-  "ls.pctConfig": "正在复制服务器 config 文件夹（地图、npcgen…）",
+  "ls.pctConfig": "正在复制有改动的文件",
   "ls.pctClient": "正在发送客户端的 elements、tasks、商城和 AI",
   "ls.pctStart": "正在启动服务和地图",
   "ls.pctWorld": "正在等待世界加载",
@@ -3659,5 +3659,14 @@
   "qb.stepNoArea": "请在世界中至少标记一个区域。",
   "qb.stepAreasMax": "此版本最多 {0} 个区域。",
   "qb.stepBadArea": "区域 {0} 在 X、高度和 Z 上都至少要有 1 米（最大值大于最小值）。",
-  "qb.anyOneNeeds2": "“完成任意一个阶段即可”至少需要 2 个阶段。"
+  "qb.anyOneNeeds2": "“完成任意一个阶段即可”至少需要 2 个阶段。",
+  "ls.pctCompare": "正在与服务器现有文件比对",
+  "ls.nothingChanged": "服务器已有完全相同的文件：未发送任何内容，服务器保持运行。",
+  "ls.filesToSend": "{0} 个不同的文件：{1}",
+  "ls.copyToConfigFailed": "无法将文件复制到服务器：",
+  "ls.accountInAdmin": "请在“管理 → 账号”中创建你的账号（和 GM）。",
+  "srvdiff.ask": "本地服务器与你的客户端有 {0} 个文件不同：\n• {1}\n\n现在发送吗？只复制有改动的文件，服务器会重启。",
+  "srvdiff.title": "本地服务器已过期",
+  "glow.differs": "{0}（与服务器不同）",
+  "srv.sendingChanged": "正在发送有改动的文件并重启…"
 }

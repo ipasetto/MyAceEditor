@@ -110,9 +110,13 @@ public sealed class LocalServer
         progress?.Report((Loc.T("ls.matching", "Igualando o servidor ao seu cliente (elements, tasks, loja)"), null));
         FixPair(o.ClientElement, null, Path.Combine(o.ServerFiles, "home", "gamed", "config"));
 
-        progress?.Report((Loc.T("ls.creatingAccount", "Criando a sua conta"), null));
-        var acc = Account(o.Login, o.Password, o.Gm);
-        if (acc is not null) throw new InvalidOperationException(acc);
+        if (o.Login.Length > 0)
+        {
+            progress?.Report((Loc.T("ls.creatingAccount", "Criando a sua conta"), null));
+            var acc = Account(o.Login, o.Password, o.Gm);
+            if (acc is not null) throw new InvalidOperationException(acc);
+        }
+        else Log(Loc.T("ls.accountInAdmin", "Crie a sua conta (e o GM) em Administrar → Contas."));
 
         progress?.Report((Loc.T("ls.addingLocal", "Colocando \"Local\" na lista de servidores do cliente"), null));
         AddToServerList(o.ClientElement);
@@ -351,6 +355,13 @@ public sealed class LocalServer
     /// </summary>
     public void FixPair(string clientElement, string? aiPolicy = null, string? serverConfig = null)
     {
+        var stage = StagePair(clientElement, aiPolicy, serverConfig);
+        Bash($"cp -f '{ToWslPath(stage)}'/*.data /home/gamed/config/ && chmod a+rw /home/gamed/config/*.data", Log, timeoutMs: 300_000);
+    }
+
+    /// <summary>Monta em BaseDir\envio os arquivos do par (ver FixPair) e devolve a pasta.</summary>
+    string StagePair(string clientElement, string? aiPolicy, string? serverConfig)
+    {
         var stage = Path.Combine(BaseDir, "envio");
         if (Directory.Exists(stage)) Directory.Delete(stage, true);
         Directory.CreateDirectory(stage);
@@ -373,32 +384,140 @@ public sealed class LocalServer
         var pick = aiPolicy is not null && File.Exists(aiPolicy) ? aiPolicy : ai.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
         _aiSource = pick;
         if (pick is not null) { File.Copy(pick, Path.Combine(stage, "aipolicy.data")); Log(string.Format(Loc.T("ls.sendingAi", "enviando aipolicy.data de {0}"), pick)); }
-        Bash($"cp -f '{ToWslPath(stage)}'/*.data /home/gamed/config/ && chmod a+rw /home/gamed/config/*.data", Log, timeoutMs: 300_000);
+        return stage;
     }
 
     /// <summary>
-    /// "Salvar e enviar ao servidor": para, copia a pasta gamed\config INTEIRA do servidor original (npcgen, mapas,
-    /// regiões…), põe por cima os arquivos que vêm do cliente (FixPair) e inicia. Nada é pulado por data ou tamanho.
+    /// "Salvar e enviar ao servidor": o servidor tem de ficar com a pasta gamed\config INTEIRA do servidor original
+    /// (npcgen, mapas, regiões…) e, por cima, os arquivos que vêm do cliente (StagePair). Compara pelo CONTEÚDO (MD5 dos
+    /// dois lados, nada de data) e só copia o que difere; sem diferença e com o servidor no ar, nem reinicia.
     /// </summary>
     public RunResult SendAll(string serverFiles, string clientElement, string? aiPolicy = null, ProgramSwap? swap = null)
     {
         // "##PCT n etapa": a tela mostra a barra cheia até n% (não vai para o log)
         void Pct(int n, string what) => Log($"##PCT {n} {what}");
-        Pct(2, Loc.T("ls.pctStop", "Parando o servidor"));
-        Stop();
         // programas de outra versão que a do cliente: o glinkd recusaria o login ("versão baixa"); troca antes dos dados
-        if (swap is not null) { Pct(8, Loc.T("ls.pctPrograms", "Trocando os programas do servidor")); InstallPrograms(swap); serverFiles = swap.Package; }
+        if (swap is not null) { Pct(2, Loc.T("ls.pctStop", "Parando o servidor")); Stop(); Pct(8, Loc.T("ls.pctPrograms", "Trocando os programas do servidor")); InstallPrograms(swap); serverFiles = swap.Package; }
         var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
-        Pct(30, Loc.T("ls.pctConfig", "Copiando a pasta config do servidor (mapas, npcgen…)"));
-        Bash($"cp -a '{ToWslPath(cfg)}/.' /home/gamed/config/ && chmod -R a+rwX /home/gamed/config", Log, timeoutMs: 1_800_000);
-        Pct(60, Loc.T("ls.pctClient", "Enviando elements, tasks, loja e IA do cliente"));
-        FixPair(clientElement, aiPolicy, cfg);
+        Pct(12, Loc.T("ls.pctClient", "Enviando elements, tasks, loja e IA do cliente"));
+        List<SendFile> diff;
+        lock (StageLock)
+        {
+            var stage = StagePair(clientElement, aiPolicy, cfg);
+            Pct(20, Loc.T("ls.pctCompare", "Comparando com o que o servidor já tem"));
+            diff = ConfigDiff(cfg, stage);
+        }
+        bool running = swap is null && Status() is { Count: > 0 } st && st.Values.All(v => v);
+        if (diff.Count == 0 && running)
+        {
+            Log(Loc.T("ls.nothingChanged", "O servidor já tem exatamente estes arquivos: nada enviado, continua no ar."));
+            Pct(100, Loc.T("ls.pctDone", "Pronto"));
+            return new(0, "");
+        }
+        Log(string.Format(Loc.T("ls.filesToSend", "{0} arquivo(s) diferentes: {1}"), diff.Count,
+            string.Join(", ", diff.Take(12).Select(d => d.Rel)) + (diff.Count > 12 ? $" … +{diff.Count - 12}" : "")));
+        if (swap is null) { Pct(30, Loc.T("ls.pctStop", "Parando o servidor")); Stop(); }
+        Pct(45, Loc.T("ls.pctConfig", "Copiando os arquivos que mudaram"));
+        lock (StageLock) CopyToConfig(diff);
         Pct(72, Loc.T("ls.pctStart", "Iniciando os serviços e os mapas"));
         var r = Start();
         Pct(88, Loc.T("ls.pctWorld", "Esperando o mundo carregar"));
         FixRejectedAiPolicy(serverFiles);
         Pct(100, Loc.T("ls.pctDone", "Pronto"));
         return r;
+    }
+
+    public sealed record SendFile(string Rel, string Src);
+
+    /// <summary>
+    /// O que o "Salvar e enviar" levaria agora (mesma montagem e comparação do SendAll, sem parar nem copiar nada):
+    /// vazio = o servidor já tem exatamente isso. null = não dá para comparar (sem distro ou sem a pasta config).
+    /// </summary>
+    public List<SendFile>? PendingDiff(string serverFiles, string clientElement, string? aiPolicy = null)
+    {
+        var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
+        if (!DistroExists() || !Directory.Exists(cfg) || !Directory.Exists(Path.Combine(clientElement, "data"))) return null;
+        lock (StageLock) return ConfigDiff(cfg, StagePair(clientElement, aiPolicy, cfg));
+    }
+    static readonly object StageLock = new();   // a pasta envio é uma só (conferência em segundo plano × envio)
+
+    /// <summary>
+    /// O que o servidor deveria ter (pasta config original + par montado em <paramref name="stage"/> por cima) e ainda não
+    /// tem igual: MD5 de cada arquivo no Linux (md5sum, rápido no disco da distro) contra o MD5 do arquivo no Windows.
+    /// Arquivos que só existem no servidor ficam (como no cp -a de antes).
+    /// </summary>
+    public List<SendFile> ConfigDiff(string cfg, string? stage)
+    {
+        var want = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (Directory.Exists(cfg))
+            foreach (var f in Directory.EnumerateFiles(cfg, "*", SearchOption.AllDirectories))
+                want[Path.GetRelativePath(cfg, f).Replace('\\', '/')] = f;
+        if (stage is not null)
+            foreach (var f in Directory.EnumerateFiles(stage)) want[Path.GetFileName(f)] = f;
+
+        var sums = Path.Combine(BaseDir, "servidor.md5");
+        File.Delete(sums);
+        // -z: um registro por NUL e nomes sem escape (há nomes com espaço e acento)
+        Bash($"cd /home/gamed/config && find . -type f -print0 | xargs -0 -r -P4 md5sum -z > '{ToWslPath(sums)}'", Log, timeoutMs: 600_000);
+        var have = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (File.Exists(sums))
+            foreach (var rec in Encoding.UTF8.GetString(File.ReadAllBytes(sums)).Split('\0', StringSplitOptions.RemoveEmptyEntries))
+                if (rec.Length > 36 && rec[32] == ' ') have[rec[34..].StartsWith("./") ? rec[36..] : rec[34..]] = rec[..32];
+
+        var diff = new System.Collections.Concurrent.ConcurrentBag<SendFile>();
+        var cache = LoadHashCache();
+        Parallel.ForEach(want, new ParallelOptions { MaxDegreeOfParallelism = 4 }, kv =>
+        {
+            if (have.TryGetValue(kv.Key, out var h) && h == Md5(kv.Value, cache)) return;
+            diff.Add(new SendFile(kv.Key, kv.Value));
+        });
+        SaveHashCache(cache);
+        return diff.OrderBy(d => d.Rel, StringComparer.Ordinal).ToList();
+    }
+
+    // MD5 dos arquivos do Windows por (caminho, tamanho, data de gravação): a pasta config original tem ~4 GB e quase
+    // nunca muda; gravar o arquivo muda a data e ele é lido de novo. O lado do servidor é sempre lido inteiro.
+    string HashCacheFile => Path.Combine(BaseDir, "hashes.tsv");
+    System.Collections.Concurrent.ConcurrentDictionary<string, (long Size, long Ticks, string Md5)> LoadHashCache()
+    {
+        var d = new System.Collections.Concurrent.ConcurrentDictionary<string, (long, long, string)>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (File.Exists(HashCacheFile))
+                foreach (var l in File.ReadLines(HashCacheFile))
+                    if (l.Split('\t') is [var f, var sz, var tk, var h] && long.TryParse(sz, out var a) && long.TryParse(tk, out var b)) d[f] = (a, b, h);
+        }
+        catch (IOException) { }
+        return d;
+    }
+    void SaveHashCache(System.Collections.Concurrent.ConcurrentDictionary<string, (long Size, long Ticks, string Md5)> c)
+    {
+        try { File.WriteAllLines(HashCacheFile, c.Where(kv => File.Exists(kv.Key)).Select(kv => $"{kv.Key}\t{kv.Value.Size}\t{kv.Value.Ticks}\t{kv.Value.Md5}")); }
+        catch (IOException) { }
+    }
+
+    static string Md5(string path, System.Collections.Concurrent.ConcurrentDictionary<string, (long Size, long Ticks, string Md5)>? cache = null)
+    {
+        var fi = new FileInfo(path);
+        long size = fi.Length, ticks = fi.LastWriteTimeUtc.Ticks;
+        if (cache is not null && cache.TryGetValue(path, out var c) && c.Size == size && c.Ticks == ticks) return c.Md5;
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 20, FileOptions.SequentialScan);
+        var h = Convert.ToHexString(MD5.HashData(fs)).ToLowerInvariant();
+        if (cache is not null) cache[path] = (size, ticks, h);
+        return h;
+    }
+
+    /// <summary>Copia a lista para /home/gamed/config, mantendo as subpastas (lista com NUL, nomes sem escape).</summary>
+    void CopyToConfig(List<SendFile> files)
+    {
+        if (files.Count == 0) return;
+        var list = Path.Combine(BaseDir, "envio.lista");
+        var sb = new StringBuilder();
+        foreach (var f in files) sb.Append(ToWslPath(f.Src)).Append('\0').Append(f.Rel).Append('\0');
+        File.WriteAllBytes(list, new UTF8Encoding(false).GetBytes(sb.ToString()));
+        // pares origem/destino (cria as subpastas que faltam); depois as permissões de sempre
+        var r = Bash($"while IFS= read -r -d '' s && IFS= read -r -d '' d; do mkdir -p \"/home/gamed/config/$(dirname \"$d\")\" && cp -p \"$s\" \"/home/gamed/config/$d\" || exit 1; done < '{ToWslPath(list)}' && chmod -R a+rwX /home/gamed/config", Log, timeoutMs: 1_800_000);
+        if (r.Code != 0) throw new InvalidOperationException(Loc.T("ls.copyToConfigFailed", "Não consegui copiar os arquivos para o servidor:") + "\n" + r.Output);
     }
 
     /// <summary>
