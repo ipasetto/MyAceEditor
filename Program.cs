@@ -124,6 +124,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks-recado") { TaskRecado(args[1]); return; }   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
+        if (args.Length >= 3 && args[0] == "--spt") { SptTest(args[1], args[2]); return; }   // <trees.pck> <pasta>: gera todas as árvores, spt-test.txt + PNG de lado
         if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
         if (args.Length >= 1 && args[0] == "--translate-selftest") { TranslateSelfTest().GetAwaiter().GetResult(); return; }
@@ -812,6 +813,37 @@ internal static class Program
     }
 
     // --pck <arquivo.pck> [filtro]: lista as entradas em pck-list.txt (UTF-8).
+    private static void SptTest(string pckPath, string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        using var pck = new PckArchive(pckPath);
+        var sb = new StringBuilder();
+        foreach (var e in pck.Entries.Where(e => e.Path.EndsWith(".spt", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                var f = new SptFile(pck.Read(e));
+                var m = SptGrower.Build(f);
+                sb.Append($"{e.Path}\tníveis {f.Levels.Count}\tvértices {m.Pos.Count}\ttriângulos {m.Index.Count / 3}\tfolhas {m.Leaves.Count}\taltura {m.Height:0.0} m\tcasca {f.BarkTexture}\n");
+                // vista de lado (X, Y) para conferir a forma
+                float minX = m.Pos.Count == 0 ? 0 : m.Pos.Min(p => p.X), maxX = m.Pos.Count == 0 ? 1 : m.Pos.Max(p => p.X);
+                float h = Math.Max(1, m.Height), w = Math.Max(maxX - minX, 1);
+                float k = 380 / Math.Max(h, w);
+                using var bmp = new System.Drawing.Bitmap(400, 400);
+                using var g = System.Drawing.Graphics.FromImage(bmp);
+                g.Clear(System.Drawing.Color.White);
+                using var br = new System.Drawing.SolidBrush(System.Drawing.Color.SaddleBrown);
+                System.Drawing.PointF P(OpenTK.Mathematics.Vector3 v) => new(200 + v.X * k, 390 - v.Y * k);
+                for (int i = 0; i + 2 < m.Index.Count; i += 3)
+                    g.FillPolygon(br, new[] { P(m.Pos[m.Index[i]]), P(m.Pos[m.Index[i + 1]]), P(m.Pos[m.Index[i + 2]]) });
+                foreach (var l in m.Leaves) g.FillEllipse(System.Drawing.Brushes.Green, P(l.Pos).X - 1.5f, P(l.Pos).Y - 1.5f, 3, 3);
+                bmp.Save(Path.Combine(outDir, Path.GetFileNameWithoutExtension(e.Path) + ".png"));
+            }
+            catch (Exception ex) { sb.Append($"{e.Path}\tERRO {ex.Message}\n"); }
+        }
+        File.WriteAllText(Path.Combine(outDir, "spt-test.txt"), sb.ToString(), Encoding.UTF8);
+    }
+
     private static void ListPck(string pckPath, string filter)
     {
         using var pck = new PckArchive(pckPath);

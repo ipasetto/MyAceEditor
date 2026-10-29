@@ -70,6 +70,7 @@ internal sealed class WorldView : Form
     readonly WorldTerrain _terrain;
     readonly WorldModels _models;
     readonly WorldBuildings _buildings;
+    readonly WorldTrees _trees;
     bool _showBuildings = true;
     readonly HashSet<Keys> _keys = new();
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 10 };
@@ -135,6 +136,7 @@ internal sealed class WorldView : Form
         _terrain = new WorldTerrain(t, _load, element, start);
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
+        _trees = new WorldTrees(element, t.Name);
         RefreshMarkers();
         HideLidTerrain(start.Y);
         LookAt(start);
@@ -216,7 +218,7 @@ internal sealed class WorldView : Form
         FormClosed += (_, _) =>
         {
             _tick.Dispose(); _load.Dispose(); _gl.MakeCurrent();
-            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _worldMap?.Dispose();
+            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _worldMap?.Dispose();
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
         };
@@ -379,6 +381,7 @@ internal sealed class WorldView : Form
             _buildings.Update(pieces);
         }
         if (_showBuildings) _buildings.Draw(_cam, Forward);
+        _trees.Draw(_cam, Forward);   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();
 
         // pontos perto da câmera (refeitos a cada 100 m andados ou quando algo mudou)
