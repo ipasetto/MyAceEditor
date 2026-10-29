@@ -198,7 +198,25 @@ internal static class Program
         };
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }
         AppLog.Info($"início · {Application.ProductVersion} · {Environment.OSVersion} · idioma {AppLang.Current}");
+        UseAppIcon();
         Application.Run(new EditorForm());
+    }
+
+    /// <summary>
+    /// Logo do programa (Assets/app.ico, embutido) como ícone padrão de todas as janelas: o WinForms usa Form.DefaultIcon
+    /// quando a janela não define o seu, e esse padrão fica no campo estático s_defaultIcon. Se o campo mudar de nome numa
+    /// versão futura do .NET, as janelas só voltam ao ícone genérico (o .exe continua com a logo via ApplicationIcon).
+    /// </summary>
+    static void UseAppIcon()
+    {
+        try
+        {
+            using var s = typeof(Program).Assembly.GetManifestResourceStream("MyAceEditor.app.ico");
+            if (s is null) return;
+            var icon = new Icon(s);
+            typeof(Form).GetField("s_defaultIcon", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)?.SetValue(null, icon);
+        }
+        catch (Exception e) { AppLog.Info($"ícone do programa não carregou: {e.Message}"); }
     }
 
     // --snapshot <saida.png> [aba] [bloco id] [grupo]: abre o editor fora da tela (com a última pasta), salva um print e sai.

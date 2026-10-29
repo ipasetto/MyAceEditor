@@ -10,6 +10,7 @@
     <AssemblyName>MyAceEditor</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +22,8 @@
 
   <ItemGroup>
     <Compile Remove="Tests\**\*.cs" />
+    <!-- Logo: ícone do .exe (ApplicationIcon) e das janelas (Program.UseAppIcon) -->
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="MyAceEditor.app.ico" />
     <None Update="sample.data" CopyToOutputDirectory="PreserveNewest" />
     <None Update="PerfectWorld\cfg\**\*.cfg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="PerfectWorld\cfg\*.tsv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
