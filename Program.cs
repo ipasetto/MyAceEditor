@@ -446,6 +446,12 @@ internal static class Program
         var edited = t.Build();
         var again = new TasksFile(edited);
         sb.AppendLine($"editar descrição: {(again.FullSchema && again.Roots![1].Texts[0] == "Descrição de teste ✓" ? "OK" : "FALHOU " + again.SchemaError)} ({edited.Length - original.Length:+#;-#;0} bytes)");
+        // campo escalar (mesmo nome em todas as versões via QuestKeys) e clonar
+        var fAward = again.Roots![1].Field("NPC do prêmio")!;
+        again.Roots[1].Set(fAward, "12345");
+        var clone = again.CloneRoot(again.Roots[1]);
+        var third = new TasksFile(again.Build());
+        sb.AppendLine($"editar campo + clonar: {(third.FullSchema && third.Roots![1].Get(third.Roots[1].Field("NPC do prêmio")!) == "12345" && third.Index.Find(clone.Id) is QuestNode c && c.Name == q0.Name ? "OK" : "FALHOU " + third.SchemaError)} (clone {clone.Id}, regrava {(third.CanWrite ? "OK" : third.ReadOnlyReason)})");
         File.WriteAllText("tasks-report.txt", sb.ToString(), new UTF8Encoding(false));
     }
 

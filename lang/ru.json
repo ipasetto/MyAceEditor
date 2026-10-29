@@ -2296,6 +2296,7 @@
   "tasks.read": "Квесты прочитаны",
   "tasks.mainTotal": "Основных квестов: {0:N0}",
   "tasks.readOnly": "Квесты открыты только для чтения и не могут быть сохранены. ",
+  "tasks.groupMain": "Основное",
   "tasks.nameTooLong": "Название квеста {0} длиннее {1} символов.",
   "tasks.building": "Сборка tasks.data",
   "tasks.cloneNeedsSchema": "Для клонирования нужна полная схема tasks.data.",

@@ -2298,6 +2298,7 @@
   "tasks.read": "任务已读取",
   "tasks.mainTotal": "{0:N0} 个主任务",
   "tasks.readOnly": "任务为只读，无法保存。",
+  "tasks.groupMain": "主要",
   "tasks.nameTooLong": "任务 {0} 的名称超过 {1} 个字符。",
   "tasks.building": "正在生成 tasks.data",
   "tasks.cloneNeedsSchema": "克隆需要完整的 tasks.data 结构。",

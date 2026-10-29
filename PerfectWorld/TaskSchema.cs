@@ -48,7 +48,15 @@ public sealed class QuestNode
     public string Name = "", OriginalName = "";
     public byte[] Fixed = Array.Empty<byte>();
     public byte[] TextRaw = Array.Empty<byte>();                // textos + diálogos como estavam no arquivo
-    public List<TaskField> Fields = new();
+    List<TaskField>? _fields;
+    /// <summary>Versões ≠ 93: campos montados do bloco fixo só quando a quest é aberta (TaskLayout; economiza memória).</summary>
+    internal Func<QuestNode, List<TaskField>>? FieldsFactory;
+    public List<TaskField> Fields { get => _fields ??= FieldsFactory?.Invoke(this) ?? new(); set => _fields = value; }
+    public bool FieldsLoaded => _fields is not null;
+    /// <summary>Posição do ID e do nome no bloco fixo (v153+: i16 do espaço de IDs antes do ID).</summary>
+    public int IdOffset, NameOffset = 4;
+    /// <summary>Campo pelo nome do esquema v93 (português) ou pela chave do TaskLayout (m_…).</summary>
+    public TaskField? Field(string name) => Fields.FirstOrDefault(f => f.Name == name) ?? (QuestKeys.Layout(name) is { } k ? Fields.FirstOrDefault(f => f.Name == k) : null);
     public string[] Texts = new string[4];                      // descrição, aceitar(ok), recusar(no), tributo
     public TalkProc[] Talks = new TalkProc[5];                  // ao entregar, sem requisito, entregar item, em andamento, prêmio
     public bool TextsChanged;
@@ -113,7 +121,11 @@ public sealed class TaskSchema93
     string _group = "";
 
     readonly CancellationToken _token;
-    public TaskSchema93(byte[] data, CancellationToken cancellationToken = default) { _d = data; _token = cancellationToken; }
+    readonly int _version;
+    public TaskSchema93(byte[] data, CancellationToken cancellationToken = default, int version = 93) { _d = data; _token = cancellationToken; _version = version; }
+
+    /// <summary>Versões com bloco fixo pelo TaskLayout (todas as conhecidas; v223+ tem cabeçalho diferente, ainda sem arquivo para provar).</summary>
+    public static bool Supports(int version) => version == 93 || version < 223 && TaskVer.Known.Contains(version);
 
     public QuestNode Read(int offset, QuestNode? parent = null, int depth = 0)
     {
@@ -122,10 +134,11 @@ public sealed class TaskSchema93
         var q = new QuestNode { Parent = parent };
         var saveQ = _q; _q = q; _base = offset; _p = offset;
 
-        ReadFixed();
+        if (_version == 93) ReadFixed();
+        else LayoutFixed(q);
         q.Fixed = _d.AsSpan(offset, _p - offset).ToArray();
-        q.Id = BitConverter.ToInt32(q.Fixed, 0);
-        q.Name = q.OriginalName = Xor(q.Fixed, 4, 30, q.Id);
+        q.Id = BitConverter.ToInt32(q.Fixed, q.IdOffset);
+        q.Name = q.OriginalName = Xor(q.Fixed, q.NameOffset, 30, q.Id);
 
         int textStart = _p;
         for (int i = 0; i < 4; i++) q.Texts[i] = PwStr(q.Id);
@@ -162,6 +175,34 @@ public sealed class TaskSchema93
     void Tm(string name) { foreach (var n in new[] { "ano", "mês", "dia", "hora", "min", "dia da semana" }) I($"{name} ({n})"); }
     void Zone(string name) { F($"{name} X"); F($"{name} Y"); F($"{name} Z"); }
     void Kv(string name) { I($"{name}: tipo esq."); I($"{name}: valor esq."); I($"{name}: operador"); I($"{name}: tipo dir."); I($"{name}: valor dir."); }
+
+    void LayoutFixed(QuestNode q)
+    {
+        using var ms = new MemoryStream(_d, _p, _d.Length - _p, false);
+        TaskLayout.ReadFixed(new BinaryReader(ms), _version);
+        _p += (int)ms.Position;
+        if (_version >= 153) { q.IdOffset = 2; q.NameOffset = 6; }
+        int version = _version;
+        q.FieldsFactory = n => LayoutFields(n.Fixed, version);
+    }
+
+    /// <summary>Campos escalares do bloco fixo (chaves do TaskLayout). Contagens e condições ficam protegidas.</summary>
+    public static List<TaskField> LayoutFields(byte[] fixedBytes, int version)
+    {
+        var rec = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(fixedBytes, false)), version);
+        var list = new List<TaskField>(rec.Order.Count);
+        for (int i = 0; i < rec.Order.Count; i++)
+        {
+            var (k, t) = rec.Order[i];
+            TF? tf = t switch { TT.I32 => TF.I32, TT.Bool => TF.Bool, TT.U8 => TF.U8, TT.F32 => TF.F32, _ => null };
+            if (tf is null || k.StartsWith("_gap.")) continue;
+            int off = rec.Pos[i], dot = k.IndexOf('.');
+            string group = dot > 0 ? k[..dot] : FieldKinds.Translate("tasks.groupMain", "Principal");
+            int? keep = rec.Structural.Contains(k) || k == "m_ID" ? (tf == TF.I32 ? BitConverter.ToInt32(fixedBytes, off) : fixedBytes[off]) : null;
+            list.Add(new TaskField(group, k, tf.Value, off, keep));
+        }
+        return list;
+    }
 
     void ReadFixed()
     {
@@ -380,23 +421,36 @@ public sealed class TaskSchema93
     /// <summary>Serializa a quest (e subquests) — bloco fixo + textos (originais se não mudaram) + filhos.</summary>
     public static void Write(BinaryWriter w, QuestNode q)
     {
-        foreach (var f in q.Fields.Where(f => !f.Editable))
+        foreach (var f in q.FieldsLoaded ? q.Fields.Where(f => !f.Editable) : Enumerable.Empty<TaskField>())
         {
             int current = f.Type == TF.I32 ? BitConverter.ToInt32(q.Fixed, f.Offset) : q.Fixed[f.Offset];
             if (current != f.PreservedValue)
                 throw new InvalidDataException($"Quest {q.Id}: o campo estrutural \"{f.Name}\" não pode ser alterado diretamente.");
         }
-        if (q.Fixed.Length >= 4 && BitConverter.ToInt32(q.Fixed, 0) != q.Id)
+        if (q.Fixed.Length >= q.IdOffset + 4 && BitConverter.ToInt32(q.Fixed, q.IdOffset) != q.Id)
             throw new InvalidDataException($"Quest {q.Id}: o ID difere da estrutura original e não pode ser alterado diretamente.");
         var fixedBytes = (byte[])q.Fixed.Clone();
         if (q.Name != q.OriginalName && q.Name.Length > TasksFile.MaxNameLength)
             throw new InvalidDataException($"O nome da quest {q.Id} passa de {TasksFile.MaxNameLength} caracteres.");
         if (q.Name != q.OriginalName)
             for (int i = 0; i < 30; i++)
-                BitConverter.GetBytes((ushort)((i < q.Name.Length && i < 29 ? q.Name[i] : '\0') ^ (ushort)q.Id)).CopyTo(fixedBytes, 4 + i * 2);
+                BitConverter.GetBytes((ushort)((i < q.Name.Length && i < 29 ? q.Name[i] : '\0') ^ (ushort)q.Id)).CopyTo(fixedBytes, q.NameOffset + i * 2);
         w.Write(fixedBytes);
         w.Write(q.TextsChanged ? EncodeTexts(q) : q.TextRaw);
         w.Write(q.Children.Count);
         foreach (var c in q.Children) Write(w, c);
     }
+}
+
+/// <summary>Nome do campo no esquema v93 (português) → chave do TaskLayout (m_…), para o código que procura campos pelo nome.</summary>
+public static class QuestKeys
+{
+    static readonly Dictionary<string, string> Map = new()
+    {
+        ["ID"] = "m_ID", ["Tipo"] = "m_ulType", ["Pai"] = "m_ulParent", ["Irmão anterior"] = "m_ulPrevSibling", ["Próximo irmão"] = "m_ulNextSibling",
+        ["Primeiro filho"] = "m_ulFirstChild", ["NPC que entrega"] = "m_ulDelvNPC", ["NPC do prêmio"] = "m_ulAwardNPC",
+        ["Nível mínimo"] = "m_ulPremise_Lev_Min", ["Nível máximo"] = "m_ulPremise_Lev_Max", ["Método de conclusão"] = "m_enumMethod",
+        ["Tipo de conclusão"] = "m_enumFinishType",
+    };
+    public static string? Layout(string v93Name) => Map.GetValueOrDefault(v93Name);
 }

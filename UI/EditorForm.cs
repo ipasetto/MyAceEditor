@@ -3444,6 +3444,15 @@ public sealed class EditorForm : Form
     private string QuestFieldHint(TaskField f, string v)
     {
         if (v is "0" or "" || _refs is null) return "";
+        if (f.Name.StartsWith("m_") || f.Name.Contains(".m_"))   // chaves do TaskLayout (versões ≠ 93)
+        {
+            var leaf = f.Name[(f.Name.LastIndexOf('.') + 1)..];
+            if (leaf is "m_ulParent" or "m_ulPrevSibling" or "m_ulNextSibling" or "m_ulFirstChild" or "m_ulNewTask" || leaf.Contains("Task") && leaf.EndsWith("Id"))
+                return _tasks?.Index.Find(int.TryParse(v, out var tid) ? tid : 0) is QuestNode tq ? "→ " + TasksFile.SplitColor(tq.Name).Text : "";
+            FieldKind lk = leaf == "m_ulMonsterTemplId" ? FieldKind.MonsterRef
+                : leaf is "m_ulItemTemplId" or "m_ulDropItemId" || leaf.Contains("NPC") && !leaf.Contains("Cnt") ? FieldKind.ItemRef : FieldKind.Plain;
+            return lk != FieldKind.Plain && _refs.Resolve(lk, v) is { } lh ? $"→ {lh.Item.Name}  [{Pretty(lh.Block.Name)}]" : "";
+        }
         var n = f.Name.ToLowerInvariant();
         FieldKind kind = n.Contains("npc") ? FieldKind.ItemRef : n.Contains("monstro") ? FieldKind.MonsterRef : n.Contains("item") ? FieldKind.ItemRef : FieldKind.Plain;
         // entradas de lista ("Monstro 1: ID", "Prêmio 2.1: ID", "Item dado 3: quantidade"): o sufixo diz o que é

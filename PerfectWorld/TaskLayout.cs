@@ -16,6 +16,8 @@ public sealed class TaskRec
     public readonly List<(string Key, TT Type)> Order = new();
     /// <summary>Posição de cada campo de <see cref="Order"/> no bloco (só na leitura).</summary>
     public readonly List<int> Pos = new();
+    /// <summary>Campos usados como contagem ou condição (mudar desalinha o bloco; só via regravação do registro).</summary>
+    public readonly HashSet<string> Structural = new();
 
     public long Int(string key) => V.TryGetValue(key, out var o) ? Convert.ToInt64(o) : 0;
     public void Set(string key, object value) => V[key] = value;
@@ -135,7 +137,9 @@ public sealed class TaskIO
         Tick(n);
         var full = _prefix + n;
         if (_derived.TryGetValue(full, out var d)) return Convert.ToInt64(d);
-        return Rec.Int(_last.TryGetValue(full, out var k) ? k : full);
+        var key = _last.TryGetValue(full, out var k) ? k : full;
+        Rec.Structural.Add(key);
+        return Rec.Int(key);
     }
 
     /// <summary>Bit de uma chave em CombinedSwitches (v135+): a posição depende de quais chaves existem na versão.</summary>

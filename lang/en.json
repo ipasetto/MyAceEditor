@@ -2296,6 +2296,7 @@
   "tasks.read": "Quests read",
   "tasks.mainTotal": "{0:N0} main quests",
   "tasks.readOnly": "The quests are read-only and cannot be saved. ",
+  "tasks.groupMain": "Main",
   "tasks.nameTooLong": "The name of quest {0} is longer than {1} characters.",
   "tasks.building": "Building tasks.data",
   "tasks.cloneNeedsSchema": "Cloning requires the full tasks.data schema.",

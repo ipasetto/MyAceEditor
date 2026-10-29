@@ -43,6 +43,16 @@ public static class IdRefactor
     // Campo de quest que guarda um ID do tipo do bloco (os nomes vêm do TaskSchema93)
     static bool QuestFieldPoints(string blockName, TaskField f)
     {
+        if (f.Name.StartsWith("m_") || f.Name.Contains(".m_"))   // chaves do TaskLayout (versões ≠ 93)
+        {
+            var leaf = f.Name[(f.Name.LastIndexOf('.') + 1)..];
+            return blockName switch
+            {
+                "MONSTER_ESSENCE" => leaf == "m_ulMonsterTemplId",
+                "NPC_ESSENCE" => leaf.Contains("NPC") && !leaf.Contains("Cnt"),
+                _ => leaf is "m_ulItemTemplId" or "m_ulDropItemId",
+            };
+        }
         var n = f.Name.ToLowerInvariant();
         bool monster = n.StartsWith("monstro") && n.EndsWith(": id");
         bool npc = n.Contains("npc");

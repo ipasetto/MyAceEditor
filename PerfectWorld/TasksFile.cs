@@ -15,8 +15,9 @@ public sealed class QuestEntry
 
 /// <summary>
 /// tasks.data (PW-KB §S21): u32 magic 0x93858361 | u32 versão | u32 n | n×u32 offset | corpos.
-/// Versão 93: esquema completo (<see cref="TaskSchema93"/>) — árvore de quests, campos, textos e diálogos,
-/// gravação reconstruindo a tabela de offsets. Outras versões: só ID/nome das quests de topo.
+/// Versão 93: esquema completo (<see cref="TaskSchema93"/>, nomes em português); demais versões conhecidas até v222: bloco
+/// fixo pelo <see cref="TaskLayout"/> (chaves m_…) — árvore, campos, textos e diálogos, gravação reconstruindo a tabela de
+/// offsets. Outras versões: só ID/nome das quests de topo.
 /// Ver ENGINE-KB §E3c.
 /// </summary>
 public sealed class TasksFile
@@ -70,12 +71,14 @@ public sealed class TasksFile
             if ((i & 127) == 0) context?.Report(.1 * i / Math.Max(1, n), FieldKinds.Translate("tasks.readingNames", "Lendo nomes das quests"), string.Format(FieldKinds.Translate("load.quests", "{0:N0}/{1:N0} quests"), i, n));
             int off = offsets[i];
             if (off < headerEnd || off > data.Length - (4 + NameChars * 2)) continue;
-            int id = BitConverter.ToInt32(data, off);
-            var name = TaskSchema93.Xor(data, off + 4, NameChars, id);
+            int idAt = Version >= 153 ? 2 : 0;   // v153+: i16 do espaço de IDs antes do ID
+            if (off + idAt + 4 + NameChars * 2 > data.Length) continue;
+            int id = BitConverter.ToInt32(data, off + idAt);
+            var name = TaskSchema93.Xor(data, off + idAt + 4, NameChars, id);
             Quests.Add(new QuestEntry { Offset = off, Id = id, Name = name, OriginalName = name });
         }
 
-        if (Version == 93)
+        if (TaskSchema93.Supports(Version))
         {
             try
             {
@@ -83,7 +86,7 @@ public sealed class TasksFile
                 for (int i = 0; i < n; i++)
                 {
                     context?.Report(.1 + .82 * i / Math.Max(1, n), FieldKinds.Translate("tasks.parsing", "Analisando quests"), string.Format(FieldKinds.Translate("tasks.mainCount", "{0:N0}/{1:N0} quests principais"), i, n));
-                    var schema = new TaskSchema93(data, context?.Token ?? default);
+                    var schema = new TaskSchema93(data, context?.Token ?? default, Version);
                     var q = schema.Read(offsets[i]);
                     int end = schema.Position, expected = i + 1 < n ? offsets[i + 1] : data.Length;
                     if (end != expected)
@@ -132,7 +135,7 @@ public sealed class TasksFile
                 context?.Check();
                 if (q.Name.Length > MaxNameLength) throw new InvalidDataException(string.Format(FieldKinds.Translate("tasks.nameTooLong", "O nome da quest {0} passa de {1} caracteres."), q.Id, MaxNameLength));
                 for (int i = 0; i < NameChars; i++)
-                    BitConverter.GetBytes((ushort)((i < q.Name.Length && i < NameChars - 1 ? q.Name[i] : '\0') ^ (ushort)q.Id)).CopyTo(outBytes, q.Offset + 4 + i * 2);
+                    BitConverter.GetBytes((ushort)((i < q.Name.Length && i < NameChars - 1 ? q.Name[i] : '\0') ^ (ushort)q.Id)).CopyTo(outBytes, q.Offset + (Version >= 153 ? 6 : 4) + i * 2);
             }
             return outBytes;
         }
@@ -204,11 +207,12 @@ public sealed class TasksFile
         var q = new QuestNode
         {
             Id = id, Parent = parent, Fixed = (byte[])s.Fixed.Clone(), TextRaw = (byte[])s.TextRaw.Clone(),
-            Fields = s.Fields.Select(f => f.Name == "ID" && f.Offset == 0 ? f with { PreservedValue = id } : f).ToList(),   // ID protegido = o novo
+            Fields = s.Fields.Select(f => f.Name is "ID" or "m_ID" && f.Offset == s.IdOffset ? f with { PreservedValue = id } : f).ToList(),   // ID protegido = o novo
+            IdOffset = s.IdOffset, NameOffset = s.NameOffset,
             Name = s.Name, OriginalName = "\u0001", TextsChanged = true,   // nome e textos sempre regravados com a chave nova
             NullFlags = new List<bool>(s.NullFlags),
         };
-        BitConverter.GetBytes(id).CopyTo(q.Fixed, 0);
+        BitConverter.GetBytes(id).CopyTo(q.Fixed, q.IdOffset);
         Array.Copy(s.Texts, q.Texts, s.Texts.Length);
         for (int i = 0; i < s.Talks.Length; i++)
         {
@@ -225,7 +229,7 @@ public sealed class TasksFile
         }
         // vínculos da árvore que apontam para quests copiadas passam a apontar para as cópias
         foreach (var name in new[] { "Pai", "Irmão anterior", "Próximo irmão", "Primeiro filho" })
-            if (q.Fields.FirstOrDefault(f => f.Name == name) is { } f && map.TryGetValue(BitConverter.ToInt32(q.Fixed, f.Offset), out var nid))
+            if (q.Field(name) is { } f && map.TryGetValue(BitConverter.ToInt32(q.Fixed, f.Offset), out var nid))
                 BitConverter.GetBytes(nid).CopyTo(q.Fixed, f.Offset);
         foreach (var c in s.Children) q.Children.Add(CloneNode(c, q, map));
         return q;
@@ -233,7 +237,7 @@ public sealed class TasksFile
 
     static void SetLink(QuestNode q, string name, int value)
     {
-        if (q.Fields.FirstOrDefault(f => f.Name == name) is { } f) BitConverter.GetBytes(value).CopyTo(q.Fixed, f.Offset);
+        if (q.Field(name) is { } f) BitConverter.GetBytes(value).CopyTo(q.Fixed, f.Offset);
     }
 
     /// <summary>Separa o código de cor do PW ("^RRGGBB") do texto.</summary>
