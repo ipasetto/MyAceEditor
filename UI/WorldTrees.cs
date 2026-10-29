@@ -85,10 +85,8 @@ internal sealed class WorldTrees : IDisposable
             {
                 var p = m.Pos[i];
                 radius = MathF.Max(radius, p.Length);
-                float lit = 0.30f + 0.22f * MathF.Max(0, Vector3.Dot(m.Normal[i], Sun));   // × 2 no desenho
-                byte c = (byte)Math.Clamp(lit * 255, 0, 255);
                 v[i * 6] = p.X; v[i * 6 + 1] = p.Y; v[i * 6 + 2] = p.Z;
-                v[i * 6 + 3] = BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(c << 16) | (uint)(c << 8) | c)));
+                v[i * 6 + 3] = Lit(f.BranchMaterial, MathF.Max(0, Vector3.Dot(m.Normal[i], Sun)));
                 v[i * 6 + 4] = m.Uv[i].X; v[i * 6 + 5] = m.Uv[i].Y;
             }
             // casca: mesma pasta do .spt, extensão .dds (como CELTree::Init)
@@ -102,8 +100,7 @@ internal sealed class WorldTrees : IDisposable
             if (m.FrondIndex.Count > 0)
             {
                 var fv = new float[m.FrondPos.Count * 6];
-                byte fc = (byte)(0.42f * 255);
-                float fcol = BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(fc << 16) | (uint)(fc << 8) | fc)));
+                float fcol = Lit(f.FrondMaterial, 0.7f);
                 for (int i = 0; i < m.FrondPos.Count; i++)
                 {
                     var q = m.FrondPos[i]; radius = MathF.Max(radius, q.Length);
@@ -126,6 +123,16 @@ internal sealed class WorldTrees : IDisposable
 
     /// <summary>Textura do trees.pck. Recorte (folhas): mipmaps próprios com alfa 0/255 e cor só dos pixels opacos — a média
     /// comum mistura o fundo transparente e as folhas viram quadrados claros de longe.</summary>
+    /// <summary>
+    /// Cor do vértice pelo material do .spt (seção 8000: difusa e ambiente por canal) com luz ambiente 0,8 e do sol 0,5 × N·L;
+    /// sem material = cinza neutro. Metade do valor: o desenho dobra (RGB_SCALE 2).
+    /// </summary>
+    static float Lit(float[]? mat, float nl)
+    {
+        byte C(int k) => (byte)Math.Clamp((mat is null ? 0.8f + 0.1f * nl : mat[k + 3] * 0.8f + mat[k] * 0.5f * nl) * 0.5f * 255, 0, 255);
+        return BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(C(0) << 16) | (uint)(C(1) << 8) | C(2))));
+    }
+
     int Texture(string path, int max, bool cutout = false)
     {
         if (_pck?.Find(path) is not { } te || DdsDecoder.DecodeMax(_pck.Read(te), max) is not { } img) return 0;
@@ -189,8 +196,7 @@ internal sealed class WorldTrees : IDisposable
             float s0 = MathF.Min(MathF.Min(map.Uv[0], map.Uv[2]), MathF.Min(map.Uv[4], map.Uv[6])), s1 = MathF.Max(MathF.Max(map.Uv[0], map.Uv[2]), MathF.Max(map.Uv[4], map.Uv[6]));
             float t0 = MathF.Min(MathF.Min(map.Uv[1], map.Uv[3]), MathF.Min(map.Uv[5], map.Uv[7])), t1 = MathF.Max(MathF.Max(map.Uv[1], map.Uv[3]), MathF.Max(map.Uv[5], map.Uv[7]));
             float spin = MathHelper.DegreesToRadians(rng.Range(-15, 15)), cs = MathF.Cos(spin), sn = MathF.Sin(spin);
-            byte c = (byte)Math.Clamp((0.40f + rng.Range(-0.06f, 0.06f)) * 255, 0, 255);
-            float col = BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(c << 16) | (uint)(c << 8) | c)));
+            float col = Lit(f.LeafMaterial, 0.7f + rng.Range(-0.15f, 0.15f));
             set.Center[l * 3] = pos.X; set.Center[l * 3 + 1] = pos.Y; set.Center[l * 3 + 2] = pos.Z;
             radius = MathF.Max(radius, pos.Length + MathF.Max(w, h));
             for (int k = 0; k < 4; k++)
@@ -209,11 +215,14 @@ internal sealed class WorldTrees : IDisposable
         return (set, idx);
     }
 
+    /// <summary>Ainda há tipos de árvore perto da câmera esperando para serem gerados (foto de diagnóstico espera).</summary>
+    public bool Pending { get; private set; }
+
     /// <summary>Desenha as árvores perto e na frente da câmera (cam e forward no espaço do OpenGL: z = −z do jogo).</summary>
     public void Draw(Vector3 cam, Vector3 forward)
     {
         if (_scene is null) return;
-        int built = 0;
+        int built = 0; Pending = false;
         // folhas viram para a câmera: base da tela (direita, cima) no espaço do OpenGL
         var camRight = Vector3.Cross(forward, Vector3.UnitY);
         camRight = camRight.LengthSquared > 1e-6f ? camRight.Normalized() : Vector3.UnitX;
@@ -240,7 +249,7 @@ internal sealed class WorldTrees : IDisposable
                     if (dist > Range || Vector3.Dot(d, forward) < -40) continue;
                     if (!_kinds.TryGetValue(t.Type, out var k))
                     {
-                        if (built >= 2) continue;   // gera aos poucos para não travar a câmera
+                        if (built >= 2) { Pending = true; continue; }   // gera aos poucos para não travar a câmera
                         _kinds[t.Type] = k = Build(t.Type); built++;
                         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
                     }

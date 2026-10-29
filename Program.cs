@@ -198,6 +198,19 @@ internal static class Program
             AppLog.Error("erro na tela", e.Exception);
             MessageBox.Show(e.Exception.Message, "MyAceEditor", MessageBoxButtons.OK, MessageBoxIcon.Error);
         };
+        if (args.Length >= 3 && args[0] == "--entrance")   // <gamed\config> <mapa>: portais do mapa e quem leva até ele
+        {
+            var sb = new StringBuilder();
+            foreach (var d in Directory.GetDirectories(args[1]))
+                if (RegionFile.Load(Path.Combine(d, "region.sev")) is { } rf)
+                    foreach (var tr in rf.Transports)
+                        if (Path.GetFileName(d).Equals(args[2], StringComparison.OrdinalIgnoreCase) || tr.TargetTag is var tt && sb.Length >= 0)
+                            sb.AppendLine($"{Path.GetFileName(d)}: de {tr.SourceTag} para {tr.TargetTag} em {tr.Position.X:0},{tr.Position.Y:0},{tr.Position.Z:0} → destino {tr.Target.X:0},{tr.Target.Y:0},{tr.Target.Z:0}");
+            sb.AppendLine("EntranceOf: " + RegionFile.EntranceOf(args[1], args[2]));
+            File.WriteAllText("entrance.txt", sb.ToString());
+            return;
+        }
+        if (args.Length >= 4 && args[0] == "--world-shot") { WorldShot(args[1], args[2], args.Skip(3).ToArray()); return; }   // <pasta do mapa> <saída> x,y,z,yaw,pitch[,nome] ...
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }
         AppLog.Info($"início · {Application.ProductVersion} · {Environment.OSVersion} · idioma {AppLang.Current}");
         UseAppIcon();
@@ -222,6 +235,56 @@ internal static class Program
     }
 
     // --snapshot <saida.png> [aba] [bloco id] [grupo]: abre o editor fora da tela (com a última pasta), salva um print e sai.
+    // --world-shot <element\maps\aXX> <pasta de saída> x,y,z,yaw,pitch[,nome] ...: fotos do Mundo 3D (coordenadas do jogo; yaw
+    // -90 = olhando para o norte, pitch negativo = para baixo), cada uma depois de terreno, construções e árvores carregarem
+    private static void WorldShot(string mapDir, string outDir, string[] shots)
+    {
+        var t = TerrainFile.Open(mapDir) ?? throw new FileNotFoundException("terreno não encontrado", mapDir);
+        Directory.CreateDirectory(outDir);
+        // diagnóstico: água do cliente e alturas do chão numa grade de 9 × 9 (world-shot.txt)
+        var diag = new StringBuilder($"{t.Name} {t.Width}×{t.Height} m\n");
+        foreach (var a in ClientWater.Read(mapDir) ?? new()) diag.AppendLine($"água: cor {a.Argb:X8} altura {a.Height:0.0} {a.Cols}×{a.Rows}×{a.Cell} centro {a.X:0},{a.Z:0}");
+        for (int i = 0; i <= 8; i++)
+            diag.AppendLine(string.Join(" ", Enumerable.Range(0, 9).Select(j => t.HeightAt(-t.Width / 2 + t.Width * j / 8f, t.Height / 2 - t.Height * i / 8f) is float h ? $"{h,6:0}" : "     -")));
+        // "dense[N]": câmera diante do N-ésimo pedaço de 128 m com mais árvores do .ecwld (para conferir árvores)
+        if (Directory.EnumerateFiles(mapDir, "*.ecwld").FirstOrDefault() is { } ecwld)
+        {
+            var scene = new WorldScene(ecwld);
+            var cells = scene.Trees.GroupBy(tr => ((int)MathF.Floor(tr.X / 128), (int)MathF.Floor(tr.Z / 128))).OrderByDescending(g => g.Count()).ToList();
+            shots = shots.Select(s =>
+            {
+                if (!s.StartsWith("dense")) return s;
+                int n = s.Length > 5 ? int.Parse(s[5..]) : 0;
+                var g = cells[Math.Min(n, cells.Count - 1)];
+                float cx = g.Average(tr => tr.X), cz = g.Average(tr => tr.Z);
+                foreach (var ty in g.GroupBy(tr => tr.Type))
+                    diag.AppendLine($"{s}: tipo {ty.Key} ×{ty.Count()} {scene.TreeTypes[ty.Key].Spt} | {scene.TreeTypes[ty.Key].CompositeMap}");
+                float ground = t.HeightAt(cx, cz - 70) ?? g.Average(tr => tr.Y);
+                return FormattableString.Invariant($"{cx},{ground + 25},{cz - 70},-90,-12,{s}");
+            }).ToArray();
+        }
+        var cams = shots.Select(s => s.Split(',')).Select(p => (Pos: new OpenTK.Mathematics.Vector3(float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture), float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture)),
+            Yaw: float.Parse(p[3], System.Globalization.CultureInfo.InvariantCulture), Pitch: float.Parse(p[4], System.Globalization.CultureInfo.InvariantCulture), Name: p.Length > 5 ? p[5] : null)).ToList();
+        File.WriteAllText(Path.Combine(outDir, "world-shot.txt"), diag.ToString());
+        using var w = new MyAceEditor.UI.WorldView(t, cams[0].Pos, () => Array.Empty<MyAceEditor.UI.WorldView.Marker>(), () => null, _ => { }, (_, _) => { }, null)
+        { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(0, 0), Size = new System.Drawing.Size(1280, 820), ShowInTaskbar = false };
+        w.Show();
+        for (int i = 0; i < cams.Count; i++)
+        {
+            var c = cams[i];
+            w.SetCamera(c.Pos, c.Yaw, c.Pitch);
+            var until = DateTime.Now.AddSeconds(90); var quiet = DateTime.MaxValue;
+            while (DateTime.Now < until)
+            {
+                Application.DoEvents(); Thread.Sleep(30);
+                if (w.Loading) quiet = DateTime.MaxValue; else if (quiet == DateTime.MaxValue) quiet = DateTime.Now; else if ((DateTime.Now - quiet).TotalSeconds > 1.5) break;
+            }
+            using var bmp = w.CaptureFrame();
+            bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+        }
+        w.Close();
+    }
+
     private static void Snapshot(string outPng, string? tab, (string Block, string Id)? item, string? group = null)
     {
         using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
@@ -1036,6 +1099,8 @@ internal static class Program
             {
                 var f = new SptFile(pck.Read(e));
                 var m = SptGrower.Build(f);
+                static string Mat(float[]? x) => x is null ? "-" : string.Join(" ", x.Take(6).Select(v => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)));
+                sb.Append($"mat galho [{Mat(f.BranchMaterial)}] fronde [{Mat(f.FrondMaterial)}] folha [{Mat(f.LeafMaterial)}] ajuste {f.LeafLightAdjust:0.##}\t");
                 sb.Append($"{e.Path}\tníveis {f.Levels.Count}\tvértices {m.Pos.Count}\ttriângulos {m.Index.Count / 3}\tfolhas {m.Leaves.Count}\tfrondes {m.FrondIndex.Count / 6}\taltura {m.Height:0.0} m\tcasca {f.BarkTexture}\n");
                 // vista de lado (X, Y) para conferir a forma
                 float minX = m.Pos.Count == 0 ? 0 : m.Pos.Min(p => p.X), maxX = m.Pos.Count == 0 ? 1 : m.Pos.Max(p => p.X);

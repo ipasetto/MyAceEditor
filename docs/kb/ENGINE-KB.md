@@ -138,7 +138,9 @@ UI/WorldModels.cs | modelos parados no Mundo 3D (.ecm -> .SMD -> .ski + .dds)
 UI/WorldBuildings.cs | construcoes dos pedacos em volta da camera (luz embutida x2)
 PerfectWorld/WorldScene.cs | .ecwld: tipos de arvore (.spt + compmap) e posicoes (PW-KB §S17)
 PerfectWorld/SptTree.cs | nossa versao do SpeedTree: .spt, curvas, RNG, galhos recursivos, pontos e texturas de folha
-UI/WorldTrees.cs | arvores no Mundo 3D: casca + folhas viradas p/ camera (1 cartao por folha, refeito ao girar; mipmap proprio do recorte), ate 900 m; CLI --spt | frondes em lamina (fitas fixas, 2 lados)
+UI/WorldTrees.cs | arvores no Mundo 3D: casca + folhas viradas p/ camera (1 cartao por folha, refeito ao girar; mipmap proprio do recorte), ate 900 m; CLI --spt | frondes em lamina (fitas fixas, 2 lados) | frondes em extrusao | cor dos galhos/frondes/folhas pelos materiais do .spt (8000)
+PerfectWorld/ClientWater.cs | agua do cliente (bsdata do mapa): cor, altura, retangulo; WorldView.DrawWater usa ela (cor + ondas wave1.dds somadas) e so usa o watermap do servidor sem pasta bsdata | PW-KB agua
+Program --world-shot <maps\aXX> <saida> x,y,z,yaw,pitch[,nome]|denseN ...: fotos do Mundo 3D sem abrir o jogo (espera terreno/arvores; world-shot.txt com agua, alturas e tipos de arvore) | --entrance <gamed\config> <mapa>: portais e entrada
 UI/WorldView.cs | Mundo 3D (OpenTK.GLControl 4.0.2, perfil compatibilidade 3.3): camera livre, marcadores do npcgen, botao direito copiar/novo ponto/mover
 UI/NpcGenView.cs | aba NPCGen: arquivos do servidor (world + aNN), lista de pontos, editor do ponto, desfazer proprio
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)

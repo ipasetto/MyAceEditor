@@ -20,6 +20,15 @@ public sealed class SptFile
     public List<SptLeafMap> LeafMaps { get; } = new();
     /// <summary>Frondes (13000): a partir do nível Level o galho vira fita(s) plana(s) em vez de tubo; null = sem frondes.</summary>
     public SptFrond? Frond { get; private set; }
+    /// <summary>
+    /// Iluminação (8000..8001, "lighting information"): material dos galhos (8003), das frondes (8005) e das folhas (8009),
+    /// 13 floats cada = difusa rgb, ambiente rgb, especular rgb, emissiva rgb, brilho; 8006 = ajuste de luz das folhas.
+    /// null = arquivo sem a seção.
+    /// </summary>
+    public float[]? BranchMaterial { get; private set; }
+    public float[]? FrondMaterial { get; private set; }
+    public float[]? LeafMaterial { get; private set; }
+    public float LeafLightAdjust { get; private set; }
 
     public SptFile(byte[] b)
     {
@@ -52,6 +61,12 @@ public sealed class SptFile
         // coordenadas no mapa composto (10000: 10002 folhas, 10003 billboards, 10004 frondes — n × 4 pares s,t cada); as
         // seções 7000–9000/11000 têm tamanho variável, então procura a abertura "10000 10002" depois do fim da árvore
         int after = r.Pos;
+        for (int p = after; p + 8 <= b.Length; p++)
+            if (BitConverter.ToInt32(b, p) == 8000 && BitConverter.ToInt32(b, p + 4) is >= 8002 and <= 8009)
+            {
+                try { ReadLighting(new Reader(b, p + 4)); } catch (Exception) { BranchMaterial = FrondMaterial = LeafMaterial = null; }
+                break;
+            }
         for (int p = after; p + 12 <= b.Length; p++)
             if (BitConverter.ToInt32(b, p) == 10000 && BitConverter.ToInt32(b, p + 4) == 10002)
             {
@@ -70,6 +85,21 @@ public sealed class SptFile
     }
 
     readonly List<float[]> _frondUv = new();
+
+    void ReadLighting(Reader r)
+    {
+        float[] M() { var m = new float[13]; for (int i = 0; i < 13; i++) m[i] = r.Float(); return m; }
+        for (int t = r.Int(); t != 8001 && !r.End; t = r.Int())
+            switch (t)
+            {
+                case 8002 or 8004 or 8007 or 8008: r.Int(); break;
+                case 8003: BranchMaterial = M(); break;
+                case 8005: FrondMaterial = M(); break;
+                case 8006: LeafLightAdjust = r.Float(); break;
+                case 8009: LeafMaterial = M(); break;
+                default: throw new InvalidDataException($"token {t} inesperado na iluminação");
+            }
+    }
 
     void ReadTexCoords(Reader r)
     {
@@ -156,6 +186,9 @@ public sealed class SptLeafMap
 public sealed class SptFrond
 {
     public int Level = 1, Type, Blades = 1;
+    /// <summary>Extrusão (tipo 1): perfil da seção (13005, curva 0..1 do centro à borda) e nº de pontos de cada metade (13006).</summary>
+    public SptSpline Profile = SptSpline.Zero;
+    public int Segments = 3;
     public readonly List<SptFrondMap> Maps = new();
 
     internal static SptFrond Read(SptFile.Reader r)
@@ -167,8 +200,9 @@ public sealed class SptFrond
                 case 13002: f.Level = r.Int(); break;
                 case 13003: f.Type = r.Int(); break;
                 case 13004: f.Blades = Math.Max(1, r.Int()); break;
-                case 13005: r.Str(); break;
-                case 13006 or 13009 or 14007 or 14008: r.Int(); break;
+                case 13005: f.Profile = SptSpline.Parse(r.Str()); break;
+                case 13006: f.Segments = Math.Max(2, r.Int()); break;
+                case 13009 or 14007 or 14008: r.Int(); break;
                 case 13007: r.Bool(); break;
                 case 13010 or 13011 or 13012 or 13013: r.Float(); break;
                 case 13008:
@@ -440,7 +474,7 @@ public static class SptGrower
         }
 
         bool leafLevel = level >= f.Levels.Count - 1;
-        bool frond = !leafLevel && f.Frond is { Type: 0, Maps.Count: > 0 } fr0 && level >= fr0.Level;
+        bool frond = !leafLevel && f.Frond is { Type: 0 or 1, Maps.Count: > 0 } fr0 && level >= fr0.Level;
         if (frond) Frond(f.Frond!, m, rng, centers, dirs, side, length, (m.FrondIndex.Count / 6) % 2 == 1);
         else if (!leafLevel)
         {
@@ -498,6 +532,47 @@ public static class SptGrower
     static float Lerp(float a, float b, float t) => a + (b - a) * t;
 
     /// <summary>
+    /// Fronde em extrusão (CFrondEngine tipo 1, FUN_10025990/FUN_10024aa0): a seção é o perfil 13005 espelhado — n pontos de
+    /// uma borda ao centro e n−1 de volta (2n−1 no total): lado = ±s·w, altura = (perfil(s) − perfil(0))·w, s = 1 … 0 … 1 —
+    /// girada pelo giro sorteado e arrastada pelo eixo do galho; s da textura atravessa a seção, t vai da base à ponta.
+    /// </summary>
+    static void Extrude(SptFrond fr, SptMesh m, Vector3[] centers, Vector3[] dirs, Vector3 side, float w, float tilt, float s0, float s1, float t0, float t1)
+    {
+        int n = fr.Segments, cols = 2 * n - 1, rows = centers.Length;
+        var prof = new (float Y, float Z)[cols];
+        float baseZ = fr.Profile.Shape(0);
+        for (int i = 0; i < n; i++)
+        {
+            float s = 1 - i / (float)(n - 1);
+            prof[i] = (-s * w, (fr.Profile.Shape(s) - baseZ) * w);
+            prof[cols - 1 - i] = (s * w, prof[i].Item2);
+        }
+        int first = m.FrondPos.Count;
+        var ss = side;
+        for (int i = 0; i < rows; i++)
+        {
+            var a = dirs[i];
+            ss = Vector3.Cross(Vector3.Cross(a, ss), a); if (ss.LengthSquared < 1e-6f) ss = Vector3.Cross(a, Vector3.UnitZ); ss.Normalize();
+            var across = Rotate(ss, a, tilt);
+            var up = Vector3.Cross(a, across).Normalized();
+            if (up.Y < 0) up = -up;   // a curva do perfil fica para cima
+            float tt = Lerp(t1, t0, i / (float)(rows - 1));
+            for (int j = 0; j < cols; j++)
+            {
+                m.FrondPos.Add(centers[i] + across * prof[j].Y + up * prof[j].Z);
+                m.FrondUv.Add(new Vector2(Lerp(s0, s1, j / (float)(cols - 1)), tt));
+            }
+        }
+        for (int i = 0; i < rows - 1; i++)
+            for (int j = 0; j < cols - 1; j++)
+            {
+                int a = first + i * cols + j, b = a + cols;
+                m.FrondIndex.Add(a); m.FrondIndex.Add(b); m.FrondIndex.Add(a + 1);
+                m.FrondIndex.Add(a + 1); m.FrondIndex.Add(b); m.FrondIndex.Add(b + 1);
+            }
+    }
+
+    /// <summary>
     /// Fronde em lâminas (CFrondEngine, tipo 0): n fitas pelo eixo do galho, a i-ésima girada i·180°/n + giro sorteado da
     /// textura (negativo em galhos alternados); meia largura = comprimento × tamanho × 0,5 × proporção; s atravessa a fita,
     /// t vai da base (embaixo na imagem) à ponta.
@@ -511,6 +586,7 @@ public static class SptGrower
         float s0 = MathF.Min(MathF.Min(uv[0], uv[2]), MathF.Min(uv[4], uv[6])), s1 = MathF.Max(MathF.Max(uv[0], uv[2]), MathF.Max(uv[4], uv[6]));
         float t0 = MathF.Min(MathF.Min(uv[1], uv[3]), MathF.Min(uv[5], uv[7])), t1 = MathF.Max(MathF.Max(uv[1], uv[3]), MathF.Max(uv[5], uv[7]));
         int n = centers.Length;
+        if (fr.Type == 1) { Extrude(fr, m, centers, dirs, side, half, tilt, s0, s1, t0, t1); return; }
         float step = 180f / fr.Blades;
         for (int bl = 0; bl < fr.Blades; bl++)
         {

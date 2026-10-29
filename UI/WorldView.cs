@@ -439,8 +439,28 @@ internal sealed class WorldView : Form
         DrawLegend();
         GL.Disable(EnableCap.Texture2D); GL.DepthMask(true); GL.Disable(EnableCap.Blend);
         GL.Disable(EnableCap.Fog);
+        if (_grab) { _grab = false; _grabbed = ReadFrame(); }
         _gl.SwapBuffers();
         _busy = loading || terrainBusy;
+    }
+
+    // ---------- foto para diagnóstico (--world-shot): câmera fixa, espera carregar, lê o quadro ----------
+    bool _grab; Bitmap? _grabbed;
+    internal bool Loading => _busy || _trees.Pending;
+    internal void SetCamera(Vector3 game, float yaw, float pitch) { _cam = Gl(game.X, game.Y, game.Z); _yaw = yaw; _pitch = pitch; _legendOpen = false; _gl.Invalidate(); }
+    internal Bitmap? CaptureFrame() { _grab = true; Render(); var b = _grabbed; _grabbed = null; return b; }
+
+    Bitmap ReadFrame()
+    {
+        int w = _gl.Width, h = _gl.Height;
+        var px = new byte[w * h * 4];
+        GL.ReadBuffer(ReadBufferMode.Back);
+        GL.ReadPixels(0, 0, w, h, PixelFormat.Bgra, PixelType.UnsignedByte, px);
+        var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+        var data = bmp.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.WriteOnly, bmp.PixelFormat);
+        for (int y = 0; y < h; y++) System.Runtime.InteropServices.Marshal.Copy(px, (h - 1 - y) * w * 4, data.Scan0 + y * data.Stride, w * 4);
+        bmp.UnlockBits(data);
+        return bmp;
     }
 
     float Dist2(Marker m) { float dx = m.X - _cam.X, dz = m.Z + _cam.Z, dy = m.Y - _cam.Y; return dx * dx + dy * dy + dz * dz; }
@@ -500,15 +520,71 @@ internal sealed class WorldView : Form
         return new QuestArea { X0 = R(x0), Z0 = R(z0), X1 = R(x1), Z1 = R(z1), Y0 = R(lo - 10), Y1 = R(hi + 50) };
     }
 
+    /// <summary>
+    /// Água como o cliente: áreas do bsdata do mapa (cor de cada área, altura, retângulo) com a textura de ondas do jogo
+    /// (textures\water\wave1.dds) tingida pela cor. Mapa sem água no cliente (a09: a lava é o chão) não ganha plano; só sem
+    /// a pasta bsdata usa a água do servidor (watermap), na cor padrão.
+    /// </summary>
     void DrawWater()
     {
-        if (Water() is not { Count: > 0 } water) return;
+        _clientWater ??= ClientWater.Read(_t.Dir) is { } cw ? cw.Select(a => (a.X - a.Cols * a.Cell / 2, a.Z - a.Rows * a.Cell / 2, a.X + a.Cols * a.Cell / 2, a.Z + a.Rows * a.Cell / 2, a.Height, a.Argb)).ToList()
+            : Water().Select(w => (w.Item1, w.Item2, w.Item3, w.Item4, w.Item5, unchecked((int)0xFF2E6B8C))).ToList();
+        if (_clientWater.Count == 0) return;
+        if (_waveTex == 0) _waveTex = WaveTexture();
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
-        GL.Color4(0.18f, 0.42f, 0.55f, 0.62f);
-        GL.Begin(PrimitiveType.Quads);
-        foreach (var (x0, z0, x1, z1, y) in water) { GL.Vertex3(x0, y, -z0); GL.Vertex3(x1, y, -z0); GL.Vertex3(x1, y, -z1); GL.Vertex3(x0, y, -z1); }
-        GL.End();
+        const float Tile = 24;   // metros por repetição da onda
+        void Quad(float x0, float z0, float x1, float z1, float y)
+        {
+            GL.Begin(PrimitiveType.Quads);
+            GL.TexCoord2(x0 / Tile, z0 / Tile); GL.Vertex3(x0, y, -z0);
+            GL.TexCoord2(x1 / Tile, z0 / Tile); GL.Vertex3(x1, y, -z0);
+            GL.TexCoord2(x1 / Tile, z1 / Tile); GL.Vertex3(x1, y, -z1);
+            GL.TexCoord2(x0 / Tile, z1 / Tile); GL.Vertex3(x0, y, -z1);
+            GL.End();
+        }
+        // 1ª passada: a cor da área (o jogo mistura com o reflexo do céu: aqui um pouco mais clara e translúcida)
+        GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.AlphaTest);
+        foreach (var (x0, z0, x1, z1, y, argb) in _clientWater)
+        {
+            var c = Color.FromArgb(argb);
+            GL.Color4(0.25f + c.R / 255f * 0.6f, 0.25f + c.G / 255f * 0.6f, 0.25f + c.B / 255f * 0.6f, 0.7f);
+            Quad(x0, z0, x1, z1, y);
+        }
+        // 2ª passada: as ondas (textura escura) somadas por cima, só como brilho
+        if (_waveTex > 0)
+        {
+            GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, _waveTex);
+            GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
+            GL.Color4(1f, 1f, 1f, 0.45f);
+            foreach (var (x0, z0, x1, z1, y, _) in _clientWater) Quad(x0, z0, x1, z1, y + 0.02f);
+            GL.Disable(EnableCap.Texture2D);
+        }
         GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color4(1f, 1f, 1f, 1f);
+    }
+
+    List<(float X0, float Z0, float X1, float Z1, float Y, int Argb)>? _clientWater;
+    int _waveTex;
+
+    int WaveTexture()
+    {
+        try
+        {
+            var pck = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(_t.Dir))!, "textures.pck");
+            if (!File.Exists(pck)) return -1;
+            using var a = new PckArchive(pck);
+            if (a.Find(@"textures\water\wave1.dds") is not { } e || DdsDecoder.DecodeMax(a.Read(e), 256) is not { } img) return -1;
+            int id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, id);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.Width, img.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, img.Pixels);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            return id;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException) { return -1; }
     }
 
     List<(float, float, float, float, float)> Water()
