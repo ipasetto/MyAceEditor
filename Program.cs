@@ -154,7 +154,8 @@ internal static class Program
         if (args.Length >= 4 && args[0] == "--aipolicy-convert") { AiConvert(args[1], args[2], args[3]); return; }   // <entrada> <referência que o gs lê> <saída>
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
-        if (args.Length >= 2 && args[0] == "--tasks-recado") { TaskRecado(args[1]); return; }   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
+        if (args.Length >= 2 && args[0] == "--tasks-recado") { TaskRecado(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
         if (args.Length >= 3 && args[0] == "--spt") { SptTest(args[1], args[2]); return; }   // <trees.pck> <pasta>: gera todas as árvores, spt-test.txt + PNG de lado
         if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
@@ -504,6 +505,82 @@ internal static class Program
         sb.AppendLine("janelas por diálogo (5 diálogos): " + string.Join("  ", talks.OrderByDescending(x => x.Value).Take(6).Select(x => $"[{x.Key}]×{x.Value}")));
         sb.AppendLine(string.Join("\n", samples));
         File.WriteAllText("tasks-recado.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --tasks-site <tasks.data>: como são as quests "ir até um lugar" reais (m_ulReachSiteCnt > 0, principais e subquests):
+    // método/conclusão, posição na árvore (pai em ordem, irmãos), tamanho e mapa das caixas (tasks-site.txt)
+    private static void TaskSite(string path)
+    {
+        var t = new TasksFile(path);
+        var hist = new Dictionary<string, Dictionary<string, int>>();
+        void Add(string k, string v) { var h = hist.TryGetValue(k, out var x) ? x : hist[k] = new(); h[v] = h.GetValueOrDefault(v) + 1; }
+        var samples = new List<string>();
+        int n = 0;
+        foreach (var q in t.Roots!.SelectMany(r => r.Descendants().Prepend(r)))
+        {
+            var rec = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(q.Fixed, false)), t.Version);
+            int sites = (int)rec.Int("m_ulReachSiteCnt");
+            if (sites == 0) continue;
+            n++;
+            Add("método", rec.Int("m_enumMethod").ToString());
+            Add("conclusão", rec.Int("m_enumFinishType").ToString());
+            Add("locais", sites.ToString());
+            Add("subquest", q.Parent is null ? "principal" : "filha");
+            Add("filhas", q.Children.Count.ToString());
+            Add("NPC que dá>0", (rec.Int("m_ulDelvNPC") > 0).ToString());
+            Add("NPC que recebe>0", (rec.Int("m_ulAwardNPC") > 0).ToString());
+            Add("prêmio S", rec.Int("m_ulAwardType_S").ToString());
+            if (q.Parent is { } p)
+            {
+                var pr = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(p.Fixed, false)), t.Version);
+                Add("pai em ordem", pr.Int("m_bExeChildInOrder").ToString());
+                Add("pai escolhe 1", pr.Int("m_bChooseOne").ToString());
+                Add("pai método", pr.Int("m_enumMethod").ToString());
+                Add("irmãos (métodos)", string.Join(",", p.Children.Select(c => TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(c.Fixed, false)), t.Version).Int("m_enumMethod"))));
+            }
+            float F(string k) => rec.V.TryGetValue(k, out var o) ? Convert.ToSingle(o) : float.NaN;
+            var b = "m_pReachSite[0].";
+            float dx = F(b + "zvMax.v[0]") - F(b + "zvMin.v[0]"), dy = F(b + "zvMax.v[1]") - F(b + "zvMin.v[1]"), dz = F(b + "zvMax.v[2]") - F(b + "zvMin.v[2]");
+            Add("largura x (m)", (MathF.Round(dx / 10) * 10).ToString());
+            Add("altura y (m)", (MathF.Round(dy / 10) * 10).ToString());
+            Add("mapa", rec.Int(b + "MapID").ToString());
+            if (samples.Count < 12)
+                samples.Add($"{q.Id} \"{TasksFile.SplitColor(q.Name).Text}\" {(q.Parent is null ? "" : $"filha de {q.Parent.Id} ")}método {rec.Int("m_enumMethod")} conclusão {rec.Int("m_enumFinishType")} "
+                    + $"dá {rec.Int("m_ulDelvNPC")} recebe {rec.Int("m_ulAwardNPC")} mapa {rec.Int(b + "MapID")} min ({F(b + "zvMin.v[0]"):0},{F(b + "zvMin.v[1]"):0},{F(b + "zvMin.v[2]"):0}) tam ({dx:0},{dy:0},{dz:0})");
+        }
+        // pais das etapas "ir até": como o pai e as filhas dividem NPCs, prêmio e diálogos
+        long Flag(TaskRec r, string k) => QuestOptions.SwitchIndex(t.Version, k) is >= 0 and var i
+            ? r.V.TryGetValue("CombinedSwitches", out var o) && o is byte[] cb && i / 8 < cb.Length ? (cb[i / 8] >> (i % 8)) & 1 : 0 : r.Int(k);
+        TaskRec R(QuestNode x) => TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(x.Fixed, false)), t.Version);
+        string Talks(QuestNode x) => string.Join(",", x.Talks.Select(tp => tp.Windows.Count));
+        var parentSamples = new List<string>();
+        foreach (var p in t.Roots!.SelectMany(r => r.Descendants().Prepend(r)).Where(p => p.Parent is null && p.Children.Count is >= 2 and <= 4))
+        {
+            var kids = p.Children.Select(R).ToList();
+            if (!kids.Any(k => k.Int("m_enumMethod") == 4)) continue;
+            var pr = R(p);
+            var sig = string.Join(",", kids.Select(k => k.Int("m_enumMethod")));
+            Add("P pai: método/conclusão", $"{pr.Int("m_enumMethod")}/{pr.Int("m_enumFinishType")}");
+            Add("P pai: em ordem", Flag(pr, "m_bExeChildInOrder").ToString());
+            Add("P pai: dá/recebe>0", $"{pr.Int("m_ulDelvNPC") > 0}/{pr.Int("m_ulAwardNPC") > 0}");
+            Add("P pai: ouro/exp>0", $"{pr.Int("m_Award_S.m_ulGoldNum") > 0}/{pr.Int("m_Award_S.m_ulExp") > 0}");
+            Add("P pai: diálogos", Talks(p));
+            Add("P filhas: métodos", sig);
+            Add("P filhas: conclusão", string.Join(",", kids.Select(k => k.Int("m_enumFinishType"))));
+            Add("P filhas: recebe>0", string.Join(",", kids.Select(k => k.Int("m_ulAwardNPC") > 0 ? 1 : 0)));
+            Add("P filhas: exp>0", string.Join(",", kids.Select(k => k.Int("m_Award_S.m_ulExp") > 0 ? 1 : 0)));
+            Add("P filhas: diálogos", string.Join(" ", p.Children.Select(Talks)));
+            Add("P filhas: textos", string.Join(" ", p.Children.Select(c => string.Join("|", c.Texts.Select(x => x.Length > 0 ? 1 : 0)))));
+            Add("P ligações pai/filha/irmã", $"{pr.Int("m_ulFirstChild") == p.Children[0].Id}/{kids[0].Int("m_ulParent") == p.Id}/{kids[0].Int("m_ulNextSibling") == p.Children[1].Id}");
+            if (parentSamples.Count < 6 && sig is "4,3" or "4,1" or "3,4")
+                parentSamples.Add($"{p.Id} \"{TasksFile.SplitColor(p.Name).Text}\" pai método {pr.Int("m_enumMethod")} conclusão {pr.Int("m_enumFinishType")} dá {pr.Int("m_ulDelvNPC")} recebe {pr.Int("m_ulAwardNPC")} · filhas "
+                    + string.Join(" | ", p.Children.Zip(kids).Select(z => $"{z.First.Id} \"{TasksFile.SplitColor(z.First.Name).Text}\" m{z.Second.Int("m_enumMethod")} c{z.Second.Int("m_enumFinishType")} dá {z.Second.Int("m_ulDelvNPC")} recebe {z.Second.Int("m_ulAwardNPC")} diál {Talks(z.First)}")));
+        }
+        var sb = new StringBuilder($"v{t.Version}: {n:N0} quests com local a alcançar\n");
+        foreach (var (k, h) in hist) sb.AppendLine($"{k}: " + string.Join("  ", h.OrderByDescending(x => x.Value).Take(8).Select(x => $"{x.Key}×{x.Value}")));
+        sb.AppendLine(string.Join("\n", samples));
+        sb.AppendLine(string.Join("\n", parentSamples));
+        File.WriteAllText("tasks-site.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --quest-create <tasks.data>: cria uma quest de recado pelo QuestBuilder, grava, relê e confere; tirando a quest nova

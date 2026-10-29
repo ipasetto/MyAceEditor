@@ -40,3 +40,11 @@ Combinado com o usuário em entrevista (28/10/2026). Regras do projeto valem em 
 | 10 | Especiais | escolta/proteger NPC, PQ/eventos, por facção/casamento |
 
 Prêmios e requisitos completos entram desde o tipo 1 (são os mesmos campos para todos os tipos).
+
+## Tipo 2 — Ir até um lugar (combinado em 29/10/2026)
+
+- Área marcada **arrastando no chão** (retângulo); a altura é preenchida sozinha e os números (mín./máx. X, Y, Z) ficam editáveis.
+- **Várias áreas** quando a versão aceita (até 8 até a v174, 16 depois); nas antigas, uma só com aviso.
+- No mundo aparece só a área da quest que está sendo criada ou editada (caixa translúcida).
+- **Como termina** fica a cargo do painel: a quest vira uma lista de **etapas** em ordem (como o jogo faz: quest principal com o NPC que dá e o prêmio, e cada etapa é uma subquest): chegar ao lugar (conclui ao chegar), falar com um NPC (prêmio entregue por ele), ir a outro lugar, matar monstros (entra com o tipo 3), e o que mais o formato tiver conforme os outros tipos forem feitos.
+- Uma etapa só "falar com NPC" continua sendo o recado do tipo 1 (quest sem subquests).
