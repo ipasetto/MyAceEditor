@@ -144,6 +144,19 @@ internal static class Program
             File.WriteAllText("field.txt", string.Join("\n", (list?.Items ?? new()).Take(8).Select(i => $"{i.Id}\t{i.Name}\t{(i.Fields.TryGetValue(args[3], out var f) ? $"{f.Type}: {f.Value}" : "(sem o campo)")}")), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 4 && args[0] == "--item-diff")   // <elements.data> <id> <id>: campos que diferem entre os dois itens (item-diff.txt)
+        {
+            var m = CfgCatalog.Load(args[1]).Module;
+            (Model.Item It, string List)? Find(string id) => m.Lists.SelectMany(l => l.Items.Select(i => (i, l.Name))).FirstOrDefault(x => x.i.Id == id) is var r && r.i is not null ? r : null;
+            var (a, b) = (Find(args[2]), Find(args[3]));
+            var sb = new StringBuilder($"{args[2]}: {a?.List ?? "não existe"}\n{args[3]}: {b?.List ?? "não existe"}\n");
+            if (a is { } x && b is { } y)
+                foreach (var k in x.It.Fields.Keys.Union(y.It.Fields.Keys))
+                    if (x.It.Fields.GetValueOrDefault(k)?.Value != y.It.Fields.GetValueOrDefault(k)?.Value)
+                        sb.AppendLine($"{k}: {x.It.Fields.GetValueOrDefault(k)?.Value} | {y.It.Fields.GetValueOrDefault(k)?.Value}");
+            File.WriteAllText("item-diff.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--names")   // <elements.data> <bloco>: ID e nome dos 15 primeiros itens (names.txt)
         {
             var list = CfgCatalog.Load(args[1]).Module.FindListByName(args[2]);

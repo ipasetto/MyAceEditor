@@ -150,7 +150,7 @@ public sealed class GmPanel : Form
     Control MeTab()
     {
         var exp = Num(1_000_000, 1, 2_000_000_000, 130); var slots = Num(96, 32, 96); var cult = Num(22, 0, 32);
-        var levels = Num(10, 1, 150, 70); var fame = Num(10_000, 0, 2_000_000_000, 120);
+        var levels = Num(10, 1, 150, 70); var fame = Num(10_000, 0, 2_000_000_000, 120); var spirit = Num(10, 1, 500, 70);
         var tag = Num(1, 0, 999, 70); var x = Num(0, -99999, 99999); var z = Num(0, -99999, 99999);
         var inMap = new CheckBox { Text = Loc.T("gm.sameMap", "no mapa em que estou"), AutoSize = true, Checked = true, Margin = new Padding(0, 6, 8, 0) };
         return Stack(
@@ -168,7 +168,9 @@ public sealed class GmPanel : Form
                     Btn(Loc.T("gm.money", "Moedas (nível × 1 milhão)"), () => Run("d 1988"))),
                 Row(L(Loc.T("gm.exp", "EXP")), exp, Btn(Loc.T("gm.give", "Dar"), () => Run($"d 10889 {exp.Value}")),
                     L(Loc.T("gm.fame", "Fama (reputação)")), fame, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 10850 {fame.Value}"))),
-                Row(L(Loc.T("gm.cultivation", "Cultivo (20-22 deus, 30-32 demônio)")), cult, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 1989 {cult.Value}")))),
+                // o gs não tem comando só de alma: cada d 10889 dá a EXP pedida + nível × 10.000 de alma (playercmd.cpp)
+                Row(L(Loc.T("gm.spirit", "Alma: dar")), spirit, Btn(Loc.T("gm.spiritGo", "vezes (cada vez = nível × 10.000)"), () => Run(Enumerable.Repeat("d 10889 1", (int)spirit.Value).ToArray())),
+                    L(Loc.T("gm.cultivation", "Cultivo (20-22 deus, 30-32 demônio)")), cult, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 1989 {cult.Value}")))),
             Group(Loc.T("gm.gBag", "Inventário"),
                 Row(L(Loc.T("gm.slots", "Espaços")), slots, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 2016 {slots.Value}")),
                     Btn(Loc.T("gm.clearBag", "Limpar inventário"), () => { if (Ask(Loc.T("gm.clearBagAsk", "Apagar TODOS os itens do inventário deste personagem?"))) Run("d 10853"); }))),

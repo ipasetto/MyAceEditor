@@ -3758,5 +3758,7 @@
   "gm.onlineNoServer": "The list needs the server on this PC. Without it, use \"Show IDs above heads\".",
   "gm.onlineCount": "{0} character(s) online.",
   "gm.onlineList": "Refresh who is online",
-  "gm.broadcastSent": "Message sent through the server: "
+  "gm.broadcastSent": "Message sent through the server: ",
+  "gm.spirit": "Spirit: give",
+  "gm.spiritGo": "times (each time = level × 10,000)"
 }

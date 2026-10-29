@@ -3760,5 +3760,7 @@
   "gm.onlineNoServer": "列表需要本机上的服务器。没有服务器时，请用“在头顶显示 ID”。",
   "gm.onlineCount": "{0} 个角色在线。",
   "gm.onlineList": "刷新在线玩家",
-  "gm.broadcastSent": "已通过服务器发送公告："
+  "gm.broadcastSent": "已通过服务器发送公告：",
+  "gm.spirit": "元神：给予",
+  "gm.spiritGo": "次（每次 = 等级 × 10,000）"
 }
