@@ -12,7 +12,7 @@ public static class AppLang
         ("pt", "Português"), ("en", "English"), ("zh", "中文"), ("ru", "Русский"),
     };
 
-    static string _current = "pt";
+    static string _current = "en";
 
     public static event Action? Changed;
 
@@ -28,10 +28,18 @@ public static class AppLang
             if (File.Exists(SettingsFile))
             {
                 var c = File.ReadAllText(SettingsFile).Trim();
-                if (All.Any(a => a.Code == c)) _current = c;
+                if (All.Any(a => a.Code == c)) { _current = c; return; }
             }
         }
-        catch { /* sem arquivo de configuração: fica em pt */ }
+        catch { }
+        _current = FromWindows();   // 1ª vez (sem escolha guardada): o idioma do Windows
+    }
+
+    /// <summary>Idioma do Windows se o programa tem tradução para ele; senão inglês.</summary>
+    static string FromWindows()
+    {
+        var code = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        return All.Any(a => a.Code == code) ? code : "en";
     }
 
     public static string Current

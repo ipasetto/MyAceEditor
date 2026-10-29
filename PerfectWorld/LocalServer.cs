@@ -501,10 +501,24 @@ public sealed class LocalServer
         Log(Loc.T("ls.pwctlUpdated", "pwctl atualizado no Linux"));
     }
 
+    /// <summary>
+    /// Letras aceitas em nome de personagem (gdeliveryd valida convertendo para name_charset), pelo idioma do programa:
+    /// chinês = GBK (contém o GB2312 do pacote); português, inglês, russo = UTF-8 (acentos, ç, cirílico). Se mudar com
+    /// o gdeliveryd no ar, só ele reinicia (glinkd e gs reconectam sozinhos).
+    /// </summary>
+    void NameCharset()
+    {
+        var want = AppLang.Current == "zh" ? "GBK" : "UTF-8";
+        Bash("f=/home/gdeliveryd/gamesys.conf; [ -f $f ] || exit 0; " +
+             $"cur=$(sed -n -E 's/^name_charset[[:space:]]*=[[:space:]]*([^[:space:]]+).*/\\1/p' $f | head -1); [ \"$cur\" = {want} ] && exit 0; " +
+             $"sed -i -E 's/^(name_charset[[:space:]]*=[[:space:]]*)[^[:space:]]+/\\1{want}/' $f; echo \"##PASSO name_charset $cur -> {want}\"; pkill -9 -x gdeliveryd; true", Log, timeoutMs: 60_000);
+    }
+
     public RunResult Start(IEnumerable<string>? maps = null)
     {
         EnsureTools();
         KeepAlive();
+        NameCharset();
         return Bash("pwctl start " + string.Join(' ', maps ?? Array.Empty<string>()), Log, timeoutMs: 600_000);   // sem mapas: o pwctl escolhe (mundo + mapa inicial)
     }
 

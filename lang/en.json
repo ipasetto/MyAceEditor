@@ -2518,7 +2518,7 @@
   "ct.shopDetail": "names and descriptions of shop items by item ID, and the categories; prices, order and the pair with the server's gshopsev stay",
   "srv.online": "● Server online",
   "srv.offline": "● Server offline",
-  "menu.exportLog": "⇩ Export log",
+  "menu.exportLog": "Export log",
   "menu.exportLogTip": "Bundles the program's error log into a .zip to send to the developers",
   "status.logExported": "Log exported: {0}",
   "status.logExportFail": "Could not export the log",

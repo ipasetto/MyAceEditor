@@ -2520,7 +2520,7 @@
   "ct.shopDetail": "按物品 ID 替换商城物品的名称和描述以及分类；价格、顺序及与服务器 gshopsev 的配对保持不变",
   "srv.online": "● 服务器在线",
   "srv.offline": "● 服务器离线",
-  "menu.exportLog": "⇩ 导出日志",
+  "menu.exportLog": "导出日志",
   "menu.exportLogTip": "将程序错误日志打包为 .zip，以便发送给开发者",
   "status.logExported": "日志已导出：{0}",
   "status.logExportFail": "无法导出日志",

@@ -235,11 +235,11 @@ public sealed class EditorForm : Form
             tools.Text = Loc.T("menu.tools", "&Ferramentas");
             findErrors.Text = Loc.T("menu.findErrors", "Procurar &erros…");
         });
-        // Exportar log: bem à esquerda, na mesma linha dos menus (quem testa manda o .zip para nós)
-        var exportLog = new ToolStripMenuItem { ForeColor = CAccent, Font = new Font("Segoe UI Semibold", 9f) };
+        // Exportar log: isolado na ponta direita da linha dos menus (quem testa manda o .zip para nós)
+        var exportLog = new ToolStripMenuItem { ForeColor = CAccent, Font = new Font("Segoe UI Semibold", 9f), Alignment = ToolStripItemAlignment.Right, Margin = new Padding(0, 0, 8, 0) };
         exportLog.Click += (_, _) => ExportLog();
-        Bind(() => { exportLog.Text = Loc.T("menu.exportLog", "⇩ Exportar log"); exportLog.ToolTipText = Loc.T("menu.exportLogTip", "Junta o log de erros do programa num .zip para enviar a quem desenvolve"); });
-        menu.Items.AddRange(new ToolStripItem[] { exportLog, new ToolStripSeparator(), arq, ed, view, tools, aj, lg });
+        Bind(() => { exportLog.Text = Loc.T("menu.exportLog", "Exportar log"); exportLog.ToolTipText = Loc.T("menu.exportLogTip", "Junta o log de erros do programa num .zip para enviar a quem desenvolve"); });
+        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, tools, aj, lg, exportLog });
         MainMenuStrip = menu;
         return menu;
     }
@@ -1239,7 +1239,9 @@ public sealed class EditorForm : Form
                 foreach (var (b, i) in inCat) _blockCombo.Items.Add(new BlockEntry(b, $"   [{i:000}] {Pretty(b.Name)} ({b.Items.Count:N0})",
                 Dyn: () => $"   [{i:000}] {Pretty(b.Name)} ({b.Items.Count:N0})"));
             }
-            var last = LoadSetting("block") ?? "WEAPON_ESSENCE";
+            // como o Angelica (RAE): ao abrir o programa, a 1ª lista do elements ([000]); depois, a lista em que se está
+            // (reabrir ou trocar de PW mantém). Antes lembrava a última de outra sessão, o que parecia aleatório.
+            var last = _curBlock?.Name ?? entries.MinBy(x => x.i).b.Name;
             int sel = 1;
             for (int i = 0; i < _blockCombo.Items.Count; i++)
                 if (_blockCombo.Items[i] is BlockEntry { Block: { } bb } && bb.Name == last) sel = i;
@@ -1256,7 +1258,6 @@ public sealed class EditorForm : Form
         { _blockCombo.SelectedIndex++; return; }
         _curBlock = (_blockCombo.SelectedItem as BlockEntry)?.Block;
         _allBlocks = _blockCombo.SelectedItem is BlockEntry { All: true };
-        if (_curBlock is not null) SaveSetting("block", _curBlock.Name);
         BuildTypeFilter();
         RefreshView();
     }
