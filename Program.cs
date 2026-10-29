@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MyAceEditor.PerfectWorld;
@@ -34,6 +34,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
         if (args.Length >= 4 && args[0] == "--local-send") { LocalSend(args[1], args[2], args[3]); return; }
+        if (args.Length >= 2 && args[0] == "--tasks-layout") { TestTaskLayout(args.Skip(1).ToArray()); return; }   // <tasks.data>...: lê e regrava cada quest (tasks-layout.txt)
         if (args.Length >= 2 && args[0] == "--tasks-texts") { TestTaskTexts(args[1]); return; }   // <tasks.data>: textos em qualquer versão
         if (args.Length >= 4 && args[0] == "--tasks-translate") { TasksTranslate(args[1], args[2], args[3]); return; }   // <destino> <traduzido> <saída>
         if (args.Length >= 4 && args[0] == "--pck-texts")   // <pck destino> <pck traduzido> <cópia de saída>: textos por ID (pck-texts.txt)
@@ -266,6 +267,50 @@ internal static class Program
 
     // --tasks-texts <tasks.data>: acha os textos de todas as quests (qualquer versão), regrava sem mudar (tem de sair
     // idêntico) e, na v93, confere com o esquema completo. Relatório em tasks-texts.txt.
+    private static void TestTaskLayout(string[] paths)
+    {
+        var sb = new StringBuilder();
+        foreach (var path in paths)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var data = File.ReadAllBytes(path);
+            int ver = BitConverter.ToInt32(data, 4), count = BitConverter.ToInt32(data, 8);
+            int at = 12 + (ver >= 223 ? 4 : 0);
+            if (int.TryParse(Environment.GetEnvironmentVariable("TL_MAX"), out int max)) count = Math.Min(count, max);
+            var offs = Enumerable.Range(0, count).Select(i => BitConverter.ToInt32(data, at + i * 4)).ToArray();
+            int ok = 0, bad = 0, fields = 0;
+            var errs = new List<string>();
+            using var ms = new MemoryStream(data);
+            using var r = new BinaryReader(ms);
+            for (int i = 0; i < count; i++)
+            {
+                int end = i + 1 < offs.Length ? offs[i + 1] : BitConverter.ToInt32(data, at + (i + 1) * 4) is int nx && i + 1 < BitConverter.ToInt32(data, 8) ? nx : data.Length;
+                try
+                {
+                    ms.Position = offs[i];
+                    var q = TaskLayout.Read(r, ver);
+                    if (ms.Position != end) throw new InvalidDataException($"terminou em {ms.Position - offs[i]} de {end - offs[i]} bytes");
+                    using var o = new MemoryStream();
+                    using (var w = new BinaryWriter(o, Encoding.UTF8, true)) TaskLayout.Write(w, ver, q);
+                    var a = o.ToArray();
+                    int diff = Enumerable.Range(0, Math.Min(a.Length, end - offs[i])).FirstOrDefault(k => a[k] != data[offs[i] + k], -1);
+                    if (a.Length != end - offs[i] || diff >= 0) throw new InvalidDataException($"regravado {a.Length} B, 1ª diferença em {diff}");
+                    fields += q.Fixed.Order.Count;
+                    ok++;
+                }
+                catch (Exception ex)
+                {
+                    bad++; if (errs.Count < 8) errs.Add($"  quest #{i} @{offs[i]}: {ex.Message}");
+                    if (bad == 1 && TaskLayout.LastRead is { } lr)
+                        File.WriteAllLines("tasks-layout-dump.txt", lr.Order.Select(o => $"{o.Key}	{o.Type}	{(lr.V[o.Key] is byte[] b ? Convert.ToHexString(b.AsSpan(0, Math.Min(b.Length, 16))) : lr.V[o.Key])}"));
+                }
+            }
+            sb.AppendLine($"{path}\n  v{ver}: {count:N0} quests, {ok:N0} idênticas, {bad:N0} com erro, {fields / Math.Max(ok, 1)} campos/quest, {sw.Elapsed.TotalSeconds:0.0}s");
+            errs.ForEach(e => sb.AppendLine(e));
+        }
+        File.WriteAllText("tasks-layout.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
     private static void TestTaskTexts(string path)
     {
         var sb = new StringBuilder();
