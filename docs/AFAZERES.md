@@ -30,7 +30,7 @@
 [ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | [x] outras versoes na aba Quests (TaskLayout: v128/129/187/198 testadas; campos com chaves m_..., sem rotulo PT)
 [x] traduzir a partir de outro cliente (elements + quests + falas do aipolicy + pacotes de interface/ajuda quando o jogo e o mesmo programa)
 [x] GShop (cliente+servidor juntos, tela igual a do jogo; falta validar no jogo e desfazer)
-[ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [x] modelos de monstro/NPC, construcoes, texturas e luz do chao, agua, mapa pintado (M) | [ ] arvores e grama (.ecwld/.spt), animacao | [ ] objetos e gatilhos (hoje so preservados)
+[ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [x] modelos de monstro/NPC, construcoes, texturas e luz do chao, agua, mapa pintado (M) | [x] arvores (.ecwld + nossa versao do SpeedTree: tronco, galhos, folhas em cartoes) | [ ] frondes, grama, folhas viradas p/ camera, animacao | [ ] objetos e gatilhos (hoje so preservados)
 [x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)
 
 ## QUESTS NO MUNDO 3D (spec docs/QUESTS-3D.md)
@@ -108,7 +108,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] assistente "Monstro/NPC novo" (barra e botao direito no 3D, ja posiciona o ponto)
 - [x] Salvar tudo (Ctrl+S) + salvar automatico a cada 5 min (Arquivo) + aviso ao fechar
 - [ ] servidor: o software faz o maximo (para testar no jogo)
-- [ ] arvores e grama: fechar o layout do world.ecwld (posicoes) e ler SpeedTree .spt (ou desenhar substitutos)
+- [x] arvores: posicoes do .ecwld e geracao propria do .spt (29/10) | [ ] frondes (13000-14000), grama (.ecwld/.mox), objetos/ECmodels do .ecwld
 
 ## MUNDO 3D / LISTAS — rodada 3 (25/10/2026 noite)
 - [x] assistente: ID novo automatico (proximo livre, ja ao abrir), campo bloqueado

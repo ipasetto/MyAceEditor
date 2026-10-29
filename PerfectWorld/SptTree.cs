@@ -16,6 +16,8 @@ public sealed class SptFile
     public float SizeVariance { get; private set; }
     public int Seed { get; private set; } = 1;
     public List<SptLevel> Levels { get; } = new();
+    /// <summary>Texturas de folha (4000–4007): âncora e tamanho do cartão (unidades da árvore) e o recorte no mapa composto.</summary>
+    public List<SptLeafMap> LeafMaps { get; } = new();
 
     public SptFile(byte[] b)
     {
@@ -42,8 +44,52 @@ public sealed class SptFile
                         break;
                     default: throw new InvalidDataException($"token {t} inesperado na parte geral");
                 }
+            if (r.Int() == 1004) ReadLeaves(r);
             break;
         }
+        // coordenadas no mapa composto (10000 → 10002: n × 4 pares s,t); as seções 7000–9000/11000 têm tamanho variável,
+        // então procura a abertura "10000 10002" depois do fim da árvore
+        for (int p = r.Pos; p + 12 <= b.Length; p++)
+            if (BitConverter.ToInt32(b, p) == 10000 && BitConverter.ToInt32(b, p + 4) == 10002)
+            {
+                int n = BitConverter.ToInt32(b, p + 8);
+                if (n < 0 || p + 12 + n * 32 > b.Length) break;
+                for (int i = 0; i < n && i < LeafMaps.Count; i++)
+                    for (int k = 0; k < 8; k++) LeafMaps[i].Uv[k] = BitConverter.ToSingle(b, p + 12 + i * 32 + k * 4);
+                break;
+            }
+    }
+
+    void ReadLeaves(Reader r)
+    {
+        for (int t = r.Int(); t != 1005 && !r.End; t = r.Int())
+            switch (t)
+            {
+                case 3000 or 3002 or 3004 or 3005 or 3007 or 3010: r.Float(); break;
+                case 3001 or 3008: r.Int(); break;
+                case 3003 or 3006 or 3009: r.Bool(); break;
+                case 1009:
+                    if (r.Int() != 1006) throw new InvalidDataException("lista de folhas sem 1006");
+                    r.Int();
+                    for (int lt = r.Int(); lt == 1007; lt = r.Int())
+                    {
+                        var m = new SptLeafMap();
+                        for (int k = r.Int(); k != 1008; k = r.Int())
+                            switch (k)
+                            {
+                                case 4000: r.Bool(); break;
+                                case 4001 or 4006: r.Vec(); break;
+                                case 4002 or 4007: r.Float(); break;
+                                case 4003: m.Texture = r.Str(); break;
+                                case 4004: m.Origin = r.Vec().Xy; break;
+                                case 4005: m.Size = r.Vec().Xy; break;
+                                default: throw new InvalidDataException($"token {k} inesperado na folha");
+                            }
+                        LeafMaps.Add(m);
+                    }
+                    break;
+                default: throw new InvalidDataException($"token {t} inesperado nas folhas");
+            }
     }
 
     internal sealed class Reader
@@ -51,11 +97,21 @@ public sealed class SptFile
         readonly byte[] _b; int _p;
         public Reader(byte[] b) => _b = b;
         public bool End => _p + 4 > _b.Length;
+        public int Pos => _p;
+        public Vector3 Vec() => new(Float(), Float(), Float());
         public int Int() { int v = BitConverter.ToInt32(_b, _p); _p += 4; return v; }
         public float Float() { float v = BitConverter.ToSingle(_b, _p); _p += 4; return v; }
         public bool Bool() => _b[_p++] != 0;
         public string Str() { int n = Int(); var s = Encoding.Latin1.GetString(_b, _p, n); _p += n; return s.TrimEnd('\0'); }
     }
+}
+
+/// <summary>Textura de folha: âncora (0..1 na imagem), tamanho em unidades da árvore e 4 pares (s,t) no mapa composto.</summary>
+public sealed class SptLeafMap
+{
+    public string Texture = "";
+    public Vector2 Origin = new(0.5f, 0.5f), Size = new(0.1f, 0.1f);
+    public readonly float[] Uv = { 1, 1, 0, 1, 0, 0, 1, 0 };
 }
 
 /// <summary>Um nível de galho (tokens 6000–6017). O último nível da árvore são as folhas.</summary>
@@ -215,7 +271,7 @@ public sealed class SptMesh
     public readonly List<Vector2> Uv = new();
     public readonly List<int> Index = new();
     public readonly List<(Vector3 Pos, Vector3 Dir)> Leaves = new();
-    public float Height;
+    public float Height, Scale = 1;   // Scale: unidades da árvore → metros (para o tamanho das folhas)
 }
 
 /// <summary>Crescimento dos galhos (CTreeEngine: galho recursivo, filhos com semente +3 cada).</summary>
@@ -237,7 +293,7 @@ public static class SptGrower
         float k = top > 0 ? size * 0.3048f / top : 1;
         for (int i = 0; i < m.Pos.Count; i++) m.Pos[i] *= k;
         for (int i = 0; i < m.Leaves.Count; i++) m.Leaves[i] = (m.Leaves[i].Pos * k, m.Leaves[i].Dir);
-        m.Height = top * k;
+        m.Height = top * k; m.Scale = k;
         return m;
     }
 

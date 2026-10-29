@@ -836,7 +836,17 @@ internal static class Program
                 System.Drawing.PointF P(OpenTK.Mathematics.Vector3 v) => new(200 + v.X * k, 390 - v.Y * k);
                 for (int i = 0; i + 2 < m.Index.Count; i += 3)
                     g.FillPolygon(br, new[] { P(m.Pos[m.Index[i]]), P(m.Pos[m.Index[i + 1]]), P(m.Pos[m.Index[i + 2]]) });
-                foreach (var l in m.Leaves) g.FillEllipse(System.Drawing.Brushes.Green, P(l.Pos).X - 1.5f, P(l.Pos).Y - 1.5f, 3, 3);
+                if (f.LeafMaps.Count > 0 && m.Leaves.Count > 0)
+                {
+                    float rad = 0;
+                    var (lv, li) = MyAceEditor.UI.WorldTrees.LeafCards(f, m, ref rad);
+                    using var lb = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(60, 0, 140, 0));
+                    for (int i = 0; i + 2 < li.Length; i += 3)
+                    {
+                        OpenTK.Mathematics.Vector3 V(int j) => new(lv[li[j] * 6], lv[li[j] * 6 + 1], lv[li[j] * 6 + 2]);
+                        g.FillPolygon(lb, new[] { P(V(i)), P(V(i + 1)), P(V(i + 2)) });
+                    }
+                }
                 bmp.Save(Path.Combine(outDir, Path.GetFileNameWithoutExtension(e.Path) + ".png"));
             }
             catch (Exception ex) { sb.Append($"{e.Path}\tERRO {ex.Message}\n"); }

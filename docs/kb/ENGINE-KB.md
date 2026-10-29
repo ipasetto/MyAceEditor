@@ -135,6 +135,9 @@ PerfectWorld/SkiModel.cs | malhas .ski (modelos de monstro/NPC/mina) na pose de 
 PerfectWorld/BmdModel.cs | construcoes .bmd (litmodels), 2 versoes
 UI/WorldModels.cs | modelos parados no Mundo 3D (.ecm -> .SMD -> .ski + .dds)
 UI/WorldBuildings.cs | construcoes dos pedacos em volta da camera (luz embutida x2)
+PerfectWorld/WorldScene.cs | .ecwld: tipos de arvore (.spt + compmap) e posicoes (PW-KB §S17)
+PerfectWorld/SptTree.cs | nossa versao do SpeedTree: .spt, curvas, RNG, galhos recursivos, pontos e texturas de folha
+UI/WorldTrees.cs | arvores no Mundo 3D: casca + folhas em 2 cartoes cruzados (compmap), ate 900 m; CLI --spt
 UI/WorldView.cs | Mundo 3D (OpenTK.GLControl 4.0.2, perfil compatibilidade 3.3): camera livre, marcadores do npcgen, botao direito copiar/novo ponto/mover
 UI/NpcGenView.cs | aba NPCGen: arquivos do servidor (world + aNN), lista de pontos, editor do ponto, desfazer proprio
 PerfectWorld/ElementsCfg.cs | parser .cfg (CfgBlock/CfgField, TypeSize)
