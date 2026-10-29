@@ -223,6 +223,12 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }
         AppLog.Info($"início · {Application.ProductVersion} · {Environment.OSVersion} · idioma {AppLang.Current}");
         UseAppIcon();
+        // Painel do GM: programa à parte (--gm [pasta element], ou o exe renomeado para MyAceGM.exe) — docs/GM-PAINEL.md
+        if ((args.Length >= 1 && args[0] == "--gm") || Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "").StartsWith("MyAceGM", StringComparison.OrdinalIgnoreCase))
+        {
+            Application.Run(new GmPanel(args.Length >= 2 && args[0] == "--gm" ? args[1] : null));
+            return;
+        }
         Application.Run(new EditorForm());
     }
 

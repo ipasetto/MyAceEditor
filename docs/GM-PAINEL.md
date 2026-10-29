@@ -31,6 +31,21 @@
 - Teleporte até NPC/monstro buscando pelo nome.
 - Mapa clicável (o mesmo da tecla M): clicar leva até o lugar.
 
+## Feito (29/10, 1ª versão — testar no jogo)
+- MyAceEditor.exe --gm [pasta element] (ou o exe copiado como MyAceGM.exe); botão azul "🎮 Painel do GM…" na aba Servidor.
+- Abas: Meu personagem | Itens (busca nome/ID, ícone, quantidade) | NPCs e monstros (ir até, invocar) | Jogadores |
+  Mundo | Mapa (mapa pintado do mundo; clique = d_goto x z; mostra a coordenada do jogo).
+- Envio: GameConsole — traz o jogo à frente, Shift+VK_OEM_3 abre o console, digita a linha (SendInput Unicode), Enter,
+  fecha o console e volta ao painel. Se o console já estiver aberto quando o painel age, o atalho o FECHA e a linha
+  vai para o chat: deixe o console fechado.
+- Comandos usados: d 205, d 10837 1/0, d 8903 73125, d 10852 1, d 2000, d 10993, d 1988, d 10889 n, d 1989 n,
+  d 2016 n, d 10853, d_goto x z, d 8888 tag x z, d_showpos, d 10800 id qtd, d 2001 id, d 8900 id,
+  d 10802 id qtd tempo 0, d 10857 id qtd tempo, d 10855 10855, d_settimeofday h,mm; gm_showid, gm_online_num,
+  gm_moveto_player id, gm_callin_player id, gm_kickout_role id s "motivo", gm_shutup_role id s "motivo",
+  gm_forbid_role 100|102 id s "motivo", gm_broadcast "texto", gm_restart_sev s.
+- Ainda não: dar/completar/zerar quest (não achei comando do console para isso), correio, EXP/drop em dobro, lista
+  de quem está online com nomes (gm_list_user não faz nada no cliente 1.5.3).
+
 ## Em aberto (conferir antes de prometer)
 - Números dos comandos `d <n>` por versão (lista triviapw 2017 não diz a versão).
 - Como escrever no console do jogo aberto (janela do elementclient) — teste é do usuário (não abrimos o cliente).

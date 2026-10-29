@@ -48,6 +48,7 @@ public sealed class ServerView : UserControl
         bar.Controls.Add(Btn(() => Loc.T("srv.sendMyFilesAndRestart", "⟳ Enviar meus arquivos e reiniciar"), SendFiles));
         bar.Controls.Add(Btn(() => Loc.T("srv.status", "Estado"), RefreshStatus));
         bar.Controls.Add(Btn(() => Loc.T("srv.admin", "🛠 Administrar…"), OpenAdmin, accent));
+        bar.Controls.Add(Btn(() => Loc.T("srv.gmPanel", "🎮 Painel do GM…"), OpenGmPanel, accent));
         // tudo numa tabela de linhas automáticas (o log ocupa o resto): nada depende da ordem de encaixe
         var root = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 1, RowCount = 6, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -316,6 +317,15 @@ public sealed class ServerView : UserControl
         if (!LocalServer.DistroExists()) { Warn(Loc.T("srv.installTheLocalServerFirst", "Instale o servidor local primeiro.")); return; }
         var w = new ServerAdminWindow(NewServer(), pkg, _client(), BackColor, ForeColor, _accent);
         w.Show(FindForm());
+    }
+
+    /// <summary>Painel do GM em outro processo (é um programa à parte: só usa o cliente do jogo, não o editor).</summary>
+    void OpenGmPanel()
+    {
+        var client = _client();
+        var args = Directory.Exists(client) ? $"--gm \"{client.TrimEnd('\\')}\"" : "--gm";
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, args) { UseShellExecute = false }); }
+        catch (Exception ex) { Warn(ex.Message); }
     }
 
     void Warn(string msg) => MessageBox.Show(this, msg, Loc.T("srv.server", "Servidor"), MessageBoxButtons.OK, MessageBoxIcon.Information);
