@@ -122,6 +122,8 @@ internal static class Program
         if (args.Length >= 4 && args[0] == "--aipolicy-convert") { AiConvert(args[1], args[2], args[3]); return; }   // <entrada> <referência que o gs lê> <saída>
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--tasks-recado") { TaskRecado(args[1]); return; }   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
+        if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
         if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
         if (args.Length >= 1 && args[0] == "--translate-selftest") { TranslateSelfTest().GetAwaiter().GetResult(); return; }
@@ -421,6 +423,75 @@ internal static class Program
         var back = new AiPolicyFile(output);
         sb.AppendLine($"{rep}\nresultado: {(back.Ok ? back.Limits().ToString() : "NÃO RELÊ: " + back.Error)} · {back.Policies.Count:N0} políticas · {back.Policies.Sum(p => p.Triggers.Count):N0} gatilhos");
         File.WriteAllText("aipolicy-convert.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --tasks-recado <tasks.data>: como são as quests de recado reais (NPC que dá ≠ NPC que recebe, sem matar/coletar/lugar):
+    // histograma dos campos-chave e dos diálogos, para escolher o modelo de quest nova (tasks-recado.txt)
+    private static void TaskRecado(string path)
+    {
+        var t = new TasksFile(path);
+        var keys = new[] { "m_enumMethod", "m_enumFinishType", "m_ulAwardType_S", "m_ulType", "m_bCanGiveUp", "m_bCanRedo", "m_bNeedRecord", "m_bCanSeekOut", "m_bShowPrompt", "m_bAutoDeliver" };
+        var hist = keys.ToDictionary(k => k, _ => new Dictionary<string, int>());
+        var talks = new Dictionary<string, int>();
+        var samples = new List<string>();
+        int n = 0;
+        foreach (var q in t.Roots!)
+        {
+            if (q.Children.Count > 0) continue;
+            string V(string k) => q.Field(k) is { } f ? q.Get(f) : "-";
+            if (V("m_ulDelvNPC") is "0" or "-" || V("m_ulAwardNPC") is "0" or "-" || V("m_ulDelvNPC") == V("m_ulAwardNPC")) { q.Fields = null!; continue; }
+            if (V("m_ulMonsterWanted") != "0" || V("m_ulItemsWanted") != "0" || V("m_ulReachSiteCnt") is not ("0" or "-") || V("m_ulPremItems") != "0") { q.Fields = null!; continue; }
+            n++;
+            foreach (var k in keys) { var v = V(k); hist[k][v] = hist[k].GetValueOrDefault(v) + 1; }
+            var sig = string.Join(",", q.Talks.Select(tp => tp.Windows.Count));
+            talks[sig] = talks.GetValueOrDefault(sig) + 1;
+            if (samples.Count < 8) samples.Add($"{q.Id} \"{TasksFile.SplitColor(q.Name).Text}\" dá {V("m_ulDelvNPC")} recebe {V("m_ulAwardNPC")} método {V("m_enumMethod")} conclusão {V("m_enumFinishType")} diálogos {sig} textos {string.Join("|", q.Texts.Select(x => x.Length))}");
+            q.Fields = null!;
+        }
+        var sb = new StringBuilder($"v{t.Version}: {n:N0} quests de recado (de {t.Roots.Count:N0} principais)\n");
+        foreach (var k in keys) sb.AppendLine($"{k}: " + string.Join("  ", hist[k].OrderByDescending(x => x.Value).Take(6).Select(x => $"{x.Key}×{x.Value}")));
+        sb.AppendLine("janelas por diálogo (5 diálogos): " + string.Join("  ", talks.OrderByDescending(x => x.Value).Take(6).Select(x => $"[{x.Key}]×{x.Value}")));
+        sb.AppendLine(string.Join("\n", samples));
+        File.WriteAllText("tasks-recado.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --quest-create <tasks.data>: cria uma quest de recado pelo QuestBuilder, grava, relê e confere; tirando a quest nova
+    // a regravação tem que ser idêntica ao original (quest-create.txt)
+    private static void TestQuestCreate(string path)
+    {
+        var original = File.ReadAllBytes(path);
+        var t = new TasksFile(original);
+        var sb = new StringBuilder($"v{t.Version}\n");
+        var tpl = QuestBuilder.FindRecadoTemplate(t);
+        sb.AppendLine($"modelo: {(tpl is null ? "NENHUM" : $"{tpl.Id} \"{tpl.Name}\"")}");
+        if (tpl is null) { File.WriteAllText("quest-create.txt", sb.ToString(), new UTF8Encoding(false)); return; }
+        string V(QuestNode q, string k) => q.Field(k) is { } f ? q.Get(f) : "-";
+        var d = new QuestDraft
+        {
+            Id = t.NextFreeId(), Name = "Recado de teste", Giver = int.Parse(V(tpl, "m_ulAwardNPC")), Receiver = int.Parse(V(tpl, "m_ulDelvNPC")),
+            MinLevel = 10, MaxLevel = 50, Gold = 1234, Exp = 5678, Sp = 90, Items = { (11208, 3), (11209, 1) },
+            Description = "Leve esta carta.", OfferText = "Pode levar esta carta para mim?", RewardText = "Obrigado pela carta!",
+        };
+        var errors = QuestBuilder.Validate(t, d, _ => true, _ => true);
+        sb.AppendLine("validação: " + (errors.Count == 0 ? "OK" : string.Join("; ", errors)));
+        var q = QuestBuilder.Build(t, d);
+        var bytes = t.Build();
+        var back = new TasksFile(bytes);
+        var nq = back.Index.Find(d.Id) as QuestNode;
+        sb.AppendLine($"relido: {(back.FullSchema ? "OK" : back.SchemaError)} · {back.Roots?.Count:N0} principais (antes {t.Roots!.Count - 1:N0}) · regrava {(back.CanWrite ? "OK" : back.ReadOnlyReason)}");
+        if (nq is not null)
+        {
+            foreach (var k in new[] { "m_ID", "m_ulDelvNPC", "m_ulAwardNPC", "m_enumMethod", "m_enumFinishType", "m_ulPremise_Lev_Min", "m_ulPremise_Lev_Max",
+                         "m_ulPremise_Task_Count", "m_Award_S.m_ulGoldNum", "m_Award_S.m_ulExp", "m_Award_S.m_ulSP", "m_Award_S.m_ulCandItems",
+                         "m_Award_S.m_CandItems[0].m_ulAwardItems", "m_Award_S.m_CandItems[0].m_AwardItems[0].m_ulItemTemplId",
+                         "m_Award_S.m_CandItems[0].m_AwardItems[0].m_ulItemNum", "m_Award_S.m_CandItems[0].m_AwardItems[1].m_ulItemTemplId", "m_Award_S.m_ulNewTask" })
+                sb.AppendLine($"  {k} = {V(nq, k)}");
+            sb.AppendLine($"  nome \"{nq.Name}\" · descrição \"{nq.Texts[0]}\" · ao dar \"{nq.Talks[0].Windows[0].Text}\" · prêmio \"{nq.Talks[4].Windows[0].Text}\"");
+            back.DeleteRoot(nq);
+            sb.AppendLine($"sem a quest nova, regravação: {(back.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
+        }
+        else sb.AppendLine("quest nova NÃO encontrada no arquivo relido");
+        File.WriteAllText("quest-create.txt", sb.ToString(), new UTF8Encoding(false));
     }
 
     // --tasks-labels: revisar rótulos/dicas da tabela de campos (PerfectWorld/cfg/quest_fields.pt.tsv)

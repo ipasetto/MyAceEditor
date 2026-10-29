@@ -53,6 +53,8 @@ public sealed class QuestNode
     internal Func<QuestNode, List<TaskField>>? FieldsFactory;
     public List<TaskField> Fields { get => _fields ??= FieldsFactory?.Invoke(this) ?? new(); set => _fields = value; }   // null = montar de novo
     public bool FieldsLoaded => _fields is not null;
+    /// <summary>Bloco fixo regravado (tamanho pode mudar): campos são remontados do TaskLayout na próxima leitura.</summary>
+    public void ResetFields(int version) { _fields = null; FieldsFactory = n => TaskSchema93.LayoutFields(n.Fixed, version); }
     /// <summary>Posição do ID e do nome no bloco fixo (v153+: i16 do espaço de IDs antes do ID).</summary>
     public int IdOffset, NameOffset = 4;
     /// <summary>Campo pelo nome do esquema v93 (português) ou pela chave do TaskLayout (m_…).</summary>

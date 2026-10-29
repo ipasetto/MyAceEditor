@@ -355,6 +355,7 @@ public sealed class EditorForm : Form
         tabs.TabPages.Add(tN);
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
         _npcgen.QuestsOfNpc = NpcQuests;
+        _npcgen.QuestHost = new QuestHostImpl(this);
         _npcgen.IsMerchant = id => CreatureItem(id) is { } c && c.Item.Fields.TryGetValue("id_sell_service", out var sv) && sv.Value is not ("0" or "");
         _npcgen.OpenQuest = id => { GoToQuest(id); Activate(); };
         // servidor escolhido no NPCGen (pasta gamed\config) vira o servidor do programa todo
@@ -2554,6 +2555,135 @@ public sealed class EditorForm : Form
     // número num bloco diferente); refeito a cada mudança no histórico e ao trocar de arquivo.
     private Dictionary<string, (ItemList Block, Item Item)>? _creatureCache;
     private Module? _creatureCacheFor;
+    // ---------- criar e ligar quests pelo Mundo 3D (docs/QUESTS-3D.md) ----------
+
+    sealed class QuestHostImpl(EditorForm f) : IQuestHost
+    {
+        public QuestDraft? NewDraft(int giverNpc, out string? why) => f.NewQuestDraft(giverNpc, out why);
+        public List<string> Validate(QuestDraft d) => f._tasks is { } t ? QuestBuilder.Validate(t, d, IsNpc, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null) : new() { Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.") };
+        public string Summary(QuestDraft d) => f.QuestSummary(d);
+        public string? Commit(QuestDraft d) => f.CommitQuestDraft(d);
+        public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
+            : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
+        public bool IsNpc(int id) => f.CreatureItem(id) is { Block.Name: "NPC_ESSENCE" };
+        public IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max)
+        {
+            if (f._tasks is not { FullSchema: true } t) return Array.Empty<(int, string, int)>();
+            var list = new List<(int, string, int)>();
+            foreach (var row in t.Index.Search(text.Trim()))
+            {
+                if (row is not QuestNode q) continue;
+                var giver = q.Field("m_ulDelvNPC") is { } g && int.TryParse(q.Get(g), out var gv) ? gv : 0;
+                list.Add((q.Id, TasksFile.SplitColor(q.Name).Text, giver));
+                if (list.Count >= max) break;
+            }
+            return list;
+        }
+        public string? LinkExisting(int npcId, int questId) => f.LinkQuestToNpc(npcId, questId);
+    }
+
+    private QuestDraft? NewQuestDraft(int giverNpc, out string? why)
+    {
+        why = null;
+        if (_tasks is not { FullSchema: true } t) { why = Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data."); return null; }
+        if (!t.CanWrite) { why = Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason; return null; }
+        if (QuestBuilder.FindRecadoTemplate(t) is null) { why = Loc.T("qb.noTemplate", "Não há uma quest de recado neste tasks.data para servir de modelo."); return null; }
+        return new QuestDraft { Id = t.NextFreeId(), Giver = giverNpc };
+    }
+
+    private string QuestSummary(QuestDraft d)
+    {
+        string N(int id) => id <= 0 ? "—" : $"{new QuestHostImpl(this).NameOf(id) ?? "?"} ({id})";
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(string.Format(Loc.T("qb.sumTitle", "Quest {0} — \"{1}\" (recado)"), d.Id, d.Name));
+        sb.AppendLine(string.Format(Loc.T("qb.sumGiver", "Dada por: {0}"), N(d.Giver)));
+        sb.AppendLine(string.Format(Loc.T("qb.sumReceiver", "Entregue a: {0}"), N(d.Receiver)));
+        sb.AppendLine(d.MaxLevel > 0 ? string.Format(Loc.T("qb.sumLevels", "Nível: {0} a {1}"), d.MinLevel, d.MaxLevel) : string.Format(Loc.T("qb.sumLevelMin", "Nível: a partir de {0}"), d.MinLevel));
+        sb.AppendLine(string.Format(Loc.T("qb.sumAward", "Prêmio: {0:N0} de ouro, {1:N0} de experiência, {2:N0} de espírito, {3:N0} de reputação"), d.Gold, d.Exp, d.Sp, d.Reputation));
+        foreach (var (id, n) in d.Items) sb.AppendLine(string.Format(Loc.T("qb.sumItem", "  + {0} × {1}"), n, N(id)));
+        sb.AppendLine();
+        sb.AppendLine(Loc.T("qb.sumLinks", "Ao concluir:"));
+        sb.AppendLine(string.Format(Loc.T("qb.sumLinkGive", "  • a quest entra no serviço de dar quests de {0}"), N(d.Giver)));
+        sb.AppendLine(string.Format(Loc.T("qb.sumLinkTake", "  • e no serviço de receber quests de {0}"), N(d.Receiver)));
+        sb.AppendLine(Loc.T("qb.sumSave", "Nada é gravado até você clicar em Salvar (só o cliente; o servidor só com \"Salvar e enviar ao servidor\"). Ctrl+Z desfaz."));
+        return sb.ToString();
+    }
+
+    private string? CommitQuestDraft(QuestDraft d)
+    {
+        if (_tasks is not { FullSchema: true } t) return Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.");
+        var host = new QuestHostImpl(this);
+        var errors = host.Validate(d);
+        if (errors.Count > 0) return string.Join("\n", errors);
+        if (CreatureItem(d.Giver) is not { } giver || CreatureItem(d.Receiver) is not { } receiver) return Loc.T("qb.noNpc", "NPC não encontrado no elements.data.");
+        var label = string.Format(Loc.T("qb.histCreate", "Criar quest {0}"), d.Id);
+        string? err = null;
+        try
+        {
+        using (_edits.Batch(label))
+        {
+            QuestNode? made = null;
+            _edits.Custom(label,
+                () => { made = QuestBuilder.Build(t, d); MarkTasksDirty(label); },
+                () => { if (made is not null) t.DeleteRoot(made); MarkTasksDirty(label); });
+            err = AddQuestToService(giver.Item, d.Id, give: true) ?? AddQuestToService(receiver.Item, d.Id, give: false);
+        }
+        RefreshQuests();
+        return err;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException) { return ex.Message; }
+    }
+
+    private string? LinkQuestToNpc(int npcId, int questId)
+    {
+        if (_tasks?.Index.Find(questId) is not QuestNode q || q.Field("m_ulDelvNPC") is not { } f) return Loc.T("qb.noQuest", "Quest não encontrada no tasks.data.");
+        if (!_tasks.CanWrite) return Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + _tasks.ReadOnlyReason;
+        if (CreatureItem(npcId) is not { Block.Name: "NPC_ESSENCE" } npc) return Loc.T("qb.noNpc", "NPC não encontrado no elements.data.");
+        var old = q.Get(f);
+        var label = string.Format(Loc.T("qb.histLink", "Dar quest {0} ao NPC {1}"), questId, npcId);
+        string? err;
+        using (_edits.Batch(label))
+        {
+            _edits.Custom(label,
+                () => { q.Set(f, npcId.ToString()); _tasks.InvalidateNpcIndex(); MarkTasksDirty(label); },
+                () => { q.Set(f, old); _tasks.InvalidateNpcIndex(); MarkTasksDirty(label); });
+            err = AddQuestToService(npc.Item, questId, give: true);
+        }
+        return err;
+    }
+
+    /// <summary>
+    /// Põe a quest numa vaga livre do serviço de dar (NPC_TASK_OUT_SERVICE) ou receber (NPC_TASK_IN_SERVICE) do NPC. Se o
+    /// NPC não tem serviço, ou divide o serviço com outros NPCs, ganha um serviço próprio (cópia) para não mexer nos outros.
+    /// </summary>
+    private string? AddQuestToService(Item npc, int questId, bool give)
+    {
+        if (_store.Current is not { } m) return Loc.T("qb.noElements", "Abra o elements.data.");
+        string field = give ? "id_task_out_service" : "id_task_in_service", blockName = give ? "NPC_TASK_OUT_SERVICE" : "NPC_TASK_IN_SERVICE";
+        if (!npc.Fields.TryGetValue(field, out var sf) || m.FindListByName(blockName) is not { } block || block.Items.Count == 0)
+            return string.Format(Loc.T("qb.noService", "Este elements.data não tem {0}."), blockName);
+        static bool Slot(string k) => k.Contains("id_tasks") && !k.Contains("space");
+        var svc = block.Items.FirstOrDefault(i => i.Id == sf.Value && sf.Value != "0");
+        bool shared = svc is not null && m.FindListByName("NPC_ESSENCE")?.Items.Count(n => n != npc && n.Fields.TryGetValue(field, out var o) && o.Value == svc.Id) > 0;
+        if (svc is not null && svc.Fields.Any(kv => Slot(kv.Key) && kv.Value.Value == questId.ToString())) return null;   // já está
+        if (svc is null || shared)
+        {
+            var src = svc ?? block.Items[0];
+            var ni = new Item { Id = IdRefactor.NextFreeId(m, block).ToString(), Name = TasksFile.SplitColor(npc.Name).Text, Fields = src.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)), Raw = src.Raw?.ToArray() };
+            if (svc is null) foreach (var k in ni.Fields.Keys.Where(Slot).ToList()) ni.Fields[k] = Field.Of(ni.Fields[k].Type, "0");
+            SetIdName(ni);
+            _edits.AddItem(block, ni, "");
+            _owner[ni] = block;
+            _edits.SetField(npc, field, Field.Of(sf.Type, ni.Id), "");
+            svc = ni;
+        }
+        var free = svc.Fields.Keys.FirstOrDefault(k => Slot(k) && svc.Fields[k].Value is "0" or "");
+        if (free is null) return string.Format(Loc.T("qb.serviceFull", "O serviço {0} do NPC está cheio."), svc.Id);
+        _edits.SetField(svc, free, Field.Of(svc.Fields[free].Type, questId.ToString()), "");
+        _refs = new RefIndex(m);
+        return null;
+    }
+
     /// <summary>
     /// Quests que o NPC dá e recebe (Mundo 3D): serviços do NPC no elements (NPC_TASK_OUT/IN_SERVICE, campos id_tasks_N)
     /// e campos das quests (m_ulDelvNPC / m_ulAwardNPC). Null se o ID não é um NPC.

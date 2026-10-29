@@ -42,6 +42,16 @@ internal sealed class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<int, NpcQuestInfo?>? NpcQuests { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<int>? OpenQuest { get => _quests.OpenQuest; set => _quests.OpenQuest = value; }
     readonly WorldQuestPanel _quests = new();
+    IQuestHost? _host;
+    WorldQuestEditor? _editor;
+    Action<int>? _pickNpc;   // painel de criação esperando um clique num NPC
+    /// <summary>Criar quest e dar quest existente (botões da barra do NPC).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)]
+    internal IQuestHost? QuestHost
+    {
+        get => _host;
+        set { _host = value; _quests.CreateQuest = value is null ? null : OpenCreator; _quests.LinkQuest = value is null ? null : LinkExisting; }
+    }
 
     const float Speed = 40;           // m/s andando; Shift = ×4
 
@@ -161,6 +171,12 @@ internal sealed class WorldView : Form
                     _select(tag);
                     var mk = _marks.FirstOrDefault(m => m.Tag == tag);
                     _status.Text = mk?.Name ?? "";
+                    if (_pickNpc is not null && mk is { Id: > 0 } && _host?.IsNpc(mk.Id) == true)
+                    {
+                        var pick = _pickNpc; _pickNpc = null; pick(mk.Id);   // painel de criação pediu este NPC
+                        _movingTag = null; _movePos = null; _gl.Invalidate();
+                        return;
+                    }
                     if (mk is { Id: > 0 } && NpcQuests is not null)
                     {
                         if (NpcQuests(mk.Id) is { } qi) _quests.ShowNpc(qi);   // NPC: quests que dá e recebe
@@ -208,7 +224,8 @@ internal sealed class WorldView : Form
 
     void OnKey(KeyEventArgs e)
     {
-        if (_find.Focused) return;
+        if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
+        if (e.KeyCode == Keys.Escape && _pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return; }
         if (e.Control)
         {
             switch (e.KeyCode)
@@ -796,6 +813,35 @@ internal sealed class WorldView : Form
     sealed record MapItem(string Key) { public override string ToString() => MapNames.TryGetValue(Key, out var n) ? $"{Key} — {n}" : Key; }
 
     /// <summary>Barra de status sem piscar: desenha com buffer duplo e só repinta quando o texto muda.</summary>
+    // ---------- criar / ligar quests ----------
+
+    void OpenCreator(int npcId)
+    {
+        if (_host is null) return;
+        if (_editor is not null) { _editor.Focus(); return; }
+        if (_host.NewDraft(npcId, out var why) is not { } draft) { MessageBox.Show(this, why, Loc.T("qe.cantCreate", "Não dá para criar quest agora"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        var ed = _editor = new WorldQuestEditor(_host, draft, act => { _pickNpc = act; _status.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)"); _gl.Focus(); });
+        void Close() { _pickNpc = null; Controls.Remove(ed); ed.Dispose(); _editor = null; _gl.Focus(); }
+        ed.Created += id =>
+        {
+            Close();
+            _status.Text = string.Format(Loc.T("qe.created", "Quest {0} criada e ligada aos NPCs — clique em Salvar no editor para gravar."), id);
+            if (NpcQuests?.Invoke(npcId) is { } qi) _quests.ShowNpc(qi);
+        };
+        ed.Cancelled += Close;
+        Controls.Add(ed);
+    }
+
+    void LinkExisting(int npcId)
+    {
+        if (_host is null) return;
+        using var dlg = new QuestLinkDialog(_host, _host.NameOf(npcId) ?? npcId.ToString());
+        if (dlg.ShowDialog(this) != DialogResult.OK || dlg.QuestId <= 0) return;
+        if (_host.LinkExisting(npcId, dlg.QuestId) is { } err) { MessageBox.Show(this, err, Loc.T("ql.failed", "Não foi possível dar a quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        _status.Text = string.Format(Loc.T("ql.done", "Quest {0} agora é dada por este NPC — clique em Salvar no editor para gravar."), dlg.QuestId);
+        if (NpcQuests?.Invoke(npcId) is { } qi) _quests.ShowNpc(qi);
+    }
+
     sealed class StatusLine : Label
     {
         public StatusLine() { DoubleBuffered = true; SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true); }

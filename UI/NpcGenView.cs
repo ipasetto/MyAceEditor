@@ -29,6 +29,9 @@ internal sealed class NpcGenView : UserControl
     /// <summary>NPC com serviço de venda (filtro "Comerciantes" do Mundo 3D).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<int, bool>? IsMerchant { get; set; }
+    /// <summary>Criar e ligar quests pelo Mundo 3D.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    internal IQuestHost? QuestHost { get; set; }
     readonly Func<int, string?> _blockOf;   // ID → bloco do elements (NPC em ponto de monstro = guarda)
     readonly Action<int> _editItem;         // abre o registro no editor (aba Elements)
 
@@ -683,7 +686,7 @@ internal sealed class NpcGenView : UserControl
             },
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
         w.Tag = _cur;
-        w.NpcQuests = QuestsOfNpc; w.OpenQuest = OpenQuest;
+        w.NpcQuests = QuestsOfNpc; w.OpenQuest = OpenQuest; w.QuestHost = QuestHost;
         w.CloneHere = (o, g) =>
         {
             SelectObject(o);

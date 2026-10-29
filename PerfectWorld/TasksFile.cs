@@ -214,27 +214,35 @@ public sealed class TasksFile
     /// filho) passam a apontar para as cópias. Textos internos do bloco fixo (assinatura, textos de quest) não são
     /// recodificados [?].
     /// </summary>
-    public QuestNode CloneRoot(QuestNode src)
+    public QuestNode CloneRoot(QuestNode src) => CloneRoot(src, null, append: false);
+
+    /// <summary>Clona com o 1º ID escolhido (null = maior + 1); append: no fim da lista em vez de logo depois da origem.</summary>
+    public QuestNode CloneRoot(QuestNode src, int? firstId, bool append)
     {
         if (Roots is null) throw new InvalidOperationException(FieldKinds.Translate("tasks.cloneNeedsSchema", "Clonar exige o esquema completo do tasks.data."));
-        int next = Index.Nodes.Max(n => n.Id) + 1;
+        int next = firstId ?? NextFreeId();
         var map = new Dictionary<int, int>();
         void Plan(QuestNode q) { map[q.Id] = next++; foreach (var c in q.Children) Plan(c); }
         Plan(src);
         var copy = CloneNode(src, null, map);
         // a cópia é principal: sem pai e sem irmãos
         foreach (var name in new[] { "Pai", "Irmão anterior", "Próximo irmão" }) SetLink(copy, name, 0);
-        int at = Roots.IndexOf(src);
+        int at = append ? -1 : Roots.IndexOf(src);
         Roots.Insert(at < 0 ? Roots.Count : at + 1, copy);
         Index = new TaskIndex(Roots, Quests);
+        InvalidateNpcIndex();
         return copy;
     }
+
+    /// <summary>Próximo ID de quest livre (maior ID + 1).</summary>
+    public int NextFreeId() => Index.Nodes.Count == 0 ? 1 : Index.Nodes.Max(n => n.Id) + 1;
 
     /// <summary>Remove uma quest principal (e as subquests dela).</summary>
     public bool DeleteRoot(QuestNode q)
     {
         if (Roots is null || !Roots.Remove(q)) return false;
         Index = new TaskIndex(Roots, Quests);
+        InvalidateNpcIndex();
         return true;
     }
 
