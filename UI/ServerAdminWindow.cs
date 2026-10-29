@@ -13,6 +13,7 @@ public sealed class ServerAdminWindow : Form
     readonly ServerAdmin _adm;
     readonly string _gsConf, _client;
     readonly Label _status = new() { Dock = DockStyle.Bottom, Height = 26, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0) };
+    readonly ProgressBar _bar = new() { Dock = DockStyle.Bottom, Height = 6, Style = ProgressBarStyle.Marquee, Visible = false };   // aparece enquanto algo roda
     readonly Color _bg, _fg, _accent;
     int _busy;
 
@@ -56,7 +57,7 @@ public sealed class ServerAdminWindow : Form
         tabs.TabPages.Add(Page(Loc.T("adm.world", "Mundo"), BuildWorld()));
         tabs.TabPages.Add(Page(Loc.T("adm.mapsAndInstances", "Mapas e instâncias"), BuildMaps()));
         tabs.SelectedIndexChanged += (_, _) => RefreshTab(tabs.SelectedIndex);
-        Controls.Add(tabs); Controls.Add(_status);
+        Controls.Add(tabs); Controls.Add(_bar); Controls.Add(_status);
         Shown += (_, _) => Work(Loc.T("adm.preparing", "Preparando…"), () => _srv.EnsureTools(), () => RefreshTab(0));
     }
 
@@ -94,7 +95,7 @@ public sealed class ServerAdminWindow : Form
     void Work(string what, Action job, Action? then = null)
     {
         Interlocked.Increment(ref _busy);
-        _status.Text = what; UseWaitCursor = true;
+        _status.Text = what; UseWaitCursor = true; _bar.Visible = true;
         Task.Run(() =>
         {
             Exception? err = null;
@@ -102,7 +103,7 @@ public sealed class ServerAdminWindow : Form
             if (IsDisposed) return;
             BeginInvoke(() =>
             {
-                if (Interlocked.Decrement(ref _busy) == 0) UseWaitCursor = false;
+                if (Interlocked.Decrement(ref _busy) == 0) { UseWaitCursor = false; _bar.Visible = false; }
                 if (err is not null) { _status.Text = Loc.T("adm.error", "Erro: ") + Friendly(err); return; }
                 if (_status.Text == what) _status.Text = "";
                 then?.Invoke();

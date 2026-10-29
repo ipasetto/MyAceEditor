@@ -21,7 +21,13 @@ public sealed class LocalServer
 
     /// <summary>Pasta da distro e do cache (ex.: D:\PWServer).</summary>
     public string BaseDir { get; }
-    public Action<string> Log { get; set; } = _ => { };
+    Action<string> _log = _ => { };
+    /// <summary>Andamento para a tela; linhas ##ERRO também vão para o log de erros do programa.</summary>
+    public Action<string> Log
+    {
+        get => line => { if (line.StartsWith("##ERRO")) AppLog.Error("servidor local: " + line[6..].Trim()); _log(line); };
+        set => _log = value;
+    }
 
     public LocalServer(string baseDir) { BaseDir = baseDir; }
 
@@ -441,6 +447,37 @@ public sealed class LocalServer
         }
         hung = true;
         return true;
+    }
+
+    /// <summary>
+    /// Salva o servidor local numa pasta no formato de um pacote "server files": home/ (programas, configs, dados do jogo e
+    /// banco dos personagens), etc/ (hosts, table.xml, authd.conf…), lib/ (bibliotecas antigas do pacote) e SQL/
+    /// (PW_tabels.sql = banco de contas inteiro, com procedimentos). Serve de backup e para instalar outro servidor pela
+    /// aba Servidor. Para o servidor antes (o banco precisa estar fechado) e o religa se estava no ar.
+    /// </summary>
+    public void Backup(string folder, Action<string>? step = null)
+    {
+        bool wasUp = Status().GetValueOrDefault("porta29000");
+        step?.Invoke(Loc.T("ls.bkStopping", "Parando o servidor (o banco precisa estar fechado)"));
+        Stop();
+        var t = ToWslPath(folder);
+        try
+        {
+            step?.Invoke(Loc.T("ls.bkHome", "Copiando programas, configurações e banco do jogo (home)"));
+            var r = Bash($"mkdir -p '{t}/home' '{t}/etc' '{t}/lib' '{t}/SQL' && cd /home && for d in *; do [ $d = logs ] || cp -a $d '{t}/home/' || exit 1; done", Log, timeoutMs: 3_600_000);
+            if (r.Code != 0) throw new IOException(Loc.T("ls.bkFailed", "Não consegui copiar o servidor: ") + r.Output.Trim().Split('\n').LastOrDefault());
+            step?.Invoke(Loc.T("ls.bkEtc", "Copiando etc e bibliotecas"));
+            Bash($"for f in hosts table.xml authd.conf gmopgen.xml GMserver.conf iweb.conf; do [ -f /etc/$f ] && cp /etc/$f '{t}/etc/'; done; " +
+                 $"for f in libstdc++.so.5 libpcre.so.0 libtask.so libtask.so.2; do [ -e /usr/lib/i386-linux-gnu/$f ] && cp -L /usr/lib/i386-linux-gnu/$f '{t}/lib/'; done; true", Log, timeoutMs: 600_000);
+            step?.Invoke(Loc.T("ls.bkSql", "Exportando o banco de contas (SQL)"));
+            r = Bash($"service mariadb start >/dev/null 2>&1; mysqldump --databases pw --routines --triggers > '{t}/SQL/PW_tabels.sql' && echo '-- os procedimentos estão em PW_tabels.sql' > '{t}/SQL/PW_procedures.sql'", Log, timeoutMs: 600_000);
+            if (r.Code != 0) throw new IOException(Loc.T("ls.bkSqlFailed", "Não consegui exportar o banco de contas: ") + r.Output.Trim());
+            AppLog.Info($"backup do servidor local em {folder}");
+        }
+        finally
+        {
+            if (wasUp) { step?.Invoke(Loc.T("ls.bkRestart", "Ligando o servidor de novo")); Start(); }
+        }
     }
 
     /// <summary>null = ok; senão, o erro.</summary>

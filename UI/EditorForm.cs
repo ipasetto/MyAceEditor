@@ -153,6 +153,9 @@ public sealed class EditorForm : Form
         var arq = M(); var ed = M(); var aj = M(); var lg = M(); var view = M(); var tools = M();
         var findErrors = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.E }; findErrors.Click += (_, _) => FindErrors();
         tools.DropDownItems.Add(findErrors);
+        var backupServer = new ToolStripMenuItem { ForeColor = CFg }; backupServer.Click += (_, _) => BackupServer();
+        tools.DropDownItems.Add(backupServer);
+        Bind(() => backupServer.Text = Loc.T("menu.backupServer", "Salvar cópia do servidor local…"));
         var translateFrom = new ToolStripMenuItem { ForeColor = CFg }; translateFrom.Click += (_, _) => TranslateFromOther();
         tools.DropDownItems.Add(translateFrom);
         Bind(() => translateFrom.Text = Loc.T("menu.translateFrom", "&Traduzir com outro elements.data…"));
@@ -232,9 +235,51 @@ public sealed class EditorForm : Form
             tools.Text = Loc.T("menu.tools", "&Ferramentas");
             findErrors.Text = Loc.T("menu.findErrors", "Procurar &erros…");
         });
-        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, tools, aj, lg });
+        // Exportar log: bem à esquerda, na mesma linha dos menus (quem testa manda o .zip para nós)
+        var exportLog = new ToolStripMenuItem { ForeColor = CAccent, Font = new Font("Segoe UI Semibold", 9f) };
+        exportLog.Click += (_, _) => ExportLog();
+        Bind(() => { exportLog.Text = Loc.T("menu.exportLog", "⇩ Exportar log"); exportLog.ToolTipText = Loc.T("menu.exportLogTip", "Junta o log de erros do programa num .zip para enviar a quem desenvolve"); });
+        menu.Items.AddRange(new ToolStripItem[] { exportLog, new ToolStripSeparator(), arq, ed, view, tools, aj, lg });
         MainMenuStrip = menu;
         return menu;
+    }
+
+    // Ferramentas → Salvar cópia do servidor local: pasta no formato "server files" (backup ou base para outro servidor)
+    private void BackupServer()
+    {
+        if (!LocalServer.DistroExists() || _serverView is null) { Status(Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado.")); return; }
+        using var pick = new FolderBrowserDialog { Description = Loc.T("bk.pick", "Pasta onde salvar a cópia do servidor (vira a pasta \"server files\": home, etc, lib, SQL)"), UseDescriptionForTitle = true };
+        if (pick.ShowDialog(this) != DialogResult.OK) return;
+        var folder = Path.Combine(pick.SelectedPath, $"servidor-local-{DateTime.Now:yyyyMMdd-HHmm}");
+        if (MessageBox.Show(this, string.Format(Loc.T("bk.confirm", "Salvar o servidor local em:\n{0}\n\nO servidor para durante a cópia (alguns minutos) e volta ao fim. Quem estiver no jogo cai."), folder),
+                Loc.T("menu.backupServer", "Salvar cópia do servidor local…"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        var srv = _serverView.CreateServer();
+        try
+        {
+            ReadProgressDialog.Run(this, Loc.T("menu.backupServer", "Salvar cópia do servidor local…"), ctx =>
+            {
+                srv.Backup(folder, st => ctx.Report(0, st, indeterminate: true, force: true));
+                return folder;
+            }, allowCancel: false);
+            MessageBox.Show(this, string.Format(Loc.T("bk.done", "Cópia salva em:\n{0}\n\nPara usar em outro servidor: aba Servidor → Pacote do servidor = esta pasta (a pasta SQL está dentro dela)."), folder),
+                Loc.T("menu.backupServer", "Salvar cópia do servidor local…"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { Error(Loc.T("bk.failed", "Não consegui salvar a cópia do servidor"), ex); }
+    }
+
+    private void ExportLog()
+    {
+        using var dlg = new SaveFileDialog { Filter = "ZIP (*.zip)|*.zip", FileName = $"myaceeditor-log-{DateTime.Now:yyyyMMdd-HHmm}.zip" };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var env = new System.Text.StringBuilder()
+            .AppendLine($"MyAceEditor {Application.ProductVersion}")
+            .AppendLine($"Windows: {Environment.OSVersion} · {(Environment.Is64BitOperatingSystem ? "64" : "32")} bits · .NET {Environment.Version}")
+            .AppendLine($"idioma: {AppLang.Current}")
+            .AppendLine($"elements aberto: {(_dataPath is null ? "-" : Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)))))} · v{(_store.Current?.Version ?? 0) & 0xFFFF}")
+            .AppendLine($"tasks: v{_tasks?.Version}")
+            .AppendLine($"servidor local: {(LocalServer.DistroExists() ? $"instalado, gs v{LocalServer.InstalledVersion()}" : "não instalado")}");
+        try { AppLog.Export(dlg.FileName, env.ToString()); Status(string.Format(Loc.T("status.logExported", "Log exportado: {0}"), Path.GetFileName(dlg.FileName))); }
+        catch (Exception ex) { Error(Loc.T("status.logExportFail", "Não consegui exportar o log"), ex); }
     }
 
     private ToolStrip BuildToolbar()
@@ -961,6 +1006,7 @@ public sealed class EditorForm : Form
             + (module.Source is ElementsLayout { CanWrite: false } lay ? " · " + Loc.T("status.readOnly", "somente leitura") + ": " + lay.ReadOnlyReason : "")
             + (r.Warnings.Count > 0 ? " · " + string.Join(" · ", r.Warnings) : ""));
         Text = $"MyAceEditor — {module.Name}{HeaderInfo(path)}";
+        AppLog.Info($"aberto {path} · v{module.Version & 0xFFFF} · {r.Warnings.Count} aviso(s)" + (r.Warnings.Count > 0 ? ": " + string.Join(" · ", r.Warnings) : ""));
         UseWaitCursor = false;
         // CFG adaptado ao arquivo (versão trocada ou tamanho de registro diferente): avisa o que foi feito
         if (module.Source is ElementsLayout { Adjustments.Count: > 0 } adj)
@@ -1119,6 +1165,7 @@ public sealed class EditorForm : Form
             }
             Status(string.Format(Loc.T("status.savedTo", "Salvo em {0}"), Path.GetFileName(target)) + (backup is null ? "" : $" · backup: {Path.GetFileName(backup)}"));
             MarkElementsSaved();
+            AppLog.Info($"salvo {target}" + (backup is null ? "" : $" (backup {Path.GetFileName(backup)})"));
             return true;
         }
         catch (Exception ex) { Error(Loc.T("status.saveFail", "Falha ao salvar"), ex); return false; }
@@ -3758,7 +3805,8 @@ public sealed class EditorForm : Form
         _chkClient.Text = VersionCheck.ClientElement(_chkClient.Text); _chkServer.Text = VersionCheck.ServerHome(_chkServer.Text);
         SaveSetting("check_client", _chkClient.Text); SaveSetting("check_server", _chkServer.Text);
         _npcgen?.ServerFolderChanged(_chkServer.Text);   // servidor digitado à mão também vale para o NPCGen
-        var rows = VersionCheck.Run(_chkClient.Text, _chkServer.Text);
+        string cl = _chkClient.Text, sv = _chkServer.Text;   // lê o gs do servidor local (200 MB) e os pacotes: fora da tela
+        var rows = ReadProgressDialog.Run(this, Loc.T("chk.running", "Verificando cliente e servidor"), _ => VersionCheck.Run(cl, sv), allowCancel: false);
         _chkList.BeginUpdate(); _chkList.Items.Clear();
         foreach (var r in rows)
         {
@@ -3833,7 +3881,7 @@ public sealed class EditorForm : Form
     private static string? LoadSetting(string k) { try { var p = Path.Combine(SettingsDir, k + ".txt"); return File.Exists(p) ? File.ReadAllText(p).Trim() : null; } catch { return null; } }
 
     private void Status(string s) => _status.Text = s;
-    private void Error(string msg, Exception ex) { Status(msg + ": " + ex.Message); MessageBox.Show(ex.Message, msg, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    private void Error(string msg, Exception ex) { AppLog.Error(msg, ex); Status(msg + ": " + ex.Message); MessageBox.Show(ex.Message, msg, MessageBoxButtons.OK, MessageBoxIcon.Error); }
 }
 
 internal sealed class LightRenderer : ToolStripProfessionalRenderer

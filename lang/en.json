@@ -2517,5 +2517,22 @@
   "chk.gsNotLoaded": "The gs did not finish loading (or is stopped): entering the world disconnects and login fails as \"different version\". Use \"Send to server\" (it converts an aipolicy.data the gs cannot read) or check the gs log in administration.",
   "ct.shopDetail": "names and descriptions of shop items by item ID, and the categories; prices, order and the pair with the server's gshopsev stay",
   "srv.online": "● Server online",
-  "srv.offline": "● Server offline"
+  "srv.offline": "● Server offline",
+  "menu.exportLog": "⇩ Export log",
+  "menu.exportLogTip": "Bundles the program's error log into a .zip to send to the developers",
+  "status.logExported": "Log exported: {0}",
+  "status.logExportFail": "Could not export the log",
+  "menu.backupServer": "Save a copy of the local server…",
+  "bk.pick": "Folder to save the server copy in (it becomes a \"server files\" folder: home, etc, lib, SQL)",
+  "bk.confirm": "Save the local server to:\n{0}\n\nThe server stops during the copy (a few minutes) and comes back at the end. Anyone in the game is disconnected.",
+  "bk.done": "Copy saved to:\n{0}\n\nTo use it for another server: Server tab → Server package = this folder (the SQL folder is inside it).",
+  "bk.failed": "Could not save the server copy",
+  "ls.bkStopping": "Stopping the server (the database must be closed)",
+  "ls.bkHome": "Copying programs, settings and the game database (home)",
+  "ls.bkFailed": "Could not copy the server: ",
+  "ls.bkEtc": "Copying etc and libraries",
+  "ls.bkSql": "Exporting the account database (SQL)",
+  "ls.bkSqlFailed": "Could not export the account database: ",
+  "ls.bkRestart": "Starting the server again",
+  "chk.running": "Checking client and server"
 }

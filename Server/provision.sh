@@ -53,6 +53,10 @@ step "Endereços (tudo em 127.0.0.1; o glinkd escuta para o Windows)"
 sed -i -E 's/^(address[[:space:]]*=[[:space:]]*)192\.168\.[0-9.]+/\10.0.0.0/' /home/glinkd/gamesys.conf
 grep -rl -E "192\.168\.[0-9]+\.[0-9]+" /home --include=*.conf 2>/dev/null | while read -r f; do sed -i -E 's/192\.168\.[0-9]+\.[0-9]+/127.0.0.1/g' "$f"; done
 
+# nome de personagem: o gdeliveryd valida convertendo para name_charset; GB2312 recusa á, ç, ã, õ… (cliente em
+# português/inglês). UTF-8 aceita qualquer letra; o nome continua gravado em UTF-16.
+sed -i -E 's/^(name_charset[[:space:]]*=[[:space:]]*)GB2312/\1UTF-8/' /home/gdeliveryd/gamesys.conf
+
 step "Login (authd em Java)"
 cat > /home/mauthd/build/authd.sh <<'EOF'
 #!/bin/sh

@@ -112,8 +112,9 @@ public sealed class ServerAdmin
     public void Broadcast(string message)
     {
         using var c = Delivery();
-        // ChatBroadCast: canal 9 (anúncio), emoção 0, origem -1 (sistema), texto, dados extras vazios
-        c.Send(120, new GnetWriter().Byte(9).Byte(0).Int(-1).Text(message).Octets(ReadOnlySpan<byte>.Empty).ToArray());
+        // PublicChat (79), como o DeliveryDB.broadcast do iweb: canal 9 (anúncio), emoção 0, roleid -1 (sistema), localsid 0,
+        // texto, dados vazios. O ChatBroadCast (120) é o caminho gs/gdeliveryd -> glinkd; mandado ao gdeliveryd, era ignorado.
+        c.Send(79, new GnetWriter().Byte(9).Byte(0).Int(-1).Int(0).Text(message).Octets(ReadOnlySpan<byte>.Empty).ToArray());
         Thread.Sleep(300);   // dá tempo de o gdeliveryd ler antes de a conexão fechar
     }
 

@@ -48,7 +48,9 @@ internal static class Program
         {
             var adm = new ServerAdmin(new LocalServer(args[1]));
             string? err = args[2] == "deleterole" ? adm.DeleteRole(int.Parse(args[3])) : args[2] == "deleteaccount" ? adm.DeleteAccount(int.Parse(args[3]))
-                : args[2] == "role" ? adm.RoleDetails(int.Parse(args[3]))?.ToString() ?? "não achei" : "comando?";
+                : args[2] == "role" ? adm.RoleDetails(int.Parse(args[3]))?.ToString() ?? "não achei"
+                : args[2] == "broadcast" ? Run(() => adm.Broadcast(args[3])) : "comando?";
+            static string? Run(Action a) { a(); return null; }
             File.WriteAllText("adm.txt", err ?? "OK", new UTF8Encoding(false));
             return;
         }
@@ -109,7 +111,14 @@ internal static class Program
         if (args.Length >= 4 && args[0] == "--refs") { DumpRefs(args[1], args[2], args[3]); return; }
 
         ApplicationConfiguration.Initialize();
+        AppLog.Hook(); AppLog.Prune();
+        Application.ThreadException += (_, e) =>
+        {
+            AppLog.Error("erro na tela", e.Exception);
+            MessageBox.Show(e.Exception.Message, "MyAceEditor", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        };
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }
+        AppLog.Info($"início · {Application.ProductVersion} · {Environment.OSVersion} · idioma {AppLang.Current}");
         Application.Run(new EditorForm());
     }
 

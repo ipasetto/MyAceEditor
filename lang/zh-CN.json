@@ -2519,5 +2519,22 @@
   "chk.gsNotLoaded": "gs 未完成加载（或已停止）：进入世界会断线，登录会因“版本不同”失败。请使用“发送到服务器”（会转换 gs 无法读取的 aipolicy.data），或在管理中查看 gs 日志。",
   "ct.shopDetail": "按物品 ID 替换商城物品的名称和描述以及分类；价格、顺序及与服务器 gshopsev 的配对保持不变",
   "srv.online": "● 服务器在线",
-  "srv.offline": "● 服务器离线"
+  "srv.offline": "● 服务器离线",
+  "menu.exportLog": "⇩ 导出日志",
+  "menu.exportLogTip": "将程序错误日志打包为 .zip，以便发送给开发者",
+  "status.logExported": "日志已导出：{0}",
+  "status.logExportFail": "无法导出日志",
+  "menu.backupServer": "保存本地服务器副本…",
+  "bk.pick": "保存服务器副本的文件夹（将成为“server files”文件夹：home、etc、lib、SQL）",
+  "bk.confirm": "将本地服务器保存到：\n{0}\n\n复制期间（几分钟）服务器会停止，完成后重新启动。游戏中的玩家会掉线。",
+  "bk.done": "副本已保存到：\n{0}\n\n用于其他服务器：服务器标签 → 服务端包 = 此文件夹（SQL 文件夹在其中）。",
+  "bk.failed": "无法保存服务器副本",
+  "ls.bkStopping": "正在停止服务器（数据库必须关闭）",
+  "ls.bkHome": "正在复制程序、配置和游戏数据库（home）",
+  "ls.bkFailed": "无法复制服务器：",
+  "ls.bkEtc": "正在复制 etc 和库",
+  "ls.bkSql": "正在导出账号数据库（SQL）",
+  "ls.bkSqlFailed": "无法导出账号数据库：",
+  "ls.bkRestart": "正在重新启动服务器",
+  "chk.running": "正在检查客户端和服务器"
 }
