@@ -204,6 +204,30 @@ public static class ClientTranslator
             });
         }
 
+        // ---- font\: as fontes do jogo (qualquer versão). Os clientes BR trocam as 3 chinesas (fzl2jw, fzlbjw, fzxh1jw) por
+        // uma latina com o mesmo nome de arquivo; sem isso o PWI desenha ã/õ como □ e espaça as letras acentuadas ----
+        var fT = Path.Combine(target, "font"); var fS = Path.Combine(source, "font");
+        if (Directory.Exists(fT) && Directory.Exists(fS))
+        {
+            var fonts = Directory.GetFiles(fS, "*.ttf").Select(Path.GetFileName)
+                .Where(f => File.Exists(Path.Combine(fT, f!)) && !SameFile(Path.Combine(fT, f!), Path.Combine(fS, f!))).ToList();
+            if (fonts.Count > 0)
+                steps.Add(new Step
+                {
+                    Title = string.Format(Loc.T("ct.fontsTitle", "Fontes (font\\): {0} arquivos"), fonts.Count),
+                    Detail = Loc.T("ct.fontsDetail", "as fontes do outro cliente, para as letras do idioma dele (acentos, ç, ã/õ) aparecerem certas; fonte não depende da versão do jogo"),
+                    Default = true, Enabled = true,
+                    Apply = log =>
+                    {
+                        var bkDir = Path.Combine(fT, $"_backup_{DateTime.Now:yyyyMMdd-HHmmss}");
+                        Directory.CreateDirectory(bkDir);
+                        foreach (var f in fonts) { File.Copy(Path.Combine(fT, f!), Path.Combine(bkDir, f!)); File.Copy(Path.Combine(fS, f!), Path.Combine(fT, f!), true); }
+                        log(string.Format(Loc.T("ct.fontsLog", "font\\: {0} arquivos (backup em {1})"), fonts.Count, Path.GetFileName(bkDir)));
+                        return fT;
+                    },
+                });
+        }
+
         // ---- info\ (textos e imagens da ajuda) ----
         var iT = Path.Combine(target, "info"); var iS = Path.Combine(source, "info");
         if (Directory.Exists(iT) && Directory.Exists(iS))

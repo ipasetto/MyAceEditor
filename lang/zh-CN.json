@@ -2551,5 +2551,8 @@
   "ls.pctClient": "正在发送客户端的 elements、tasks、商城和 AI",
   "ls.pctStart": "正在启动服务和地图",
   "ls.pctWorld": "正在等待世界加载",
-  "ls.pctDone": "完成"
+  "ls.pctDone": "完成",
+  "ct.fontsTitle": "字体（font\\）：{0} 个文件",
+  "ct.fontsDetail": "另一个客户端的字体，使其语言的字母（重音、ç、ã/õ）正确显示；字体与游戏版本无关",
+  "ct.fontsLog": "font\\：{0} 个文件（备份在 {1}）"
 }

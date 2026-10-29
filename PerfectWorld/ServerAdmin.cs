@@ -240,8 +240,10 @@ public sealed class ServerAdmin
             foreach (var tag in Key(key).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 if (list.Any(m => m.Tag == tag)) continue;
-                var sect = Regex.Match(text, @"(?ms)^\[(?:World|Instance)_" + Regex.Escape(tag) + @"\](.*?)(?=^\[)");
-                int wt = int.TryParse(Regex.Match(sect.Groups[1].Value, @"(?mi)^\s*tag\s*=\s*(\d+)").Groups[1].Value, out var t) ? t : 0;
+                // a tag pode estar em qualquer uma das seções do mapa: no 1.5.x [World_is61] vem vazia e a tag fica em [Instance_is61]
+                int wt = Regex.Matches(text, @"(?ms)^\[(?:World|Instance)_" + Regex.Escape(tag) + @"\](.*?)(?=^\[|\z)")
+                    .Select(sect => Regex.Match(sect.Groups[1].Value, @"(?mi)^\s*tag\s*=\s*(\d+)"))
+                    .Where(m => m.Success).Select(m => int.Parse(m.Groups[1].Value)).FirstOrDefault();
                 list.Add(new(tag, wt, names is not null && names.TryGetValue(wt, out var n) ? n : "", inst));
             }
         return list;

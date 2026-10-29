@@ -2549,5 +2549,8 @@
   "ls.pctClient": "Sending the client's elements, tasks, shop and AI",
   "ls.pctStart": "Starting the services and maps",
   "ls.pctWorld": "Waiting for the world to load",
-  "ls.pctDone": "Done"
+  "ls.pctDone": "Done",
+  "ct.fontsTitle": "Fonts (font\\): {0} files",
+  "ct.fontsDetail": "the other client's fonts, so the letters of its language (accents, ç, ã/õ) display correctly; fonts do not depend on the game version",
+  "ct.fontsLog": "font\\: {0} files (backup in {1})"
 }

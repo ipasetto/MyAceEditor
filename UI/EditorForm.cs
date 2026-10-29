@@ -2381,14 +2381,20 @@ public sealed class EditorForm : Form
         if (_models is not null && _modelsFor == pck) return _models;
         _models = new(); _modelsFor = pck;
         if (pck is null) return _models;
-        try
+        // .ecm do models.pck ("Models\..." como no elements) e, no PWI 1.6, do textures.pck ("textures\models\...": o jogo
+        // acha o pacote pela 1ª pasta do caminho)
+        foreach (var (file, prefix) in new[] { (pck, "Models"), (Path.Combine(Path.GetDirectoryName(pck)!, "textures.pck"), "") })
         {
-            using var a = new PckArchive(pck);
-            // no pck o caminho começa com "models\" minúsculo; no elements.data é "Models\..."
-            _models = a.Entries.Where(e => e.Path.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase))
-                .Select(e => "Models" + e.Path[(e.Path.IndexOf('\\') is var i && i > 0 ? i : 0)..]).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+            if (!File.Exists(file)) continue;
+            try
+            {
+                using var a = new PckArchive(file);
+                _models.AddRange(a.Entries.Where(e => e.Path.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => prefix.Length == 0 ? e.Path : prefix + e.Path[(e.Path.IndexOf('\\') is var i && i > 0 ? i : 0)..]));
+            }
+            catch (Exception ex) { Status(Loc.T("status.modelsFail", "Não foi possível ler o models.pck: ") + ex.Message); }
         }
-        catch (Exception ex) { Status(Loc.T("status.modelsFail", "Não foi possível ler o models.pck: ") + ex.Message); }
+        _models.Sort(StringComparer.OrdinalIgnoreCase);
         return _models;
     }
 
