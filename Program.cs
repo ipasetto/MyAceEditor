@@ -97,8 +97,24 @@ internal static class Program
             {
                 var bmds = lit.Entries.Where(e => e.Path.StartsWith($@"litmodels\{args[2]}\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)).ToList();
                 int ok = 0, bad = 0; string? firstBad = null;
-                foreach (var e in bmds.Take(400)) { if (BmdModel.Read(lit.Read(e)) is not null) ok++; else { bad++; firstBad ??= e.Path; } }
+                var texNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var e in bmds)
+                {
+                    if (BmdModel.Read(lit.Read(e)) is { } bm) { ok++; foreach (var mesh in bm.Meshes) texNames[mesh.Texture] = texNames.GetValueOrDefault(mesh.Texture) + 1; }
+                    else { bad++; firstBad ??= e.Path; }
+                }
                 sb.AppendLine($"construções: {bmds.Count:N0} .bmd · lidas {ok} de {Math.Min(400, bmds.Count)} · falharam {bad}" + (firstBad is null ? "" : $" (ex.: {firstBad})"));
+                // texturas das construções que não estão no building.pck (saem só com a cor do vértice)
+                using var bp = new PckArchive(Path.Combine(args[1], "building.pck"));
+                var others = new[] { "textures", "gfx", "models", "surfaces", "grasses", "trees" }
+                    .Where(n => File.Exists(Path.Combine(args[1], n + ".pck"))).Select(n => (n, p: new PckArchive(Path.Combine(args[1], n + ".pck")))).ToList();
+                foreach (var (tn, cnt) in texNames.OrderByDescending(k => k.Value))
+                {
+                    if (bp.Find(tn.ToLowerInvariant()) is not null) continue;
+                    var where = others.Where(o => o.p.Find(tn.ToLowerInvariant()) is not null).Select(o => o.n).ToList();
+                    sb.AppendLine($"  sem textura no building.pck: {tn} ({cnt} malhas){(where.Count > 0 ? " · está em " + string.Join(", ", where) : "")}");
+                }
+                foreach (var o in others) o.p.Dispose();
             }
             File.WriteAllText("world-test.txt", sb.ToString(), new UTF8Encoding(false));
             return;
@@ -840,7 +856,7 @@ internal static class Program
             {
                 var f = new SptFile(pck.Read(e));
                 var m = SptGrower.Build(f);
-                sb.Append($"{e.Path}\tníveis {f.Levels.Count}\tvértices {m.Pos.Count}\ttriângulos {m.Index.Count / 3}\tfolhas {m.Leaves.Count}\taltura {m.Height:0.0} m\tcasca {f.BarkTexture}\n");
+                sb.Append($"{e.Path}\tníveis {f.Levels.Count}\tvértices {m.Pos.Count}\ttriângulos {m.Index.Count / 3}\tfolhas {m.Leaves.Count}\tfrondes {m.FrondIndex.Count / 6}\taltura {m.Height:0.0} m\tcasca {f.BarkTexture}\n");
                 // vista de lado (X, Y) para conferir a forma
                 float minX = m.Pos.Count == 0 ? 0 : m.Pos.Min(p => p.X), maxX = m.Pos.Count == 0 ? 1 : m.Pos.Max(p => p.X);
                 float h = Math.Max(1, m.Height), w = Math.Max(maxX - minX, 1);
@@ -852,6 +868,9 @@ internal static class Program
                 System.Drawing.PointF P(OpenTK.Mathematics.Vector3 v) => new(200 + v.X * k, 390 - v.Y * k);
                 for (int i = 0; i + 2 < m.Index.Count; i += 3)
                     g.FillPolygon(br, new[] { P(m.Pos[m.Index[i]]), P(m.Pos[m.Index[i + 1]]), P(m.Pos[m.Index[i + 2]]) });
+                using (var fb = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(90, 120, 110, 30)))
+                    for (int i = 0; i + 2 < m.FrondIndex.Count; i += 3)
+                        g.FillPolygon(fb, new[] { P(m.FrondPos[m.FrondIndex[i]]), P(m.FrondPos[m.FrondIndex[i + 1]]), P(m.FrondPos[m.FrondIndex[i + 2]]) });
                 if (f.LeafMaps.Count > 0 && m.Leaves.Count > 0)
                 {
                     float rad = 0;

@@ -12,7 +12,7 @@ namespace MyAceEditor.UI;
 internal sealed class WorldTrees : IDisposable
 {
     sealed record Part(int Vbo, int Ibo, int Count, int Tex);
-    sealed record Kind(Part? Wood, Part? Leaves, LeafSet? Set, float Radius);
+    sealed record Kind(Part? Wood, Part? Fronds, Part? Leaves, LeafSet? Set, float Radius);
 
     /// <summary>Folhas de um tipo: centro + canto de cada cartão; os vértices são refeitos quando a câmera gira (viram para ela).</summary>
     internal sealed class LeafSet
@@ -78,7 +78,7 @@ internal sealed class WorldTrees : IDisposable
             if (e is null) return null;
             var f = new SptFile(_pck.Read(e));
             var m = SptGrower.Build(f);
-            if (m.Index.Count == 0 && m.Leaves.Count == 0) return null;
+            if (m.Index.Count == 0 && m.Leaves.Count == 0 && m.FrondIndex.Count == 0) return null;
             var v = new float[m.Pos.Count * 6];
             float radius = 1;
             for (int i = 0; i < m.Pos.Count; i++)
@@ -94,15 +94,32 @@ internal sealed class WorldTrees : IDisposable
             // casca: mesma pasta do .spt, extensão .dds (como CELTree::Init)
             var bark = Path.Combine(Path.GetDirectoryName(e.Path) ?? "", Path.ChangeExtension(f.BarkTexture, ".dds")).ToLowerInvariant();
             var wood = m.Index.Count == 0 ? null : Upload(v, m.Index.ToArray(), Texture(bark, 256));
-            // folhas: um cartão por folha virado para a câmera (como o runtime), recorte do mapa composto do tipo (.ecwld)
+            // mapa composto do tipo (.ecwld): folhas e frondes
+            int comp = m.Leaves.Count > 0 || m.FrondIndex.Count > 0
+                ? Texture(_scene.TreeTypes[type].CompositeMap.Replace('/', '\\').ToLowerInvariant(), 512, true) : 0;
+            // frondes: fitas fixas com o recorte da fronde, dos dois lados
+            Part? fronds = null;
+            if (m.FrondIndex.Count > 0)
+            {
+                var fv = new float[m.FrondPos.Count * 6];
+                byte fc = (byte)(0.42f * 255);
+                float fcol = BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(fc << 16) | (uint)(fc << 8) | fc)));
+                for (int i = 0; i < m.FrondPos.Count; i++)
+                {
+                    var q = m.FrondPos[i]; radius = MathF.Max(radius, q.Length);
+                    fv[i * 6] = q.X; fv[i * 6 + 1] = q.Y; fv[i * 6 + 2] = q.Z; fv[i * 6 + 3] = fcol; fv[i * 6 + 4] = m.FrondUv[i].X; fv[i * 6 + 5] = m.FrondUv[i].Y;
+                }
+                fronds = Upload(fv, m.FrondIndex.ToArray(), comp);
+            }
+            // folhas: um cartão por folha virado para a câmera (como o runtime)
             Part? leaves = null; LeafSet? set = null;
             if (m.Leaves.Count > 0 && f.LeafMaps.Count > 0)
             {
                 (set, var li) = Leaves(f, m, ref radius);
                 set.Fill(Vector3.UnitX, Vector3.UnitY);
-                leaves = Upload(set.Buf, li, Texture(_scene.TreeTypes[type].CompositeMap.Replace('/', '\\').ToLowerInvariant(), 512, true), BufferUsageHint.DynamicDraw);
+                leaves = Upload(set.Buf, li, comp, BufferUsageHint.DynamicDraw);
             }
-            return new Kind(wood, leaves, set, radius);
+            return new Kind(wood, fronds, leaves, set, radius);
         }
         catch (Exception ex) { AppLog.Info($"árvore {type}: {ex.Message}"); return null; }
     }
@@ -231,6 +248,7 @@ internal sealed class WorldTrees : IDisposable
                     GL.PushMatrix();
                     GL.Translate(at);
                     DrawPart(k.Wood, false);
+                    DrawPart(k.Fronds, true);
                     if (k.Set is { } ls && k.Leaves is { } lp && (Vector3.Dot(ls.R, camRight) < 0.9995f || Vector3.Dot(ls.U, camUp) < 0.9995f))
                     {
                         ls.Fill(camRight, camUp);   // uma vez por tipo quando a câmera gira (todas as árvores do tipo usam)
@@ -265,8 +283,13 @@ internal sealed class WorldTrees : IDisposable
     public void Dispose()
     {
         foreach (var k in _kinds.Values)
-            foreach (var p in new[] { k?.Wood, k?.Leaves })
-                if (p is not null) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); if (p.Tex != 0) GL.DeleteTexture(p.Tex); }
+        {
+            foreach (var p in new[] { k?.Wood, k?.Fronds, k?.Leaves })
+                if (p is not null) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
+            if (k?.Wood is { Tex: not 0 } w) GL.DeleteTexture(w.Tex);
+            var comp = k?.Leaves?.Tex ?? k?.Fronds?.Tex ?? 0;   // folhas e frondes dividem o mapa composto
+            if (comp != 0) GL.DeleteTexture(comp);
+        }
         _kinds.Clear();
         _pck?.Dispose();
     }

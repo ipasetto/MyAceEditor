@@ -612,7 +612,11 @@ internal sealed class NpcGenView : UserControl
         var dir = _elementDir() is { } el ? Path.Combine(el, "maps", MapTags.ClientMapFor(_configDir, el, _cur)) : null;
         if (dir is null || TerrainFile.Open(dir) is not { } t)
         {
-            MessageBox.Show(this, string.Format(Loc.T("world.noMap", "Não achei o terreno do mapa \"{0}\" no cliente (element\\maps\\{0}). Abra a pasta do jogo na aba Elements."), _cur), "NPCGen");
+            // a pasta do mapa existe mas sem .trn2 (a03/a04 em todos os clientes que temos): o cliente não tem esse cenário
+            bool emptyMap = dir is not null && Directory.Exists(dir) && !Directory.EnumerateFiles(dir, "*.trn2").Any();
+            MessageBox.Show(this, emptyMap
+                ? string.Format(Loc.T("world.noMapFiles", "O cliente não tem o cenário do mapa \"{0}\": a pasta element\\maps\\{0} só tem luz e regiões, sem terreno (.trn2) nem construções. O servidor tem os pontos, mas sem esses arquivos o cliente não tem cenário para mostrar."), _cur)
+                : string.Format(Loc.T("world.noMap", "Não achei o terreno do mapa \"{0}\" no cliente (element\\maps\\{0}). Abra a pasta do jogo na aba Elements."), _cur), "NPCGen");
             return;
         }
         object? Sel() => SelectedIndex() is { } i ? ListOf(f)[i] : null;

@@ -18,6 +18,8 @@ public sealed class SptFile
     public List<SptLevel> Levels { get; } = new();
     /// <summary>Texturas de folha (4000–4007): âncora e tamanho do cartão (unidades da árvore) e o recorte no mapa composto.</summary>
     public List<SptLeafMap> LeafMaps { get; } = new();
+    /// <summary>Frondes (13000): a partir do nível Level o galho vira fita(s) plana(s) em vez de tubo; null = sem frondes.</summary>
+    public SptFrond? Frond { get; private set; }
 
     public SptFile(byte[] b)
     {
@@ -47,16 +49,48 @@ public sealed class SptFile
             if (r.Int() == 1004) ReadLeaves(r);
             break;
         }
-        // coordenadas no mapa composto (10000 → 10002: n × 4 pares s,t); as seções 7000–9000/11000 têm tamanho variável,
-        // então procura a abertura "10000 10002" depois do fim da árvore
-        for (int p = r.Pos; p + 12 <= b.Length; p++)
+        // coordenadas no mapa composto (10000: 10002 folhas, 10003 billboards, 10004 frondes — n × 4 pares s,t cada); as
+        // seções 7000–9000/11000 têm tamanho variável, então procura a abertura "10000 10002" depois do fim da árvore
+        int after = r.Pos;
+        for (int p = after; p + 12 <= b.Length; p++)
             if (BitConverter.ToInt32(b, p) == 10000 && BitConverter.ToInt32(b, p + 4) == 10002)
             {
-                int n = BitConverter.ToInt32(b, p + 8);
-                if (n < 0 || p + 12 + n * 32 > b.Length) break;
-                for (int i = 0; i < n && i < LeafMaps.Count; i++)
-                    for (int k = 0; k < 8; k++) LeafMaps[i].Uv[k] = BitConverter.ToSingle(b, p + 12 + i * 32 + k * 4);
+                try { ReadTexCoords(new Reader(b, p + 4)); } catch (Exception) { }
                 break;
+            }
+        // frondes: "13000" seguido de um token da seção
+        for (int p = after; p + 8 <= b.Length; p++)
+            if (BitConverter.ToInt32(b, p) == 13000 && BitConverter.ToInt32(b, p + 4) is (>= 13002 and <= 13013) or 14007 or 14008)
+            {
+                try { Frond = SptFrond.Read(new Reader(b, p + 4)); } catch (Exception) { Frond = null; }
+                break;
+            }
+        if (Frond is not null && _frondUv.Count > 0)
+            for (int i = 0; i < Frond.Maps.Count && i < _frondUv.Count; i++) Frond.Maps[i].Uv = _frondUv[i];
+    }
+
+    readonly List<float[]> _frondUv = new();
+
+    void ReadTexCoords(Reader r)
+    {
+        for (int t = r.Int(); t != 10001 && !r.End; t = r.Int())
+            switch (t)
+            {
+                case 10002 or 10003 or 10004:
+                {
+                    int n = r.Int();
+                    for (int i = 0; i < n; i++)
+                    {
+                        var uv = new float[8];
+                        for (int k = 0; k < 8; k++) uv[k] = r.Float();
+                        if (t == 10002 && i < LeafMaps.Count) Array.Copy(uv, LeafMaps[i].Uv, 8);
+                        if (t == 10004) _frondUv.Add(uv);
+                    }
+                    break;
+                }
+                case 10005: r.Str(); break;
+                case 10006 or 10007: r.Bool(); break;
+                default: return;
             }
     }
 
@@ -95,7 +129,7 @@ public sealed class SptFile
     internal sealed class Reader
     {
         readonly byte[] _b; int _p;
-        public Reader(byte[] b) => _b = b;
+        public Reader(byte[] b, int pos = 0) { _b = b; _p = pos; }
         public bool End => _p + 4 > _b.Length;
         public int Pos => _p;
         public Vector3 Vec() => new(Float(), Float(), Float());
@@ -112,6 +146,63 @@ public sealed class SptLeafMap
     public string Texture = "";
     public Vector2 Origin = new(0.5f, 0.5f), Size = new(0.1f, 0.1f);
     public readonly float[] Uv = { 1, 1, 0, 1, 0, 0, 1, 0 };
+}
+
+/// <summary>
+/// Frondes (CFrondEngine): nível onde começam, tipo (0 = lâmina), quantas lâminas giradas em volta do galho (180°/n) e as
+/// texturas (14002 nome, 14003 tamanho, 14004 proporção, 14005/14006 giro mín./máx. em graus) com o recorte (10004).
+/// Meia largura = comprimento do galho × tamanho × 0,5 × proporção.
+/// </summary>
+public sealed class SptFrond
+{
+    public int Level = 1, Type, Blades = 1;
+    public readonly List<SptFrondMap> Maps = new();
+
+    internal static SptFrond Read(SptFile.Reader r)
+    {
+        var f = new SptFrond();
+        for (int t = r.Int(); t != 13001 && !r.End; t = r.Int())
+            switch (t)
+            {
+                case 13002: f.Level = r.Int(); break;
+                case 13003: f.Type = r.Int(); break;
+                case 13004: f.Blades = Math.Max(1, r.Int()); break;
+                case 13005: r.Str(); break;
+                case 13006 or 13009 or 14007 or 14008: r.Int(); break;
+                case 13007: r.Bool(); break;
+                case 13010 or 13011 or 13012 or 13013: r.Float(); break;
+                case 13008:
+                {
+                    int n = r.Int();
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (r.Int() != 14000) throw new InvalidDataException("fronde sem 14000");
+                        var m = new SptFrondMap();
+                        for (int k = r.Int(); k != 14001; k = r.Int())
+                            switch (k)
+                            {
+                                case 14002: m.Texture = r.Str(); break;
+                                case 14003: m.Size = r.Float(); break;
+                                case 14004: m.Aspect = r.Float(); break;
+                                case 14005: m.MinAngle = r.Float(); break;
+                                case 14006: m.MaxAngle = r.Float(); break;
+                                default: throw new InvalidDataException($"token {k} inesperado na textura de fronde");
+                            }
+                        f.Maps.Add(m);
+                    }
+                    break;
+                }
+                default: throw new InvalidDataException($"token {t} inesperado nas frondes");
+            }
+        return f;
+    }
+}
+
+public sealed class SptFrondMap
+{
+    public string Texture = "";
+    public float Size = 1, Aspect = 1, MinAngle, MaxAngle;
+    public float[] Uv = { 1, 1, 0, 1, 0, 0, 1, 0 };
 }
 
 /// <summary>Um nível de galho (tokens 6000–6017). O último nível da árvore são as folhas.</summary>
@@ -271,6 +362,10 @@ public sealed class SptMesh
     public readonly List<Vector2> Uv = new();
     public readonly List<int> Index = new();
     public readonly List<(Vector3 Pos, Vector3 Dir)> Leaves = new();
+    /// <summary>Fitas das frondes (posição, uv no mapa composto, índices), à parte da casca.</summary>
+    public readonly List<Vector3> FrondPos = new();
+    public readonly List<Vector2> FrondUv = new();
+    public readonly List<int> FrondIndex = new();
     public float Height, Scale = 1;   // Scale: unidades da árvore → metros (para o tamanho das folhas)
 }
 
@@ -289,9 +384,11 @@ public static class SptGrower
         // tamanho da árvore = altura (pés → metros), como SetTreeSize(tamanho × 0,3048) no cliente
         float top = 0;
         foreach (var p in m.Pos) top = Math.Max(top, p.Y);
+        foreach (var p in m.FrondPos) top = Math.Max(top, p.Y);
         foreach (var l in m.Leaves) top = Math.Max(top, l.Pos.Y);
         float k = top > 0 ? size * 0.3048f / top : 1;
         for (int i = 0; i < m.Pos.Count; i++) m.Pos[i] *= k;
+        for (int i = 0; i < m.FrondPos.Count; i++) m.FrondPos[i] *= k;
         for (int i = 0; i < m.Leaves.Count; i++) m.Leaves[i] = (m.Leaves[i].Pos * k, m.Leaves[i].Dir);
         m.Height = top * k; m.Scale = k;
         return m;
@@ -343,7 +440,9 @@ public static class SptGrower
         }
 
         bool leafLevel = level >= f.Levels.Count - 1;
-        if (!leafLevel)
+        bool frond = !leafLevel && f.Frond is { Type: 0, Maps.Count: > 0 } fr0 && level >= fr0.Level;
+        if (frond) Frond(f.Frond!, m, rng, centers, dirs, side, length, (m.FrondIndex.Count / 6) % 2 == 1);
+        else if (!leafLevel)
         {
             // anéis de vértices (sides + 1 para fechar a costura da textura)
             int first = m.Pos.Count;
@@ -397,4 +496,41 @@ public static class SptGrower
     }
 
     static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    /// <summary>
+    /// Fronde em lâminas (CFrondEngine, tipo 0): n fitas pelo eixo do galho, a i-ésima girada i·180°/n + giro sorteado da
+    /// textura (negativo em galhos alternados); meia largura = comprimento × tamanho × 0,5 × proporção; s atravessa a fita,
+    /// t vai da base (embaixo na imagem) à ponta.
+    /// </summary>
+    static void Frond(SptFrond fr, SptMesh m, SptRandom rng, Vector3[] centers, Vector3[] dirs, Vector3 side, float length, bool odd)
+    {
+        var map = fr.Maps[(int)MathF.Round(rng.Range(0, 100000)) % fr.Maps.Count];
+        float half = length * map.Size * 0.5f * map.Aspect;
+        float tilt = rng.Range(map.MinAngle, map.MaxAngle) * (odd ? -1 : 1);
+        var uv = map.Uv;
+        float s0 = MathF.Min(MathF.Min(uv[0], uv[2]), MathF.Min(uv[4], uv[6])), s1 = MathF.Max(MathF.Max(uv[0], uv[2]), MathF.Max(uv[4], uv[6]));
+        float t0 = MathF.Min(MathF.Min(uv[1], uv[3]), MathF.Min(uv[5], uv[7])), t1 = MathF.Max(MathF.Max(uv[1], uv[3]), MathF.Max(uv[5], uv[7]));
+        int n = centers.Length;
+        float step = 180f / fr.Blades;
+        for (int bl = 0; bl < fr.Blades; bl++)
+        {
+            int first = m.FrondPos.Count;
+            var ss = side;
+            for (int i = 0; i < n; i++)
+            {
+                var a = dirs[i];
+                ss = Vector3.Cross(Vector3.Cross(a, ss), a); if (ss.LengthSquared < 1e-6f) ss = Vector3.Cross(a, Vector3.UnitZ); ss.Normalize();
+                var across = Rotate(ss, a, bl * step + tilt);
+                float tt = Lerp(t1, t0, i / (float)(n - 1));
+                m.FrondPos.Add(centers[i] - across * half); m.FrondUv.Add(new Vector2(s0, tt));
+                m.FrondPos.Add(centers[i] + across * half); m.FrondUv.Add(new Vector2(s1, tt));
+            }
+            for (int i = 0; i < n - 1; i++)
+            {
+                int a = first + i * 2;
+                m.FrondIndex.Add(a); m.FrondIndex.Add(a + 2); m.FrondIndex.Add(a + 1);
+                m.FrondIndex.Add(a + 1); m.FrondIndex.Add(a + 2); m.FrondIndex.Add(a + 3);
+            }
+        }
+    }
 }

@@ -300,23 +300,18 @@ internal sealed class WorldView : Form
     // construções e portal entre -33 e 384 m). O jogo não mostra; aqui ele começa escondido (T mostra) e o clique usa um
     // piso na altura de referência (entrada ou ponto escolhido).
     float? _floorY;
-    void HideLidTerrain(float refY)
-    {
-        var count = new Dictionary<int, int>(); int n = 0;
-        for (float x = -_t.Width / 2 + 8; x < _t.Width / 2; x += 32)
-            for (float z = -_t.Height / 2 + 8; z < _t.Height / 2; z += 32)
-                if (_t.HeightAt(x, z) is float h) { n++; int k = (int)MathF.Round(h); count[k] = count.GetValueOrDefault(k) + 1; }
-        if (n == 0) return;
-        var mode = count.MaxBy(c => c.Value);
-        if (mode.Value * 2 >= n && mode.Key > refY + 50) { _terrain.Visible = false; _floorY = refY; }
-    }
+    // Piso de referência para cliques quando a câmera está abaixo do terreno (cavernas feitas de construções, com o
+    // terreno por cima como tampa). O terreno não é mais escondido: como no jogo (Direct3D descarta faces de trás),
+    // ele só aparece visto de cima, então a tampa some sozinha quando se olha de baixo.
+    void HideLidTerrain(float refY) => _floorY = refY;
 
     // dentro do mapa e acima do chão
     void ClampCamera()
     {
         _cam.X = Math.Clamp(_cam.X, -_t.Width / 2, _t.Width / 2);
         _cam.Z = Math.Clamp(_cam.Z, -_t.Height / 2, _t.Height / 2);
-        if (_terrain.Visible && _t.HeightAt(_cam.X, -_cam.Z) is { } ground && _cam.Y < ground + 2) _cam.Y = ground + 2;
+        // não deixa entrar no chão; bem abaixo dele (caverna sob a tampa) a câmera fica onde está
+        if (_terrain.Visible && _t.HeightAt(_cam.X, -_cam.Z) is { } ground && _cam.Y < ground + 2 && _cam.Y > ground - 12) _cam.Y = ground + 2;
     }
 
     Vector3 Forward => new(MathF.Cos(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch)),
@@ -363,7 +358,10 @@ internal sealed class WorldView : Form
         GL.Fog(FogParameter.FogStart, 1500f); GL.Fog(FogParameter.FogEnd, 8000f);
         GL.Fog(FogParameter.FogColor, new[] { 0.62f, 0.76f, 0.9f, 1f });
 
+        // terreno só de cima (faces da frente sobem: a→d→b), como o jogo: visto de baixo, a tampa das cavernas some
+        GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(FrontFaceDirection.Ccw);
         bool terrainBusy = _terrain.Draw(_cam, Forward);
+        GL.Disable(EnableCap.CullFace);
 
         // construções dos pedaços de 1 km em volta da câmera
         int piece = _t.PieceAt(_cam.X, -_cam.Z);
@@ -620,7 +618,7 @@ internal sealed class WorldView : Form
         var a = new Vector4(nx, ny, -1, 1) * inv; var b = new Vector4(nx, ny, 1, 1) * inv;
         var o = a.Xyz / a.W; var d = Vector3.Normalize(b.Xyz / b.W - o);
         // terreno escondido (tampa): o clique cai no piso de referência
-        if (!_terrain.Visible && _floorY is float fy)
+        if ((!_terrain.Visible || _t.HeightAt(o.X, -o.Z) is float oh && o.Y < oh) && _floorY is float fy)
         {
             if (MathF.Abs(d.Y) < 1e-4f) return null;
             float s0 = (fy - o.Y) / d.Y;

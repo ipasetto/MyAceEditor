@@ -1568,6 +1568,7 @@
   "world.mapTitle": "地图 — 滚轮：缩放 · 拖动：移动 · M 或 Esc 关闭",
   "world.mapCoord": "地图 — X {0:0}  Z {1:0} · 滚轮：缩放 · 拖动：移动 · M 或 Esc 关闭",
   "world.noMap": "客户端中未找到地图“{0}”的地形（element\\maps\\{0}）。请在“元素数据”标签页打开游戏文件夹。",
+  "world.noMapFiles": "客户端没有地图“{0}”的场景：element\\maps\\{0} 文件夹只有光照和区域，没有地形（.trn2）和建筑。服务器有刷怪点，但缺少这些文件，客户端没有可显示的场景。",
   "tb.world": "🌐 3D 世界",
   "world.mapPick": "地图：",
   "world.newMob": "在此新建怪物…",

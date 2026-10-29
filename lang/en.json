@@ -1568,6 +1568,7 @@
   "world.mapTitle": "Map — wheel: zoom · drag: move · M or Esc closes",
   "world.mapCoord": "Map — X {0:0}  Z {1:0} · wheel: zoom · drag: move · M or Esc closes",
   "world.noMap": "Terrain of map \"{0}\" not found in the client (element\\maps\\{0}). Open the game folder in the Elements tab.",
+  "world.noMapFiles": "The client has no scenery for map \"{0}\": the folder element\\maps\\{0} only has light and regions, no terrain (.trn2) or buildings. The server has the points, but without these files the client has no scenery to show.",
   "tb.world": "🌐 3D World",
   "world.mapPick": "Map:",
   "world.newMob": "New monster here…",
