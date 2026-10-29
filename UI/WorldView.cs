@@ -88,7 +88,7 @@ internal sealed class WorldView : Form
     object? _movingTag; Vector3? _movePos;   // arrastando um ponto com o botão esquerdo
     object? _clip;                            // Ctrl+C
     int _newLabels;
-    bool _legendOpen = true; int _legendTex, _legendW, _legendH; bool _legendState;
+    bool _legendOpen = LoadLegend(); int _legendTex, _legendW, _legendH; bool _legendState;
     List<(float X0, float Z0, float X1, float Z1, float Y)>? _water;
 
     public WorldView(TerrainFile t, Vector3 start, Func<IReadOnlyList<Marker>> markers, Func<object?> selected, Action<object> select,
@@ -109,7 +109,7 @@ internal sealed class WorldView : Form
         _bar.Items.Add(new ToolStripLabel(Loc.T("world.mapPick", "Mapa:")) { ForeColor = Color.Silver });
         _bar.Items.Add(_mapBox);
         _bar.Items.Add(new ToolStripSeparator());
-        _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", () => { _legendOpen = !_legendOpen; _gl.Invalidate(); }));
+        _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", ToggleLegend));
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(new ToolStripLabel(Loc.T("world.show", "Mostrar:")) { ForeColor = Color.Silver });
         foreach (var (kind, key, pt, tip) in new[]
@@ -154,7 +154,7 @@ internal sealed class WorldView : Form
         _gl.MouseDown += (_, e) =>
         {
             _gl.Focus(); _down = _drag = e.Location;
-            if (e.Button == MouseButtons.Left && LegendRect().Contains(e.Location)) { _legendOpen = !_legendOpen; _gl.Invalidate(); return; }
+            if (e.Button == MouseButtons.Left && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
             // esquerdo em cima de um ponto (na tela): arrasta o ponto; no vazio ou botão do meio: gira a câmera
             if (e.Button == MouseButtons.Left && PickScreen(e.Location) is { } mk) { _movingTag = mk.Tag; _movePos = null; return; }
             if (e.Button is MouseButtons.Left or MouseButtons.Middle) _dragging = true;
@@ -247,7 +247,7 @@ internal sealed class WorldView : Form
         switch (e.KeyCode)
         {
             case Keys.M: ShowMap(); return;
-            case Keys.H or Keys.F1: _legendOpen = !_legendOpen; _gl.Invalidate(); return;
+            case Keys.H or Keys.F1: ToggleLegend(); return;
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.Delete:
@@ -256,6 +256,15 @@ internal sealed class WorldView : Form
             case Keys.Space: e.SuppressKeyPress = true; break;
         }
         _keys.Add(e.KeyCode);
+    }
+
+    // ajuda (H) aberta ou minimizada: fica como o usuário deixou, também ao trocar de mapa e reabrir
+    static string LegendFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "world_help.txt");
+    static bool LoadLegend() { try { return !File.Exists(LegendFile) || File.ReadAllText(LegendFile).Trim() != "0"; } catch { return true; } }
+    void ToggleLegend()
+    {
+        _legendOpen = !_legendOpen; _gl.Invalidate();
+        try { Directory.CreateDirectory(Path.GetDirectoryName(LegendFile)!); File.WriteAllText(LegendFile, _legendOpen ? "1" : "0"); } catch { }
     }
 
     bool Confirm() => MessageBox.Show(this, Loc.T("world.deleteAsk", "Excluir este ponto? (Ctrl+Z desfaz)"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
@@ -842,11 +851,23 @@ internal sealed class WorldView : Form
         if (NpcQuests?.Invoke(npcId) is { } qi) _quests.ShowNpc(qi);
     }
 
-    sealed class StatusLine : Label
+    /// <summary>
+    /// Linha de status desenhada à mão: trocar o texto só invalida e repinta com buffer duplo.
+    /// (Label manda WM_SETTEXT e apaga o fundo antes de pintar — era o piscar branco ao mover o mouse.)
+    /// </summary>
+    sealed class StatusLine : Control
     {
-        public StatusLine() { DoubleBuffered = true; SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true); }
+        string _text = "";
+        public StatusLine() => SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         [System.Diagnostics.CodeAnalysis.AllowNull]
-        public override string Text { get => base.Text; set { if (value != base.Text) base.Text = value; } }
+        public override string Text { get => _text; set { value ??= ""; if (value == _text) return; _text = value; Invalidate(); } }
+        protected override void OnPaintBackground(PaintEventArgs e) { }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.Clear(BackColor);
+            TextRenderer.DrawText(e.Graphics, _text, Font, new Rectangle(Padding.Left, Padding.Top, Width - Padding.Horizontal, Height - Padding.Vertical), ForeColor,
+                TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+        }
     }
 
     sealed class DoubleBufferedPanel : Panel { public DoubleBufferedPanel() { DoubleBuffered = true; SetStyle(ControlStyles.Selectable, true); } }
