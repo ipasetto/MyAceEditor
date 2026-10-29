@@ -135,7 +135,11 @@ internal sealed class WorldView : Form
                     _select(tag);
                     var mk = _marks.FirstOrDefault(m => m.Tag == tag);
                     _status.Text = mk?.Name ?? "";
-                    if (mk is { Id: > 0 } && NpcQuests?.Invoke(mk.Id) is { } qi) _quests.ShowNpc(qi);   // NPC: quests que dá e recebe
+                    if (mk is { Id: > 0 } && NpcQuests is not null)
+                    {
+                        if (NpcQuests(mk.Id) is { } qi) _quests.ShowNpc(qi);   // NPC: quests que dá e recebe
+                        else _status.Text += "   ·   " + Loc.T("wq.notNpc", "não é NPC: o painel de quests abre ao clicar num NPC");
+                    }
                 }
                 _movingTag = null; _movePos = null; _gl.Invalidate();
                 return;

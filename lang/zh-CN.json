@@ -3385,5 +3385,6 @@
   "wq.tipFieldTakes": "任务要求交给此 NPC，但其接收服务中没有该任务：游戏中无法在此上交。",
   "wq.tipMissing": "NPC 服务列出的 ID 在 tasks.data 中不存在。",
   "wq.tipOpen": "双击打开任务。",
-  "wq.none": "（无）"
+  "wq.none": "（无）",
+  "wq.notNpc": "不是 NPC：点击 NPC 时才会打开任务面板"
 }

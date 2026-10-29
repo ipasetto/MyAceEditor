@@ -3383,5 +3383,6 @@
   "wq.tipFieldTakes": "The quest says to hand in to this NPC, but it does not have the quest in its receive service: in game it cannot be handed in here.",
   "wq.tipMissing": "The NPC service lists an ID that does not exist in tasks.data.",
   "wq.tipOpen": "Double-click to open the quest.",
-  "wq.none": "(none)"
+  "wq.none": "(none)",
+  "wq.notNpc": "not an NPC: the quest panel opens when you click an NPC"
 }
