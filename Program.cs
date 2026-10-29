@@ -69,6 +69,33 @@ internal static class Program
             File.WriteAllText("shop-translate.txt", $"{n:N0} textos · relido {back.Items.Count:N0} itens\n" + string.Join("\n", back.Items.Take(3).Select(i => $"{i.ItemId} {i.Name}: {i.Description[..Math.Min(80, i.Description.Length)]}")), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--world-test")   // <pasta element> <mapa>: terreno, construções e modelos (world-test.txt)
+        {
+            var sb = new StringBuilder();
+            var t = TerrainFile.Open(Path.Combine(args[1], "maps", args[2]));
+            sb.AppendLine(t is null ? "terreno: NÃO ABRIU" : $"terreno: {t.Width}×{t.Height} m · {t.Rows}×{t.Cols} pedaços · altura em (0,0) = {t.HeightAt(0, 0)}");
+            using (var lit = new PckArchive(Path.Combine(args[1], "litmodels.pck")))
+            {
+                var bmds = lit.Entries.Where(e => e.Path.StartsWith($@"litmodels\{args[2]}\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)).ToList();
+                int ok = 0, bad = 0; string? firstBad = null;
+                foreach (var e in bmds.Take(400)) { if (BmdModel.Read(lit.Read(e)) is not null) ok++; else { bad++; firstBad ??= e.Path; } }
+                sb.AppendLine($"construções: {bmds.Count:N0} .bmd · lidas {ok} de {Math.Min(400, bmds.Count)} · falharam {bad}" + (firstBad is null ? "" : $" (ex.: {firstBad})"));
+            }
+            File.WriteAllText("world-test.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--npcgen")   // <npcgen.data>: lê e regrava (npcgen.txt)
+        {
+            string rep;
+            try
+            {
+                var d = File.ReadAllBytes(args[1]); var f = NpcGenFile.Read(d);
+                rep = $"v{f.Version} · {f.Spawns.Count:N0} pontos · {f.Resources.Count:N0} recursos · regrava {(f.Write().AsSpan().SequenceEqual(d) ? "IDÊNTICO" : "DIFERENTE")}";
+            }
+            catch (Exception ex) { rep = "FALHOU: " + ex.Message; }
+            File.WriteAllText("npcgen.txt", rep, new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--names")   // <elements.data> <bloco>: ID e nome dos 15 primeiros itens (names.txt)
         {
             var list = CfgCatalog.Load(args[1]).Module.FindListByName(args[2]);

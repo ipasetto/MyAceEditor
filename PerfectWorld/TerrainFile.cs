@@ -224,13 +224,15 @@ public sealed class TerrainFile
         if (!File.Exists(p)) return blocks;
         var d = File.ReadAllBytes(p);
         if (BitConverter.ToUInt32(d, 0) != 0x54424B42) return blocks;   // "BKBT"
-        int count = BitConverter.ToInt32(d, 8), side = CellsPerBlock + 1;
+        int ver = BitConverter.ToInt32(d, 4), count = BitConverter.ToInt32(d, 8), side = CellsPerBlock + 1;
+        int data = ver > 5 ? 36 : 32;   // v6: +i32 depois dos 4 tamanhos (PW-KB §S22); antes o zlib começava em +32
         for (int i = 0; i < count; i++)
         {
             int o = BitConverter.ToInt32(d, 16 + i * 4);
             int row = BitConverter.ToInt16(d, o + 4), col = BitConverter.ToInt16(d, o + 6), size = BitConverter.ToInt32(d, o + 16);
             // zlib com cabeçalho de 2 bytes: pula para o deflate cru
-            using var z = new DeflateStream(new MemoryStream(d, o + 34, size - 2), CompressionMode.Decompress);
+            if (o + data + size > d.Length) continue;
+            using var z = new DeflateStream(new MemoryStream(d, o + data + 2, size - 2), CompressionMode.Decompress);
             var raw = new byte[side * side * 4];
             int got = 0, r;
             while (got < raw.Length && (r = z.Read(raw, got, raw.Length - got)) > 0) got += r;
