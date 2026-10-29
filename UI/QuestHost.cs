@@ -18,4 +18,9 @@ internal interface IQuestHost
     IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max);
     /// <summary>Esta quest passa a ser dada pelo NPC (serviço do NPC + campo "NPC que dá"). Null = deu certo.</summary>
     string? LinkExisting(int npcId, int questId);
+    /// <summary>Opções de requisito (reward false) ou prêmio que esta versão tem.</summary>
+    IReadOnlyList<QuestOption> Options(bool reward);
+    /// <summary>Campos para "Outro campo (avançado)": chave, rótulo e dica.</summary>
+    IReadOnlyList<(string Key, string Label, string Tip)> FreeFields(bool reward);
+    string? QuestName(int id);
 }

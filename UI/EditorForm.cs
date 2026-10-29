@@ -292,7 +292,9 @@ public sealed class EditorForm : Form
         tb.Items.Add(B(OpenPwFolder, b => b.Text = Loc.T("tb.openPw", "Abrir pasta do PW")));
         tb.Items.Add(B(OpenElements, b => b.Text = Loc.T("tb.openElements", "Abrir elements.data")));
         tb.Items.Add(B(SaveCurrent, b => b.Text = Loc.T("tb.save", "Salvar")));
-        tb.Items.Add(B(SaveAndSend, b => { b.Text = Loc.T("tb.saveSend", "💾 Salvar e enviar ao servidor"); b.ToolTipText = Loc.T("tb.saveSendTip", "Grava tudo o que mudou e leva para o servidor local (aba Servidor), reiniciando-o"); }));
+        tb.Items.Add(_sendBtn = B(SaveAndSend, b => { b.Text = Loc.T("tb.saveSend", "💾 Salvar e enviar ao servidor"); UpdateSendGlow(); }));
+        _glowTimer.Tick += (_, _) => UpdateSendGlow();
+        _glowTimer.Start();
         tb.Items.Add(new ToolStripSeparator());
         tb.Items.Add(B(AddItem, b => b.Text = Loc.T("tb.add", "＋ Adicionar")));
         tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
@@ -376,6 +378,7 @@ public sealed class EditorForm : Form
             () => _chkClient.Text.Length > 0 ? VersionCheck.ClientElement(_chkClient.Text)
                 : _dataPath is null ? "" : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "",
             () => _chkServer.Text, LoadSetting, SaveSetting) { AiPolicyPath = () => _aiView?.FilePath });
+        _serverView.FilesSent += ok => { if (ok) _unsent.Clear(); UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
         tabs.TabPages.Add(tSrv);
         var tPck = new TabPage() { BackColor = CBg };
         _tabPck = tPck;
@@ -1081,7 +1084,37 @@ public sealed class EditorForm : Form
         if (_gshop is not null) done.AddRange(_gshop.SaveAll(quiet).Select(Path.GetFileName)!);
         if (_npcgen is not null) done.AddRange(_npcgen.SaveAll(quiet).Select(p => Path.GetFileName(Path.GetDirectoryName(p)) + "\\npcgen.data"));
         if (_aiView?.SaveIfDirty() is { } ai) done.Add(Path.GetFileName(ai));
+        foreach (var d in done) _unsent.Add(d);
+        UpdateSendGlow();
         Status((quiet ? Loc.T("status.autoSaved", "Salvo automaticamente: ") : Loc.T("status.savedAll", "Salvo: ")) + (done.Count == 0 ? "—" : string.Join(", ", done)) + $" ({DateTime.Now:HH:mm})");
+    }
+
+    // ---------- brilho do "Salvar e enviar ao servidor" (docs/QUESTS-3D.md) ----------
+    // verde sutil enquanto houver mudança que o servidor ainda não tem: não salva (memória) ou salva só no cliente
+    private ToolStripButton? _sendBtn;
+    private readonly System.Windows.Forms.Timer _glowTimer = new() { Interval = 1000 };
+    private readonly SortedSet<string> _unsent = new(StringComparer.OrdinalIgnoreCase);   // gravados no cliente desde o último envio
+
+    private List<string> PendingForServer()
+    {
+        var l = new List<string>();
+        if (ElementsDirty) l.Add(Loc.T("glow.elements", "elements.data (não salvo)"));
+        if (_tasksDirty) l.Add(Loc.T("glow.tasks", "tasks.data (não salvo)"));
+        if (_gshop?.HasUnsaved == true) l.Add(Loc.T("glow.gshop", "loja (não salva)"));
+        if (_npcgen?.HasUnsaved == true) l.Add(Loc.T("glow.npcgen", "npcgen.data (não salvo)"));
+        if (_aiView?.HasUnsaved == true) l.Add(Loc.T("glow.ai", "aipolicy.data (não salvo)"));
+        foreach (var f in _unsent) l.Add(string.Format(Loc.T("glow.saved", "{0} (salvo só no cliente)"), f));
+        return l;
+    }
+
+    private void UpdateSendGlow()
+    {
+        if (_sendBtn is null) return;
+        var pending = PendingForServer();
+        _sendBtn.BackColor = pending.Count > 0 ? Color.FromArgb(214, 240, 214) : SystemColors.Control;
+        _sendBtn.ForeColor = pending.Count > 0 ? Color.FromArgb(20, 90, 30) : CFg;
+        _sendBtn.ToolTipText = Loc.T("tb.saveSendTip", "Grava tudo o que mudou e leva para o servidor local (aba Servidor), reiniciando-o")
+            + (pending.Count == 0 ? "\n\n" + Loc.T("glow.none", "O servidor já tem tudo.") : "\n\n" + Loc.T("glow.pending", "Falta enviar ao servidor:") + "\n• " + string.Join("\n• ", pending));
     }
 
     // "Salvar e enviar ao servidor": grava tudo sem perguntar e leva para o servidor local (aba Servidor mostra o andamento)
@@ -2560,7 +2593,15 @@ public sealed class EditorForm : Form
     sealed class QuestHostImpl(EditorForm f) : IQuestHost
     {
         public QuestDraft? NewDraft(int giverNpc, out string? why) => f.NewQuestDraft(giverNpc, out why);
-        public List<string> Validate(QuestDraft d) => f._tasks is { } t ? QuestBuilder.Validate(t, d, IsNpc, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null) : new() { Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.") };
+        public List<string> Validate(QuestDraft d)
+        {
+            if (f._tasks is not { } t) return new() { Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.") };
+            var e = QuestBuilder.Validate(t, d, IsNpc, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null);
+            // os vínculos também têm que caber antes de aplicar qualquer coisa (nada pela metade)
+            if (IsNpc(d.Giver) && f.AddQuestToService(f.CreatureItem(d.Giver)!.Value.Item, d.Id, give: true, dryRun: true) is { } g) e.Add(g);
+            if (IsNpc(d.Receiver) && f.AddQuestToService(f.CreatureItem(d.Receiver)!.Value.Item, d.Id, give: false, dryRun: true) is { } r) e.Add(r);
+            return e;
+        }
         public string Summary(QuestDraft d) => f.QuestSummary(d);
         public string? Commit(QuestDraft d) => f.CommitQuestDraft(d);
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
@@ -2580,6 +2621,11 @@ public sealed class EditorForm : Form
             return list;
         }
         public string? LinkExisting(int npcId, int questId) => f.LinkQuestToNpc(npcId, questId);
+        public IReadOnlyList<QuestOption> Options(bool reward) => f._tasks is { } t && QuestBuilder.ModelRec(t) is { } m
+            ? QuestOptions.All.Where(o => o.Reward == reward && QuestOptions.Available(o, t.Version, m)).ToList() : Array.Empty<QuestOption>();
+        public IReadOnlyList<(string Key, string Label, string Tip)> FreeFields(bool reward) => f._tasks is { } t && QuestBuilder.ModelRec(t) is { } m
+            ? QuestOptions.FreeFields(m, reward).Select(k => (k, QuestLabels.Show(k), QuestLabels.Tip(k))).OrderBy(x => x.Item2).ToList() : Array.Empty<(string, string, string)>();
+        public string? QuestName(int id) => f._tasks?.Index.Find(id) is { } row ? TasksFile.SplitColor(TaskIndex.NameOf(row)).Text : null;
     }
 
     private QuestDraft? NewQuestDraft(int giverNpc, out string? why)
@@ -2601,6 +2647,23 @@ public sealed class EditorForm : Form
         sb.AppendLine(d.MaxLevel > 0 ? string.Format(Loc.T("qb.sumLevels", "Nível: {0} a {1}"), d.MinLevel, d.MaxLevel) : string.Format(Loc.T("qb.sumLevelMin", "Nível: a partir de {0}"), d.MinLevel));
         sb.AppendLine(string.Format(Loc.T("qb.sumAward", "Prêmio: {0:N0} de ouro, {1:N0} de experiência, {2:N0} de espírito, {3:N0} de reputação"), d.Gold, d.Exp, d.Sp, d.Reputation));
         foreach (var (id, n) in d.Items) sb.AppendLine(string.Format(Loc.T("qb.sumItem", "  + {0} × {1}"), n, N(id)));
+        string Val(QuestChoice c) => c.Value switch
+        {
+            bool => Loc.T("qe.flagOn", "✓ ligado"),
+            long v when c.Option.Type == QOType.Gender => v == 1 ? Loc.T("qe.male", "Masculino") : Loc.T("qe.female", "Feminino"),
+            long v => v.ToString("N0"),
+            ValueTuple<long, long> r => $"{r.Item1:N0} – {r.Item2:N0}",
+            List<int> ids when c.Option.Type == QOType.Classes => string.Join(", ", ids.Select(FieldKinds.ClassName)),
+            List<int> ids => string.Join(", ", ids.Select(i => $"{new QuestHostImpl(this).QuestName(i) ?? "?"} ({i})")),
+            List<(int Id, int Count)> its => string.Join(", ", its.Select(x => $"{x.Count} × {N(x.Id)}")),
+            ValueTuple<string, string> f => $"{QuestLabels.Show(f.Item1)} = {f.Item2}",
+            _ => "",
+        };
+        foreach (var grp in d.Choices.GroupBy(c => c.Option.Reward))
+        {
+            sb.AppendLine(grp.Key ? Loc.T("qb.sumMoreAward", "Mais prêmios:") : Loc.T("qb.sumMoreReq", "Requisitos:"));
+            foreach (var c in grp) sb.AppendLine($"  • {c.Option.Text}: {Val(c)}");
+        }
         sb.AppendLine();
         sb.AppendLine(Loc.T("qb.sumLinks", "Ao concluir:"));
         sb.AppendLine(string.Format(Loc.T("qb.sumLinkGive", "  • a quest entra no serviço de dar quests de {0}"), N(d.Giver)));
@@ -2628,6 +2691,7 @@ public sealed class EditorForm : Form
                 () => { if (made is not null) t.DeleteRoot(made); MarkTasksDirty(label); });
             err = AddQuestToService(giver.Item, d.Id, give: true) ?? AddQuestToService(receiver.Item, d.Id, give: false);
         }
+        if (err is not null) _edits.Undo();   // algo não coube: desfaz a quest e o que já foi ligado
         RefreshQuests();
         return err;
         }
@@ -2639,6 +2703,7 @@ public sealed class EditorForm : Form
         if (_tasks?.Index.Find(questId) is not QuestNode q || q.Field("m_ulDelvNPC") is not { } f) return Loc.T("qb.noQuest", "Quest não encontrada no tasks.data.");
         if (!_tasks.CanWrite) return Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + _tasks.ReadOnlyReason;
         if (CreatureItem(npcId) is not { Block.Name: "NPC_ESSENCE" } npc) return Loc.T("qb.noNpc", "NPC não encontrado no elements.data.");
+        if (AddQuestToService(npc.Item, questId, give: true, dryRun: true) is { } full) return full;
         var old = q.Get(f);
         var label = string.Format(Loc.T("qb.histLink", "Dar quest {0} ao NPC {1}"), questId, npcId);
         string? err;
@@ -2649,6 +2714,7 @@ public sealed class EditorForm : Form
                 () => { q.Set(f, old); _tasks.InvalidateNpcIndex(); MarkTasksDirty(label); });
             err = AddQuestToService(npc.Item, questId, give: true);
         }
+        if (err is not null) _edits.Undo();
         return err;
     }
 
@@ -2656,7 +2722,7 @@ public sealed class EditorForm : Form
     /// Põe a quest numa vaga livre do serviço de dar (NPC_TASK_OUT_SERVICE) ou receber (NPC_TASK_IN_SERVICE) do NPC. Se o
     /// NPC não tem serviço, ou divide o serviço com outros NPCs, ganha um serviço próprio (cópia) para não mexer nos outros.
     /// </summary>
-    private string? AddQuestToService(Item npc, int questId, bool give)
+    private string? AddQuestToService(Item npc, int questId, bool give, bool dryRun = false)
     {
         if (_store.Current is not { } m) return Loc.T("qb.noElements", "Abra o elements.data.");
         string field = give ? "id_task_out_service" : "id_task_in_service", blockName = give ? "NPC_TASK_OUT_SERVICE" : "NPC_TASK_IN_SERVICE";
@@ -2666,6 +2732,9 @@ public sealed class EditorForm : Form
         var svc = block.Items.FirstOrDefault(i => i.Id == sf.Value && sf.Value != "0");
         bool shared = svc is not null && m.FindListByName("NPC_ESSENCE")?.Items.Count(n => n != npc && n.Fields.TryGetValue(field, out var o) && o.Value == svc.Id) > 0;
         if (svc is not null && svc.Fields.Any(kv => Slot(kv.Key) && kv.Value.Value == questId.ToString())) return null;   // já está
+        if (svc is not null && !svc.Fields.Any(kv => Slot(kv.Key) && kv.Value.Value is "0" or ""))
+            return string.Format(Loc.T("qb.serviceFull", "O serviço {0} do NPC está cheio."), svc.Id);
+        if (dryRun) return null;   // só conferir: tudo ou nada
         if (svc is null || shared)
         {
             var src = svc ?? block.Items[0];

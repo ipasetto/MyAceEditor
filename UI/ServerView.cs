@@ -192,17 +192,21 @@ public sealed class ServerView : UserControl
         });
     }
 
-    void Run(string text, Func<LocalServer, LocalServer.RunResult> act)
+    void Run(string text, Func<LocalServer, LocalServer.RunResult> act, Action<bool>? done = null)
     {
         var s = NewServer();
         Busy(true, text);
         Task.Run(() =>
         {
-            if (LocalServer.WslProblem() is { } p) { BeginInvoke(() => { Busy(false, p); AppendLog(p); }); return; }
-            try { act(s); } catch (Exception ex) { BeginInvoke(() => AppendLog(Loc.T("srv.errorLog", "ERRO: ") + ex.Message)); }
-            BeginInvoke(() => { Busy(false, ""); _announce = true; RefreshStatus(); });
+            if (LocalServer.WslProblem() is { } p) { BeginInvoke(() => { Busy(false, p); AppendLog(p); done?.Invoke(false); }); return; }
+            bool ok = false;
+            try { ok = act(s).Code == 0; } catch (Exception ex) { BeginInvoke(() => AppendLog(Loc.T("srv.errorLog", "ERRO: ") + ex.Message)); }
+            BeginInvoke(() => { Busy(false, ""); _announce = true; RefreshStatus(); done?.Invoke(ok); });
         });
     }
+
+    /// <summary>Fim do envio ao servidor (true = enviado sem erro): o editor apaga o brilho do "Salvar e enviar".</summary>
+    public event Action<bool>? FilesSent;
 
     bool _announce;
 
@@ -226,7 +230,7 @@ public sealed class ServerView : UserControl
                 if (missing is not null) AppendLog("⚠ " + missing);
                 if (sw is not null && !AskSwap(this, sw)) { AppendLog("⚠ " + Loc.T("srv.swapSkipped", "Programas de outra versão mantidos: o login continuará recusado.")); sw = null; }
                 // tudo, sempre: config inteira do servidor + elements/tasks/loja/IA do cliente (LocalServer.SendAll)
-                Run(Loc.T("srv.sendingAllFilesAndRestarting", "Enviando todos os arquivos e reiniciando…"), s => s.SendAll(pkg, client, ai, sw));
+                Run(Loc.T("srv.sendingAllFilesAndRestarting", "Enviando todos os arquivos e reiniciando…"), s => s.SendAll(pkg, client, ai, sw), ok => FilesSent?.Invoke(ok));
             });
         });
     }

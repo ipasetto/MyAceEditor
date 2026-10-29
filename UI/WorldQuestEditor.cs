@@ -28,6 +28,7 @@ internal sealed class WorldQuestEditor : Panel
         _rep = Num(0, int.MaxValue), _itemId = Num(0, int.MaxValue), _itemN = Num(1, 99999);
     readonly TextBox _name = Text(false), _desc = Text(true), _offer = Text(true), _reward = Text(true), _summary = Text(true);
     readonly Label _giverName = Muted(), _receiverName = Muted(), _itemName = Muted(), _errors = new() { AutoSize = true, ForeColor = Bad, MaximumSize = new Size(330, 0) };
+    readonly List<QuestChoiceBlock> _choices = new();
     readonly ListView _items = new() { View = View.Details, FullRowSelect = true, Height = 130, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
 
     /// <summary>Quest criada (ID) — o Mundo 3D fecha o painel e mostra o NPC.</summary>
@@ -123,7 +124,7 @@ internal sealed class WorldQuestEditor : Panel
         req.Controls.Add(_minLv);
         Caption(req, "qe.maxLv", "Nível máximo", "qe.maxLvHint", "0 = sem limite.");
         req.Controls.Add(_maxLv);
-        req.Controls.Add(new Label { Text = Loc.T("qe.reqMore", "Outros requisitos (classe, quest anterior, clã…) entram nas próximas etapas."), AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Color.Gray, Margin = new Padding(3, 14, 3, 3) });
+        AddChooser(req, reward: false);
 
         var award = NewPage("qe.stepAward", "Prêmios");
         foreach (var (num, key, pt, hk, hint) in new[]
@@ -144,6 +145,7 @@ internal sealed class WorldQuestEditor : Panel
         addRow.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), () => { foreach (ListViewItem it in _items.SelectedItems) _items.Items.Remove(it); }));
         award.Controls.Add(addRow);
         award.Controls.Add(_itemName);
+        AddChooser(award, reward: true);
         _itemId.ValueChanged += (_, _) => _itemName.Text = _itemId.Value <= 0 ? "" : _host.NameOf((int)_itemId.Value) ?? Loc.T("qe.unknown", "(não existe no elements.data)");
 
         var texts = NewPage("qe.stepTexts", "Textos");
@@ -161,6 +163,32 @@ internal sealed class WorldQuestEditor : Panel
         sum.Controls.Add(_errors);
         _summary.ReadOnly = true; _summary.Height = 300;
         sum.Controls.Add(_summary);
+    }
+
+    /// <summary>"Adicionar requisito/prêmio": lista das opções da versão; cada escolha vira um bloco com os campos dela.</summary>
+    void AddChooser(FlowLayoutPanel page, bool reward)
+    {
+        Caption(page, reward ? "qe.moreAward" : "qe.moreReq", reward ? "Mais prêmios" : "Mais requisitos",
+            reward ? "qe.moreAwardHint" : "qe.moreReqHint", reward ? "Escolha o tipo e clique em Adicionar; pode pôr vários." : "Escolha o tipo e clique em Adicionar; pode pôr vários ao mesmo tempo.");
+        var opts = _host.Options(reward);
+        var box = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 230, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, DropDownWidth = 300 };
+        foreach (var o in opts) box.Items.Add(o.Text);
+        if (box.Items.Count > 0) box.SelectedIndex = 0;
+        var holder = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        row.Controls.Add(box);
+        row.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), () =>
+        {
+            if (box.SelectedIndex < 0) return;
+            var o = opts[box.SelectedIndex];
+            if (o.Type != QOType.Field && _choices.Any(c => c.Option == o)) return;   // cada opção uma vez (menos "outro campo")
+            var b = new QuestChoiceBlock(o, _host, _tip);
+            b.Removed += x => { _choices.Remove(x); holder.Controls.Remove(x); x.Dispose(); };
+            _choices.Add(b); holder.Controls.Add(b);
+        }));
+        box.SelectedIndexChanged += (_, _) => { if (box.SelectedIndex >= 0) _tip.SetToolTip(box, opts[box.SelectedIndex].Tip); };
+        page.Controls.Add(row);
+        page.Controls.Add(holder);
     }
 
     void AddItem()
@@ -186,6 +214,7 @@ internal sealed class WorldQuestEditor : Panel
         _d.Gold = (long)_gold.Value; _d.Exp = (long)_exp.Value; _d.Sp = (long)_sp.Value; _d.Reputation = (long)_rep.Value;
         _d.Items = _items.Items.Cast<ListViewItem>().Select(i => ((int, int))i.Tag!).ToList();
         _d.Description = _desc.Text.Trim(); _d.OfferText = _offer.Text.Trim(); _d.RewardText = _reward.Text.Trim();
+        _d.Choices = _choices.Select(c => c.Choice).ToList();
         return _d;
     }
 

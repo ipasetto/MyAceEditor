@@ -472,6 +472,16 @@ internal static class Program
             MinLevel = 10, MaxLevel = 50, Gold = 1234, Exp = 5678, Sp = 90, Items = { (11208, 3), (11209, 1) },
             Description = "Leve esta carta.", OfferText = "Pode levar esta carta para mim?", RewardText = "Obrigado pela carta!",
         };
+        QuestOption Opt(string id) => QuestOptions.All.First(o => o.Id == id);
+        var model = QuestBuilder.ModelRec(t)!;
+        foreach (var (id, val) in new (string, object)[]
+        {
+            ("classes", new List<int> { 0, 6 }), ("gender", 2L), ("preTasks", new List<int> { tpl.Id }), ("premItems", new List<(int, int)> { (11208, 1) }),
+            ("spouse", true), ("redo", true), ("newTask", new List<int> { tpl.Id }), ("bank", 2L), ("randItem", true), ("levCo", true),
+        })
+            if (QuestOptions.Available(Opt(id), t.Version, model)) d.Choices.Add(new QuestChoice(Opt(id), val));
+        sb.AppendLine("opções: " + string.Join(", ", d.Choices.Select(c => c.Option.Id)) + " · indisponíveis nesta versão: "
+            + string.Join(", ", QuestOptions.All.Where(o => !QuestOptions.Available(o, t.Version, model)).Select(o => o.Id)));
         var errors = QuestBuilder.Validate(t, d, _ => true, _ => true);
         sb.AppendLine("validação: " + (errors.Count == 0 ? "OK" : string.Join("; ", errors)));
         var q = QuestBuilder.Build(t, d);
@@ -484,8 +494,18 @@ internal static class Program
             foreach (var k in new[] { "m_ID", "m_ulDelvNPC", "m_ulAwardNPC", "m_enumMethod", "m_enumFinishType", "m_ulPremise_Lev_Min", "m_ulPremise_Lev_Max",
                          "m_ulPremise_Task_Count", "m_Award_S.m_ulGoldNum", "m_Award_S.m_ulExp", "m_Award_S.m_ulSP", "m_Award_S.m_ulCandItems",
                          "m_Award_S.m_CandItems[0].m_ulAwardItems", "m_Award_S.m_CandItems[0].m_AwardItems[0].m_ulItemTemplId",
-                         "m_Award_S.m_CandItems[0].m_AwardItems[0].m_ulItemNum", "m_Award_S.m_CandItems[0].m_AwardItems[1].m_ulItemTemplId", "m_Award_S.m_ulNewTask" })
+                         "m_Award_S.m_CandItems[0].m_AwardItems[0].m_ulItemNum", "m_Award_S.m_CandItems[0].m_AwardItems[1].m_ulItemTemplId", "m_Award_S.m_ulNewTask",
+                         "m_ulOccupations", "m_Occupations[0]", "m_Occupations[1]", "m_ulGender", "m_ulPremise_Tasks[0]", "m_ulPremItems",
+                         "m_PremItems[0].m_ulItemTemplId", "m_bCanRedo", "m_Award_S.m_ulStorehouseSize", "m_Award_S.m_CandItems[0].m_bRandChoose", "m_Award_S.m_bUseLevCo" })
                 sb.AppendLine($"  {k} = {V(nq, k)}");
+            // bits de CombinedSwitches (v135+) ou campo
+            var rr = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(nq.Fixed)), back.Version);
+            foreach (var k in new[] { "m_bPremise_Spouse", "m_bGM", "m_bShowByLev", "m_bCanRedo" })
+            {
+                int bi = QuestOptions.SwitchIndex(back.Version, k);
+                var on = bi >= 0 ? (((byte[])rr.V["CombinedSwitches"])[bi / 8] >> bi % 8 & 1).ToString() : V(nq, k);
+                sb.AppendLine($"  {k} = {on}{(bi >= 0 ? $" (bit {bi})" : "")}");
+            }
             sb.AppendLine($"  nome \"{nq.Name}\" · descrição \"{nq.Texts[0]}\" · ao dar \"{nq.Talks[0].Windows[0].Text}\" · prêmio \"{nq.Talks[4].Windows[0].Text}\"");
             back.DeleteRoot(nq);
             sb.AppendLine($"sem a quest nova, regravação: {(back.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");

@@ -10,6 +10,8 @@ public sealed class QuestDraft
     public long Gold, Exp, Sp, Reputation;
     public List<(int Id, int Count)> Items = new();
     public string Description = "", OfferText = "", RewardText = "";
+    /// <summary>Requisitos e prêmios a mais, escolhidos na lista (<see cref="QuestOptions"/>).</summary>
+    public List<QuestChoice> Choices = new();
 }
 
 /// <summary>
@@ -72,6 +74,9 @@ public static class QuestBuilder
         return null;
     }
 
+    /// <summary>Bloco fixo do modelo (para saber quais opções e campos a versão tem).</summary>
+    public static TaskRec? ModelRec(TasksFile t) => FindRecadoTemplate(t) is { } q ? ReadRec(q, t.Version) : null;
+
     /// <summary>Problemas que impedem criar (vazio = pode criar).</summary>
     public static List<string> Validate(TasksFile t, QuestDraft d, Func<int, bool> isNpc, Func<int, bool> itemExists)
     {
@@ -94,6 +99,33 @@ public static class QuestBuilder
         if (d.OfferText.Trim().Length == 0) e.Add(T("qb.noOffer", "Falta a fala do NPC ao dar a quest."));
         if (d.RewardText.Trim().Length == 0) e.Add(T("qb.noReward", "Falta a fala do NPC ao entregar o prêmio."));
         if (FindRecadoTemplate(t) is null) e.Add(T("qb.noTemplate", "Não há uma quest de recado neste tasks.data para servir de modelo."));
+        foreach (var c in d.Choices)
+        {
+            var name = c.Option.Text;
+            int max = QuestOptions.MaxCount(c.Option, t.Version);
+            switch (c.Value)
+            {
+                case List<int> ids:
+                    if (ids.Count == 0) e.Add(string.Format(T("qb.optEmpty", "{0}: escolha pelo menos um."), name));
+                    if (max > 0 && ids.Count > max) e.Add(string.Format(T("qb.optMax", "{0}: no máximo {1} nesta versão."), name, max));
+                    if (c.Option.Type == QOType.Quests)
+                        foreach (var id in ids.Where(id => t.Index.Find(id) is null)) e.Add(string.Format(T("qb.optNoQuest", "{0}: a quest {1} não existe."), name, id));
+                    break;
+                case List<(int Id, int Count)> items:
+                    if (items.Count == 0) e.Add(string.Format(T("qb.optEmpty", "{0}: escolha pelo menos um."), name));
+                    foreach (var (id, n) in items)
+                    {
+                        if (!itemExists(id)) e.Add(string.Format(T("qb.noItem", "O item {0} não existe no elements.data."), id));
+                        if (n <= 0) e.Add(string.Format(T("qb.itemCount", "A quantidade do item {0} precisa ser maior que zero."), id));
+                    }
+                    break;
+                case ValueTuple<long, long> r when c.Option.Id == "repu" && r.Item2 > 0 && r.Item2 < r.Item1:
+                    e.Add(string.Format(T("qb.optRange", "{0}: o máximo é menor que o mínimo."), name)); break;
+                case ValueTuple<string, string> f when f.Item1.Length == 0 || !double.TryParse(f.Item2.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _):
+                    e.Add(string.Format(T("qb.optField", "{0}: escolha o campo e um valor numérico."), name)); break;
+            }
+        }
+        if (d.Choices.Any(c => c.Option.Id == "randItem") && d.Items.Count < 2) e.Add(T("qb.randNeedsItems", "Para sortear um item, coloque pelo menos 2 itens no prêmio."));
         return e;
     }
 
@@ -108,6 +140,8 @@ public static class QuestBuilder
             bool award = k.StartsWith("m_Award_") || k.StartsWith("m_AwBy") || k.StartsWith("AwBy");
             if (award || !k.Contains('.') && ResetTop.Contains(Leaf(k))) rec.V[k] = Zero(rec.V[k]);
         }
+        // v135+: os requisitos liga/desliga do modelo ficam em bits de CombinedSwitches
+        foreach (var k in ResetTop.Where(k => k.StartsWith("m_b") && QuestOptions.SwitchIndex(t.Version, k) >= 0)) QuestOptions.SetFlag(rec, t.Version, k, false);
         void S(string k, long v) => rec.V[k] = v;
         S("m_ID", d.Id);
         S("m_enumMethod", MethodTalkToNpc); S("m_enumFinishType", FinishByTalk); S("m_ulAwardType_S", 0);
@@ -126,6 +160,7 @@ public static class QuestBuilder
                 rec.V[it + "m_fProb"] = 1f; S(it + "m_lPeriod", 0);
             }
         }
+        foreach (var c in d.Choices) QuestOptions.Apply(rec, t.Version, c);
         using (var ms = new MemoryStream())
         {
             TaskLayout.WriteFixed(new BinaryWriter(ms), t.Version, rec);
