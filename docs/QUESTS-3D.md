@@ -48,3 +48,5 @@ Prêmios e requisitos completos entram desde o tipo 1 (são os mesmos campos par
 - No mundo aparece só a área da quest que está sendo criada ou editada (caixa translúcida).
 - **Como termina** fica a cargo do painel: a quest vira uma lista de **etapas** em ordem (como o jogo faz: quest principal com o NPC que dá e o prêmio, e cada etapa é uma subquest): chegar ao lugar (conclui ao chegar), falar com um NPC (prêmio entregue por ele), ir a outro lugar, matar monstros (entra com o tipo 3), e o que mais o formato tiver conforme os outros tipos forem feitos.
 - Uma etapa só "falar com NPC" continua sendo o recado do tipo 1 (quest sem subquests).
+- Vários lugares (usuário 29/10): escolher a **ordem das etapas** — em ordem, em qualquer ordem (todas) ou basta uma. Várias áreas dentro de uma etapa = chegar em qualquer uma.
+- **Garantia ao salvar** (usuário 29/10): o botão Concluir só fica ativo quando não há pendência; o rodapé mostra quantas são e quais (o resumo lista todas). A validação cobre IDs livres da principal e das etapas, NPCs, falas, áreas válidas, tag do mapa conhecida, limite de áreas da versão e vagas nos serviços dos NPCs.

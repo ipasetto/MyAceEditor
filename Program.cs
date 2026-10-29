@@ -155,7 +155,8 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--kinds") { DumpKinds(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks-recado") { TaskRecado(args[1]); return; }
-        if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
+        if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }
+        if (args.Length >= 3 && args[0] == "--tasks-svc") { TaskSvc(args[1], args[2]); return; }   // <elements.data> <tasks.data>: que ID (pai ou filha) os NPCs guardam no serviço de dar/receber   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
         if (args.Length >= 3 && args[0] == "--spt") { SptTest(args[1], args[2]); return; }   // <trees.pck> <pasta>: gera todas as árvores, spt-test.txt + PNG de lado
         if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
@@ -544,6 +545,7 @@ internal static class Program
             Add("largura x (m)", (MathF.Round(dx / 10) * 10).ToString());
             Add("altura y (m)", (MathF.Round(dy / 10) * 10).ToString());
             Add("mapa", rec.Int(b + "MapID").ToString());
+            Add("mundo (m_ulReachSiteId)", rec.Int("m_ulReachSiteId").ToString());
             if (samples.Count < 12)
                 samples.Add($"{q.Id} \"{TasksFile.SplitColor(q.Name).Text}\" {(q.Parent is null ? "" : $"filha de {q.Parent.Id} ")}método {rec.Int("m_enumMethod")} conclusão {rec.Int("m_enumFinishType")} "
                     + $"dá {rec.Int("m_ulDelvNPC")} recebe {rec.Int("m_ulAwardNPC")} mapa {rec.Int(b + "MapID")} min ({F(b + "zvMin.v[0]"):0},{F(b + "zvMin.v[1]"):0},{F(b + "zvMin.v[2]"):0}) tam ({dx:0},{dy:0},{dz:0})");
@@ -581,6 +583,45 @@ internal static class Program
         sb.AppendLine(string.Join("\n", samples));
         sb.AppendLine(string.Join("\n", parentSamples));
         File.WriteAllText("tasks-site.txt", sb.ToString(), new UTF8Encoding(false));
+    }
+
+    // --tasks-svc <elements.data> <tasks.data>: nas quests com etapas, o NPC que dá guarda o ID do pai ou da 1ª filha no serviço de
+    // dar? E o NPC de uma etapa "falar com NPC" (filha m3 c1) guarda o ID da filha ou do pai no serviço de receber? (tasks-svc.txt)
+    private static void TaskSvc(string dataPath, string tasksPath)
+    {
+        var module = CfgCatalog.Load(dataPath).Module;
+        var t = new TasksFile(tasksPath);
+        HashSet<string> Svc(int npc, bool give)
+        {
+            var set = new HashSet<string>();
+            var n = module.FindListByName("NPC_ESSENCE")?.FindById(npc.ToString());
+            string field = give ? "id_task_out_service" : "id_task_in_service";
+            if (n is null || !n.Fields.TryGetValue(field, out var sf)) return set;
+            var svc = module.FindListByName(give ? "NPC_TASK_OUT_SERVICE" : "NPC_TASK_IN_SERVICE")?.FindById(sf.Value);
+            if (svc is null) return set;
+            foreach (var (k, f) in svc.Fields) if (k.Contains("id_tasks") && !k.Contains("space") && f.Value != "0") set.Add(f.Value);
+            return set;
+        }
+        TaskRec R(QuestNode x) => TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(x.Fixed, false)), t.Version);
+        var hist = new Dictionary<string, int>();
+        void Add(string k) => hist[k] = hist.GetValueOrDefault(k) + 1;
+        foreach (var p in t.Roots!.Where(r => r.Children.Count >= 2))
+        {
+            var pr = R(p);
+            if (pr.Int("m_ulDelvNPC") is var g and > 0)
+            {
+                var o = Svc((int)g, true);
+                Add($"dar: pai {o.Contains(p.Id.ToString())} / 1a filha {o.Contains(p.Children[0].Id.ToString())}");
+            }
+            foreach (var c in p.Children)
+            {
+                var cr = R(c);
+                if (cr.Int("m_enumMethod") != 3 || cr.Int("m_enumFinishType") != 1 || cr.Int("m_ulAwardNPC") is not (var a and > 0)) continue;
+                var i = Svc((int)a, false);
+                Add($"receber (etapa falar): filha {i.Contains(c.Id.ToString())} / pai {i.Contains(p.Id.ToString())}");
+            }
+        }
+        File.WriteAllText("tasks-svc.txt", string.Join("\n", hist.OrderByDescending(x => x.Value).Select(x => $"{x.Key}: {x.Value}")), new UTF8Encoding(false));
     }
 
     // --quest-create <tasks.data>: cria uma quest de recado pelo QuestBuilder, grava, relê e confere; tirando a quest nova
@@ -636,10 +677,54 @@ internal static class Program
                 sb.AppendLine($"  {k} = {on}{(bi >= 0 ? $" (bit {bi})" : "")}");
             }
             sb.AppendLine($"  nome \"{nq.Name}\" · descrição \"{nq.Texts[0]}\" · ao dar \"{nq.Talks[0].Windows[0].Text}\" · prêmio \"{nq.Talks[4].Windows[0].Text}\"");
+            sb.AppendLine("  opções " + string.Join(" ", nq.Talks.SelectMany((tp, ti) => tp.Windows.SelectMany(w => w.Options.Select(o => $"t{ti}:{o.Param}/{o.Id}")))));
             back.DeleteRoot(nq);
             sb.AppendLine($"sem a quest nova, regravação: {(back.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
         }
         else sb.AppendLine("quest nova NÃO encontrada no arquivo relido");
+
+        // quest com etapas (tipo 2): ir a 2 lugares (o 1º com 2 áreas) e depois falar com um NPC; uma vez em ordem, outra "basta uma"
+        foreach (var order in new[] { QuestStepOrder.InOrder, QuestStepOrder.AnyOne })
+        {
+            var t2 = new TasksFile(original);
+            int npc = int.Parse(V(tpl, "m_ulAwardNPC"));
+            var d2 = new QuestDraft
+            {
+                Id = t2.NextFreeId(), Name = "Etapas de teste", Giver = npc, MinLevel = 5, Exp = 777, Order = order,
+                Description = "Vá aos dois lugares e volte.", OfferText = "Pode explorar para mim?",
+                Steps =
+                {
+                    new QuestStep { Kind = QuestStepKind.Reach, Name = "Primeiro lugar", MapTag = 1, Areas = { new QuestArea { X0 = -10, Y0 = -50, Z0 = -20, X1 = 10, Y1 = 150, Z1 = 20 }, new QuestArea { X0 = 100, Y0 = 0, Z0 = 100, X1 = 130, Y1 = 60, Z1 = 140 } } },
+                    new QuestStep { Kind = QuestStepKind.Reach, Name = "Segundo lugar", Description = "Agora o outro.", MapTag = 1, Areas = { new QuestArea { X0 = 500, Y0 = -9999, Z0 = 600, X1 = 520, Y1 = 9999, Z1 = 640 } } },
+                    new QuestStep { Kind = QuestStepKind.Talk, Name = "Volte ao NPC", Npc = npc, Text = "Você voltou! Tome o prêmio." },
+                },
+            };
+            var err2 = QuestBuilder.Validate(t2, d2, _ => true, _ => true);
+            sb.AppendLine($"\n[etapas, {order}] validação: " + (err2.Count == 0 ? "OK" : string.Join("; ", err2)));
+            if (err2.Count > 0) continue;
+            QuestBuilder.Build(t2, d2);
+            var back2 = new TasksFile(t2.Build());
+            sb.AppendLine($"relido: {(back2.FullSchema ? "OK" : back2.SchemaError)} · regrava {(back2.CanWrite ? "OK" : back2.ReadOnlyReason)}");
+            if (back2.Index.Find(d2.Id) is not QuestNode p2) { sb.AppendLine("principal NÃO encontrada"); continue; }
+            long Flag(QuestNode x, string k)
+            {
+                var r = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(x.Fixed)), back2.Version);
+                int bi = QuestOptions.SwitchIndex(back2.Version, k);
+                return bi >= 0 ? ((byte[])r.V["CombinedSwitches"])[bi / 8] >> bi % 8 & 1 : r.Int(k);
+            }
+            foreach (var x in p2.Children.Prepend(p2))
+            {
+                sb.Append($"  {x.Id} \"{x.Name}\" pai {(x.Parent?.Id ?? 0)}:");
+                foreach (var k in new[] { "m_enumMethod", "m_enumFinishType", "m_ulDelvNPC", "m_ulAwardNPC", "m_ulParent", "m_ulPrevSibling", "m_ulNextSibling", "m_ulFirstChild",
+                             "m_ulPremise_Lev_Min", "m_Award_S.m_ulExp", "m_ulReachSiteCnt", "m_ulReachSiteId", "m_pReachSite[0].zvMin.v[0]", "m_pReachSite[0].zvMax.v[2]", "m_pReachSite[1].zvMin.v[0]", "m_pReachSite[0].MapID" })
+                    sb.Append($" {k.Replace("m_", "")}={V(x, k)}");
+                sb.AppendLine($" · ordem {Flag(x, "m_bExeChildInOrder")} paiTambém {Flag(x, "m_bParentAlsoSucc")} · desc \"{x.Texts[0]}\" · diálogos {string.Join(",", x.Talks.Select(tp => tp.Windows.Count))}"
+                    + (x.Talks[0].Windows.Count > 0 ? $" ao dar \"{x.Talks[0].Windows[0].Text}\"" : "") + (x.Talks[4].Windows.Count > 0 ? $" prêmio \"{x.Talks[4].Windows[0].Text}\"" : "")
+                    + " · opções " + string.Join(" ", x.Talks.SelectMany((tp, ti) => tp.Windows.SelectMany(w => w.Options.Select(o => $"t{ti}:{o.Param}/{o.Id}")))));
+            }
+            back2.DeleteRoot(p2);
+            sb.AppendLine($"sem a quest nova, regravação: {(back2.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
+        }
         File.WriteAllText("quest-create.txt", sb.ToString(), new UTF8Encoding(false));
     }
 

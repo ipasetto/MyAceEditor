@@ -234,6 +234,23 @@ public sealed class TasksFile
         return copy;
     }
 
+    /// <summary>
+    /// Subquest nova no fim das filhas de <paramref name="parent"/>, copiada de <paramref name="proto"/> (sem as filhas dele)
+    /// com o ID dado. Os vínculos da árvore no bloco fixo ficam a cargo de quem chama (QuestBuilder regrava o bloco).
+    /// </summary>
+    public QuestNode AddChild(QuestNode parent, QuestNode proto, int id)
+    {
+        if (Roots is null) throw new InvalidOperationException(FieldKinds.Translate("tasks.cloneNeedsSchema", "Clonar exige o esquema completo do tasks.data."));
+        var copy = CloneNode(new QuestNode
+        {
+            Id = proto.Id, Fixed = proto.Fixed, TextRaw = proto.TextRaw, Fields = proto.Fields, IdOffset = proto.IdOffset, NameOffset = proto.NameOffset,
+            Name = proto.Name, NullFlags = proto.NullFlags, Texts = proto.Texts, Talks = proto.Talks,
+        }, parent, new Dictionary<int, int> { [proto.Id] = id });
+        parent.Children.Add(copy);
+        Index = new TaskIndex(Roots, Quests);
+        return copy;
+    }
+
     /// <summary>Próximo ID de quest livre (maior ID + 1).</summary>
     public int NextFreeId() => Index.Nodes.Count == 0 ? 1 : Index.Nodes.Max(n => n.Id) + 1;
 
@@ -268,7 +285,9 @@ public sealed class TasksFile
                 Windows = t.Windows.Select(w => new TalkWindow
                 {
                     Id = w.Id, Parent = w.Parent, Text = w.Text,
-                    Options = w.Options.Select(o => new TalkOption { Param = o.Param, Id = o.Id, Text = o.Text, OriginalText = "\u0001", Raw = Array.Empty<byte>() }).ToList(),
+                    // opção de dar/concluir/entregar item de quest leva o ID da quest (o cliente manda esse ID ao servidor):
+                    // aponta para a cópia, senão a quest nova daria a quest original
+                    Options = w.Options.Select(o => new TalkOption { Param = o.Param, Id = IsTaskOption(o.Param) && map.TryGetValue(o.Id, out var to) ? to : o.Id, Text = o.Text, OriginalText = "\u0001", Raw = Array.Empty<byte>() }).ToList(),
                 }).ToList(),
             };
         }
@@ -279,6 +298,10 @@ public sealed class TasksFile
         foreach (var c in s.Children) q.Children.Add(CloneNode(c, q, map));
         return q;
     }
+
+    /// <summary>Funções de opção de diálogo (SERVICE_TYPE do cliente, ExpTypes.h) cujo outro campo é o ID de uma quest.</summary>
+    public const int NpcGiveTask = unchecked((int)0x80000006), NpcCompleteTask = unchecked((int)0x80000007), NpcGiveTaskMatter = unchecked((int)0x80000008);
+    public static bool IsTaskOption(int function) => function is NpcGiveTask or NpcCompleteTask or NpcGiveTaskMatter;
 
     static void SetLink(QuestNode q, string name, int value)
     {

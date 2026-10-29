@@ -600,6 +600,22 @@ internal sealed class NpcGenView : UserControl
         Touch(); ShowPoint();
     }
 
+    /// <summary>
+    /// Tag do mapa (número do mundo nas quests "ir até um lugar"): gs.conf do servidor; sem ele, o configs\instance.txt do
+    /// cliente quando só uma tag usa esse mapa. 0 = não sei (o painel de quests não deixa concluir).
+    /// </summary>
+    int MapTagOf(string map)
+    {
+        if (_configDir is not null && MapTags.ServerTags(_configDir) is { } st && st.TryGetValue(map, out var tag)) return tag;
+        if (_elementDir() is { } el && MapTags.ClientMaps(el) is { } cm)
+        {
+            var client = MapTags.ClientMapFor(_configDir, el, map);
+            var hits = cm.Values.Where(c => c.Path.Equals(client, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (hits.Count == 1) return hits[0].Tag;
+        }
+        return 0;
+    }
+
     // ---------- mundo 3D ----------
     /// <summary>Abre o Mundo 3D do arquivo aberto (ou leva a câmera ao ponto selecionado, se já aberto).</summary>
     public void OpenWorld() => OpenWorld(false);
@@ -717,6 +733,7 @@ internal sealed class NpcGenView : UserControl
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
         if (overview is { } ov) w.Overview(new OpenTK.Mathematics.Vector3(ov.X, ov.Y, ov.Z), _cur.Equals("world", StringComparison.OrdinalIgnoreCase));
         if (_configDir is not null) w.WaterDir = Path.Combine(_configDir, _cur, "watermap");
+        w.MapTag = MapTagOf(_cur);
         w.FormClosed += (_, _) => { if (_world == w) _world = null; };
         // sem dono: "Editar no software" consegue trazer o editor para a frente; fecha junto com o editor
         if (FindForm() is { } host) host.FormClosed += (_, _) => { if (!w.IsDisposed) w.Close(); };

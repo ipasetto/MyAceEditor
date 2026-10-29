@@ -13,7 +13,7 @@ internal sealed class WorldQuestEditor : Panel
         Accent = Color.FromArgb(120, 190, 255), Bad = Color.FromArgb(255, 140, 120), Good = Color.FromArgb(140, 220, 140);
 
     readonly IQuestHost _host;
-    readonly Action<Action<int>> _pickNpc;
+    readonly QuestWorld _world;
     QuestDraft _d;
     readonly Label _title = new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI", 10.5f, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0) };
     readonly FlowLayoutPanel _steps = new() { Dock = DockStyle.Top, AutoSize = true, BackColor = Bg2, Padding = new Padding(4, 4, 4, 4) };
@@ -23,11 +23,29 @@ internal sealed class WorldQuestEditor : Panel
     int _at;
 
     // controles do rascunho
-    readonly NumericUpDown _id = Num(1, int.MaxValue), _giver = Num(0, int.MaxValue), _receiver = Num(0, int.MaxValue),
+    readonly NumericUpDown _id = Num(1, int.MaxValue), _giver = Num(0, int.MaxValue), _stepNpc = Num(0, int.MaxValue),
         _minLv = Num(0, 1000), _maxLv = Num(0, 1000), _gold = Num(0, int.MaxValue), _exp = Num(0, int.MaxValue), _sp = Num(0, int.MaxValue),
         _rep = Num(0, int.MaxValue), _itemId = Num(0, int.MaxValue), _itemN = Num(1, 99999);
-    readonly TextBox _name = Text(false), _desc = Text(true), _offer = Text(true), _reward = Text(true), _summary = Text(true);
-    readonly Label _giverName = Muted(), _receiverName = Muted(), _itemName = Muted(), _errors = new() { AutoSize = true, ForeColor = Bad, MaximumSize = new Size(330, 0) };
+    readonly TextBox _name = Text(false), _desc = Text(true), _offer = Text(true), _summary = Text(true),
+        _stepName = Text(false), _stepDesc = Text(true), _stepText = Text(true);
+    readonly Label _giverName = Muted(), _stepNpcName = Muted(), _itemName = Muted(), _errors = new() { AutoSize = true, ForeColor = Bad, MaximumSize = new Size(330, 0) },
+        _stepHint = new() { AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Color.Gray, Margin = new Padding(3, 4, 3, 3) };
+
+    // etapas (tipo 2+): lista, ordem e o detalhe da etapa selecionada
+    readonly ComboBox _order = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 330, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+    readonly ListBox _stepList = new() { Width = 330, Height = 96, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, IntegralHeight = false };
+    readonly FlowLayoutPanel _stepBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
+        _talkBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
+        _reachBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
+        _nameBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
+    readonly ListView _areaList = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Height = 92, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
+    readonly NumericUpDown[] _areaNum = Enumerable.Range(0, 6).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 100, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle }).ToArray();
+    bool _loading;
+
+    // rodapé: Concluir só fica ativo sem pendências; o rótulo diz quantas e quais (o botão desativado não mostra dica)
+    readonly Button _finish;
+    readonly Label _pending = new() { AutoSize = true, Cursor = Cursors.Hand, Margin = new Padding(3, 7, 8, 0) };
+    readonly System.Windows.Forms.Timer _check = new() { Interval = 600 };
     readonly List<QuestChoiceBlock> _choices = new();
     readonly ComboBox _howItems = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 330, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(3, 4, 3, 2) };
     readonly ListView _items = new() { View = View.Details, FullRowSelect = true, Height = 130, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
@@ -36,9 +54,10 @@ internal sealed class WorldQuestEditor : Panel
     public event Action<int>? Created;
     public event Action? Cancelled;
 
-    public WorldQuestEditor(IQuestHost host, QuestDraft draft, Action<Action<int>> pickNpc)
+    public WorldQuestEditor(IQuestHost host, QuestDraft draft, QuestWorld world)
     {
-        _host = host; _d = draft; _pickNpc = pickNpc;
+        _host = host; _d = draft; _world = world;
+        if (_d.Steps.Count == 0) _d.Steps.Add(new QuestStep { Kind = QuestStepKind.Talk, Npc = _d.Receiver, Text = _d.RewardText });   // começa como recado
         Dock = DockStyle.Right; Width = 380; BackColor = Bg; ForeColor = Fg;
         var head = new Panel { Dock = DockStyle.Top, Height = 34, BackColor = Bg2 };
         var close = new Button { Dock = DockStyle.Right, Width = 34, Text = "✕", FlatStyle = FlatStyle.Flat, ForeColor = Color.White };
@@ -46,19 +65,36 @@ internal sealed class WorldQuestEditor : Panel
         close.Click += (_, _) => Cancel();
         head.Controls.Add(_title); head.Controls.Add(close);
         var foot = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 40, FlowDirection = FlowDirection.RightToLeft, BackColor = Bg2, Padding = new Padding(4, 6, 4, 4) };
-        var finish = Btn(Loc.T("qe.finish", "Concluir"), Finish, Color.FromArgb(40, 110, 60));
+        var finish = _finish = Btn(Loc.T("qe.finish", "Concluir"), Finish, Color.FromArgb(40, 110, 60));
         var cancel = Btn(Loc.T("qe.cancel", "Cancelar"), Cancel);
         var next = Btn(Loc.T("qe.next", "Avançar ▶"), () => Show(Math.Min(_pages.Count - 1, _at + 1)));
         var back = Btn(Loc.T("qe.back", "◀ Voltar"), () => Show(Math.Max(0, _at - 1)));
-        foot.Controls.AddRange(new Control[] { finish, cancel, next, back });
+        foot.Height = 64; foot.WrapContents = true;
+        foot.Controls.AddRange(new Control[] { finish, cancel, next, back, _pending });
+        foot.SetFlowBreak(back, true);
         _tip.SetToolTip(finish, Loc.T("qe.finishTip", "Cria a quest e liga aos NPCs (só na memória: grava no Salvar)."));
+        _pending.Click += (_, _) => Show(_pages.Count - 1);
         Controls.Add(_page); Controls.Add(_steps); Controls.Add(foot); Controls.Add(head);
 
         BuildPages();
         Load();
-        _title.Text = Loc.T("qe.title", "Nova quest — recado");
+        _title.Text = Loc.T("qe.titleNew", "Nova quest");
         Show(0);
-        Disposed += (_, _) => _tip.Dispose();
+        // validação contínua: Concluir só ativo quando não falta nada (a quest criada tem que funcionar no jogo)
+        _check.Tick += (_, _) => { if (Visible && !IsDisposed) CheckNow(); };
+        _check.Start();
+        CheckNow();
+        Disposed += (_, _) => { _check.Dispose(); _tip.Dispose(); };
+    }
+
+    void CheckNow()
+    {
+        var errors = _host.Validate(Collect());
+        _finish.Enabled = errors.Count == 0;
+        _pending.ForeColor = errors.Count == 0 ? Good : Bad;
+        _pending.Text = errors.Count == 0 ? Loc.T("qe.ready", "✓ Pronta para concluir") : string.Format(Loc.T("qe.pendingN", "⚠ {0} pendência(s) — clique para ver"), errors.Count);
+        var tip = errors.Count == 0 ? "" : string.Join("\n", errors.Take(12).Select(x => "• " + x));
+        if (_tip.GetToolTip(_pending) != tip) _tip.SetToolTip(_pending, tip);
     }
 
     // ---------- montagem ----------
@@ -100,7 +136,7 @@ internal sealed class WorldQuestEditor : Panel
         row.Controls.Add(Btn(Loc.T("qe.pick", "🎯 Escolher no mundo"), () =>
         {
             _title.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)");
-            _pickNpc(id => { num.Value = id; _title.Text = Loc.T("qe.title", "Nova quest — recado"); });
+            _world.PickNpc(id => { num.Value = id; _title.Text = Loc.T("qe.titleNew", "Nova quest"); });
         }));
         p.Controls.Add(row);
         p.Controls.Add(name);
@@ -117,8 +153,8 @@ internal sealed class WorldQuestEditor : Panel
         npcs.Controls.Add(_name);
         Caption(npcs, "qe.giver", "NPC que dá a quest", "qe.giverHint", "Onde o jogador aceita a quest.");
         NpcRow(npcs, _giver, _giverName);
-        Caption(npcs, "qe.receiver", "NPC que recebe a quest", "qe.receiverHint", "Para quem o jogador leva o recado e onde ganha o prêmio. Escolha clicando no NPC no mundo.");
-        NpcRow(npcs, _receiver, _receiverName);
+
+        BuildStepsPage();
 
         var req = NewPage("qe.stepReq", "Requisitos");
         Caption(req, "qe.minLv", "Nível mínimo", "qe.minLvHint", "Abaixo deste nível o NPC não oferece a quest.");
@@ -159,14 +195,251 @@ internal sealed class WorldQuestEditor : Panel
         Caption(texts, "qe.offer", "Fala ao dar a quest", "qe.offerHint", "O que o NPC que dá a quest diz ao jogador, com a opção de aceitar.");
         _offer.PlaceholderText = Loc.T("qe.offerPh", "Ex.: Você pode levar esta carta ao ferreiro para mim?");
         texts.Controls.Add(_offer);
-        Caption(texts, "qe.reward", "Fala ao entregar", "qe.rewardHint", "O que o NPC que recebe diz ao entregar o prêmio.");
-        _reward.PlaceholderText = Loc.T("qe.rewardPh", "Ex.: Ah, uma carta do guarda! Obrigado, tome sua recompensa.");
-        texts.Controls.Add(_reward);
+        texts.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Color.Gray, Margin = new Padding(3, 8, 3, 3),
+            Text = Loc.T("qe.rewardInStep", "A fala do NPC ao entregar o prêmio fica na etapa \"Falar com NPC\" (passo Etapas).") });
 
         var sum = NewPage("qe.stepSummary", "Resumo", RefreshSummary);
         sum.Controls.Add(_errors);
         _summary.ReadOnly = true; _summary.Height = 300;
         sum.Controls.Add(_summary);
+    }
+
+    // ---------- etapas ----------
+
+    QuestStep? CurStep => _stepList.SelectedIndex >= 0 && _stepList.SelectedIndex < _d.Steps.Count ? _d.Steps[_stepList.SelectedIndex] : null;
+    QuestArea? CurArea => CurStep is { Kind: QuestStepKind.Reach } s && _areaList.SelectedIndices.Count > 0 && _areaList.SelectedIndices[0] < s.Areas.Count ? s.Areas[_areaList.SelectedIndices[0]] : null;
+
+    /// <summary>
+    /// Passo "Etapas": o que o jogador faz depois de aceitar, em ordem ou não. Uma etapa só de falar com NPC = recado; com mais
+    /// etapas (ou ir até um lugar) a quest vira principal + subquests, como o jogo grava.
+    /// </summary>
+    void BuildStepsPage()
+    {
+        var p = NewPage("qe.stepSteps", "Etapas", () => ShowAreas());
+        Caption(p, "qe.steps", "Etapas da quest", "qe.stepsHint", "O que o jogador faz depois de aceitar. Só \"Falar com NPC\" = recado. Ir até um lugar, depois falar com um NPC, ir a outro lugar… cada etapa aparece no diário.");
+        p.Controls.Add(_stepList);
+        var add = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 4, 0, 0) };
+        add.Controls.Add(Btn(Loc.T("qe.addReach", "+ Ir até um lugar"), () => AddStep(QuestStepKind.Reach)));
+        add.Controls.Add(Btn(Loc.T("qe.addTalk", "+ Falar com NPC"), () => AddStep(QuestStepKind.Talk)));
+        p.Controls.Add(add);
+        var move = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
+        move.Controls.Add(Btn("▲", () => MoveStep(-1)));
+        move.Controls.Add(Btn("▼", () => MoveStep(1)));
+        move.Controls.Add(Btn(Loc.T("qe.removeStep", "Remover etapa"), RemoveStep));
+        p.Controls.Add(move);
+        Caption(p, "qe.order", "Ordem das etapas", "qe.orderHint", "Em ordem: a próxima só aparece depois da anterior. Qualquer ordem: todas aparecem juntas e a quest termina quando a última for feita. Basta uma: a primeira etapa feita conclui a quest.");
+        _order.Items.AddRange(new object[] { Loc.T("qe.inOrder", "Em ordem (uma depois da outra)"), Loc.T("qe.anyOrder", "Em qualquer ordem (todas precisam ser feitas)"), Loc.T("qe.anyOne", "Basta uma das etapas") });
+        p.Controls.Add(_order);
+        p.Controls.Add(_stepHint);
+
+        // detalhe da etapa selecionada
+        Caption(_nameBox, "qe.stepName", "Nome da etapa", "qe.stepNameHint", "Aparece no diário de quests enquanto a etapa está ativa (até 29 caracteres).");
+        _stepName.MaxLength = TasksFile.MaxNameLength;
+        _nameBox.Controls.Add(_stepName);
+        Caption(_nameBox, "qe.stepDesc", "Descrição da etapa (opcional)", "qe.stepDescHint", "Texto do diário para esta etapa. Em branco = só a descrição da quest.");
+        _stepDesc.Height = 50;
+        _nameBox.Controls.Add(_stepDesc);
+        _stepBox.Controls.Add(_nameBox);
+
+        Caption(_talkBox, "qe.stepNpc", "NPC com quem falar", "qe.stepNpcHint", "O jogador fala com este NPC para concluir a etapa (no recado, é quem recebe e entrega o prêmio).");
+        NpcRow(_talkBox, _stepNpc, _stepNpcName);
+        Caption(_talkBox, "qe.reward", "Fala ao entregar", "qe.rewardHint", "O que o NPC diz quando o jogador conclui a etapa com ele (no recado, ao entregar o prêmio).");
+        _stepText.PlaceholderText = Loc.T("qe.rewardPh", "Ex.: Ah, uma carta do guarda! Obrigado, tome sua recompensa.");
+        _talkBox.Controls.Add(_stepText);
+        _stepBox.Controls.Add(_talkBox);
+
+        Caption(_reachBox, "qe.areas", "Áreas (chegar em qualquer uma conclui)", "qe.areasHint", "Marque arrastando no chão do Mundo 3D; a altura é preenchida sozinha. Todas as áreas de uma etapa ficam no mesmo mapa. Para exigir vários lugares, crie uma etapa para cada.");
+        _areaList.Columns.Add("#", 26); _areaList.Columns.Add("X", 96); _areaList.Columns.Add("Z", 96); _areaList.Columns.Add(Loc.T("qe.height", "Altura"), 96);
+        _reachBox.Controls.Add(_areaList);
+        var ar = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(340, 0), Margin = new Padding(0, 4, 0, 0) };
+        ar.Controls.Add(Btn(Loc.T("qe.markArea", "🎯 Marcar no mundo"), MarkArea));
+        ar.Controls.Add(Btn(Loc.T("qe.removeArea", "Remover área"), RemoveArea));
+        ar.Controls.Add(Btn(Loc.T("qe.anyHeight", "Qualquer altura"), () => { if (CurArea is { } a) { a.Y0 = -9999; a.Y1 = 9999; LoadArea(); RefreshAreas(); } }));
+        _reachBox.Controls.Add(ar);
+        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Margin = new Padding(0, 4, 0, 0) };
+        string[] rows = { Loc.T("qe.axisX", "X (mín. / máx.)"), Loc.T("qe.axisY", "Altura (mín. / máx.)"), Loc.T("qe.axisZ", "Z (mín. / máx.)") };
+        for (int i = 0; i < 3; i++)
+        {
+            grid.Controls.Add(new Label { Text = rows[i], AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(0, 6, 4, 0) }, 0, i);
+            grid.Controls.Add(_areaNum[i], 1, i); grid.Controls.Add(_areaNum[i + 3], 2, i);
+        }
+        _reachBox.Controls.Add(grid);
+        _stepBox.Controls.Add(_reachBox);
+        p.Controls.Add(_stepBox);
+
+        _stepList.SelectedIndexChanged += (_, _) => LoadStep();
+        _order.SelectedIndexChanged += (_, _) => { if (!_loading) RefreshStepList(_stepList.SelectedIndex); };
+        _stepName.TextChanged += (_, _) => { if (!_loading && CurStep is { } s) { s.Name = _stepName.Text; RefreshStepText(); } };
+        _stepDesc.TextChanged += (_, _) => { if (!_loading && CurStep is { } s) s.Description = _stepDesc.Text; };
+        _stepText.TextChanged += (_, _) => { if (!_loading && CurStep is { } s) s.Text = _stepText.Text; };
+        _stepNpc.ValueChanged += (_, _) => { if (!_loading && CurStep is { } s) { s.Npc = (int)_stepNpc.Value; RefreshStepText(); } };
+        _areaList.SelectedIndexChanged += (_, _) => { LoadArea(); ShowAreas(); };
+        for (int i = 0; i < 6; i++)
+        {
+            int k = i;
+            _areaNum[i].ValueChanged += (_, _) =>
+            {
+                if (_loading || CurArea is not { } a) return;
+                float v = (float)_areaNum[k].Value;
+                switch (k) { case 0: a.X0 = v; break; case 1: a.Y0 = v; break; case 2: a.Z0 = v; break; case 3: a.X1 = v; break; case 4: a.Y1 = v; break; default: a.Z1 = v; break; }
+                RefreshAreas(keepSelection: true);
+            };
+        }
+    }
+
+    string StepText(int i)
+    {
+        var s = _d.Steps[i];
+        string what = s.Kind == QuestStepKind.Talk
+            ? string.Format(Loc.T("qe.stepTalkLine", "Falar com {0}"), s.Npc > 0 ? _host.NameOf(s.Npc) ?? s.Npc.ToString() : "?")
+            : string.Format(Loc.T("qe.stepReachLine", "Ir até um lugar ({0} área(s))"), s.Areas.Count);
+        return $"{i + 1}. {what}" + (s.Name.Trim().Length > 0 ? $" — {s.Name.Trim()}" : "");
+    }
+
+    void RefreshStepText()
+    {
+        int i = _stepList.SelectedIndex;
+        if (i < 0 || i >= _d.Steps.Count) return;
+        _loading = true;
+        _stepList.Items[i] = StepText(i);
+        _loading = false;
+    }
+
+    void RefreshStepList(int select)
+    {
+        _loading = true;
+        _stepList.BeginUpdate();
+        _stepList.Items.Clear();
+        for (int i = 0; i < _d.Steps.Count; i++) _stepList.Items.Add(StepText(i));
+        _stepList.EndUpdate();
+        _loading = false;
+        _stepList.SelectedIndex = _d.Steps.Count == 0 ? -1 : Math.Clamp(select, 0, _d.Steps.Count - 1);
+        bool recado = QuestBuilder.IsRecado(_d);
+        _order.Enabled = _d.Steps.Count > 1;
+        _stepHint.Text = recado
+            ? Loc.T("qe.recadoHint", "Uma etapa só de falar com NPC: a quest é um recado (sem subquests) e esse NPC entrega o prêmio.")
+            : (QuestStepOrder)Math.Max(0, _order.SelectedIndex) == QuestStepOrder.InOrder && _d.Steps[^1].Kind == QuestStepKind.Talk
+                ? Loc.T("qe.stepsHintTalkLast", "O prêmio é entregue ao concluir a última etapa, falando com o NPC dela.")
+                : Loc.T("qe.stepsHintAuto", "O prêmio é dado sozinho quando a quest termina. Para entregar num NPC, ponha \"Falar com NPC\" por último, em ordem.");
+        LoadStep();
+    }
+
+    void LoadStep()
+    {
+        if (_loading) return;
+        var s = CurStep;
+        _loading = true;
+        _stepBox.Visible = s is not null;
+        if (s is not null)
+        {
+            _nameBox.Visible = !QuestBuilder.IsRecado(_d);   // recado: nome e descrição são os da quest
+            _talkBox.Visible = s.Kind == QuestStepKind.Talk;
+            _reachBox.Visible = s.Kind == QuestStepKind.Reach;
+            _stepName.Text = s.Name; _stepDesc.Text = s.Description; _stepText.Text = s.Text;
+            _stepNpc.Value = Math.Max(0, s.Npc);
+            _stepNpcName.Text = s.Npc <= 0 ? "" : _host.NameOf(s.Npc) ?? Loc.T("qe.unknown", "(não existe no elements.data)");
+        }
+        _loading = false;
+        RefreshAreas();
+    }
+
+    void AddStep(QuestStepKind kind)
+    {
+        _d.Steps.Add(new QuestStep { Kind = kind });
+        RefreshStepList(_d.Steps.Count - 1);
+        if (kind == QuestStepKind.Reach) ShowAreas();
+    }
+
+    void MoveStep(int by)
+    {
+        int i = _stepList.SelectedIndex, j = i + by;
+        if (i < 0 || j < 0 || j >= _d.Steps.Count) return;
+        (_d.Steps[i], _d.Steps[j]) = (_d.Steps[j], _d.Steps[i]);
+        RefreshStepList(j);
+    }
+
+    void RemoveStep()
+    {
+        if (CurStep is null) return;
+        if (_d.Steps.Count == 1) { MessageBox.Show(FindForm(), Loc.T("qe.lastStep", "A quest precisa de pelo menos uma etapa."), Loc.T("qe.stepSteps", "Etapas")); return; }
+        int i = _stepList.SelectedIndex;
+        _d.Steps.RemoveAt(i);
+        RefreshStepList(i);
+    }
+
+    void MarkArea()
+    {
+        if (CurStep is not { Kind: QuestStepKind.Reach } s) return;
+        int tag = _world.MapTag();
+        if (s.Areas.Count > 0 && s.MapTag != tag)
+        {
+            MessageBox.Show(FindForm(), Loc.T("qe.areaOtherMap", "As áreas desta etapa são de outro mapa. Todas as áreas de uma etapa precisam ser do mesmo mapa: crie outra etapa para este."), Loc.T("qe.areas", "Áreas (chegar em qualquer uma conclui)"));
+            return;
+        }
+        _title.Text = Loc.T("qe.areaPicking", "Arraste no chão para marcar a área (clique sem arrastar = 10 × 10 m; Esc cancela)…");
+        _world.PickArea(a =>
+        {
+            _title.Text = Loc.T("qe.titleNew", "Nova quest");
+            if (CurStep != s) return;
+            s.MapTag = tag; s.Areas.Add(a);
+            RefreshAreas(); RefreshStepText();
+            _areaList.Items[^1].Selected = true;
+        });
+    }
+
+    void RemoveArea()
+    {
+        if (CurStep is not { Kind: QuestStepKind.Reach } s || CurArea is not { } a) return;
+        s.Areas.Remove(a);
+        RefreshAreas(); RefreshStepText();
+    }
+
+    void RefreshAreas(bool keepSelection = false)
+    {
+        var s = CurStep;
+        int sel = _areaList.SelectedIndices.Count > 0 ? _areaList.SelectedIndices[0] : -1;
+        if (keepSelection && s is not null && sel >= 0 && sel < s.Areas.Count && sel < _areaList.Items.Count)
+        {
+            var a = s.Areas[sel];
+            _areaList.Items[sel].SubItems[1].Text = $"{a.X0:0} … {a.X1:0}"; _areaList.Items[sel].SubItems[2].Text = $"{a.Z0:0} … {a.Z1:0}"; _areaList.Items[sel].SubItems[3].Text = $"{a.Y0:0} … {a.Y1:0}";
+            ShowAreas();
+            return;
+        }
+        _areaList.BeginUpdate();
+        _areaList.Items.Clear();
+        if (s is { Kind: QuestStepKind.Reach })
+            for (int i = 0; i < s.Areas.Count; i++)
+            {
+                var a = s.Areas[i];
+                _areaList.Items.Add(new ListViewItem(new[] { (i + 1).ToString(), $"{a.X0:0} … {a.X1:0}", $"{a.Z0:0} … {a.Z1:0}", $"{a.Y0:0} … {a.Y1:0}" }));
+            }
+        _areaList.EndUpdate();
+        if (_areaList.Items.Count > 0) _areaList.Items[Math.Clamp(sel, 0, _areaList.Items.Count - 1)].Selected = true;
+        LoadArea();
+        ShowAreas();
+    }
+
+    void LoadArea()
+    {
+        var a = CurArea;
+        _loading = true;
+        var v = a is null ? new float[6] : new[] { a.X0, a.Y0, a.Z0, a.X1, a.Y1, a.Z1 };
+        for (int i = 0; i < 6; i++) { _areaNum[i].Enabled = a is not null; _areaNum[i].Value = (decimal)Math.Clamp(v[i], -100000, 100000); }
+        _loading = false;
+    }
+
+    /// <summary>Só as áreas desta quest no mapa aberto aparecem no mundo; as da etapa selecionada, mais fortes.</summary>
+    void ShowAreas()
+    {
+        int tag = _world.MapTag();
+        var list = new List<QuestArea>(); int sel = -1;
+        foreach (var s in _d.Steps.Where(s => s.Kind == QuestStepKind.Reach && (s.Areas.Count == 0 || s.MapTag == tag)))
+            foreach (var a in s.Areas)
+            {
+                if (a == CurArea) sel = list.Count;
+                list.Add(a);
+            }
+        _world.ShowAreas(list, sel);
     }
 
     /// <summary>"Adicionar requisito/prêmio": lista das opções da versão; cada escolha vira um bloco com os campos dela.</summary>
@@ -211,18 +484,22 @@ internal sealed class WorldQuestEditor : Panel
 
     void Load()
     {
-        _id.Value = Math.Max(1, _d.Id); _giver.Value = _d.Giver; _receiver.Value = _d.Receiver; _name.Text = _d.Name;
+        _id.Value = Math.Max(1, _d.Id); _giver.Value = _d.Giver; _name.Text = _d.Name;
+        _order.SelectedIndex = (int)_d.Order;
+        RefreshStepList(0);
         _minLv.Value = _d.MinLevel; _maxLv.Value = _d.MaxLevel;
         _giverName.Text = _d.Giver > 0 ? _host.NameOf(_d.Giver) ?? "" : "";
     }
 
     QuestDraft Collect()
     {
-        _d.Id = (int)_id.Value; _d.Name = _name.Text.Trim(); _d.Giver = (int)_giver.Value; _d.Receiver = (int)_receiver.Value;
+        _d.Id = (int)_id.Value; _d.Name = _name.Text.Trim(); _d.Giver = (int)_giver.Value;
+        _d.Order = (QuestStepOrder)Math.Max(0, _order.SelectedIndex);
+        foreach (var s in _d.Steps) { s.Name = s.Name.Trim(); s.Description = s.Description.Trim(); s.Text = s.Text.Trim(); }
         _d.MinLevel = (int)_minLv.Value; _d.MaxLevel = (int)_maxLv.Value;
         _d.Gold = (long)_gold.Value; _d.Exp = (long)_exp.Value; _d.Sp = (long)_sp.Value; _d.Reputation = (long)_rep.Value;
         _d.Items = _items.Items.Cast<ListViewItem>().Select(i => ((int, int))i.Tag!).ToList();
-        _d.Description = _desc.Text.Trim(); _d.OfferText = _offer.Text.Trim(); _d.RewardText = _reward.Text.Trim();
+        _d.Description = _desc.Text.Trim(); _d.OfferText = _offer.Text.Trim();
         _d.Choices = _choices.Select(c => c.Choice).ToList();
         _d.RandomItem = _howItems.SelectedIndex == 1;
         return _d;

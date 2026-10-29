@@ -2,6 +2,12 @@ using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
 
+/// <summary>
+/// O que o painel de criação pede ao Mundo 3D: escolher NPC clicando, marcar área arrastando no chão, mostrar as áreas da quest
+/// (com a selecionada destacada; -1 = nenhuma) e a tag do mapa aberto (0 = não sei).
+/// </summary>
+internal sealed record QuestWorld(Action<Action<int>> PickNpc, Action<Action<QuestArea>> PickArea, Action<IReadOnlyList<QuestArea>, int> ShowAreas, Func<int> MapTag);
+
 /// <summary>O que o Mundo 3D pede ao editor para criar e ligar quests (elements + tasks carregados, com desfazer).</summary>
 internal interface IQuestHost
 {

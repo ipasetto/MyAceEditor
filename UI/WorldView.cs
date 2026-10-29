@@ -45,6 +45,11 @@ internal sealed class WorldView : Form
     IQuestHost? _host;
     WorldQuestEditor? _editor;
     Action<int>? _pickNpc;   // painel de criação esperando um clique num NPC
+    Action<QuestArea>? _pickArea;              // painel de criação esperando uma área arrastada no chão
+    Vector3? _areaA, _areaB;                   // área sendo arrastada (coordenadas do jogo)
+    IReadOnlyList<QuestArea> _areas = Array.Empty<QuestArea>(); int _areaSel = -1;   // áreas da quest em edição
+    /// <summary>Tag do mapa aberto (gs.conf / instance.txt; mundo = 1); 0 = não sei.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public int MapTag { get; set; }
     /// <summary>Criar quest e dar quest existente (botões da barra do NPC).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)]
     internal IQuestHost? QuestHost
@@ -157,6 +162,7 @@ internal sealed class WorldView : Form
         {
             _gl.Focus(); _down = _drag = e.Location;
             if (e.Button == MouseButtons.Left && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
+            if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
             // esquerdo em cima de um ponto (na tela): arrasta o ponto; no vazio ou botão do meio: gira a câmera
             if (e.Button == MouseButtons.Left && PickScreen(e.Location) is { } mk) { _movingTag = mk.Tag; _movePos = null; return; }
             if (e.Button is MouseButtons.Left or MouseButtons.Middle) _dragging = true;
@@ -164,6 +170,14 @@ internal sealed class WorldView : Form
         _gl.MouseUp += (_, e) =>
         {
             _dragging = false;
+            if (_areaA is { } a && _pickArea is { } done)
+            {
+                var area = AreaOf(a, _areaB ?? a);
+                _areaA = _areaB = null; _pickArea = null;
+                _status.Text = string.Format(Loc.T("qe.areaDone", "Área marcada: {0:0} × {1:0} m, altura {2:0} a {3:0}."), area.X1 - area.X0, area.Z1 - area.Z0, area.Y0, area.Y1);
+                done(area); _gl.Invalidate();
+                return;
+            }
             if (_movingTag is { } tag)
             {
                 bool moved = _movePos is not null && (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4);
@@ -194,6 +208,7 @@ internal sealed class WorldView : Form
         };
         _gl.MouseMove += (_, e) =>
         {
+            if (_areaA is not null) { if (Ray(e.Location) is { } b) _areaB = b; _gl.Invalidate(); return; }
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; _gl.Invalidate(); return; }
             if (_movingTag is not null)
             {
@@ -228,6 +243,7 @@ internal sealed class WorldView : Form
     {
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (e.KeyCode == Keys.Escape && _pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return; }
+        if (e.KeyCode == Keys.Escape && _pickArea is not null) { _pickArea = null; _areaA = _areaB = null; _status.Text = Loc.T("qe.areaCancel", "Marcação de área cancelada."); _gl.Invalidate(); return; }
         if (e.Control)
         {
             switch (e.KeyCode)
@@ -408,6 +424,7 @@ internal sealed class WorldView : Form
         GL.Begin(PrimitiveType.Points);
         foreach (var m in noModel) { var mp = PosOf(m); Col(m.Tag == sel ? Color.Yellow : m.Color); GL.Vertex3(Gl(mp.X, mp.Y + 1.2f, mp.Z)); }
         GL.End();
+        DrawAreas();
 
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
@@ -437,6 +454,50 @@ internal sealed class WorldView : Form
         float y = m.Y;
         if (m.OnGround && _t.HeightAt(m.X, m.Z) is { } h && Math.Abs(h - m.Y) < 3) y = h;
         return new Vector3(m.X, y, m.Z);
+    }
+
+    /// <summary>
+    /// Áreas da quest em edição (caixas translúcidas; a selecionada mais forte) e a que está sendo arrastada. Altura "qualquer"
+    /// (±9999) é desenhada só perto da câmera.
+    /// </summary>
+    void DrawAreas()
+    {
+        var list = _areas.Select((a, i) => (a, i == _areaSel)).ToList();
+        if (_areaA is { } a0) list.Add((AreaOf(a0, _areaB ?? a0), true));
+        if (list.Count == 0) return;
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
+        foreach (var (r, strong) in list)
+        {
+            float y0 = MathF.Max(r.Y0, _cam.Y - 400), y1 = MathF.Min(r.Y1, _cam.Y + 400);
+            if (y1 <= y0) continue;
+            var c = new[] { Gl(r.X0, y0, r.Z0), Gl(r.X1, y0, r.Z0), Gl(r.X1, y0, r.Z1), Gl(r.X0, y0, r.Z1), Gl(r.X0, y1, r.Z0), Gl(r.X1, y1, r.Z0), Gl(r.X1, y1, r.Z1), Gl(r.X0, y1, r.Z1) };
+            GL.Color4(1f, 0.78f, 0.25f, strong ? 0.28f : 0.14f);
+            GL.Begin(PrimitiveType.Quads);
+            foreach (var f in new[] { 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7 }) GL.Vertex3(c[f]);
+            GL.End();
+            GL.LineWidth(strong ? 2.5f : 1.5f);
+            GL.Color4(1f, 0.82f, 0.3f, strong ? 1f : 0.7f);
+            GL.Begin(PrimitiveType.Lines);
+            foreach (var f in new[] { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 }) GL.Vertex3(c[f]);
+            GL.End();
+        }
+        GL.LineWidth(1); GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color3(1f, 1f, 1f);
+    }
+
+    /// <summary>
+    /// Retângulo arrastado no chão → caixa da quest (coordenadas do jogo). Clique sem arrastar = 10 × 10 m. Altura: do ponto
+    /// mais baixo do chão no retângulo (terreno ou piso clicado) − 10 m até o mais alto + 50 m (montaria voando baixo conta).
+    /// </summary>
+    QuestArea AreaOf(Vector3 a, Vector3 b)
+    {
+        float x0 = MathF.Min(a.X, b.X), x1 = MathF.Max(a.X, b.X), z0 = MathF.Min(a.Z, b.Z), z1 = MathF.Max(a.Z, b.Z);
+        if (x1 - x0 < 2 && z1 - z0 < 2) { x0 = a.X - 5; x1 = a.X + 5; z0 = a.Z - 5; z1 = a.Z + 5; }
+        float lo = MathF.Min(a.Y, b.Y), hi = MathF.Max(a.Y, b.Y);
+        for (int i = 0; i <= 8; i++)
+            for (int j = 0; j <= 8; j++)
+                if (_t.HeightAt(x0 + (x1 - x0) * i / 8, z0 + (z1 - z0) * j / 8) is float h) { lo = MathF.Min(lo, h); hi = MathF.Max(hi, h); }
+        static float R(float v) => MathF.Round(v, 1);
+        return new QuestArea { X0 = R(x0), Z0 = R(z0), X1 = R(x1), Z1 = R(z1), Y0 = R(lo - 10), Y1 = R(hi + 50) };
     }
 
     void DrawWater()
@@ -830,8 +891,13 @@ internal sealed class WorldView : Form
         if (_host is null) return;
         if (_editor is not null) { _editor.Focus(); return; }
         if (_host.NewDraft(npcId, out var why) is not { } draft) { MessageBox.Show(this, why, Loc.T("qe.cantCreate", "Não dá para criar quest agora"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-        var ed = _editor = new WorldQuestEditor(_host, draft, act => { _pickNpc = act; _status.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)"); _gl.Focus(); });
-        void Close() { _pickNpc = null; Controls.Remove(ed); ed.Dispose(); _editor = null; _gl.Focus(); }
+        var world = new QuestWorld(
+            act => { _pickNpc = act; _pickArea = null; _status.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)"); _gl.Focus(); },
+            act => { _pickArea = act; _pickNpc = null; _status.Text = Loc.T("qe.areaPicking", "Arraste no chão para marcar a área (clique sem arrastar = 10 × 10 m; Esc cancela)…"); _gl.Focus(); },
+            (areas, sel) => { _areas = areas; _areaSel = sel; _gl.Invalidate(); },
+            () => MapTag);
+        var ed = _editor = new WorldQuestEditor(_host, draft, world);
+        void Close() { _pickNpc = null; _pickArea = null; _areaA = _areaB = null; _areas = Array.Empty<QuestArea>(); Controls.Remove(ed); ed.Dispose(); _editor = null; _gl.Focus(); _gl.Invalidate(); }
         ed.Created += id =>
         {
             Close();

@@ -2598,9 +2598,23 @@ public sealed class EditorForm : Form
             if (f._tasks is not { } t) return new() { Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.") };
             var e = QuestBuilder.Validate(t, d, IsNpc, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null);
             // os vínculos também têm que caber antes de aplicar qualquer coisa (nada pela metade)
-            if (IsNpc(d.Giver) && f.AddQuestToService(f.CreatureItem(d.Giver)!.Value.Item, d.Id, give: true, dryRun: true) is { } g) e.Add(g);
-            if (IsNpc(d.Receiver) && f.AddQuestToService(f.CreatureItem(d.Receiver)!.Value.Item, d.Id, give: false, dryRun: true) is { } r) e.Add(r);
+            foreach (var (npc, quest, give) in QuestLinks(d))
+                if (IsNpc(npc) && f.AddQuestToService(f.CreatureItem(npc)!.Value.Item, quest, give, dryRun: true) is { } g) e.Add(g);
             return e;
+        }
+        /// <summary>
+        /// Serviços de NPC que a quest precisa (como nos dados reais, --tasks-svc): o NPC que dá guarda o ID da principal; no
+        /// recado o NPC que recebe guarda o mesmo ID; numa etapa "falar com NPC" o NPC guarda o ID da etapa (subquest).
+        /// </summary>
+        public static List<(int Npc, int Quest, bool Give)> QuestLinks(QuestDraft d)
+        {
+            QuestBuilder.Normalize(d);
+            var l = new List<(int, int, bool)> { (d.Giver, d.Id, true) };
+            if (QuestBuilder.IsRecado(d)) l.Add((d.Receiver, d.Id, false));
+            else
+                for (int i = 0; i < d.Steps.Count; i++)
+                    if (d.Steps[i].Kind == QuestStepKind.Talk) l.Add((d.Steps[i].Npc, d.Id + 1 + i, false));
+            return l;
         }
         public string Summary(QuestDraft d) => f.QuestSummary(d);
         public string? Commit(QuestDraft d) => f.CommitQuestDraft(d);
@@ -2641,9 +2655,29 @@ public sealed class EditorForm : Form
     {
         string N(int id) => id <= 0 ? "—" : $"{new QuestHostImpl(this).NameOf(id) ?? "?"} ({id})";
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine(string.Format(Loc.T("qb.sumTitle", "Quest {0} — \"{1}\" (recado)"), d.Id, d.Name));
+        QuestBuilder.Normalize(d);
+        bool recado = QuestBuilder.IsRecado(d);
+        sb.AppendLine(recado ? string.Format(Loc.T("qb.sumTitle", "Quest {0} — \"{1}\" (recado)"), d.Id, d.Name) : string.Format(Loc.T("qb.sumTitleSteps", "Quest {0} — \"{1}\" ({2} etapas)"), d.Id, d.Name, d.Steps.Count));
         sb.AppendLine(string.Format(Loc.T("qb.sumGiver", "Dada por: {0}"), N(d.Giver)));
-        sb.AppendLine(string.Format(Loc.T("qb.sumReceiver", "Entregue a: {0}"), N(d.Receiver)));
+        if (recado) sb.AppendLine(string.Format(Loc.T("qb.sumReceiver", "Entregue a: {0}"), N(d.Receiver)));
+        else
+        {
+            sb.AppendLine(d.Order switch
+            {
+                QuestStepOrder.InOrder => Loc.T("qb.sumInOrder", "Etapas em ordem (uma depois da outra):"),
+                QuestStepOrder.AnyOrder => Loc.T("qb.sumAnyOrder", "Etapas em qualquer ordem (todas precisam ser feitas):"),
+                _ => Loc.T("qb.sumAnyOne", "Basta uma das etapas:"),
+            });
+            for (int i = 0; i < d.Steps.Count; i++)
+            {
+                var s = d.Steps[i];
+                sb.AppendLine(s.Kind == QuestStepKind.Talk
+                    ? string.Format(Loc.T("qb.sumStepTalk", "  {0}. [{1}] \"{2}\": falar com {3}"), i + 1, d.Id + 1 + i, s.Name, N(s.Npc))
+                    : string.Format(Loc.T("qb.sumStepReach", "  {0}. [{1}] \"{2}\": chegar a uma de {3} área(s) no mapa {4}"), i + 1, d.Id + 1 + i, s.Name, s.Areas.Count, s.MapTag));
+            }
+            if (d.Steps.Count > 0 && d.Steps[^1].Kind != QuestStepKind.Talk || d.Order != QuestStepOrder.InOrder)
+                sb.AppendLine(Loc.T("qb.sumAutoAward", "  O prêmio é dado assim que a quest termina (sem voltar a um NPC), a não ser pela etapa de falar com NPC."));
+        }
         sb.AppendLine(d.MaxLevel > 0 ? string.Format(Loc.T("qb.sumLevels", "Nível: {0} a {1}"), d.MinLevel, d.MaxLevel) : string.Format(Loc.T("qb.sumLevelMin", "Nível: a partir de {0}"), d.MinLevel));
         sb.AppendLine(string.Format(Loc.T("qb.sumAward", "Prêmio: {0:N0} de ouro, {1:N0} de experiência, {2:N0} de espírito, {3:N0} de reputação"), d.Gold, d.Exp, d.Sp, d.Reputation));
         if (d.Items.Count > 0) sb.AppendLine(d.RandomItem ? Loc.T("qb.sumOneItem", "Itens (ganha um, sorteado):") : Loc.T("qb.sumAllItems", "Itens (ganha todos):"));
@@ -2667,8 +2701,10 @@ public sealed class EditorForm : Form
         }
         sb.AppendLine();
         sb.AppendLine(Loc.T("qb.sumLinks", "Ao concluir:"));
-        sb.AppendLine(string.Format(Loc.T("qb.sumLinkGive", "  • a quest entra no serviço de dar quests de {0}"), N(d.Giver)));
-        sb.AppendLine(string.Format(Loc.T("qb.sumLinkTake", "  • e no serviço de receber quests de {0}"), N(d.Receiver)));
+        foreach (var (npc, quest, give) in QuestHostImpl.QuestLinks(d))
+            sb.AppendLine(give ? string.Format(Loc.T("qb.sumLinkGive", "  • a quest entra no serviço de dar quests de {0}"), N(npc))
+                : quest == d.Id ? string.Format(Loc.T("qb.sumLinkTake", "  • e no serviço de receber quests de {0}"), N(npc))
+                : string.Format(Loc.T("qb.sumLinkStep", "  • a etapa {0} entra no serviço de receber quests de {1}"), quest, N(npc)));
         sb.AppendLine(Loc.T("qb.sumSave", "Nada é gravado até você clicar em Salvar (só o cliente; o servidor só com \"Salvar e enviar ao servidor\"). Ctrl+Z desfaz."));
         return sb.ToString();
     }
@@ -2679,7 +2715,8 @@ public sealed class EditorForm : Form
         var host = new QuestHostImpl(this);
         var errors = host.Validate(d);
         if (errors.Count > 0) return string.Join("\n", errors);
-        if (CreatureItem(d.Giver) is not { } giver || CreatureItem(d.Receiver) is not { } receiver) return Loc.T("qb.noNpc", "NPC não encontrado no elements.data.");
+        var links = QuestHostImpl.QuestLinks(d);
+        if (links.Any(l => CreatureItem(l.Npc) is null)) return Loc.T("qb.noNpc", "NPC não encontrado no elements.data.");
         var label = string.Format(Loc.T("qb.histCreate", "Criar quest {0}"), d.Id);
         string? err = null;
         try
@@ -2690,7 +2727,8 @@ public sealed class EditorForm : Form
             _edits.Custom(label,
                 () => { made = QuestBuilder.Build(t, d); MarkTasksDirty(label); },
                 () => { if (made is not null) t.DeleteRoot(made); MarkTasksDirty(label); });
-            err = AddQuestToService(giver.Item, d.Id, give: true) ?? AddQuestToService(receiver.Item, d.Id, give: false);
+            foreach (var (npc, quest, give) in links)
+                if ((err = AddQuestToService(CreatureItem(npc)!.Value.Item, quest, give)) is not null) break;
         }
         if (err is not null) _edits.Undo();   // algo não coube: desfaz a quest e o que já foi ligado
         RefreshQuests();
