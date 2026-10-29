@@ -35,6 +35,7 @@
 
 ## QUESTS NO MUNDO 3D (spec docs/QUESTS-3D.md)
 [x] etapa 1: tasks.data completo em todas as versoes (TaskLayout) | [>] etapa 2: telas no Mundo 3D
+[ ] depois da 1a etapa das quests: arvores, grama e objetos no Mundo 3D (.ecwld/.spt) em todas as versoes (usuario 29/10)
 
 ## FASE 4 — engine
 [ ] corrigir automaticamente o par (exportar loja/elements/tasks p/ os 2 lados)
