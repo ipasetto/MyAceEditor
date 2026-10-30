@@ -585,7 +585,7 @@ internal static class Program
             foreach (var a in scene.Areas.Take(6))
                 diag.AppendLine(FormattableString.Invariant($"área {(a.Default ? "padrão" : "caixa")} ({a.Pos[0]:0},{a.Pos[2]:0}): neblina {a.FogStart:0}..{a.FogEnd:0} {a.FogColor:X8} | noite {a.FogStartNight:0}..{a.FogEndNight:0} {a.FogColorNight:X8} | luz dir {a.LightDir[0]:0.00},{a.LightDir[1]:0.00},{a.LightDir[2]:0.00} amb {a.Ambient:X8} sol {a.SunColor:X8}"));
             foreach (var c in cams)
-                foreach (var tr in scene.Trees.OrderBy(tr => c.Pos.Z == 0 ? MathF.Abs(tr.X - c.Pos.X) : (tr.X - c.Pos.X) * (tr.X - c.Pos.X) + (tr.Z - c.Pos.Z) * (tr.Z - c.Pos.Z)).Take(c.Pos.Z == 0 ? 25 : 3))
+                foreach (var tr in scene.Trees.OrderBy(tr => c.Pos.Z == 0 ? MathF.Abs(tr.X - c.Pos.X) : (tr.X - c.Pos.X) * (tr.X - c.Pos.X) + (tr.Z - c.Pos.Z) * (tr.Z - c.Pos.Z)).Take(c.Pos.Z == 0 ? 25 : 8))
                     diag.AppendLine(FormattableString.Invariant($"{c.Name ?? $"{c.Pos.X:0},{c.Pos.Z:0}"}: árvore a {MathF.Sqrt((tr.X - c.Pos.X) * (tr.X - c.Pos.X) + (tr.Z - c.Pos.Z) * (tr.Z - c.Pos.Z)):0} m ({tr.X:0},{tr.Y:0},{tr.Z:0}) {scene.TreeTypes[tr.Type].Spt}"));
         }
         File.WriteAllText(Path.Combine(outDir, "world-shot.txt"), diag.ToString());

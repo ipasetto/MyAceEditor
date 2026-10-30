@@ -55,15 +55,29 @@ internal sealed class WorldGrass : IDisposable
         if (e is null || MoxModel.Read(_pck.Read(e)) is not { Meshes.Count: > 0 } mox) return null;
         var mesh = mox.Meshes[0];
         var texPath = Path.Combine(Path.GetDirectoryName(e.Path) ?? "", "textures", mesh.Texture).ToLowerInvariant();
+        // 16 .mox do 1.5.5 citam uma textura que só existe em outra pasta (2013\高灌木03 → 蕨类、灌木\textures): pelo nome
+        if (_pck.Find(texPath) is null && TextureByName(mesh.Texture) is { } other) texPath = other;
+        int tex = Texture(texPath);
+        if (tex == 0) { AppLog.Info($"grama: textura não achada {texPath} ({gt.Mox})"); return null; }   // sem textura = triângulo branco: não desenha
         k = new Kind
         {
-            Tex = Texture(texPath), Pos = mesh.Pos, Uv = mesh.Uv, Index = mesh.Index,
+            Tex = tex, Pos = mesh.Pos, Uv = mesh.Uv, Index = mesh.Index,
             Size = gt.Size > 0 ? gt.Size : 1, Var = Math.Clamp(gt.SizeVar, 0, 1),
             Range = Math.Clamp(gt.Sight > 0 ? gt.Sight : 60, 15, MaxRange),
             AlphaRef = gt.AlphaBlend ? 0.33f : Math.Clamp(gt.AlphaRef / 255f, 0.2f, 0.9f),   // sem mistura: recorte firme
         };
         _kinds[type] = k;
         return k;
+    }
+
+    Dictionary<string, string>? _byName;
+
+    string? TextureByName(string file)
+    {
+        _byName ??= _pck!.Entries.Where(x => x.Path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(x => Path.GetFileName(x.Path), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Path, StringComparer.OrdinalIgnoreCase);
+        return _byName.TryGetValue(Path.GetFileName(file), out var path) ? path : null;
     }
 
     int Texture(string path)
