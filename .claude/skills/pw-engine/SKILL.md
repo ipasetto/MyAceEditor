@@ -30,6 +30,7 @@ Caminhos relativos a raiz do repositorio MyAceEditor:
 - Repositorio publico: nunca gravar senhas, chaves de rede (isec/osec), dados pessoais ou bytes de patch nas KBs.
 
 ## Protocolo de atualizacao (OBRIGATORIO ao descobrir algo)
+- REGRA DO USUARIO: TODA informacao nova sobre QUALQUER estrutura do PW (formato, campo, struct, protocolo, comando, regra do gs/cliente, config, arquivo) entra na KB na mesma sessao, mesmo pequena e mesmo que o assunto da tarefa seja outro. Na duvida se ja existe: Grep na KB; se nao achar, grave.
 - Fato do JOGO -> PW-KB (secao certa). Fato da ENGINE/codigo -> ENGINE-KB.
 - Fato de GM (comando, permissao, caminho console/Ctrl+G/gdeliveryd, teste no jogo) -> SEMPRE em PW-KB §S31, mesmo pequeno e mesmo que o assunto seja outro (regra do usuario). Antes de mexer no painel do GM, leia §S31 + docs/GM-PAINEL.md.
 - Toda linha com tag conf ([C][A][B][F][M][W][I][?], e [T]=testado no nosso codigo).

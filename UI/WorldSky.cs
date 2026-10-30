@@ -90,67 +90,93 @@ internal sealed class WorldSky : IDisposable
         return (px, bmp.Width, bmp.Height);
     }
 
-    const float R = 1000, CapFrom = 30, BandBottom = -25;   // raio, início do topo e fim da faixa (graus de elevação)
-    const int Seg = 48;
+    // Geometria do A3DSkySphere (Angelica 2.2, a mesma API do cliente 1.5.3; só estudo): raio 800, 6 segmentos.
+    //   lados: cilindro de raio R com 5 alturas h·{1, .5, .167, 0, -.27} (h = R·π/4); a de cima é transparente (funde no
+    //     topo). Cada textura (frente e trás, a de trás girada 180°) cobre meia volta em dois quartos: a metade de CIMA da
+    //     imagem é o quarto de 90° a 180°, a metade de BAIXO (de ponta-cabeça) o de 0° a 90°; u vai de 1 a 0 em cada quarto.
+    //   topo: calota de 17,5° baixada até a borda ficar na altura da câmera; textura plana (x/r, z/r) repetida 8×.
+    const float R = 800, H = R * 0.7854f, Pitch = 17.5f * MathF.PI / 180, Tile = 8;
+    const int Seg = 6;
+    static readonly float[] Heights = { 1f, 0.5f, 0.167f, 0f, -0.27f };
 
-    /// <summary>Desenha a cúpula em volta da câmera (coordenadas OpenGL: Z do jogo invertido). false = sem céu.</summary>
+    /// <summary>Desenha o céu em volta da câmera (coordenadas OpenGL: Z do jogo invertido). false = sem céu.</summary>
     public bool Draw(Vector3 camGl)
     {
         if (!HasSky) return false;
         _cur = AreaAt(new Vector3(camGl.X, camGl.Y, -camGl.Z)) ?? _cur;
         if (_cur is null) return false;
-        int cap = Texture(_cur.Sky[0]), side1 = Texture(_cur.Sky.Length > 1 ? _cur.Sky[1] : ""), side2 = Texture(_cur.Sky.Length > 2 ? _cur.Sky[2] : "");
-        if (cap == 0 && side1 == 0 && side2 == 0) return false;
+        int cap = Texture(_cur.Sky[0]), front = Texture(_cur.Sky.Length > 1 ? _cur.Sky[1] : ""), back = Texture(_cur.Sky.Length > 2 ? _cur.Sky[2] : "");
+        if (cap == 0 && front == 0 && back == 0) return false;
 
         GL.Disable(EnableCap.DepthTest); GL.DepthMask(false); GL.Disable(EnableCap.Fog); GL.Disable(EnableCap.Lighting);
-        GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.AlphaTest); GL.Disable(EnableCap.Blend);
+        GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.AlphaTest);
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         GL.Enable(EnableCap.Texture2D);
         GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
-        GL.Color4(1f, 1f, 1f, 1f);
         GL.PushMatrix();
         GL.Translate(camGl.X, camGl.Y, camGl.Z);
-        static Vector3 P(float azDeg, float elDeg)
-        {
-            float az = MathHelper.DegreesToRadians(azDeg), el = MathHelper.DegreesToRadians(elDeg);
-            return new Vector3(MathF.Cos(el) * MathF.Cos(az) * R, MathF.Sin(el) * R, MathF.Cos(el) * MathF.Sin(az) * R);
-        }
-        // lados: cada textura cobre meia volta; v = 0 no alto (início do topo), 1 embaixo
-        for (int half = 0; half < 2; half++)
-        {
-            int t = half == 0 ? side1 : side2;
-            if (t == 0) continue;
-            GL.BindTexture(TextureTarget.Texture2D, t);
-            GL.Begin(PrimitiveType.QuadStrip);
-            for (int i = 0; i <= Seg / 2; i++)
-            {
-                float az = half * 180 + i * 360f / Seg, u = i / (Seg / 2f);
-                GL.TexCoord2(u, 0f); GL.Vertex3(P(az, CapFrom));
-                GL.TexCoord2(u, 1f); GL.Vertex3(P(az, BandBottom));
-            }
-            GL.End();
-        }
-        // topo: projeção de cima (o disco do topo vira o quadrado da textura)
+        static void V(float x, float y, float z) => GL.Vertex3(x, y, -z);   // ponto do jogo -> OpenGL
+
+        // topo primeiro (os lados se misturam por cima dele)
         if (cap != 0)
         {
             GL.BindTexture(TextureTarget.Texture2D, cap);
-            float rimR = MathF.Cos(MathHelper.DegreesToRadians(CapFrom)) * R;
-            for (int ring = 0; ring < 6; ring++)
+            Wrap(TextureWrapMode.Repeat);
+            GL.Color4(1f, 1f, 1f, 1f);
+            float r = R * MathF.Sin(Pitch), drop = R * MathF.Cos(Pitch);
+            void C(float pitch, float az)
             {
-                float e0 = CapFrom + (90 - CapFrom) * ring / 6f, e1 = CapFrom + (90 - CapFrom) * (ring + 1) / 6f;
+                float x = R * MathF.Cos(az) * MathF.Cos(pitch), z = R * MathF.Sin(az) * MathF.Cos(pitch);
+                GL.TexCoord2((x / r + 1) * 0.5f * Tile, (z / r + 1) * 0.5f * Tile);
+                V(x, R * MathF.Sin(pitch) - drop, z);
+            }
+            int n = 4 * Seg;
+            for (int ring = 0; ring < Seg; ring++)
+            {
+                float p0 = MathF.PI / 2 - ring * Pitch / Seg, p1 = MathF.PI / 2 - (ring + 1) * Pitch / Seg;
                 GL.Begin(PrimitiveType.QuadStrip);
-                for (int i = 0; i <= Seg; i++)
-                {
-                    float az = i * 360f / Seg;
-                    var a = P(az, e0); var b = P(az, e1);
-                    GL.TexCoord2(0.5f + a.X / rimR * 0.5f, 0.5f + a.Z / rimR * 0.5f); GL.Vertex3(a);
-                    GL.TexCoord2(0.5f + b.X / rimR * 0.5f, 0.5f + b.Z / rimR * 0.5f); GL.Vertex3(b);
-                }
+                for (int i = 0; i <= n; i++) { float az = MathF.PI * 2 * i / n; C(p0, az); C(p1, az); }
                 GL.End();
             }
         }
+        // lados: frente (z > 0 no jogo) e trás (girada 180°)
+        for (int half = 0; half < 2; half++)
+        {
+            int t = half == 0 ? front : back;
+            if (t == 0) continue;
+            GL.BindTexture(TextureTarget.Texture2D, t);
+            Wrap(TextureWrapMode.ClampToEdge);
+            float s = half == 0 ? 1 : -1;
+            for (int quarter = 0; quarter < 2; quarter++)   // 0: de 90° a 180° (metade de cima), 1: de 0° a 90° (metade de baixo)
+                for (int j = 0; j < Heights.Length - 1; j++)
+                {
+                    GL.Begin(PrimitiveType.QuadStrip);
+                    for (int i = 0; i <= Seg; i++)
+                    {
+                        float a = (quarter == 0 ? MathF.PI / 2 : 0) + MathF.PI / 2 * i / Seg, u = 1f - (float)i / Seg;
+                        for (int k = j; k <= j + 1; k++)
+                        {
+                            float y = H * Heights[k];
+                            float v = k == Heights.Length - 1 ? 0.5f : quarter == 0 ? (1 - y / H) * 0.45f + 0.05f : (0.5f + y / H * 0.5f) * 0.9f + 0.05f;
+                            GL.Color4(1f, 1f, 1f, k == 0 ? 0f : 1f);
+                            GL.TexCoord2(u, v);
+                            V(s * R * MathF.Cos(a), y, s * R * MathF.Sin(a));
+                        }
+                    }
+                    GL.End();
+                }
+        }
         GL.PopMatrix();
+        GL.Color4(1f, 1f, 1f, 1f);
+        GL.Disable(EnableCap.Blend);
         GL.Enable(EnableCap.DepthTest); GL.DepthMask(true); GL.Enable(EnableCap.Fog);
         return true;
+    }
+
+    static void Wrap(TextureWrapMode m)
+    {
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)m);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)m);
     }
 
     public void Dispose()

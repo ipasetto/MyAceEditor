@@ -134,7 +134,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] b31..b35 usam o terreno b30 (MapTags); a19 cores das construcoes (cor de dia); catapultas/bandeiras de pe (pele na pose padrao)
 - [x] seletor de mapa so troca ao confirmar; rodape com a coordenada do jogo
 - [x] aba Servidor (WSL): instalar, iniciar, parar, estado, conta, enviar arquivos e reiniciar
-- [x] instalacao testada de verdade (25/10): servidor no ar, conta igor/123 GM
+- [x] instalacao testada de verdade (25/10): servidor no ar com uma conta GM de teste
 - [ ] entrar no jogo pelo servidor Local (usuario)
 - [ ] instancias no servidor local (hoje sobe so gs01, como o start.sh do pacote)
 - [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp
@@ -146,7 +146,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] texturas .tga nas construcoes; superficie .sdr sem textura nao e desenhada (domos da a33)
 - [x] agua do cliente so nas celulas da mascara
 - [x] a26 planos azuis, a17 faixa marrom, a23 paredes marrons esticadas = pecas SO DE COLISAO (.bmd v0x80000001 com bCollideOnly = 1; o jogo nao desenha). Agora puladas; --lit-list lista essas pecas por mapa
-- [ ] a33: ceu roxo (perguntar se e assim no jogo); a23: plano verde liso no alto a direita (conferir)
+- [x] ceu = geometria exata do A3DSkySphere (Angelica2.2; PW-KB §ecbsd). a33 roxa = a propria textura [ ] a33 conferir com o jogo; a23: plano verde liso no alto a direita (conferir)
 - [x] tetos (a35, a24, a27) = CEU da area: WorldSky le as caixas de area do .ecbsd (ECBSDFILEBOXAREA11 + 6 textos de ceu) e desenha a cupula (topo + 2 metades) com textures\sky\...; area da camera = caixa que a contem, senao a padrao mais perto. So dia. a15: mancha clara pequena na borda
 - [x] texturas .bmp/.jpg/.png nas construcoes (a35: e\4ad.bmp)
 - [ ] a21 arvores; bambu deitado (angulo do nivel 1 77..130 tomado a partir do eixo do pai). Pista (30/10): o nivel 0 do bambu tem angulo +90 e o das outras arvores -90; no SpeedTreeRT (FUN_100056d0) cada galho, tronco incluso, gira pelo proprio angulo no inicio (local_60). So virar o tronco para baixo nao bastou (colmos ainda 50..103 graus do alto): falta ler como o angulo e a gravidade negativa (-1) entram ali
