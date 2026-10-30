@@ -132,13 +132,16 @@ internal sealed class WorldModels : IDisposable
     internal static PckEntry? FindTexture(PckArchive pck, string dir, string name, ref Dictionary<string, PckEntry>? byName)
     {
         var file = Path.GetFileName(name).ToLowerInvariant();
-        var e = pck.Find(Path.Combine(dir, file)) ?? pck.Find(Path.Combine(dir, "textures", file));
+        var dds = Path.ChangeExtension(file, ".dds");   // o .ski pode citar .tga/.bmp e o pacote ter só o .dds
+        var e = pck.Find(Path.Combine(dir, file)) ?? pck.Find(Path.Combine(dir, "textures", file))
+            ?? pck.Find(Path.Combine(dir, dds)) ?? pck.Find(Path.Combine(dir, "textures", dds));
         if (e is null)
         {
             byName ??= pck.Entries.Where(x => x.Path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
-                .GroupBy(x => Path.GetFileName(x.Path), StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-            byName.TryGetValue(file, out e);
+                .GroupBy(x => Path.GetFileNameWithoutExtension(x.Path), StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            byName.TryGetValue(Path.GetFileNameWithoutExtension(file), out e);
         }
+        if (e is null) AppLog.Info($"Mundo 3D: textura do modelo não achada: {Path.Combine(dir, name)}");
         return e;
     }
 

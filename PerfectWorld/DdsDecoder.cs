@@ -19,7 +19,8 @@ public static class DdsDecoder
             if (a < 24) zero++; else if (a > 232) full++; else mid++;
         }
         int n = zero + full + mid;
-        return n > 0 && zero > n / 100 && mid < n / 8;
+        // folhagem com borda suave (árvores feitas de cartões nos .bmd): muito fundo transparente e meios-tons só na borda
+        return n > 0 && (zero > n / 100 && mid < n / 8 || zero > n / 4 && mid < n / 3);
     }
 
     /// <summary>

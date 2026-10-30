@@ -60,7 +60,7 @@ internal sealed class WorldGrass : IDisposable
             Tex = Texture(texPath), Pos = mesh.Pos, Uv = mesh.Uv, Index = mesh.Index,
             Size = gt.Size > 0 ? gt.Size : 1, Var = Math.Clamp(gt.SizeVar, 0, 1),
             Range = Math.Clamp(gt.Sight > 0 ? gt.Sight : 60, 15, MaxRange),
-            AlphaRef = gt.AlphaBlend ? 0.1f : Math.Clamp(gt.AlphaRef / 255f, 0.05f, 0.9f),
+            AlphaRef = gt.AlphaBlend ? 0.33f : Math.Clamp(gt.AlphaRef / 255f, 0.2f, 0.9f),   // sem mistura: recorte firme
         };
         _kinds[type] = k;
         return k;
@@ -68,15 +68,9 @@ internal sealed class WorldGrass : IDisposable
 
     int Texture(string path)
     {
+        // recorte por alfa como as folhas das árvores: com mipmap comum o fundo branco da imagem vira triângulo branco
         if (_pck?.Find(path) is not { } te || DdsDecoder.DecodeMax(_pck.Read(te), 256) is not { } img) return 0;
-        int tex = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, tex);
-        var (px, w, h) = img;
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, w, h, 0, PixelFormat.Bgra, PixelType.UnsignedByte, px);
-        GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-        return tex;
+        return WorldTrees.Upload(img.Item1, img.Item2, img.Item3, true);
     }
 
     // canto da área (coluna 0, linha 0): centro − meia largura em X, + meia altura em Z (as linhas andam para −Z)

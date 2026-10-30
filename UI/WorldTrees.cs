@@ -149,9 +149,17 @@ internal sealed class WorldTrees : IDisposable
     int Texture(string path, int max, bool cutout = false)
     {
         if (_pck?.Find(path) is not { } te || DdsDecoder.DecodeMax(_pck.Read(te), max) is not { } img) return 0;
+        return Upload(img.Item1, img.Item2, img.Item3, cutout);
+    }
+
+    /// <summary>
+    /// Sobe a imagem ARGB ao OpenGL. cutout = recorte por alfa: os níveis menores (mipmap) só misturam a cor dos pixels
+    /// opacos e o alfa vira 0 ou 1 — senão a cor do fundo transparente (branca, preta) aparece ao longe.
+    /// </summary>
+    internal static int Upload(int[] px, int w, int h, bool cutout)
+    {
         int tex = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, tex);
-        var (px, w, h) = img;
         GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, w, h, 0, PixelFormat.Bgra, PixelType.UnsignedByte, px);
         if (!cutout) GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
         else

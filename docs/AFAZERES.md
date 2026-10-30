@@ -168,3 +168,4 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] grama no Mundo 3D (1.5.5; WorldGrass + MoxModel). [ ] conferir nas outras versoes (144/155/180) quando o usuario autorizar. Antes: Ja sabido (PW-KB §ecbsd "GRAMA"): tipos no .ecwld, areas ECBSDFILEGRASS7 -> mapa de bits no bsdata, 1 .mox por bit. Falta: ler o .mox (Angelica2.2 A3DFrame::Load / A3DMesh), achar o registro de grama no bsdata N.dat, desenhar (WorldGrass.cs, perto da camera, como as arvores)
 - regra: modelos de criaturas ficam ESTATICOS (posicao inicial; usuario 30/10)
 - [x] legenda de atalhos em grupos com teclas desenhadas; clique no vazio tira a selecao; botao de fora abre o mundo em 1090.03, 240, 1033.48
+- [x] grama sem triangulos brancos (recorte nos mipmaps); arvores de cartoes dos .bmd recortadas. [ ] Besouro Estrela (1063) sem textura: busca de textura do modelo aceita outra extensao e registra no log as que faltam; usuario conferir
