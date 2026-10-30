@@ -78,7 +78,7 @@ public static class IdRefactor
     }
 
     // Campo de quest que guarda um ID do tipo do bloco (os nomes vêm do TaskSchema93)
-    static bool QuestFieldPoints(string blockName, TaskField f)
+    internal static bool QuestFieldPoints(string blockName, TaskField f)
     {
         if (f.Name.StartsWith("m_") || f.Name.Contains(".m_"))   // chaves do TaskLayout (versões ≠ 93)
         {

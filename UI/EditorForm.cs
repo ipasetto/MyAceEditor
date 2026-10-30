@@ -992,7 +992,9 @@ public sealed class EditorForm : Form
         _iconIdx.Clear(); _treeIcons.Images.Clear(); _thumbs?.Dispose(); _thumbs = null; _thumbBatch.Clear();
         _cfgs = r.Cfgs;
         _cfgColorIds.Clear(); _cfgDescIds.Clear(); _cfgDirty = false; FillDescPalette();   // cor/descrição: nada pendente no jogo novo
-        _tasks = r.Tasks; _tasksPath = r.TasksPath; _tasksDirty = false;   // sem tasks.data no jogo novo, a aba fica vazia
+        _tasks = r.Tasks; _tasksPath = r.TasksPath; _tasksDirty = false;
+        // base das regras das quests (o jogo original já tem referências quebradas): em segundo plano, ~10-50 s
+        _questBase = r.Tasks is { } tk ? Task.Run(() => QuestRules.Check(tk, module).Select(QKey).ToHashSet()) : null;   // sem tasks.data no jogo novo, a aba fica vazia
         _qTree.Nodes.Clear(); _qCur = null; _qGrid.Rows.Clear();
         RefreshQuests();
         _qStatus.Text = r.TasksPath is { } tp ? TasksStatus(tp) : Loc.T("quest.openFirst", "Abra um tasks.data primeiro.");
@@ -1227,6 +1229,26 @@ public sealed class EditorForm : Form
     private HashSet<string> _rulesAtLoad = new();
     private bool _cashLimit = true;   // o limite de 65534 só vale se o arquivo do jogo não tiver item de loja acima dele
 
+    // regras das quests (QuestRules): referência nova a item/monstro/NPC que não existe ou ID de quest repetido.
+    // Vale ao salvar o tasks.data e o elements.data (excluir um item que uma quest dá também quebra a quest).
+    private Task<HashSet<string>>? _questBase;
+    private static string QKey(ItemRules.Problem p) => p.Key + "|" + p.Detail;
+
+    private bool QuestRulesBlock()
+    {
+        if (_tasks is null || _store.Current is null) return false;
+        HashSet<string> baseSet;
+        try { UseWaitCursor = true; baseSet = _questBase?.Result ?? new(); }
+        catch (Exception ex) { AppLog.Error("regras das quests (base)", ex); return false; }
+        finally { UseWaitCursor = false; }
+        var fresh = QuestRules.Check(_tasks, _store.Current).Where(p => !baseSet.Contains(QKey(p))).ToList();
+        if (fresh.Count == 0) return false;
+        MessageBox.Show(this, Loc.T("save.questRules", "Não salvei: estas quests deixariam de funcionar no jogo. Corrija a quest ou não exclua/troque o ID do que ela usa:") + "\n\n"
+            + string.Join("\n", fresh.Take(12).Select(p => "• " + p)) + (fresh.Count > 12 ? $"\n… +{fresh.Count - 12}" : ""),
+            Loc.T("save.rulesTitle", "O jogo não aceitaria"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return true;
+    }
+
     private bool SaveElementsCore(string target)
     {
         if (_store.Current?.Source is not ElementsLayout) return false;
@@ -1238,6 +1260,7 @@ public sealed class EditorForm : Form
                 Loc.T("save.rulesTitle", "O jogo não aceitaria"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
+        if (QuestRulesBlock()) return false;
         try
         {
             UseWaitCursor = true;
@@ -4213,6 +4236,7 @@ public sealed class EditorForm : Form
     private bool SaveTasksCore()
     {
         if (_tasks is null || _tasksPath is null || !_tasks.CanWrite) return false;
+        if (QuestRulesBlock()) return false;
         ApplyTalkText();
         for (int i = 0; i < 4; i++) ApplyQuestText(i);
         try

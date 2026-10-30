@@ -187,6 +187,27 @@ internal static class Program
             File.WriteAllText("item-texts.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--quest-rules")   // <elements.data> <tasks.data> [teste]: regras das quests (quest-rules.txt)
+        {
+            var mod = CfgCatalog.Load(args[1]).Module;
+            var t = new TasksFile(args[2]);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var probs = QuestRules.Check(t, mod);
+            var first = sw.Elapsed.TotalSeconds; sw.Restart(); QuestRules.Check(t, mod);
+            var sb = new StringBuilder($"{probs.Count} problemas em {first:0.0} s; 2ª vez {sw.Elapsed.TotalSeconds:0.00} s ({t.AllNodes().Count()} nós)\n");
+            sb.AppendLine(string.Join("\n", probs.GroupBy(p => p.Rule).Select(g => $"{g.Key}: {g.Count()}  ex.: {g.First()}")));
+            if (args.Length >= 4 && args[3] == "teste" && probs.Count >= 0)   // apaga da memória o 1º monstro que uma quest pede e confere que acusa
+            {
+                var before = probs.Select(p => p.Key + p.Detail).ToHashSet();
+                var q = t.AllNodes().First(n => n.Fields.Any(f => f.Editable && IdRefactor.QuestFieldPoints("MONSTER_ESSENCE", f) && n.Get(f) is { } v && v is not ("" or "0")));
+                var mf = q.Fields.First(f => f.Editable && IdRefactor.QuestFieldPoints("MONSTER_ESSENCE", f) && q.Get(f) is { } v && v is not ("" or "0"));
+                var mid = q.Get(mf);
+                mod.FindListByName("MONSTER_ESSENCE")!.Items.RemoveAll(i => i.Id == mid);
+                sb.AppendLine("teste (monstro " + mid + " apagado): " + string.Join(" | ", QuestRules.Check(t, mod).Where(p => !before.Contains(p.Key + p.Detail)).Take(3)));
+            }
+            File.WriteAllText("quest-rules.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--keys")   // <elements.data> <bloco>: campos do 1º item com o valor (keys.txt)
         {
             var it = CfgCatalog.Load(args[1]).Module.FindListByName(args[2])?.Items.FirstOrDefault();

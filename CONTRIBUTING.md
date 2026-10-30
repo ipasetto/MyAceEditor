@@ -5,7 +5,8 @@
 > comments are in Portuguese (pt-BR), but issues and PRs in English are fine. Before coding, read
 > [docs/ARQUITETURA.md](docs/ARQUITETURA.md) and pick a task from [docs/ROADMAP.md](docs/ROADMAP.md).
 > Key rules: prove byte-identical round-trip before enabling edits of a format, never commit game files
-> or secrets, and never copy code from closed/decompiled tools — write your own.
+> or secrets, never copy code from closed/decompiled tools — write your own, and follow the game rules in
+> [docs/REGRAS-DO-JOGO.md](docs/REGRAS-DO-JOGO.md) (also for AI assistants).
 
 Obrigado pelo interesse! Este projeto quer tornar o Perfect World **100% editável** com uma
 ferramenta aberta, feita pela comunidade e para a comunidade.
@@ -13,8 +14,9 @@ ferramenta aberta, feita pela comunidade e para a comunidade.
 ## 1. Antes de começar
 
 1. Leia [docs/ARQUITETURA.md](docs/ARQUITETURA.md): visão geral, camadas e fluxo.
-2. Escolha uma tarefa em [docs/ROADMAP.md](docs/ROADMAP.md). As marcadas com 🟢 são boas para começar.
-3. Abra uma *issue* dizendo no que vai trabalhar, para ninguém fazer a mesma coisa em paralelo.
+2. Leia [docs/REGRAS-DO-JOGO.md](docs/REGRAS-DO-JOGO.md): regras do servidor que nenhuma mudança pode quebrar (valem também para quem usa IA).
+3. Escolha uma tarefa em [docs/ROADMAP.md](docs/ROADMAP.md). As marcadas com 🟢 são boas para começar.
+4. Abra uma *issue* dizendo no que vai trabalhar, para ninguém fazer a mesma coisa em paralelo.
 
 ## 2. Ambiente
 

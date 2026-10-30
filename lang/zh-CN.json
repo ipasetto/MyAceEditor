@@ -3797,5 +3797,10 @@
   "rule.npcTransmit": "传送服务 {0} 没有目的地：gs 启动时崩溃",
   "rule.npcReset": "服务 {0} 有负数属性：gs 启动时崩溃",
   "rule.stoneLevel": "等级 {0}（只能 1 到 20）：使用该宝石时 gs 崩溃",
-  "rule.configFixed": "gs 按这个固定 ID 查找配置 {0}（{1}）：不要修改 ID 或删除"
+  "rule.configFixed": "gs 按这个固定 ID 查找配置 {0}（{1}）：不要修改 ID 或删除",
+  "rule.questDup": "任务 ID 重复（{0} 次）：gs 会忽略第二个",
+  "rule.questRef": "{0} {1}（字段 {2}）不在 elements.data 中：任务无法正常进行",
+  "rule.kMonster": "怪物",
+  "rule.kItem": "物品",
+  "save.questRules": "未保存：这些任务在游戏里会失效。请修正任务，或不要删除/修改它所用内容的 ID："
 }

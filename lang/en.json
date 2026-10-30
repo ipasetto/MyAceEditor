@@ -3795,5 +3795,10 @@
   "rule.npcTransmit": "teleport service {0} with no destination: the gs crashes at startup",
   "rule.npcReset": "service {0} with a negative attribute: the gs crashes at startup",
   "rule.stoneLevel": "level {0} (only 1 to 20): the gs crashes when the stone is used",
-  "rule.configFixed": "the gs looks up config {0} ({1}) by this fixed ID: do not change the ID or delete it"
+  "rule.configFixed": "the gs looks up config {0} ({1}) by this fixed ID: do not change the ID or delete it",
+  "rule.questDup": "quest ID duplicated ({0}×): the gs ignores the second one",
+  "rule.questRef": "{0} {1} (field {2}) does not exist in elements.data: the quest does not work",
+  "rule.kMonster": "monster",
+  "rule.kItem": "item",
+  "save.questRules": "Not saved: these quests would stop working in the game. Fix the quest, or do not delete/change the ID of what it uses:"
 }
