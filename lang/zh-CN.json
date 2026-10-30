@@ -3802,5 +3802,17 @@
   "rule.questRef": "{0} {1}（字段 {2}）不在 elements.data 中：任务无法正常进行",
   "rule.kMonster": "怪物",
   "rule.kItem": "物品",
-  "save.questRules": "未保存：这些任务在游戏里会失效。请修正任务，或不要删除/修改它所用内容的 ID："
+  "save.questRules": "未保存：这些任务在游戏里会失效。请修正任务，或不要删除/修改它所用内容的 ID：",
+  "gm.gChi": "气（怒气条）",
+  "gm.chiBars": "已解锁的气条",
+  "gm.chiFill": "补满气",
+  "gm.gEvents": "活动（需要本机服务器）",
+  "gm.event": "活动",
+  "gm.eventOn": "开启",
+  "gm.eventOff": "关闭",
+  "gm.trigger": "npcgen 触发器（ID）",
+  "gm.eventEmpty": "该活动没有对应的触发器。",
+  "gm.eventNoServer": "活动需要本机服务器。没有服务器时，请在游戏内使用 Ctrl+G。",
+  "gm.eventDone": "{0}：已在地图 {1} 执行。",
+  "gm.eventNone": "{0}：没有运行中的地图有这个触发器。"
 }

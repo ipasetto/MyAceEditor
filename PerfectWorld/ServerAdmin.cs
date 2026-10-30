@@ -229,11 +229,12 @@ public sealed class ServerAdmin
     public sealed record MapProc(string Tag, int RamMb);
 
     /// <summary>Mapas que o gs.conf declara (world_servers + instance_servers), com o nome do configs\instance.txt do cliente.</summary>
-    public static List<MapDef> MapList(string gsConf, string? clientElement)
+    public static List<MapDef> MapList(string gsConf, string? clientElement) =>
+        File.Exists(gsConf) ? ParseMapList(File.ReadAllText(gsConf, Encoding.Latin1), clientElement) : new();
+
+    static List<MapDef> ParseMapList(string text, string? clientElement)
     {
         var list = new List<MapDef>();
-        if (!File.Exists(gsConf)) return list;
-        var text = File.ReadAllText(gsConf, Encoding.Latin1);
         string Key(string k) => Regex.Match(text, @"(?mi)^\s*" + k + @"\s*=\s*(.+)$").Groups[1].Value;
         var names = clientElement is null ? null : MapNames(clientElement);
         foreach (var (key, inst) in new[] { ("world_servers", false), ("instance_servers", true) })
@@ -281,6 +282,29 @@ public sealed class ServerAdmin
             else if (p.Length == 2 && int.TryParse(p[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb)) running.Add(new(p[0], mb));
         }
         return (running, total, free);
+    }
+
+    /// <summary>Liga (ou desliga) um gatilho do npcgen (os eventos do jogo) em cada mapa rodando: GMControlGame (380)
+    /// "active_npc_generator id" / "cancel_npc_generator id". O gdeliveryd só repassa ao gs da worldtag pedida e o gs diz se o
+    /// gatilho existe nele (gdeliveryd gproviderserver.cpp DeliverGameControl; gs netmsg.cpp gm_control_command).
+    /// Devolve as tags dos mapas em que deu certo.</summary>
+    public List<string> Trigger(int id, bool on)
+    {
+        var defs = ParseMapList(_srv.Bash("cat /home/gamed/gs.conf", timeoutMs: 60_000).Output, null);
+        var cmd = Encoding.ASCII.GetBytes($"{(on ? "active" : "cancel")}_npc_generator {id}");
+        var ok = new List<string>();
+        using var c = Delivery();
+        foreach (var run in Maps().Running)
+        {
+            if (defs.FirstOrDefault(d => d.Tag == run.Tag) is not { WorldTag: > 0 } def) continue;
+            int xid = Random.Shared.Next(1, int.MaxValue);
+            c.Send(380, new GnetWriter().Int(xid).Int(def.WorldTag).Octets(cmd).ToArray());
+            var r = c.Receive(381, x => x.Int() == xid, timeoutMs: 20_000);   // GMControlGame_Re: xid, retcode, (gsid, retcode)[]
+            r.Int();
+            if (r.Int() != 0) continue;
+            for (uint i = 0, n = r.Compact(); i < n; i++) { r.Int(); if (r.Int() == 0) { ok.Add(run.Tag); break; } }
+        }
+        return ok;
     }
 
     public LocalServer.RunResult StartMap(string tag) { _srv.EnsureTools(); return _srv.Bash($"pwctl gs-start {tag}", timeoutMs: 120_000); }

@@ -61,3 +61,12 @@
 - Números dos comandos `d <n>` por versão (lista triviapw 2017 não diz a versão).
 - Como escrever no console do jogo aberto (janela do elementclient) — teste é do usuário (não abrimos o cliente).
 - Quais funções de "Jogadores"/"Mundo" o console aceita e quais só o servidor faz (correio, EXP em dobro, mapas).
+
+## Pedido de 30/10 (chi e eventos) — testar no jogo
+- Meu personagem → "Chi (barras de fúria)": "Barras liberadas" 1..3 manda d 1991 n×100 (máximo de chi); "Encher o chi"
+  manda 3 × d 1992 (+100 cada). Os dois existem no gs 1.5.5.
+- Mundo → "Eventos": lista do Ctrl+G do jogo (GM_ACTIVITY_CONFIG do elements.data). Ligar = liga os gatilhos da
+  "openlist"; Desligar = desliga os da "closelist". Também liga/desliga um gatilho do npcgen pelo ID.
+  Vai pelo gdeliveryd (GMControlGame "active_npc_generator id"), para cada mapa rodando: precisa do servidor neste PC.
+  Sem servidor (GM contratado): Ctrl+G dentro do jogo (o console de texto não tem comando para eventos).
+- Tudo sobre GM fica também na PW-KB §S31.

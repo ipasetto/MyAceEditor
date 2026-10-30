@@ -151,7 +151,7 @@ public sealed class GmPanel : Form
     {
         var exp = Num(1_000_000, 1, 2_000_000_000, 130); var slots = Num(96, 32, 96); var cult = Num(22, 0, 32);
         var levels = Num(10, 1, 150, 70); var fame = Num(10_000, 0, 2_000_000_000, 120); var spirit = Num(10, 1, 500, 70);
-        var tag = Num(1, 0, 999, 70); var x = Num(0, -99999, 99999); var z = Num(0, -99999, 99999);
+        var tag = Num(1, 0, 999, 70); var x = Num(0, -99999, 99999); var z = Num(0, -99999, 99999); var chi = Num(3, 1, 3, 50);
         var inMap = new CheckBox { Text = Loc.T("gm.sameMap", "no mapa em que estou"), AutoSize = true, Checked = true, Margin = new Padding(0, 6, 8, 0) };
         return Stack(
             Group(Loc.T("gm.gState", "Estado"),
@@ -171,6 +171,11 @@ public sealed class GmPanel : Form
                 // o gs não tem comando só de alma: cada d 10889 dá a EXP pedida + nível × 10.000 de alma (playercmd.cpp)
                 Row(L(Loc.T("gm.spirit", "Alma: dar")), spirit, Btn(Loc.T("gm.spiritGo", "vezes (cada vez = nível × 10.000)"), () => Run(Enumerable.Repeat("d 10889 1", (int)spirit.Value).ToArray())),
                     L(Loc.T("gm.cultivation", "Cultivo (20-22 deus, 30-32 demônio)")), cult, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 1989 {cult.Value}")))),
+            // chi (AP): o máximo vem das quests de cultivo (SetMaxAP, 100 por barra); d 1991 n define o máximo (0..399) e
+            // d 1992 soma 100 (playercmd.cpp; os dois existem no gs 1.5.5)
+            Group(Loc.T("gm.gChi", "Chi (barras de fúria)"),
+                Row(L(Loc.T("gm.chiBars", "Barras liberadas")), chi, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 1991 {chi.Value * 100}")),
+                    Btn(Loc.T("gm.chiFill", "Encher o chi"), () => Run(Enumerable.Repeat("d 1992", 3).ToArray())))),
             Group(Loc.T("gm.gBag", "Inventário"),
                 Row(L(Loc.T("gm.slots", "Espaços")), slots, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 2016 {slots.Value}")),
                     Btn(Loc.T("gm.clearBag", "Limpar inventário"), () => { if (Ask(Loc.T("gm.clearBagAsk", "Apagar TODOS os itens do inventário deste personagem?"))) Run("d 10853"); }))),
@@ -231,6 +236,7 @@ public sealed class GmPanel : Form
             BeginInvoke(() =>
             {
                 _data = m; _icons = ic;
+                FillEvents();
                 AddLog(m is null ? "⚠ " + Loc.T("gm.loadFail", "Não consegui ler o elements.data do cliente.") : Loc.T("gm.loaded", "Lista pronta: busque pelo nome ou ID."));
                 Fill(Kind.Item); Fill(Kind.Npc);
             });
@@ -320,10 +326,17 @@ public sealed class GmPanel : Form
     // ---------- Mundo ----------
     Control WorldTab()
     {
-        var msg = new TextBox { Width = 520 }; var secs = Num(120, 10, 86400); var hh = Num(12, 0, 23, 60); var mm = Num(0, 0, 59, 60);
+        var msg = new TextBox { Width = 520 }; var trig = Num(1, 1, 999999); var secs = Num(120, 10, 86400); var hh = Num(12, 0, 23, 60); var mm = Num(0, 0, 59, 60);
         return Stack(
             Group(Loc.T("gm.gBroadcast", "Aviso para todos"),
                 Row(msg, Btn(Loc.T("gm.send", "Enviar"), () => Broadcast(msg), blue: true))),
+            Group(Loc.T("gm.gEvents", "Eventos (precisa do servidor neste PC)"),
+                Row(L(Loc.T("gm.event", "Evento")), _events,
+                    Btn(Loc.T("gm.eventOn", "Ligar"), () => { if (_events.SelectedItem is GmEvent e) Spawner(e.Open, true, e.Name); }, blue: true),
+                    Btn(Loc.T("gm.eventOff", "Desligar"), () => { if (_events.SelectedItem is GmEvent e) Spawner(e.Close, false, e.Name); })),
+                Row(L(Loc.T("gm.trigger", "Gatilho do npcgen (ID)")), trig,
+                    Btn(Loc.T("gm.eventOn", "Ligar"), () => Spawner(new[] { (int)trig.Value }, true, "#" + trig.Value)),
+                    Btn(Loc.T("gm.eventOff", "Desligar"), () => Spawner(new[] { (int)trig.Value }, false, "#" + trig.Value)))),
             Group(Loc.T("gm.gMobs", "Monstros"),
                 Row(Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); }))),
             Group(Loc.T("gm.gTime", "Hora do dia (só na sua tela)"),
@@ -331,6 +344,49 @@ public sealed class GmPanel : Form
             Group(Loc.T("gm.gServer", "Servidor"),
                 Row(L(Loc.T("gm.restartIn", "Reiniciar em (s)")), secs,
                     Btn(Loc.T("gm.restart", "Reiniciar com contagem"), () => { if (Ask(string.Format(Loc.T("gm.restartAsk", "Reiniciar o servidor em {0} s? Todos os jogadores saem."), secs.Value))) Run($"gm_restart_sev {secs.Value}"); }))));
+    }
+
+    // ---------- eventos: gatilhos do npcgen ----------
+    // A lista é a do Ctrl+G do jogo (GM_ACTIVITY_CONFIG do elements.data: abrir = liga a lista de gatilhos "openlist",
+    // fechar = desliga a "closelist"). O console não tem comando para isso; vai pelo gdeliveryd (ServerAdmin.Trigger).
+    sealed record GmEvent(string Name, int[] Open, int[] Close) { public override string ToString() => Name; }
+    readonly ComboBox _events = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
+
+    void FillEvents()
+    {
+        _events.Items.Clear();
+        if (_data?.Lists.FirstOrDefault(l => l.Name == "GM_ACTIVITY_CONFIG") is not { } list) return;
+        int[] Ids(Item it, string prefix) => Enumerable.Range(1, 8)
+            .Select(i => it.Fields.TryGetValue(prefix + i, out var f) && int.TryParse(f.Value, out var v) ? v : 0).TakeWhile(v => v > 0).ToArray();
+        foreach (var it in list.Items)
+        {
+            if (it.Fields.TryGetValue("disabled", out var d) && d.Value is not ("" or "0")) continue;
+            _events.Items.Add(new GmEvent($"{it.Id} - {it.Name}", Ids(it, "openlist_"), Ids(it, "closelist_")));
+        }
+        if (_events.Items.Count > 0) _events.SelectedIndex = 0;
+    }
+
+    void Spawner(int[] ids, bool on, string what)
+    {
+        if (ids.Length == 0) { AddLog("⚠ " + Loc.T("gm.eventEmpty", "Esse evento não tem gatilhos para isso.")); return; }
+        AddLog("→ " + (on ? "active_npc_generator " : "cancel_npc_generator ") + string.Join(", ", ids));
+        Task.Run(() =>
+        {
+            string msg;
+            try
+            {
+                if (!LocalServerUp()) msg = "⚠ " + Loc.T("gm.eventNoServer", "Eventos precisam do servidor neste PC. Sem ele, use o Ctrl+G dentro do jogo.");
+                else
+                {
+                    var adm = LocalAdmin();
+                    var maps = ids.SelectMany(id => adm.Trigger(id, on)).Distinct().ToList();
+                    msg = maps.Count > 0 ? string.Format(Loc.T("gm.eventDone", "{0}: feito no(s) mapa(s) {1}."), what, string.Join(", ", maps))
+                        : "⚠ " + string.Format(Loc.T("gm.eventNone", "{0}: nenhum mapa rodando tem esse gatilho."), what);
+                }
+            }
+            catch (Exception ex) { AppLog.Error("painel do GM: evento", ex); msg = "⚠ " + ex.Message; }
+            BeginInvoke(() => AddLog(msg));
+        });
     }
 
     void Broadcast(TextBox msg)

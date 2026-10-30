@@ -3800,5 +3800,17 @@
   "rule.questRef": "{0} {1} (field {2}) does not exist in elements.data: the quest does not work",
   "rule.kMonster": "monster",
   "rule.kItem": "item",
-  "save.questRules": "Not saved: these quests would stop working in the game. Fix the quest, or do not delete/change the ID of what it uses:"
+  "save.questRules": "Not saved: these quests would stop working in the game. Fix the quest, or do not delete/change the ID of what it uses:",
+  "gm.gChi": "Chi (rage bars)",
+  "gm.chiBars": "Unlocked bars",
+  "gm.chiFill": "Fill chi",
+  "gm.gEvents": "Events (needs the server on this PC)",
+  "gm.event": "Event",
+  "gm.eventOn": "Turn on",
+  "gm.eventOff": "Turn off",
+  "gm.trigger": "npcgen trigger (ID)",
+  "gm.eventEmpty": "This event has no triggers for that.",
+  "gm.eventNoServer": "Events need the server on this PC. Without it, use Ctrl+G inside the game.",
+  "gm.eventDone": "{0}: done on map(s) {1}.",
+  "gm.eventNone": "{0}: no running map has this trigger."
 }

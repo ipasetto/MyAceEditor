@@ -31,6 +31,7 @@ Caminhos relativos a raiz do repositorio MyAceEditor:
 
 ## Protocolo de atualizacao (OBRIGATORIO ao descobrir algo)
 - Fato do JOGO -> PW-KB (secao certa). Fato da ENGINE/codigo -> ENGINE-KB.
+- Fato de GM (comando, permissao, caminho console/Ctrl+G/gdeliveryd, teste no jogo) -> SEMPRE em PW-KB §S31, mesmo pequeno e mesmo que o assunto seja outro (regra do usuario). Antes de mexer no painel do GM, leia §S31 + docs/GM-PAINEL.md.
 - Toda linha com tag conf ([C][A][B][F][M][W][I][?], e [T]=testado no nosso codigo).
 - Contradicao resolvida -> §Z e corrige a linha original. Duvida nova -> §Q.
 - Feature pronta -> ENGINE-KB §E8 -> §E7; arquivo novo -> §E6; mudou camada/fluxo -> docs/ARQUITETURA.md.
