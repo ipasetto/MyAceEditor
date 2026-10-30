@@ -568,8 +568,12 @@ public static class SptGrower
             float pr = Lerp(radii[k], radii[k + 1], fr);
             if (childIsLeaf)
             {
-                var lf = tms[k].Turn(tms[k].X.Normalized(), rng.Range(-180, 180)).RotateYZ(C.StartAngle.Eval(childRel, vr), 0);
-                m.Leaves.Add((Ours(p), Ours(lf.X).Normalized()));
+                // CIdvBranch::ComputeBud: broto de um segmento (comprimento do nível / segmentos) girado 60° do pai; a folha
+                // fica na ponta do broto
+                float bud = C.Length.Eval(childRel, vr) * scale / Math.Max(1, C.Segments);
+                var lf = tms[k].Turn(tms[k].X.Normalized(), rng.Range(-180, 180)).RotateYZ(60, 0);
+                var ld = lf.X.Normalized();
+                m.Leaves.Add((Ours(p + ld * bud), Ours(ld)));
                 continue;
             }
             rng.Seed(seed); rng.Range(0, 100);   // o runtime ressemeia e descarta um número antes do filho
