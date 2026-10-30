@@ -574,6 +574,14 @@ internal static class Program
         float Y(string y, string x, string z) => y == "g" ? (t.HeightAt(float.Parse(x, System.Globalization.CultureInfo.InvariantCulture), float.Parse(z, System.Globalization.CultureInfo.InvariantCulture)) ?? 0) + 2 : float.Parse(y, System.Globalization.CultureInfo.InvariantCulture);
         var cams = shots.Select(s => s.Split(',')).Select(p => (Pos: new OpenTK.Mathematics.Vector3(float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture), Y(p[1], p[0], p[2]), float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture)),
             Yaw: float.Parse(p[3], System.Globalization.CultureInfo.InvariantCulture), Pitch: float.Parse(p[4], System.Globalization.CultureInfo.InvariantCulture), Name: p.Length > 5 ? p[5] : null)).ToList();
+        // árvores mais perto de cada câmera (para saber qual .spt aparece na foto); z = 0: as 25 mais perto só em X
+        if (Directory.EnumerateFiles(mapDir, "*.ecwld").FirstOrDefault() is { } ecw)
+        {
+            var scene = new WorldScene(ecw);
+            foreach (var c in cams)
+                foreach (var tr in scene.Trees.OrderBy(tr => c.Pos.Z == 0 ? MathF.Abs(tr.X - c.Pos.X) : (tr.X - c.Pos.X) * (tr.X - c.Pos.X) + (tr.Z - c.Pos.Z) * (tr.Z - c.Pos.Z)).Take(c.Pos.Z == 0 ? 25 : 3))
+                    diag.AppendLine(FormattableString.Invariant($"{c.Name ?? $"{c.Pos.X:0},{c.Pos.Z:0}"}: árvore a {MathF.Sqrt((tr.X - c.Pos.X) * (tr.X - c.Pos.X) + (tr.Z - c.Pos.Z) * (tr.Z - c.Pos.Z)):0} m ({tr.X:0},{tr.Y:0},{tr.Z:0}) {scene.TreeTypes[tr.Type].Spt}"));
+        }
         File.WriteAllText(Path.Combine(outDir, "world-shot.txt"), diag.ToString());
         using var w = new MyAceEditor.UI.WorldView(t, cams[0].Pos, () => Array.Empty<MyAceEditor.UI.WorldView.Marker>(), () => null, _ => { }, (_, _) => { }, null)
         { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(0, 0), Size = new System.Drawing.Size(1280, 820), ShowInTaskbar = false };

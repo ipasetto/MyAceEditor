@@ -112,7 +112,8 @@ public sealed class SptFile
                     for (int i = 0; i < n; i++)
                     {
                         var uv = new float[8];
-                        for (int k = 0; k < 8; k++) uv[k] = r.Float();
+                        // t no .spt conta de baixo da imagem; a textura carregada conta de cima
+                        for (int k = 0; k < 8; k++) uv[k] = k % 2 == 1 ? 1 - r.Float() : r.Float();
                         if (t == 10002 && i < LeafMaps.Count) Array.Copy(uv, LeafMaps[i].Uv, 8);
                         if (t == 10004) _frondUv.Add(uv);
                     }
