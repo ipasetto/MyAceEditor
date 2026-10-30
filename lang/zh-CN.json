@@ -3817,5 +3817,10 @@
   "gm.eventNone": "{0}：没有运行中的地图有这个触发器。",
   "world.existingNpc": "在此放置已有的 NPC…",
   "addonEd.removed": "已删除 {0} 行。Ctrl+Z 撤销。",
-  "npcgen.deletedMany": "已删除 {0} 个点。Ctrl+Z 撤销。"
+  "npcgen.deletedMany": "已删除 {0} 个点。Ctrl+Z 撤销。",
+  "gizmo.moving": "移动：X {0:0.0}   高度 {1:0.0}   Z {2:0.0}",
+  "gizmo.turning": "旋转：{0:0}°（Shift = 每 15°）",
+  "gizmo.x": "X · 东",
+  "gizmo.y": "Y · 高度",
+  "gizmo.z": "Z · 北"
 }

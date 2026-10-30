@@ -3815,5 +3815,10 @@
   "gm.eventNone": "{0}: no running map has this trigger.",
   "world.existingNpc": "Put an existing NPC here…",
   "addonEd.removed": "{0} row(s) removed. Ctrl+Z undoes.",
-  "npcgen.deletedMany": "{0} point(s) deleted. Ctrl+Z undoes."
+  "npcgen.deletedMany": "{0} point(s) deleted. Ctrl+Z undoes.",
+  "gizmo.moving": "Moving: X {0:0.0}   height {1:0.0}   Z {2:0.0}",
+  "gizmo.turning": "Turning: {0:0}° (Shift = 15° steps)",
+  "gizmo.x": "X · east",
+  "gizmo.y": "Y · height",
+  "gizmo.z": "Z · north"
 }

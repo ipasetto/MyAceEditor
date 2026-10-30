@@ -706,7 +706,7 @@ internal sealed class NpcGenView : UserControl
                 {
                     if (!Inside(r.Position)) continue;
                     int id0 = r.Items.FirstOrDefault()?.Id ?? 0;
-                    list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(id0), r, _modelOf(id0), 0,
+                    list.Add(new(r.Position.X, r.Position.Y, r.Position.Z, Color.LimeGreen, NameOf(id0), r, _modelOf(id0), ResourceYaw(r),
                         TriggerColor(r.Trigger, Color.Cyan), true, id0, WorldView.MarkKind.Mine | TriggerKind(r.Trigger)));
                 }
                 return list;
@@ -742,6 +742,16 @@ internal sealed class NpcGenView : UserControl
             finally { _pickOwner = null; w.Activate(); w.RefreshMarkers(); }
         };
         w.DeletePoint = o => { SelectObject(o); DeletePoint(); };
+        // anel de giro do Mundo 3D: criatura = vetor de direção (x, z); coletável = eixo comprimido + ângulo 0..255 de
+        // 360° (AIGenExportor: a3d_CompressDir do eixo; eixo para cima = 0, 0)
+        w.RotatePoint = (o, yaw) =>
+        {
+            SelectObject(o); Snapshot("rot3d:" + DateTime.Now.Ticks);
+            float r = yaw * MathF.PI / 180;
+            if (o is NpcGenSpawn s) s.Direction = new Vec3(MathF.Sin(r), 0, MathF.Cos(r));
+            else if (o is NpcGenResource res) { res.Dir1 = 0; res.Dir2 = 0; res.Rotation = (byte)Math.Clamp((int)(((yaw % 360 + 360) % 360) / 360 * 255), 0, 255); }
+            Touch(); ShowPoint();
+        };
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
         if (overview is { } ov)
@@ -919,5 +929,13 @@ internal sealed class NpcGenView : UserControl
         }
         Refill(Math.Min(op.Index, l.Count - 1));
         return true;
+    }
+
+    /// <summary>Giro do coletável em graus: ângulo (0..255 = 0..360°) em volta do eixo comprimido (a3d_DecompressDir); eixo
+    /// para baixo gira ao contrário.</summary>
+    static float ResourceYaw(NpcGenResource r)
+    {
+        float axisY = MathF.Cos(r.Dir2 * 360f / 256 * MathF.PI / 180);
+        return r.Rotation / 255f * 360 * MathF.Sign(axisY == 0 ? 1 : axisY);
     }
 }

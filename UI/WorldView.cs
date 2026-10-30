@@ -32,6 +32,8 @@ internal sealed class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? EditPoint { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<Vector3, int>? CreateNewHere { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? DeletePoint { get; set; }
+    /// <summary>Anel de giro: novo ângulo do ponto (graus; 0 = olhando para +Z, 90 = +X).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, float>? RotatePoint { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? UndoAction { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? RedoAction { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public IReadOnlyList<string> Maps { get; set; } = Array.Empty<string>();
@@ -95,6 +97,8 @@ internal sealed class WorldView : Form
     int _findAt = -1, _piece = -1;
     Bitmap? _worldMap; float _mapMPerPx = 2;
     object? _movingTag; Vector3? _movePos;   // arrastando um ponto com o botão esquerdo
+    // setas do ponto selecionado: 1 = X, 2 = Y (altura), 3 = Z, 4 = anel de giro; 0 = nenhuma
+    int _gizmoAxis, _gizmoHover; object? _gizmoTag; Vector3 _gizmoStart; Point _gizmoDown; Vector3? _gizmoPos; float? _gizmoYaw;
     object? _clip;                            // Ctrl+C
     int _newLabels;
     bool _legendOpen = LoadLegend(); int _legendTex, _legendW, _legendH; bool _legendState;
@@ -172,6 +176,12 @@ internal sealed class WorldView : Form
             _gl.Focus(); _down = _drag = e.Location;
             if (e.Button == MouseButtons.Left && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
+            // setas / anel do ponto selecionado têm preferência
+            if (e.Button == MouseButtons.Left && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
+            {
+                _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null;
+                return;
+            }
             // esquerdo em cima de um ponto (na tela): arrasta o ponto; no vazio ou botão do meio: gira a câmera
             if (e.Button == MouseButtons.Left && PickScreen(e.Location) is { } mk) { _movingTag = mk.Tag; _movePos = null; return; }
             if (e.Button is MouseButtons.Left or MouseButtons.Middle) _dragging = true;
@@ -179,6 +189,15 @@ internal sealed class WorldView : Form
         _gl.MouseUp += (_, e) =>
         {
             _dragging = false;
+            if (_gizmoAxis > 0)
+            {
+                var gt = _gizmoTag!;
+                if (_gizmoPos is { } gp && _moveHere is not null) _moveHere(gt, gp);
+                if (_gizmoYaw is { } gy && RotatePoint is not null) RotatePoint(gt, gy);
+                _gizmoAxis = 0; _gizmoTag = null; _gizmoPos = null; _gizmoYaw = null;
+                RefreshMarkers(); _gl.Invalidate();
+                return;
+            }
             if (_areaA is { } a && _pickArea is { } done)
             {
                 var area = AreaOf(a, _areaB ?? a);
@@ -218,6 +237,8 @@ internal sealed class WorldView : Form
         _gl.MouseMove += (_, e) =>
         {
             if (_areaA is not null) { if (Ray(e.Location) is { } b) _areaB = b; _gl.Invalidate(); return; }
+            if (_gizmoAxis > 0) { GizmoDrag(e.Location); return; }
+            if (!_dragging && GizmoHit(e.Location) is var gh && gh != _gizmoHover) { _gizmoHover = gh; _gl.Invalidate(); }
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; _gl.Invalidate(); return; }
             if (_movingTag is not null)
             {
@@ -457,7 +478,7 @@ internal sealed class WorldView : Form
         foreach (var m in _nearMarks)
         {
             if (Dist2(m) > 300 * 300) continue;
-            if (m.Model is null || !_models.Draw(m.Model, PosOf(m), m.Yaw)) noModel.Add(m);
+            if (m.Model is null || !_models.Draw(m.Model, PosOf(m), m.Tag == _gizmoTag && _gizmoYaw is { } gy ? gy : m.Yaw)) noModel.Add(m);
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
         GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.NormalArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
@@ -467,6 +488,7 @@ internal sealed class WorldView : Form
         foreach (var m in noModel) { var mp = PosOf(m); Col(m.Tag == sel ? Color.Yellow : m.Color); GL.Vertex3(Gl(mp.X, mp.Y + 1.2f, mp.Z)); }
         GL.End();
         DrawAreas();
+        DrawGizmo();
 
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
@@ -478,6 +500,7 @@ internal sealed class WorldView : Form
             float top = m.Model is not null && _models.Top(m.Model) is { } tp ? tp + 1.2f : 3f;
             DrawLabel($"{m.Name}\n{lp.X:0}, {lp.Y:0}, {lp.Z:0}", new Vector3(lp.X, lp.Y + top, lp.Z), m.Tag == sel ? Color.Yellow : m.LabelColor.IsEmpty ? Color.White : m.LabelColor);
         }
+        GizmoLabels();
         DrawLegend();
         GL.Disable(EnableCap.Texture2D); GL.DepthMask(true); GL.Disable(EnableCap.Blend);
         GL.Disable(EnableCap.Fog);
@@ -513,6 +536,7 @@ internal sealed class WorldView : Form
     Vector3 PosOf(Marker m)
     {
         if (m.Tag == _movingTag && _movePos is { } mp) return mp;
+        if (m.Tag == _gizmoTag && _gizmoPos is { } gp) return gp;
         float y = m.Y;
         if (m.OnGround && _t.HeightAt(m.X, m.Z) is { } h && Math.Abs(h - m.Y) < 3) y = h;
         return new Vector3(m.X, y, m.Z);
@@ -770,6 +794,114 @@ internal sealed class WorldView : Form
         GL.End();
         GL.Enable(EnableCap.DepthTest);
         GL.MatrixMode(MatrixMode.Projection); GL.PopMatrix(); GL.MatrixMode(MatrixMode.Modelview); GL.PopMatrix();
+    }
+
+    // ---------- setas de mover e anel de girar (ponto selecionado) ----------
+    // X = leste, Z = norte (o mapa do jogo cresce para cima com Z), Y = altura; o anel gira o ponto em volta do Y e o
+    // traço amarelo mostra para onde ele olha. Só aparecem com um ponto selecionado e visível.
+    Marker? SelectedMark() => _selected() is { } s ? _nearMarks.FirstOrDefault(m => m.Tag == s && Dist2(m) < 400 * 400) : null;
+
+    float GizmoSize(Vector3 c) => Math.Clamp((Gl(c.X, c.Y, c.Z) - _cam).Length * 0.12f, 1.5f, 40f);
+
+    static readonly Vector3[] GizmoDirs = { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ };
+
+    int GizmoHit(Point p)
+    {
+        if (SelectedMark() is not { } m) return 0;
+        var c = PosOf(m); float L = GizmoSize(c);
+        if (Project(c) is not { } a) return 0;
+        for (int k = 0; k < 3; k++)
+            if (Project(c + GizmoDirs[k] * L * 1.18f) is { } b && SegDist(p, a, b, 0.2f) < 9) return k + 1;
+        PointF? prev = null;
+        for (int i = 0; i <= 48; i++)
+        {
+            float t = i / 48f * MathF.Tau;
+            var q = Project(c + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * L * 0.8f);
+            if (q is { } qq && prev is { } pp && SegDist(p, pp, qq, 0) < 7) return 4;
+            prev = q;
+        }
+        return 0;
+    }
+
+    static float SegDist(Point p, PointF a, PointF b, float from)
+    {
+        float abx = b.X - a.X, aby = b.Y - a.Y, len2 = abx * abx + aby * aby;
+        float u = len2 < 1e-3f ? 0 : Math.Clamp(((p.X - a.X) * abx + (p.Y - a.Y) * aby) / len2, from, 1);
+        float dx = a.X + u * abx - p.X, dy = a.Y + u * aby - p.Y;
+        return MathF.Sqrt(dx * dx + dy * dy);
+    }
+
+    void GizmoDrag(Point p)
+    {
+        var c = _gizmoStart; float L = GizmoSize(c);
+        if (_gizmoAxis <= 3)
+        {
+            // quanto o mouse andou ao longo da seta na tela vira metros ao longo do eixo (passo de 10 cm)
+            var dir = GizmoDirs[_gizmoAxis - 1];
+            if (Project(c) is not { } a || Project(c + dir * L) is not { } b) return;
+            float sx = b.X - a.X, sy = b.Y - a.Y, len2 = sx * sx + sy * sy;
+            if (len2 < 4) return;
+            float t = MathF.Round(((p.X - _gizmoDown.X) * sx + (p.Y - _gizmoDown.Y) * sy) / len2 * L * 10) / 10;
+            var g = c + dir * t;
+            _gizmoPos = g;
+            _status.Text = string.Format(Loc.T("gizmo.moving", "Movendo: X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), g.X, g.Y, g.Z);
+        }
+        else
+        {
+            // o mouse no plano horizontal do ponto: o ponto passa a olhar para ele (Shift = de 15 em 15 graus)
+            float nx = 2f * p.X / _gl.Width - 1, ny = 1 - 2f * p.Y / _gl.Height;
+            var inv = Matrix4.Invert(View * Proj);
+            var a4 = new Vector4(nx, ny, -1, 1) * inv; var b4 = new Vector4(nx, ny, 1, 1) * inv;
+            var o = a4.Xyz / a4.W; var d = Vector3.Normalize(b4.Xyz / b4.W - o);
+            if (MathF.Abs(d.Y) < 1e-4f) return;
+            float s0 = (c.Y - o.Y) / d.Y;
+            if (s0 <= 0) return;
+            var hit = o + d * s0;   // OpenGL: z do jogo invertido
+            float yaw = MathHelper.RadiansToDegrees(MathF.Atan2(hit.X - c.X, -hit.Z - c.Z));
+            if ((ModifierKeys & Keys.Shift) != 0) yaw = MathF.Round(yaw / 15) * 15;
+            _gizmoYaw = (yaw + 360) % 360;
+            _status.Text = string.Format(Loc.T("gizmo.turning", "Girando: {0:0}° (Shift = de 15 em 15°)"), _gizmoYaw);
+        }
+        _gl.Invalidate();
+    }
+
+    void DrawGizmo()
+    {
+        if (SelectedMark() is not { } m) return;
+        var c = PosOf(m); float L = GizmoSize(c);
+        int hot = _gizmoAxis > 0 ? _gizmoAxis : _gizmoHover;
+        float yaw = MathHelper.DegreesToRadians(m.Tag == _gizmoTag && _gizmoYaw is { } gy ? gy : m.Yaw);
+        void V(Vector3 q) => GL.Vertex3(Gl(q.X, q.Y, q.Z));
+        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting);
+        GL.LineWidth(3);
+        Color[] cols = { Color.Red, Color.LimeGreen, Color.DodgerBlue };
+        for (int k = 0; k < 3; k++)
+        {
+            var d = GizmoDirs[k]; var tip = c + d * L;
+            Col(hot == k + 1 ? Color.White : cols[k]);
+            GL.Begin(PrimitiveType.Lines); V(c); V(tip); GL.End();
+            // ponta: cone de 8 lados
+            var u = Vector3.Normalize(Vector3.Cross(d, k == 1 ? Vector3.UnitX : Vector3.UnitY)); var w = Vector3.Cross(d, u);
+            GL.Begin(PrimitiveType.TriangleFan); V(c + d * L * 1.18f);
+            for (int i = 0; i <= 8; i++) { float t = i / 8f * MathF.Tau; V(tip + (u * MathF.Cos(t) + w * MathF.Sin(t)) * L * 0.06f); }
+            GL.End();
+        }
+        Col(hot == 4 ? Color.White : Color.Gold);
+        GL.Begin(PrimitiveType.LineLoop);
+        for (int i = 0; i < 48; i++) { float t = i / 48f * MathF.Tau; V(c + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * L * 0.8f); }
+        GL.End();
+        GL.Begin(PrimitiveType.Lines); V(c); V(c + new Vector3(MathF.Sin(yaw), 0, MathF.Cos(yaw)) * L * 0.8f); GL.End();
+        GL.LineWidth(1);
+        GL.Enable(EnableCap.DepthTest);
+    }
+
+    void GizmoLabels()
+    {
+        if (SelectedMark() is not { } m) return;
+        var c = PosOf(m); float L = GizmoSize(c) * 1.35f;
+        DrawLabel(Loc.T("gizmo.x", "X · leste"), c + Vector3.UnitX * L, Color.Red);
+        DrawLabel(Loc.T("gizmo.y", "Y · altura"), c + Vector3.UnitY * L, Color.LimeGreen);
+        DrawLabel(Loc.T("gizmo.z", "Z · norte"), c + Vector3.UnitZ * L, Color.DodgerBlue);
     }
 
     // ---------- escolha na tela ----------

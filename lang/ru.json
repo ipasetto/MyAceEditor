@@ -3815,5 +3815,10 @@
   "gm.eventNone": "{0}: ни на одной запущенной карте нет этого триггера.",
   "world.existingNpc": "Поставить существующего NPC здесь…",
   "addonEd.removed": "Удалено строк: {0}. Ctrl+Z — отмена.",
-  "npcgen.deletedMany": "Удалено точек: {0}. Ctrl+Z — отмена."
+  "npcgen.deletedMany": "Удалено точек: {0}. Ctrl+Z — отмена.",
+  "gizmo.moving": "Перемещение: X {0:0.0}   высота {1:0.0}   Z {2:0.0}",
+  "gizmo.turning": "Поворот: {0:0}° (Shift — шаг 15°)",
+  "gizmo.x": "X · восток",
+  "gizmo.y": "Y · высота",
+  "gizmo.z": "Z · север"
 }
