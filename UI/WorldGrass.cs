@@ -7,7 +7,8 @@ namespace MyAceEditor.UI;
 /// <summary>
 /// Grama do Mundo 3D como a do jogo (CELGrassBlock::BuildGrasses): cada bit ligado da área de grama (.ecbsd + bsdata) é
 /// uma cópia da malha .mox do tipo (grasses.pck), num ponto sorteado dentro da célula, girada e com tamanho ± variação,
-/// assentada no chão. Gerada em pedaços de 32 × 32 células só perto da câmera (até a distância de visão do tipo),
+/// assentada no chão e pintada com a luz do terreno naquele ponto × 2 (o jogo usa o mapa de luz do terreno com
+/// MODULATE2X, CELGrassBitsMap::Render). Gerada em pedaços de 32 × 32 células só perto da câmera (até a distância de visão do tipo),
 /// poucos por quadro; pedaços sem uso há um tempo saem da memória.
 /// </summary>
 internal sealed class WorldGrass : IDisposable
@@ -90,6 +91,27 @@ internal sealed class WorldGrass : IDisposable
     // canto da área (coluna 0, linha 0): centro − meia largura em X, + meia altura em Z (as linhas andam para −Z)
     static (float X, float Z) Origin(WorldScene.GrassArea g) => (g.X - g.Cols * g.Cell / 2, g.Z + g.Rows * g.Cell / 2);
 
+    readonly Dictionary<(int, int), (int[] Px, int W, int H)?> _light = new();
+
+    /// <summary>Luz do terreno (mapa de luz do dia, 256 m por área) no ponto do jogo, como cor BGRA opaca.</summary>
+    float LightAt(float x, float z)
+    {
+        int ac = (int)MathF.Floor((x + _t.Width / 2) / TerrainFile.AreaM), ar = (int)MathF.Floor((_t.Height / 2 - z) / TerrainFile.AreaM);
+        if (!_light.TryGetValue((ar, ac), out var img))
+        {
+            try { img = _t.LightmapDds(ar, ac) is { } d ? DdsDecoder.Decode(d) : null; } catch { img = null; }
+            _light[(ar, ac)] = img;
+        }
+        uint c = 0xFF808080;   // sem mapa de luz: neutro (× 2 = textura pura)
+        if (img is { } li)
+        {
+            float s = (x + _t.Width / 2) / TerrainFile.AreaM - ac, t = (_t.Height / 2 - z) / TerrainFile.AreaM - ar;
+            int px = Math.Clamp((int)(s * li.W), 0, li.W - 1), py = Math.Clamp((int)(t * li.H), 0, li.H - 1);
+            c = (uint)li.Px[py * li.W + px] | 0xFF000000;
+        }
+        return BitConverter.Int32BitsToSingle(unchecked((int)c));
+    }
+
     Piece? Build(int a, int bx, int by, Kind k)
     {
         var g = _scene!.Grass[a];
@@ -105,13 +127,13 @@ internal sealed class WorldGrass : IDisposable
                 float x = ox + (col + rx) * g.Cell, z = oz - (row + rz) * g.Cell;
                 if (_t.HeightAt(x, z) is not float y) continue;
                 y -= 0.02f;
-                uint b0 = (uint)(verts.Count / 5);
-                float c = MathF.Cos(rot), s = MathF.Sin(rot);
+                uint b0 = (uint)(verts.Count / 6);
+                float c = MathF.Cos(rot), s = MathF.Sin(rot), light = LightAt(x, z);
                 for (int i = 0; i < k.Pos.Length; i++)
                 {
                     var q = k.Pos[i] * sc;
                     float gx = x + q.X * c + q.Z * s, gz = z - q.X * s + q.Z * c;
-                    verts.Add(gx); verts.Add(y + q.Y); verts.Add(-gz); verts.Add(k.Uv[i].X); verts.Add(k.Uv[i].Y);
+                    verts.Add(gx); verts.Add(y + q.Y); verts.Add(-gz); verts.Add(light); verts.Add(k.Uv[i].X); verts.Add(k.Uv[i].Y);
                 }
                 foreach (var ix in k.Index) idx.Add(b0 + ix);
             }
@@ -135,8 +157,12 @@ internal sealed class WorldGrass : IDisposable
         int built = 0;
         GL.Enable(EnableCap.Texture2D); GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.Lighting);
         GL.Enable(EnableCap.AlphaTest);
-        GL.Color3(0.82f, 0.84f, 0.8f);
-        GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
+        GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE: textura × luz × 2
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8580, 0x1702);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 2f);
         for (int a = 0; a < _scene.Grass.Count; a++)
         {
             var g = _scene.Grass[a];
@@ -164,14 +190,17 @@ internal sealed class WorldGrass : IDisposable
                     GL.AlphaFunc(AlphaFunction.Greater, piece.AlphaRef);
                     GL.BindTexture(TextureTarget.Texture2D, piece.Tex);
                     GL.BindBuffer(BufferTarget.ArrayBuffer, piece.Vbo);
-                    GL.VertexPointer(3, VertexPointerType.Float, 20, 0);
-                    GL.TexCoordPointer(2, TexCoordPointerType.Float, 20, 12);
+                    GL.VertexPointer(3, VertexPointerType.Float, 24, 0);
+                    GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);   // GL_BGRA
+                    GL.TexCoordPointer(2, TexCoordPointerType.Float, 24, 16);
                     GL.BindBuffer(BufferTarget.ElementArrayBuffer, piece.Ibo);
                     GL.DrawElements(PrimitiveType.Triangles, piece.Count, DrawElementsType.UnsignedInt, 0);
                 }
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-        GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
+        GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.ColorArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 1f);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
         GL.Disable(EnableCap.AlphaTest); GL.Disable(EnableCap.Texture2D);
         GL.Color3(1f, 1f, 1f);
         // pedaços longe há mais de 20 s: libera
