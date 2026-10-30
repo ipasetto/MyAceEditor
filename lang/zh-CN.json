@@ -1626,7 +1626,7 @@
   "wiz.npc": "NPC",
   "wiz.pick": "选择…",
   "wiz.noBase": "（无）",
-  "wiz.hint": "从基础模板复制全部内容（外观、等级、生命、攻击、技能、掉落），并使用新的 ID 和名称。确定后新对象会在编辑器中打开，方便你调整其余内容。\n\n同一个 ID 可以在地图的多个刷新点出现而不冲突；只有想要一个不同的怪物/NPC 时才需要新 ID。",
+  "wiz.hint": "从基础模板复制全部内容（外观、等级、生命、攻击、技能、掉落），并使用新的 ID 和名称。确定后新对象会在编辑器中打开，方便你调整其余内容。\n新 NPC 是干净的：名称为“NPC - ID”，没有问候语，也没有任何服务（对话、任务、商店……）。\n\n同一个 ID 可以在地图的多个刷新点出现而不冲突；只有想要一个不同的怪物/NPC 时才需要新 ID。",
   "wiz.create": "创建",
   "wiz.newSuffix": "（新）",
   "wiz.done": "已创建 {0}，ID 为 {1} — 调整字段后保存。",
@@ -1649,7 +1649,7 @@
   "pck.failed": " · {0} 个失败",
   "pck.cancelled": " · 已取消",
   "pck.openFolder": "打开文件夹吗？",
-  "world.createHere": "在此创建新的怪物/NPC（基于模板）…",
+  "world.createHere": "在此创建新的怪物（基于模板）…",
   "tok.durability": "耐久",
   "tok.file": "文件",
   "srv.testServerOnYourPc": "在你电脑上的测试服务器（Windows 的 Linux 子系统，WSL）。先点一次“安装”；之后只需“启动”，然后在游戏中进入“Local”服务器。你原来的服务器文件不会被修改：程序使用的是副本。",
@@ -3814,5 +3814,6 @@
   "gm.eventEmpty": "该活动没有对应的触发器。",
   "gm.eventNoServer": "活动需要本机服务器。没有服务器时，请在游戏内使用 Ctrl+G。",
   "gm.eventDone": "{0}：已在地图 {1} 执行。",
-  "gm.eventNone": "{0}：没有运行中的地图有这个触发器。"
+  "gm.eventNone": "{0}：没有运行中的地图有这个触发器。",
+  "world.existingNpc": "在此放置已有的 NPC…"
 }

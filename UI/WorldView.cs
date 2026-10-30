@@ -859,10 +859,13 @@ internal sealed class WorldView : Form
             (_, _) => Clipboard.SetText(FormattableString.Invariant($"{at.X:0.##}, {at.Y:0.##}, {at.Z:0.##}")));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Loc.T("world.newMob", "Novo monstro aqui…"), null, (_, _) => { _newHere(at, 0); RefreshMarkers(); });
-        menu.Items.Add(Loc.T("world.newNpc", "Novo NPC aqui…"), null, (_, _) => { _newHere(at, 1); RefreshMarkers(); });
+        // NPC novo = registro novo (cópia limpa de um NPC base, ver EditorForm.ClearNpc); pôr um que já existe é outra opção
+        if (CreateNewHere is not null)
+            menu.Items.Add(Loc.T("world.newNpc", "Novo NPC aqui…"), null, (_, _) => CreateNewHere(at, 1));
+        menu.Items.Add(Loc.T("world.existingNpc", "NPC que já existe aqui…"), null, (_, _) => { _newHere(at, 1); RefreshMarkers(); });
         menu.Items.Add(Loc.T("world.newGather", "Novo coletável aqui…"), null, (_, _) => { _newHere(at, 2); RefreshMarkers(); });
         if (CreateNewHere is not null)
-            menu.Items.Add(Loc.T("world.createHere", "Criar monstro/NPC NOVO (a partir de um modelo) aqui…"), null, (_, _) => CreateNewHere(at, 0));
+            menu.Items.Add(Loc.T("world.createHere", "Criar monstro NOVO (a partir de um modelo) aqui…"), null, (_, _) => CreateNewHere(at, 0));
         // em cima de um ponto: ele vira o selecionado e dá para editar no software ou excluir
         if (under is not null)
         {

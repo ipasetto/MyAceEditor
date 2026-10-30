@@ -1626,7 +1626,7 @@
   "wiz.npc": "NPC",
   "wiz.pick": "Choose…",
   "wiz.noBase": "(none)",
-  "wiz.hint": "Copies everything from the base model (look, level, HP, attacks, skills, drops) with the new ID and name. After OK the new item opens in the editor so you can adjust the rest.\n\nThe same ID can spawn at many points of the map without conflict; a new ID is only for when you want a different monster/NPC.",
+  "wiz.hint": "Copies everything from the base model (look, level, HP, attacks, skills, drops) with the new ID and name. After OK the new item opens in the editor so you can adjust the rest.\nA new NPC starts clean: name \"NPC - ID\", no greeting and no services (talk, quests, shop…).\n\nThe same ID can spawn at many points of the map without conflict; a new ID is only for when you want a different monster/NPC.",
   "wiz.create": "Create",
   "wiz.newSuffix": "(new)",
   "wiz.done": "{0} created with ID {1} — adjust the fields and save.",
@@ -1649,7 +1649,7 @@
   "pck.failed": " · {0} failed",
   "pck.cancelled": " · cancelled",
   "pck.openFolder": "Open the folder?",
-  "world.createHere": "Create a NEW monster/NPC (from a model) here…",
+  "world.createHere": "Create a NEW monster (from a model) here…",
   "srv.testServerOnYourPc": "Test server on your PC (Windows Subsystem for Linux). Click Install once; then just Start and join the \"Local\" server in the game. Your original server files are not changed: the program works on a copy.",
   "srv.serverPackageServerFiles": "Server package (\"server files\")",
   "srv.browse": "Browse…",
@@ -3812,5 +3812,6 @@
   "gm.eventEmpty": "This event has no triggers for that.",
   "gm.eventNoServer": "Events need the server on this PC. Without it, use Ctrl+G inside the game.",
   "gm.eventDone": "{0}: done on map(s) {1}.",
-  "gm.eventNone": "{0}: no running map has this trigger."
+  "gm.eventNone": "{0}: no running map has this trigger.",
+  "world.existingNpc": "Put an existing NPC here…"
 }

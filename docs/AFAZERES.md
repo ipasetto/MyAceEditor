@@ -154,6 +154,6 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 ## PEDIDO 30/10 (painel do GM, NPC novo, drop, quest seguinte, selecao multipla)
 - [x] painel do GM: barras de chi (d 1991 / d 1992) e eventos (GM_ACTIVITY_CONFIG + gatilho do npcgen pelo gdeliveryd). Testar no jogo. Tudo de GM: PW-KB §S31
 - [~] monstro de teste so dropa moedas ("Ourico Teste" 61642): dados certos (3 itens x 10 sorteios do ID 6 a 100%, cliente = servidor); causa provavel = penalidade de nivel do PARAM_ADJUST_CONFIG (40+ niveis acima: item 20%, moeda 100%). Confirmar o nivel do personagem; depois mostrar a chance real por morte no painel de drop. Diagnostico: --drops <elements> [antigo]
-- [ ] Mundo 3D "Novo NPC aqui": criar NPC_ESSENCE novo copiado de um NPC base, sem descricao e sem quests (hoje so aponta para um NPC existente via _pick em NpcGenView.NewPoint)
+- [x] Mundo 3D "Novo NPC aqui…" cria NPC_ESSENCE novo pelo assistente (copia a base; nome "NPC - ID", sem hello_msg e sem nenhum servico: EditorForm.ClearNpc); "NPC que ja existe aqui…" mantem o jeito antigo. Testar no app
 - [ ] Mundo 3D quest seguinte: criar ali mesmo a quest de "fale com outro NPC" (hoje pede o ID); ver se e subquest
 - [ ] listas (drops, addons e todas): selecionar varios com Shift/Ctrl e apagar com Delete de uma vez

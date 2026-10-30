@@ -2947,7 +2947,7 @@ public sealed class EditorForm : Form
         var hint = new Label
         {
             Location = new Point(16, 180), Size = new Size(340, 150), ForeColor = CMuted,
-            Text = Loc.T("wiz.hint", "Copia tudo do modelo de base (aparência, nível, vida, ataques, habilidades, drops) com o ID e o nome novos. Depois do OK o item novo abre no editor para você ajustar o resto.\n\nO mesmo ID pode nascer em muitos pontos do mapa sem conflito; um ID novo é só para quando você quer um monstro/NPC diferente."),
+            Text = Loc.T("wiz.hint", "Copia tudo do modelo de base (aparência, nível, vida, ataques, habilidades, drops) com o ID e o nome novos. Depois do OK o item novo abre no editor para você ajustar o resto.\nNPC novo nasce limpo: nome \"NPC - ID\", sem fala e sem serviços (conversa, quests, loja…).\n\nO mesmo ID pode nascer em muitos pontos do mapa sem conflito; um ID novo é só para quando você quer um monstro/NPC diferente."),
         };
         var pic = new PictureBox { Location = new Point(370, 16), Size = new Size(220, 300), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(32, 38, 46) };
         var ok = new Button { Text = Loc.T("wiz.create", "Criar"), Location = new Point(390, 340), Size = new Size(95, 30), DialogResult = DialogResult.OK, Enabled = false, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White };
@@ -2973,6 +2973,7 @@ public sealed class EditorForm : Form
             if (nameBox.Text.Length == 0 || nameBox.Tag as string == nameBox.Text) nameBox.Text = nameBox.Tag as string ?? "";
             nameBox.Text = nm + " " + Loc.T("wiz.newSuffix", "(novo)"); nameBox.Tag = nameBox.Text;
             idBox.Value = Math.Min(idBox.Maximum, IdRefactor.NextFreeId(module, h.Block));
+            if (h.Block.Name == "NPC_ESSENCE") { nameBox.Text = $"NPC - {(long)idBox.Value}"; nameBox.Tag = nameBox.Text; }   // NPC novo nasce sem o nome da base
             var fm = h.Item.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value;
             pic.Image = ModelPreviewer()?.Render(fm is not null && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase) ? fm : null, 220, 0);
             ok.Enabled = true;
@@ -2986,10 +2987,20 @@ public sealed class EditorForm : Form
             Fields = baseItem.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)),
             Raw = baseItem.Raw?.ToArray(),
         };
+        if (block.Name == "NPC_ESSENCE") ClearNpc(ni);
         SetIdName(ni);
         InsertNewItem(block, ni);
         Status(string.Format(Loc.T("wiz.done", "{0} criado com ID {1} — ajuste os campos e salve."), ni.Name, ni.Id));
         return int.Parse(ni.Id);
+    }
+
+    /// <summary>NPC novo nasce limpo (pedido de 30/10): sem fala de boas-vindas e sem NENHUM serviço (conversa, quests,
+    /// loja, teleporte…), para o usuário definir depois; aparência, nível, monstro de origem etc. vêm da base.</summary>
+    private static void ClearNpc(Item npc)
+    {
+        foreach (var (k, f) in npc.Fields.ToList())
+            if (k == "hello_msg") npc.Fields[k] = Field.Of(f.Type, "");
+            else if (k is "combined_services" or "combined_services2" || k.StartsWith("id_") && k.EndsWith("_service")) npc.Fields[k] = Field.Of(f.Type, "0");
     }
 
     // NPCGen: escolher o monstro, NPC ou coletável de um ponto (mesma janela de escolha, com prévia do modelo)
