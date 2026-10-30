@@ -45,11 +45,48 @@ public sealed class WorldScene
             if (o <= 0 || o + 4 + 4 * counts > b.Length) continue;
             int n = BitConverter.ToInt32(b, o + 4);
             int t = o + 4 + 4 * counts;
-            if (n <= 0 || t + (long)n * rec > b.Length) continue;
+            if (n < 0 || t + (long)n * rec > b.Length) continue;
             for (int k = 0; k < n; k++, t += rec)
                 Trees.Add(hasY
                     ? new Tree(BitConverter.ToInt32(b, t), BitConverter.ToSingle(b, t + 4), BitConverter.ToSingle(b, t + 8), BitConverter.ToSingle(b, t + 12), true)
                     : new Tree(BitConverter.ToInt32(b, t), BitConverter.ToSingle(b, t + 4), 0, BitConverter.ToSingle(b, t + 8), false));
+            try { ReadModels(b, o, t, counts); } catch (ArgumentOutOfRangeException) { } catch (ArgumentException) { }
+        }
+    }
+
+    /// <summary>Modelos .ecm fixos do cenário (paredes, tetos, estátuas de algumas instâncias): CECSceneBlock::LoadECModels.</summary>
+    public sealed record SceneModel(string Ecm, string Action, float X, float Y, float Z, float[] Dir, float[] Up);
+    public List<SceneModel> Models { get; } = new();
+    /// <summary>Ornamentos do bloco: (ID de exportação, offset no bsdata). No bsdata: ECBSDFILEORNAMENT (posição, direção,
+    /// cima, 2 bool = 40 B) + nome do .bmd.</summary>
+    public List<(uint Id, uint Offset)> OrnamentRefs { get; } = new();
+
+    // depois das árvores, na ordem do CECSceneBlock (EC_SceneBlock.cpp, v ≥ 7): água, ornamentos, áreas e grama são
+    // referências de 8 B ao bsdata; efeitos são struct + 1 texto; modelos EC são ECWDFILEECMODEL (40 B) + arquivo + ação
+    void ReadModels(byte[] b, int o, int t, int counts)
+    {
+        if (Version < 7 || counts < 8) return;
+        int C(int k) => BitConverter.ToInt32(b, o + 4 + 4 * k);   // 0 árvores, 1 água, 2 grama, 3 ornamentos, 4 áreas, 5 efeitos, 6 modelos EC
+        int nWater = C(1), nGrass = C(2), nOrn = C(3), nBox = C(4), nFx = C(5), nEcm = C(6);
+        // referências dos ornamentos (construções .bmd): posição/direção ficam no bsdata, no offset dado
+        for (int k = 0; k < nOrn && t + 8 * (nWater + k) + 8 <= b.Length; k++)
+        {
+            int r = t + 8 * (nWater + k);
+            OrnamentRefs.Add((BitConverter.ToUInt32(b, r), BitConverter.ToUInt32(b, r + 4)));
+        }
+        if (nEcm <= 0 || nEcm > 100000 || nFx < 0 || nFx > 100000) return;
+        int p = t + 8 * (nWater + nOrn + nBox + nGrass);
+        int fxSize = Version < 8 ? 48 : Version < 12 ? 52 : 60;   // ECWDFILEEFFECT6/8/12 (com o alinhamento do bool)
+        for (int k = 0; k < nFx; k++) { p += fxSize; Str(b, ref p); }
+        for (int k = 0; k < nEcm; k++)
+        {
+            float F(int x) => BitConverter.ToSingle(b, p + x);
+            var pos = (F(4), F(8), F(12));
+            var dir = new[] { F(16), F(20), F(24) }; var up = new[] { F(28), F(32), F(36) };
+            p += 40;
+            var file = Str(b, ref p); var act = Str(b, ref p);
+            if (file.Length > 0 && float.IsFinite(pos.Item1) && float.IsFinite(pos.Item2) && float.IsFinite(pos.Item3))
+                Models.Add(new SceneModel(file, act, pos.Item1, pos.Item2, pos.Item3, dir, up));
         }
     }
 

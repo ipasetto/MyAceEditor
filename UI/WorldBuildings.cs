@@ -28,6 +28,8 @@ internal sealed class WorldBuildings : IDisposable
     /// <summary>Texturas de construção que não foram achadas no pacote (diagnóstico do --world-shot).</summary>
     public static readonly System.Collections.Concurrent.ConcurrentBag<string> MissingTextures = new();
     const int Batch = 16;
+    static readonly string HideTex = Environment.GetEnvironmentVariable("MYACE_HIDETEX") ?? "";   // teste: esconde malhas com esta textura
+    static readonly string CullMode = Environment.GetEnvironmentVariable("MYACE_BCULL") ?? "cw";   // teste: cw | ccw | off
 
     public WorldBuildings(string? elementDir, string map, WorldLoader load)
     {
@@ -105,7 +107,7 @@ internal sealed class WorldBuildings : IDisposable
                 bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
                 if (!need || _tex is null) continue;
                 byte[]? td; lock (_tex) td = _tex.Find(mesh.Texture.ToLowerInvariant()) is { } te ? _tex.Read(te) : null;
-                try { tex[mesh.Texture] = td is null ? null : DdsDecoder.DecodeMax(td, 512); } catch { tex[mesh.Texture] = null; }
+                try { tex[mesh.Texture] = td is null ? null : mesh.Texture.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) ? FromTga(td) : DdsDecoder.DecodeMax(td, 512); } catch { tex[mesh.Texture] = null; }
                 if (tex[mesh.Texture] is null) MissingTextures.Add(mesh.Texture);
             }
         }
@@ -136,6 +138,18 @@ internal sealed class WorldBuildings : IDisposable
             list.Add(new Placed(c.World, parts, c.Center, c.Radius));
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+    }
+
+    // textura .tga (algumas construções e as superfícies .sdr.tga): mesmo leitor dos ícones, em BGRA
+    static (int[] Px, int W, int H)? FromTga(byte[] d)
+    {
+        using var bmp = IconLoader.DecodeTga(d);
+        if (bmp is null) return null;
+        var bd = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        var px = new int[bmp.Width * bmp.Height];
+        System.Runtime.InteropServices.Marshal.Copy(bd.Scan0, px, 0, px.Length);
+        bmp.UnlockBits(bd);
+        return (px, bmp.Width, bmp.Height);
     }
 
     static int UploadTexture((int[] Px, int W, int H) img)
@@ -196,7 +210,15 @@ internal sealed class WorldBuildings : IDisposable
                     GL.VertexPointer(3, VertexPointerType.Float, 24, 0);
                     GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);   // GL_BGRA
                     GL.TexCoordPointer(2, TexCoordPointerType.Float, 24, 16);
+                    if (HideTex.Length > 0 && part.Tex.Contains(HideTex, StringComparison.OrdinalIgnoreCase)) continue;   // teste
                     int tex = _textures.GetValueOrDefault(part.Tex);
+                    // superfície de shader (.sdr: escudo do tempo na a33, poça de sangue na a17) sem a textura: no jogo é
+                    // efeito translúcido; desenhada opaca na cor do vértice virava domo/faixa sólida — fica de fora
+                    if (tex == 0 && part.Tex.Contains(".sdr", StringComparison.OrdinalIgnoreCase)) continue;
+                    // como o jogo (Direct3D descarta as faces de trás): planos de fundo vistos por trás somem (a08: um
+                    // quadro de 51×25 m bege cobria a parede da sala). Recorte (folhas, grades) continua dos dois lados.
+                    if (_cutout.Contains(tex) || CullMode == "off") GL.Disable(EnableCap.CullFace);
+                    else { GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(CullMode == "ccw" ? FrontFaceDirection.Ccw : FrontFaceDirection.Cw); }
                     if (_cutout.Contains(tex)) GL.Enable(EnableCap.AlphaTest); else GL.Disable(EnableCap.AlphaTest);
                     if (tex != 0) { GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, tex); }
                     else GL.Disable(EnableCap.Texture2D);
@@ -205,6 +227,7 @@ internal sealed class WorldBuildings : IDisposable
                 }
                 GL.PopMatrix();
             }
+        GL.Disable(EnableCap.CullFace); GL.FrontFace(FrontFaceDirection.Ccw);
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 1f);
         GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);

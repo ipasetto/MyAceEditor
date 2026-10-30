@@ -259,6 +259,101 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--tasks-svc") { TaskSvc(args[1], args[2]); return; }   // <elements.data> <tasks.data>: que ID (pai ou filha) os NPCs guardam no serviço de dar/receber   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
+        if (args.Length >= 2 && args[0] == "--scene-models")   // <element\maps> <mapa,mapa...>: modelos EC fixos do .ecwld (scene-models.txt)
+        {
+            var sb = new StringBuilder();
+            foreach (var mp in args[2].Split(','))
+            {
+                var ec = Directory.EnumerateFiles(Path.Combine(args[1], mp), "*.ecwld").FirstOrDefault();
+                if (ec is null) { sb.AppendLine($"== {mp}: sem .ecwld"); continue; }
+                var sc = new WorldScene(ec);
+                sb.AppendLine($"== {mp}: v{sc.Version}, {sc.Trees.Count} árvores, {sc.Models.Count} modelos EC, {sc.OrnamentRefs.Count} ornamentos");
+                // ornamentos: registro no bsdata (posição do jogo) × posição dentro do .bmd (a que usamos)
+                var bsd = Directory.EnumerateFiles(Path.Combine(args[1], mp, "bsdata"), "*.dat").OrderBy(x => x).ToList();
+                using var lit = new PckArchive(Path.Combine(Path.GetDirectoryName(args[1].TrimEnd('\\', '/'))!, "litmodels.pck"));
+                foreach (var (id, off) in sc.OrnamentRefs.Take(8))
+                    foreach (var f in bsd)
+                    {
+                        var d = File.ReadAllBytes(f);
+                        if (off + 44 > d.Length) continue;
+                        float F(long x) => BitConverter.ToSingle(d, (int)(off + x));
+                        int len = BitConverter.ToInt32(d, (int)off + 40);
+                        if (len <= 0 || len > 260 || off + 44 + len > d.Length) continue;
+                        var name = Encoding.GetEncoding(936).GetString(d, (int)off + 44, len).TrimEnd('\0');
+                        var e = lit.Find($@"litmodels\{mp}\{name}") ?? lit.Find(name);
+                        var bm = e is null ? null : BmdModel.Read(lit.Read(e));
+                        sb.AppendLine(FormattableString.Invariant($"  orn {id} {Path.GetFileName(f)}: {name} bsd pos {F(0):0.0},{F(4):0.0},{F(8):0.0} dir {F(12):0.00},{F(16):0.00},{F(20):0.00} | bmd {(bm is null ? "não achado" : $"pos {bm.Pos[0]:0.0},{bm.Pos[1]:0.0},{bm.Pos[2]:0.0} dir {bm.Dir[0]:0.00},{bm.Dir[1]:0.00},{bm.Dir[2]:0.00} escala {bm.Scale:0.##}")}"));
+                        break;
+                    }
+                foreach (var g in sc.Models.GroupBy(x => x.Ecm).OrderByDescending(g => g.Count()).Take(12))
+                    sb.AppendLine(FormattableString.Invariant($"  ×{g.Count()} {g.Key} [{g.First().Action}] em {g.First().X:0},{g.First().Y:0},{g.First().Z:0}"));
+            }
+            File.WriteAllText("scene-models.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--bmd-check")   // <litmodels.pck> <mapa,mapa...>: malhas declaradas × lidas em cada .bmd (bmd-check.txt)
+        {
+            using var pck = new PckArchive(args[1]);
+            var sb = new StringBuilder();
+            foreach (var mp in args[2].Split(','))
+            {
+                int files = 0, declared = 0, read = 0, bad = 0;
+                var lost = new List<string>();
+                foreach (var e in pck.Entries.Where(e => e.Path.StartsWith($@"litmodels\{mp}\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)))
+                {
+                    files++;
+                    var d = pck.Read(e);
+                    var m = BmdModel.Read(d);
+                    if (m is null) { bad++; lost.Add($"{e.Path}: não leu ({d.Length} B, versão {BitConverter.ToUInt32(d, 4):X8})"); continue; }
+                    declared += Math.Max(0, m.Declared); read += m.Meshes.Count;
+                    if (m.Meshes.Count < m.Declared) lost.Add($"{e.Path}: {m.Meshes.Count} de {m.Declared} malhas (versão {BitConverter.ToUInt32(d, 4):X8}, malha {(d.Length > 0x40 ? BitConverter.ToUInt32(d, 0x3C).ToString("X8") : "-")})");
+                }
+                sb.AppendLine($"== {mp}: {files} arquivos, malhas declaradas {declared}, lidas {read}, sem leitura {bad}");
+                if (args.Length >= 4 && args[3] == "uv")   // cada malha: textura, se decodifica, faixa de UV e cor média do vértice
+                {
+                    var bp = Path.Combine(Path.GetDirectoryName(args[1])!, "building.pck");
+                    using var bpk = new PckArchive(bp);
+                    foreach (var e in pck.Entries.Where(e => e.Path.StartsWith($@"litmodels\{mp}\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)))
+                        if (BmdModel.Read(pck.Read(e)) is { } m)
+                            foreach (var me in m.Meshes)
+                            {
+                                int nv = me.Vertices.Length / 24;
+                                float u0 = float.MaxValue, u1 = float.MinValue, v0 = float.MaxValue, v1 = float.MinValue;
+                                for (int i = 0; i < nv; i++) { float u = BitConverter.ToSingle(me.Vertices, i * 24 + 16), v = BitConverter.ToSingle(me.Vertices, i * 24 + 20); u0 = Math.Min(u0, u); u1 = Math.Max(u1, u); v0 = Math.Min(v0, v); v1 = Math.Max(v1, v); }
+                                var te = bpk.Find(me.Texture.ToLowerInvariant());
+                                var img = te is null ? null : DdsDecoder.DecodeMax(bpk.Read(te), 512);
+                                string px = "";
+                                if (img is { } im)
+                                {
+                                    int z0 = 0, f0 = 0; long r = 0, g = 0, bb = 0;
+                                    foreach (var c in im.Pixels) { int a = (c >> 24) & 0xFF; if (a < 24) z0++; else if (a > 232) f0++; r += (c >> 16) & 0xFF; g += (c >> 8) & 0xFF; bb += c & 0xFF; }
+                                    int n = im.Pixels.Length;
+                                    px = $" alfa0 {z0 * 100 / n}% alfa255 {f0 * 100 / n}% cor {r / n:X2}{g / n:X2}{bb / n:X2}";
+                                }
+                                int vc = BitConverter.ToInt32(me.Vertices, 12);
+                                sb.AppendLine(FormattableString.Invariant($"  {Path.GetFileName(e.Path)} {nv} vért. tex {me.Texture} {(te is null ? "NÃO ACHADA" : img is null ? "NÃO DECODIFICA" : $"{img.Value.Width}×{img.Value.Height}")}{px} cor do vértice {vc:X8} u {u0:0.##}..{u1:0.##} v {v0:0.##}..{v1:0.##}"));
+                            }
+                }
+                foreach (var l in lost.Take(15)) sb.AppendLine("  " + l);
+            }
+            File.WriteAllText("bmd-check.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--lit-list")   // <litmodels.pck> <mapa,mapa...>: .bmd de cada mapa por pasta (lit-list.txt)
+        {
+            using var pck = new PckArchive(args[1]);
+            var sb = new StringBuilder();
+            foreach (var mp in args[2].Split(','))
+            {
+                var pre = $@"litmodels\{mp}\";
+                var es = pck.Entries.Where(e => e.Path.StartsWith(pre, StringComparison.OrdinalIgnoreCase)).ToList();
+                sb.AppendLine($"== {mp}: {es.Count} arquivos");
+                foreach (var g in es.GroupBy(e => { var r = e.Path[pre.Length..]; int k = r.IndexOf('\\'); return (k < 0 ? "(raiz)" : r[..k]) + " " + Path.GetExtension(e.Path).ToLowerInvariant(); }).OrderBy(g => g.Key))
+                    sb.AppendLine($"  {g.Key}: {g.Count()}  ex.: {g.First().Path[pre.Length..]}");
+            }
+            File.WriteAllText("lit-list.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--instances")   // <gamed\config> <element>: ponto de entrada de cada mapa e o chão ali (instances.txt + instances-shots.txt)
         {
             var sb = new StringBuilder(); var shots = new StringBuilder();

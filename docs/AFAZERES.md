@@ -138,3 +138,15 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [ ] entrar no jogo pelo servidor Local (usuario)
 - [ ] instancias no servidor local (hoje sobe so gs01, como o start.sh do pacote)
 - [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp
+## MUNDO 3D / INSTANCIAS — onde paramos (30/10/2026)
+- [x] camera na entrada (8 m atras, olhando os pontos de criatura); CameraStarts.cs com as posicoes que o usuario conferiu (world, a05, a12, a39, a41, a49, a61, a62, a66)
+- [x] tecla Espaco/qualquer tecla presa (confere GetAsyncKeyState a cada quadro)
+- [x] camera nao passa mais por baixo do chao (so onde o terreno e tampa da instancia; a20)
+- [x] construcoes com faces de tras descartadas como no jogo (FrontFace CW; a08: plano bege de 51x25 m cobria a parede); recorte segue dos 2 lados
+- [x] texturas .tga nas construcoes; superficie .sdr sem textura nao e desenhada (domos da a33)
+- [x] agua do cliente so nas celulas da mascara
+- [ ] a26: superficies azuis = malhas com texturas h\82c / j53 desenhadas so com a cor do vertice (decodificam no teste --bmd-check uv, mas nao no Mundo 3D?). Fotos do teste em scratch: MYACE_HIDETEX=82c/b53 (conferir qual some)
+- [ ] a17: faixa marrom (nao e o 血池.sdr; achar a malha com MYACE_HIDETEX); a23: paredes marrons esticadas (talvez normal); a33: ceu roxo (perguntar se e assim no jogo)
+- [ ] tetos (a35, a24, a27): fotografar olhando para cima; a15: mancha clara pequena na borda
+- [ ] a21 arvores; bambu deitado (angulo do nivel 1 77..130 tomado a partir do eixo do pai)
+- ferramentas: --instances, --world-shot (nome "ov" = camera do Mundo 3D), --bmd-check <pck> <mapas> [uv], --lit-list, --scene-models; MYACE_HIDE=terrain|buildings, MYACE_HIDETEX=<trecho>, MYACE_BCULL=cw|ccw|off (teste)

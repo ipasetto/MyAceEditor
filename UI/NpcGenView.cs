@@ -739,6 +739,14 @@ internal sealed class NpcGenView : UserControl
             var near10 = f.Spawns.OrderBy(s => (s.Position.X - ov.X) * (s.Position.X - ov.X) + (s.Position.Z - ov.Z) * (s.Position.Z - ov.Z)).Take(10).ToList();
             if (near10.Count > 0) toward = new OpenTK.Mathematics.Vector3(near10.Average(s => s.Position.X), ov.Y, near10.Average(s => s.Position.Z));
             w.Overview(new OpenTK.Mathematics.Vector3(ov.X, ov.Y, ov.Z), _cur.Equals("world", StringComparison.OrdinalIgnoreCase), toward);
+            // posição conferida no jogo (CameraStarts): a câmera começa exatamente ali, olhando para os pontos mais perto dela
+            if (CameraStarts.Of(_cur) is { } cs)
+            {
+                var n = f.Spawns.OrderBy(s => (s.Position.X - cs.X) * (s.Position.X - cs.X) + (s.Position.Z - cs.Z) * (s.Position.Z - cs.Z)).Take(10).ToList();
+                float dx = n.Count > 0 ? n.Average(s => s.Position.X) - cs.X : 0, dz = n.Count > 0 ? n.Average(s => s.Position.Z) - cs.Z : 1;
+                if (dx * dx + dz * dz < 4) (dx, dz) = (0, 1);
+                w.SetCamera(new OpenTK.Mathematics.Vector3(cs.X, cs.Y, cs.Z), OpenTK.Mathematics.MathHelper.RadiansToDegrees(MathF.Atan2(-dz, dx)), -10);
+            }
         }
         if (_configDir is not null) w.WaterDir = Path.Combine(_configDir, _cur, "watermap");
         w.MapTag = MapTagOf(_cur);

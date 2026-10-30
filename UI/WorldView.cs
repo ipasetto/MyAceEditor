@@ -78,6 +78,7 @@ internal sealed class WorldView : Form
     readonly WorldTrees _trees;
     bool _showBuildings = true;
     readonly HashSet<Keys> _keys = new();
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 10 };
     readonly Stopwatch _clock = Stopwatch.StartNew();
     readonly Dictionary<string, (int Tex, int W, int H)> _labels = new();
@@ -142,6 +143,10 @@ internal sealed class WorldView : Form
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
         _trees = new WorldTrees(element, t.Name);
+        // teste do --world-shot: esconder partes para achar quem desenha o quê
+        var hide = Environment.GetEnvironmentVariable("MYACE_HIDE") ?? "";
+        if (hide.Contains("terrain")) _terrain.Visible = false;
+        if (hide.Contains("buildings")) _showBuildings = false;
         RefreshMarkers();
         HideLidTerrain(start.Y);
         LookAt(start);
@@ -338,8 +343,14 @@ internal sealed class WorldView : Form
     {
         _cam.X = Math.Clamp(_cam.X, -_t.Width / 2, _t.Width / 2);
         _cam.Z = Math.Clamp(_cam.Z, -_t.Height / 2, _t.Height / 2);
-        // não deixa entrar no chão; bem abaixo dele (caverna sob a tampa) a câmera fica onde está
-        if (_terrain.Visible && _t.HeightAt(_cam.X, -_cam.Z) is { } ground && _cam.Y < ground + 2 && _cam.Y > ground - 12) _cam.Y = ground + 2;
+        // não deixa entrar no chão. Abaixo dele só onde o terreno é tampa (bem acima do piso da entrada da instância:
+        // a26, cavernas). Antes: liberado a mais de 12 m abaixo em qualquer mapa — descendo rápido (Shift) a câmera
+        // passava o chão e via o terreno por baixo (só a faixa do horizonte, a20)
+        if (_terrain.Visible && _t.HeightAt(_cam.X, -_cam.Z) is { } ground && _cam.Y < ground + 2)
+        {
+            bool lid = _floorY is { } fy && ground > fy + 20;
+            if (!lid || _cam.Y > ground - 12) _cam.Y = ground + 2;
+        }
     }
 
     Vector3 Forward => new(MathF.Cos(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch)),
@@ -349,6 +360,9 @@ internal sealed class WorldView : Form
     void Step()
     {
         double now = _clock.Elapsed.TotalSeconds; float dt = (float)Math.Min(0.1, now - _last); _last = now;
+        // tecla solta sem KeyUp (Espaço com o foco num botão/caixa da barra vira clique e o KeyUp some): confere com o
+        // Windows se ainda está apertada — senão a câmera subia sem parar até trocar de mapa
+        if (_keys.Count > 0) _keys.RemoveWhere(k => (GetAsyncKeyState((int)k) & 0x8000) == 0);
         bool moving = _keys.Count > 0;
         if (moving)
         {
