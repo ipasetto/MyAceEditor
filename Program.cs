@@ -135,7 +135,7 @@ internal static class Program
         {
             using var packs = new MyAceEditor.UI.ModelPacks(args[1]);
             var r = packs.For(args[2]) is { } mp ? MyAceEditor.UI.WorldModels.ResolveSki(mp, args[2]) : null;
-            File.WriteAllText("model.txt", r is { } x ? $"OK {x.Dir}" : "NÃO ACHEI", new UTF8Encoding(false));
+            File.WriteAllText("model.txt", r is { } x ? $"OK {x.Dir}\ntexturas: {string.Join(", ", x.Ski.Textures)}" : "NÃO ACHEI", new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 4 && args[0] == "--field")   // <elements.data> <bloco> <campo>: valor nos 8 primeiros itens (field.txt)

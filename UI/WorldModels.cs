@@ -97,7 +97,14 @@ internal sealed class WorldModels : IDisposable
         var dir = Path.GetDirectoryName(smd) ?? "";
         // skins: o de mesmo nome do .SMD + os "AddiSkinPath" do .ecm (relativos a Models\); sem nenhum, o primeiro não vazio da pasta
         var skins = new List<PckEntry>();
-        if (pck.Find(Path.ChangeExtension(smd, ".ski")) is { } own) skins.Add(own);
+        // o .ski de mesmo nome só entra se o .SMD o citar (o jogo carrega as peles do .SMD + as do .ecm); senão sobra uma
+        // pele velha da pasta, às vezes com textura que nem existe (Besouro Estrela 1063: c身高\红斑天牛.ski → branco)
+        if (pck.Find(Path.ChangeExtension(smd, ".ski")) is { } own)
+        {
+            var smdEntry = pck.Find(smd);
+            var smdText = smdEntry is null ? null : System.Text.Encoding.GetEncoding(936).GetString(pck.Read(smdEntry));
+            if (smdText is null || smdText.Contains(Path.GetFileName(own.Path), StringComparison.OrdinalIgnoreCase)) skins.Add(own);
+        }
         foreach (Match a in Regex.Matches(text, @"AddiSkinPath:\s*(\S[^\r\n]*)"))
         {
             var p = a.Groups[1].Value.Trim().ToLowerInvariant();
