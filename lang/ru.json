@@ -3844,5 +3844,8 @@
   "legend.keyLeft": "Левая",
   "legend.keyGizmo": "Стрелки / кольцо",
   "legend.keyRight": "Правая",
-  "legend.kGrass": "скрыть траву"
+  "legend.kGrass": "скрыть траву",
+  "legend.kDayNight": "день / ночь",
+  "world.night": "Ночь (L — вернуть день)",
+  "world.day": "День (L — ночь)"
 }

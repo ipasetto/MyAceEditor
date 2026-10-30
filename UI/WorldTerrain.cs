@@ -31,6 +31,21 @@ internal sealed class WorldTerrain : IDisposable
     readonly HashSet<string> _decodedNames = new(StringComparer.OrdinalIgnoreCase);   // texturas do chão já enviadas ao segundo plano
 
     public bool Visible { get; set; } = true;
+
+    bool _night;
+    /// <summary>Luz de noite (.t2lm1). Trocar recarrega a luz do chão dos pedaços já carregados.</summary>
+    public bool Night
+    {
+        get => _night;
+        set
+        {
+            if (_night == value) return;
+            _night = value;
+            foreach (var g in _ground.Values)
+                if (g is not null) { foreach (var l in g.Layers) if (l.Mask != 0) GL.DeleteTexture(l.Mask); if (g.Light != 0) GL.DeleteTexture(g.Light); }
+            _ground.Clear();
+        }
+    }
     public int Rows => (int)Math.Ceiling(_t.Height / TileM);
     public int Cols => (int)Math.Ceiling(_t.Width / TileM);
 
@@ -224,6 +239,7 @@ internal sealed class WorldTerrain : IDisposable
     {
         if (_texPck is null) { _ground[(ar, ac)] = null; return; }
         if (!_groundWait.Add((ar, ac))) return;
+        bool night = _night;
         _load.Work(() =>
         {
             TerrainFile.GroundLayer[]? layers;
@@ -239,11 +255,12 @@ internal sealed class WorldTerrain : IDisposable
                 try { tex[l.Texture] = d is null ? null : DdsDecoder.DecodeMax(d, 512); } catch { tex[l.Texture] = null; }
             }
             (int[], int, int)? light;
-            try { light = _t.LightmapDds(ar, ac) is { } ld ? DdsDecoder.Decode(ld) : null; } catch { light = null; }
+            try { light = _t.LightmapDds(ar, ac, night) is { } ld ? DdsDecoder.Decode(ld) : null; } catch { light = null; }
             return new GroundCpu(layers, tex, light);
         }, cpu =>
         {
             _groundWait.Remove((ar, ac));
+            if (night != _night) return;   // trocou dia/noite enquanto carregava: pede de novo
             if (cpu is null) { _ground[(ar, ac)] = null; return; }
             foreach (var (name, img) in cpu.Textures) _groundTex[name] = img is { } i ? UploadTexture(i.Px, i.W, i.H, true, true) : 0;
             var layers = cpu.Layers.Select((l, i) => (l.Texture, l.UScale, l.VScale,

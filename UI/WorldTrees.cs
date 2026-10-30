@@ -138,13 +138,17 @@ internal sealed class WorldTrees : IDisposable
     /// </summary>
     // Luz das árvores como CELForest::Render (EL_Forest.cpp, source do cliente): material BRANCO (o material do .spt não
     // entra no desenho com LIGHT_DYNAMIC), ambiente × 0,5 + sol × 0,5 × N·L, textura × 2 (MODULATE2X = nosso RGB_SCALE 2).
-    // Ambiente e sol = luz fixa de dia do Mundo 3D.
-    const float SceneAmbient = 0.55f, SceneSun = 0.8f;
+    // Ambiente e sol = os da área (dia ou noite, CECScene::AdjustEnvironment); o Mundo 3D põe antes de gerar (Relight).
+    internal static Vector3 SceneAmbient = new(0.55f), SceneSun = new(0.8f);
     static float Lit(float nl)
     {
-        byte v = (byte)Math.Clamp((SceneAmbient * 0.5f + SceneSun * 0.5f * MathF.Max(0, nl)) * 255, 0, 255);
-        return BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(v << 16) | (uint)(v << 8) | v)));
+        var c = (SceneAmbient * 0.5f + SceneSun * 0.5f * MathF.Max(0, nl)) * 255;
+        byte r = (byte)Math.Clamp(c.X, 0, 255), g = (byte)Math.Clamp(c.Y, 0, 255), b = (byte)Math.Clamp(c.Z, 0, 255);
+        return BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(r << 16) | (uint)(g << 8) | b)));
     }
+
+    /// <summary>A luz mudou (dia/noite): as árvores são geradas de novo com a luz nova, aos poucos.</summary>
+    public void Relight() => ClearKinds();
 
     int Texture(string path, int max, bool cutout = false)
     {
@@ -318,6 +322,12 @@ internal sealed class WorldTrees : IDisposable
 
     public void Dispose()
     {
+        ClearKinds();
+        _pck?.Dispose();
+    }
+
+    void ClearKinds()
+    {
         foreach (var k in _kinds.Values)
         {
             foreach (var p in new[] { k?.Wood, k?.Fronds, k?.Leaves })
@@ -327,6 +337,5 @@ internal sealed class WorldTrees : IDisposable
             if (comp != 0) GL.DeleteTexture(comp);
         }
         _kinds.Clear();
-        _pck?.Dispose();
     }
 }

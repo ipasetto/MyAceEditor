@@ -84,6 +84,9 @@ internal sealed class WorldView : Form
     readonly WorldSky _sky;
     bool _showBuildings = true;
     bool _gameFog = true;   // N: neblina da área (jogo) ou a longe
+    // dia/noite (L): fator 0 = dia, 1 = noite, como CECSunMoon::GetDNFactor; vai aos poucos (~2 s). Na metade troca céu,
+    // luz do chão (.t2lm1), cores das construções e a luz das árvores; neblina e luz dos modelos misturam pelo fator.
+    bool _nightOn; float _nf; bool _nightApplied;
     readonly HashSet<Keys> _keys = new();
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 10 };
@@ -308,7 +311,8 @@ internal sealed class WorldView : Form
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
-            case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;               // neblina do jogo (por área) ou longe
+            case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;
+            case Keys.L: _nightOn = !_nightOn; _gl.Invalidate(); return;               // dia / noite               // neblina do jogo (por área) ou longe
             case Keys.Delete:
                 if (_selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
                 return;
@@ -431,11 +435,12 @@ internal sealed class WorldView : Form
         GL.Enable(EnableCap.DepthTest);
         GL.MatrixMode(MatrixMode.Projection); var p = Proj; GL.LoadMatrix(ref p);
         GL.MatrixMode(MatrixMode.Modelview); var v = View; GL.LoadMatrix(ref v);
-        _sky.Draw(_cam);   // céu da área (tetos das instâncias); sem céu fica a cor de fundo
+        StepDayNight();
+        _sky.Draw(_cam, _nightApplied);   // céu da área (tetos das instâncias); sem céu fica a cor de fundo
         GL.Enable(EnableCap.Fog);
         GL.Fog(FogParameter.FogMode, (int)FogMode.Linear);
         // neblina da área da câmera (.ecbsd, como o jogo); N troca pela neblina longe, para editar enxergando o mapa todo
-        if (_gameFog && _sky.Fog(_cam) is { } fog)
+        if (_gameFog && _sky.Fog(_cam, _nf) is { } fog)
         {
             GL.Fog(FogParameter.FogStart, fog.Start); GL.Fog(FogParameter.FogEnd, fog.End);
             GL.Fog(FogParameter.FogColor, new[] { fog.Color.X, fog.Color.Y, fog.Color.Z, 1f });
@@ -480,8 +485,9 @@ internal sealed class WorldView : Form
         var sel = _selected();
         GL.Enable(EnableCap.Lighting); GL.Enable(EnableCap.Light0); GL.Enable(EnableCap.Normalize); GL.Enable(EnableCap.ColorMaterial);
         GL.Light(LightName.Light0, LightParameter.Position, new Vector4(-0.4f, 1f, 0.3f, 0));
-        GL.Light(LightName.Light0, LightParameter.Diffuse, new Color4(0.8f, 0.8f, 0.75f, 1f));
-        GL.Light(LightName.Light0, LightParameter.Ambient, new Color4(0.5f, 0.5f, 0.55f, 1f));
+        var (amb, sun) = _sky.Light(_cam, _nf) ?? (new Vector3(0.5f, 0.5f, 0.55f), new Vector3(0.8f, 0.8f, 0.75f));
+        GL.Light(LightName.Light0, LightParameter.Diffuse, new Color4(sun.X, sun.Y, sun.Z, 1f));
+        GL.Light(LightName.Light0, LightParameter.Ambient, new Color4(amb.X, amb.Y, amb.Z, 1f));
         GL.Enable(EnableCap.AlphaTest); GL.AlphaFunc(AlphaFunction.Greater, 0.3f);
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.NormalArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
         GL.Color3(1f, 1f, 1f);
@@ -525,6 +531,7 @@ internal sealed class WorldView : Form
     internal bool Loading => _busy || _trees.Pending || _grass.Pending;
     internal void SetCamera(Vector3 game, float yaw, float pitch) { _cam = Gl(game.X, game.Y, game.Z); _yaw = yaw; _pitch = pitch; _legendOpen = false; _gl.Invalidate(); }
     internal void OpenLegend() { _legendOpen = true; _gl.Invalidate(); }
+    internal void SetNight(bool on) { _nightOn = on; _nf = on ? 1 : 0; _gl.Invalidate(); }
     internal Bitmap? CaptureFrame() { _grab = true; Render(); var b = _grabbed; _grabbed = null; return b; }
 
     Bitmap ReadFrame()
@@ -786,6 +793,7 @@ internal sealed class WorldView : Form
             new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "B" }),
             new(K("legend.kGrass", "esconder a grama"), Keys: new[] { "G" }),
             new(K("legend.kFog", "neblina do jogo / neblina longe"), Keys: new[] { "N" }),
+            new(K("legend.kDayNight", "dia / noite"), Keys: new[] { "L" }),
             new(K("legend.kLegend", "abrir / fechar esta legenda"), Keys: new[] { "H" }),
             new(""),
             new(K("legend.gPoints", "Pontos"), Header: true),
@@ -880,6 +888,22 @@ internal sealed class WorldView : Form
         GL.End();
         GL.Enable(EnableCap.DepthTest);
         GL.MatrixMode(MatrixMode.Projection); GL.PopMatrix(); GL.MatrixMode(MatrixMode.Modelview); GL.PopMatrix();
+    }
+
+    // ---------- dia e noite ----------
+    double _dnAt;
+    void StepDayNight()
+    {
+        double now = _clock.Elapsed.TotalSeconds, dt = Math.Min(0.1, now - _dnAt); _dnAt = now;
+        float target = _nightOn ? 1 : 0;
+        if (_nf != target) { _nf = Math.Clamp(_nf + MathF.Sign(target - _nf) * (float)dt / 2f, 0, 1); _gl.Invalidate(); }
+        bool night = _nf >= 0.5f;
+        if (night == _nightApplied) return;
+        _nightApplied = night;
+        _terrain.Night = night; _grass.Night = night; _buildings.Night = night;
+        if (_sky.Light(_cam, night ? 1 : 0) is var (a, s)) { WorldTrees.SceneAmbient = a; WorldTrees.SceneSun = s; }
+        _trees.Relight();
+        _status.Text = night ? Loc.T("world.night", "Noite (L volta para o dia)") : Loc.T("world.day", "Dia (L para a noite)");
     }
 
     // ---------- setas de mover e anel de girar (ponto selecionado) ----------

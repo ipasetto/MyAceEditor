@@ -121,6 +121,7 @@ public sealed class WorldScene
             try
             {
                 var sky = new[] { Str(d, ref q), Str(d, ref q), Str(d, ref q) };
+                try { sky = [.. sky, Str(d, ref q), Str(d, ref q), Str(d, ref q)]; } catch (ArgumentException) { }   // 3..5 = céu de noite
                 float F(int o) => BitConverter.ToSingle(d, p + o);
                 uint U(int o) => BitConverter.ToUInt32(d, p + o);
                 Areas.Add(new BoxArea(def, area.Pos, area.Ext, area.X, area.Y, area.Z, sky)

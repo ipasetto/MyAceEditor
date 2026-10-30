@@ -190,25 +190,27 @@ public sealed class TerrainFile
 
     // <mapa>_N.t2lm (luz do dia; .t2lm1 = noite): "T2LM", versão, nÁreas (16), lado (256), ?, tamanho de cada, offsets[nÁreas];
     // cada área de 256 m é um .dds de lado×lado (1 m por pixel)
-    readonly Dictionary<int, byte[]?> _lightFiles = new();
+    readonly Dictionary<int, byte[]?> _lightFiles = new(), _nightFiles = new();
 
-    /// <summary>DDS da luz da área de 256 m (linha/coluna globais), ou null.</summary>
-    public byte[]? LightmapDds(int areaRow, int areaCol)
+    /// <summary>DDS da luz da área de 256 m (linha/coluna globais), ou null. night = .t2lm1 (o jogo mistura as duas pelo
+    /// fator dia/noite, A3DTerrain2::SetDNFactor).</summary>
+    public byte[]? LightmapDds(int areaRow, int areaCol, bool night = false)
     {
-        lock (_areaSync) return LightmapCore(areaRow, areaCol);
+        lock (_areaSync) return LightmapCore(areaRow, areaCol, night);
     }
 
-    byte[]? LightmapCore(int areaRow, int areaCol)
+    byte[]? LightmapCore(int areaRow, int areaCol, bool night)
     {
+        var files = night ? _nightFiles : _lightFiles;
         int per = (int)(CellsPerPiece * Cell / AreaM);
         if (areaRow < 0 || areaCol < 0 || areaRow >= Rows * per || areaCol >= Cols * per) return null;
         int piece = areaRow / per * Cols + areaCol / per + 1, local = areaRow % per * per + areaCol % per;
-        if (!_lightFiles.TryGetValue(piece, out var d))
+        if (!files.TryGetValue(piece, out var d))
         {
-            var p = Path.Combine(Dir, $"{Name}_{piece}.t2lm");
+            var p = Path.Combine(Dir, $"{Name}_{piece}.t2lm" + (night ? "1" : ""));
             d = File.Exists(p) ? File.ReadAllBytes(p) : null;
             if (d is not null && BitConverter.ToUInt32(d, 0) != 0x54324C4D) d = null;   // "ML2T"
-            _lightFiles[piece] = d;
+            files[piece] = d;
         }
         if (d is null) return null;
         int n = BitConverter.ToInt32(d, 8);

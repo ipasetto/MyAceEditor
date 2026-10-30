@@ -59,15 +59,30 @@ internal sealed class WorldSky : IDisposable
     /// Neblina de dia da área da câmera (início, fim em metros e cor), indo aos poucos de uma área para outra como no jogo
     /// (CECScnBoxArea: a troca leva dwTransTime; aqui ~1 s). null = mapa sem áreas.
     /// </summary>
-    public (float Start, float End, Vector3 Color)? Fog(Vector3 camGl)
+    public (float Start, float End, Vector3 Color)? Fog(Vector3 camGl, float nf = 0)
     {
         if (AreaAt(_all, new Vector3(camGl.X, camGl.Y, -camGl.Z)) is not { } a || a.FogEnd <= 0) return null;
-        var col = new Vector3((a.FogColor >> 16 & 255) / 255f, (a.FogColor >> 8 & 255) / 255f, (a.FogColor & 255) / 255f);
-        float end = MathF.Max(a.FogEnd, a.FogStart + 1);
-        if (_fogStart < 0) (_fogStart, _fogEnd, _fogColor) = (a.FogStart, end, col);
+        static Vector3 C(uint c) => new((c >> 16 & 255) / 255f, (c >> 8 & 255) / 255f, (c & 255) / 255f);
+        // dia e noite misturados pelo fator dia/noite (CECWorld::Render: FogCol × (1 − nf) + FogCol_n × nf)
+        bool hasNight = a.FogEndNight > 0;
+        float df = hasNight ? 1 - nf : 1, n = hasNight ? nf : 0;
+        var col = C(a.FogColor) * df + C(a.FogColorNight) * n;
+        float start = a.FogStart * df + a.FogStartNight * n;
+        float end = MathF.Max(a.FogEnd * df + a.FogEndNight * n, start + 1);
+        if (_fogStart < 0) (_fogStart, _fogEnd, _fogColor) = (start, end, col);
         const float k = 0.15f;
-        _fogStart += (a.FogStart - _fogStart) * k; _fogEnd += (end - _fogEnd) * k; _fogColor += (col - _fogColor) * k;
+        _fogStart += (start - _fogStart) * k; _fogEnd += (end - _fogEnd) * k; _fogColor += (col - _fogColor) * k;
         return (_fogStart, _fogEnd, _fogColor);
+    }
+
+    /// <summary>Luz da área da câmera (ambiente e sol, cor 0..1), dia e noite misturados pelo fator nf.</summary>
+    public (Vector3 Ambient, Vector3 Sun)? Light(Vector3 camGl, float nf)
+    {
+        if (AreaAt(_all, new Vector3(camGl.X, camGl.Y, -camGl.Z)) is not { } a || a.Ambient == 0) return null;
+        static Vector3 C(uint c) => new((c >> 16 & 255) / 255f, (c >> 8 & 255) / 255f, (c & 255) / 255f);
+        bool n = a.AmbientNight != 0;
+        float k = n ? nf : 0;
+        return (C(a.Ambient) * (1 - k) + C(a.AmbientNight) * k, C(a.SunColor) * (1 - k) + C(a.SunColorNight) * k);
     }
 
     /// <summary>Direção da luz do sol do mapa (área padrão no centro, coordenadas OpenGL, apontando PARA o sol).</summary>
@@ -132,12 +147,16 @@ internal sealed class WorldSky : IDisposable
     static readonly float[] Heights = { 1f, 0.5f, 0.167f, 0f, -0.27f };
 
     /// <summary>Desenha o céu em volta da câmera (coordenadas OpenGL: Z do jogo invertido). false = sem céu.</summary>
-    public bool Draw(Vector3 camGl)
+    public bool Draw(Vector3 camGl) => Draw(camGl, false);
+
+    /// <summary>night: céu de noite da área (textos 3..5; o jogo troca com TransSky quando o fator dia/noite muda).</summary>
+    public bool Draw(Vector3 camGl, bool night)
     {
         if (!HasSky) return false;
         _cur = AreaAt(new Vector3(camGl.X, camGl.Y, -camGl.Z)) ?? _cur;
         if (_cur is null) return false;
-        int cap = Texture(_cur.Sky[0]), front = Texture(_cur.Sky.Length > 1 ? _cur.Sky[1] : ""), back = Texture(_cur.Sky.Length > 2 ? _cur.Sky[2] : "");
+        int b = night && _cur.Sky.Length >= 6 && _cur.Sky[3].Length > 0 ? 3 : 0;
+        int cap = Texture(_cur.Sky[b]), front = Texture(_cur.Sky.Length > b + 1 ? _cur.Sky[b + 1] : ""), back = Texture(_cur.Sky.Length > b + 2 ? _cur.Sky[b + 2] : "");
         if (cap == 0 && front == 0 && back == 0) return false;
 
         GL.Disable(EnableCap.DepthTest); GL.DepthMask(false); GL.Disable(EnableCap.Fog); GL.Disable(EnableCap.Lighting);

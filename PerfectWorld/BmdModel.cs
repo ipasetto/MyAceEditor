@@ -13,7 +13,11 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public sealed class BmdModel
 {
-    public sealed record Mesh(string Texture, byte[] Vertices, ushort[] Indices);   // vértice 24 B como no arquivo
+    public sealed record Mesh(string Texture, byte[] Vertices, ushort[] Indices)   // vértice 24 B como no arquivo
+    {
+        /// <summary>Cor de NOITE de cada vértice (BGRA, 4 B; alfa do vértice), ou null (A3DLitMesh m_pNightColors).</summary>
+        public byte[]? Night { get; init; }
+    }
 
     public float Scale;
     public float[] Dir = new float[3], Up = new float[3], Pos = new float[3];
@@ -62,12 +66,17 @@ public sealed class BmdModel
             // depois dos índices: normais (nv × 12) e as cores de DIA e de NOITE (nv × 4 cada; A3DLitMesh). A cor dentro do
             // vértice nem sempre é a iluminada (a19: tons verde/roxo); a de dia é a que o jogo mostra. Só usa se for opaca.
             int day = end + nv * 12;
+            byte[]? night = null;
             if (day + nv * 8 <= d.Length)
             {
                 int opaque = 0;
                 for (int i = 0; i < nv; i++) if (d[day + i * 4 + 3] == 0xFF) opaque++;
                 if (opaque >= nv * 9 / 10)
+                {
                     for (int i = 0; i < nv; i++) Buffer.BlockCopy(d, day + i * 4, verts, i * 24 + 12, 3);   // BGR; alfa do vértice fica
+                    night = new byte[nv * 4];
+                    for (int i = 0; i < nv; i++) { Buffer.BlockCopy(d, day + nv * 4 + i * 4, night, i * 4, 3); night[i * 4 + 3] = verts[i * 24 + 15]; }
+                }
             }
             var idx = new ushort[nf * 3];
             Buffer.BlockCopy(d, io, idx, 0, idx.Length * 2);
@@ -79,7 +88,7 @@ public sealed class BmdModel
                     float v = BitConverter.ToSingle(verts, i * 24 + c * 4);
                     if (!float.IsFinite(v) || Math.Abs(v) > 100_000) { sane = false; break; }
                 }
-            if (sane && idx.All(x => x < nv)) m.Meshes.Add(new Mesh(texName, verts, idx));
+            if (sane && idx.All(x => x < nv)) m.Meshes.Add(new Mesh(texName, verts, idx) { Night = night });
             o = k + 1 < m.Declared ? NextMesh(d, end + nv * 12, ver) : -1;
         }
         return m;

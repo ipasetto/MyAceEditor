@@ -11,7 +11,9 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed class WorldBuildings : IDisposable
 {
-    sealed record Part(int Vbo, int Ibo, int Count, string Tex);
+    sealed record Part(int Vbo, int Ibo, int Count, string Tex, int NightVbo = 0);
+    /// <summary>Cores de noite dos .bmd (A3DLitMesh: o jogo troca dia/noite pelo fator dia/noite).</summary>
+    public bool Night { get; set; }
     sealed record Placed(Matrix4 World, List<Part> Parts, Vector3 Center, float Radius);
     sealed record Cpu(Matrix4 World, List<BmdModel.Mesh> Meshes, Vector3 Center, float Radius);
 
@@ -138,7 +140,14 @@ internal sealed class WorldBuildings : IDisposable
                 GL.BufferData(BufferTarget.ArrayBuffer, mesh.Vertices.Length, mesh.Vertices, BufferUsageHint.StaticDraw);
                 GL.BindBuffer(BufferTarget.ElementArrayBuffer, ibo);
                 GL.BufferData(BufferTarget.ElementArrayBuffer, mesh.Indices.Length * 2, mesh.Indices, BufferUsageHint.StaticDraw);
-                parts.Add(new Part(vbo, ibo, mesh.Indices.Length, mesh.Texture));
+                int nvbo = 0;
+                if (mesh.Night is { } nc)
+                {
+                    nvbo = GL.GenBuffer();
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, nvbo);
+                    GL.BufferData(BufferTarget.ArrayBuffer, nc.Length, nc, BufferUsageHint.StaticDraw);
+                }
+                parts.Add(new Part(vbo, ibo, mesh.Indices.Length, mesh.Texture, nvbo));
             }
             list.Add(new Placed(c.World, parts, c.Center, c.Radius));
         }
@@ -184,7 +193,7 @@ internal sealed class WorldBuildings : IDisposable
     void Unload(int piece)
     {
         if (_loaded.Remove(piece, out var list))
-            foreach (var p in list) foreach (var part in p.Parts) { GL.DeleteBuffer(part.Vbo); GL.DeleteBuffer(part.Ibo); }
+            foreach (var p in list) foreach (var part in p.Parts) { GL.DeleteBuffer(part.Vbo); GL.DeleteBuffer(part.Ibo); if (part.NightVbo != 0) GL.DeleteBuffer(part.NightVbo); }
         _requested.Remove(piece);
         // texturas que nenhuma peça carregada usa saem da placa (andar pelo mapa acumulava todas)
         if (_textures.Count > 400)
@@ -226,8 +235,9 @@ internal sealed class WorldBuildings : IDisposable
                 {
                     GL.BindBuffer(BufferTarget.ArrayBuffer, part.Vbo);
                     GL.VertexPointer(3, VertexPointerType.Float, 24, 0);
-                    GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);   // GL_BGRA
                     GL.TexCoordPointer(2, TexCoordPointerType.Float, 24, 16);
+                    if (Night && part.NightVbo != 0) { GL.BindBuffer(BufferTarget.ArrayBuffer, part.NightVbo); GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 4, 0); }
+                    else GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);   // GL_BGRA
                     if (HideTex.Length > 0 && part.Tex.Contains(HideTex, StringComparison.OrdinalIgnoreCase)) continue;   // teste
                     int tex = _textures.GetValueOrDefault(part.Tex);
                     // superfície de shader (.sdr: escudo do tempo na a33, poça de sangue na a17) sem a textura: no jogo é

@@ -92,6 +92,19 @@ internal sealed class WorldGrass : IDisposable
     static (float X, float Z) Origin(WorldScene.GrassArea g) => (g.X - g.Cols * g.Cell / 2, g.Z + g.Rows * g.Cell / 2);
 
     readonly Dictionary<(int, int), (int[] Px, int W, int H)?> _light = new();
+    bool _night;
+    /// <summary>Luz de noite do terreno (.t2lm1): trocar refaz os pedaços.</summary>
+    public bool Night
+    {
+        get => _night;
+        set
+        {
+            if (_night == value) return;
+            _night = value; _light.Clear();
+            foreach (var p in _pieces.Values) if (p.Vbo != 0) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
+            _pieces.Clear();
+        }
+    }
 
     /// <summary>Luz do terreno (mapa de luz do dia, 256 m por área) no ponto do jogo, como cor BGRA opaca.</summary>
     float LightAt(float x, float z)
@@ -99,7 +112,7 @@ internal sealed class WorldGrass : IDisposable
         int ac = (int)MathF.Floor((x + _t.Width / 2) / TerrainFile.AreaM), ar = (int)MathF.Floor((_t.Height / 2 - z) / TerrainFile.AreaM);
         if (!_light.TryGetValue((ar, ac), out var img))
         {
-            try { img = _t.LightmapDds(ar, ac) is { } d ? DdsDecoder.Decode(d) : null; } catch { img = null; }
+            try { img = _t.LightmapDds(ar, ac, _night) is { } d ? DdsDecoder.Decode(d) : null; } catch { img = null; }
             _light[(ar, ac)] = img;
         }
         uint c = 0xFF808080;   // sem mapa de luz: neutro (× 2 = textura pura)

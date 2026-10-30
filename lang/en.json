@@ -3844,5 +3844,8 @@
   "legend.keyLeft": "Left",
   "legend.keyGizmo": "Arrows / ring",
   "legend.keyRight": "Right",
-  "legend.kGrass": "hide the grass"
+  "legend.kGrass": "hide the grass",
+  "legend.kDayNight": "day / night",
+  "world.night": "Night (L back to day)",
+  "world.day": "Day (L for night)"
 }

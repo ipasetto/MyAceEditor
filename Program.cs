@@ -599,6 +599,7 @@ internal static class Program
             if (c.Name?.StartsWith("ov") == true) w.Overview(c.Pos, false, new OpenTK.Mathematics.Vector3(c.Yaw, c.Pos.Y, c.Pitch));
             else w.SetCamera(c.Pos, c.Yaw, c.Pitch);
             if (c.Name?.StartsWith("leg") == true) w.OpenLegend();   // "leg…": foto com a legenda aberta
+            w.SetNight(c.Name?.StartsWith("noite") == true);   // "noite…": foto de noite
             var until = DateTime.Now.AddSeconds(90); var quiet = DateTime.MaxValue;
             while (DateTime.Now < until)
             {

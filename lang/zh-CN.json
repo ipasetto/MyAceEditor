@@ -3846,5 +3846,8 @@
   "legend.keyLeft": "左键",
   "legend.keyGizmo": "箭头 / 圆环",
   "legend.keyRight": "右键",
-  "legend.kGrass": "隐藏草"
+  "legend.kGrass": "隐藏草",
+  "legend.kDayNight": "白天 / 夜晚",
+  "world.night": "夜晚（按 L 回到白天）",
+  "world.day": "白天（按 L 切换夜晚）"
 }
