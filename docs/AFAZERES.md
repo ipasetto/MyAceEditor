@@ -157,12 +157,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] Mundo 3D "Novo NPC aqui…" cria NPC_ESSENCE novo pelo assistente (copia a base; nome "NPC - ID", sem hello_msg e sem nenhum servico: EditorForm.ClearNpc); "NPC que ja existe aqui…" mantem o jeito antigo. Testar no app
 - [ ] Mundo 3D quest seguinte (usuario: subquest). O assistente ja cria etapas "+ Falar com NPC" em ordem (= subquests, WorldQuestEditor passo Etapas); a opcao "Nova quest ao concluir" (QuestOptions newTask) so pede ID. Falta saber: a quest ja estava salva? Se sim, precisa abrir quest existente no assistente e acrescentar etapa (hoje ele so cria)
 - [~] selecao multipla + Delete: feito em drops/addons (ChanceEditor: Shift/Ctrl+clique, Ctrl+A, Delete; Ctrl+Z volta tudo), pontos do NPCGen (lote desfeito num Ctrl+Z) e criaturas de um ponto. Lista principal ja era. Falta perguntar quais outras listas (quest, gshop, loja do NPC…)
-## ARVORES / BAMBU — onde paramos (30/10, fim da rodada)
-- [x] algoritmo do galho lido na lib de depuracao do SpeedTree (AngelicaSDK2): ver PW-KB §S13 (linhas [C 30/10] SpeedTreeRT galhos / Compute / gravidade)
-- [ ] PROXIMO: reescrever SptGrower.Grow (PerfectWorld/SptTree.cs) com sistema de eixos (TM) em coordenadas do SpeedTree (Z para cima; converter (x,y,z) -> nosso (x, z, -y) ao gravar a malha):
-  1. sorteios na ordem: Length, giro U(-180,180), StartAngle, Gravity, Radius, Flexibility (hoje: StartAngle e avaliado no laco do pai e o nivel 0 nao aplica angulo)
-  2. vertice 0: TM do pai; giro no eixo local (tronco: Z; filho: X); RotateYZ(StartAngle + d2, d1) local; gravidade
-  3. gravidade em todo vertice: angulo a partir de BAIXO, p*g*a*horiz graus por vertice, sem /segs, eixo dir x baixo (hoje usa a partir de cima, *90/segs e eixo dir x cima)
-  4. posicao avanca com a direcao do vertice anterior; filho usa o TM do vertice k do pai
-  5. conferir com --spt (bamboos1-4 de pe, curvando so na ponta) e sugarmaple sem mudar muito; depois fotos do Mundo 3D (a21)
-
+## ARVORES / BAMBU (30/10)
+- [x] algoritmo do galho lido na lib de depuracao do SpeedTree (AngelicaSDK2): ver PW-KB §S13 (linhas [C 30/10] SpeedTreeRT galhos / Compute / gravidade / geradores)
+- [x] SptGrower.Grow reescrito com sistema de eixos por vertice no espaco do SpeedTree (Z para cima -> nosso (x, z, -y)); bambus de pe, 0 erros em 144/155/1.5.5/180
+- [ ] conferir no Mundo 3D (a21) contra o jogo: bambu, palmeiras (tronco curvo agora) e scotchpine (tronco em gancho)

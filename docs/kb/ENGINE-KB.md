@@ -137,7 +137,7 @@ PerfectWorld/BmdModel.cs | construcoes .bmd (litmodels), 2 versoes
 UI/WorldModels.cs | modelos parados no Mundo 3D (.ecm -> .SMD -> .ski + .dds)
 UI/WorldBuildings.cs | construcoes dos pedacos em volta da camera (luz embutida x2)
 PerfectWorld/WorldScene.cs | .ecwld: tipos de arvore (.spt + compmap) e posicoes (PW-KB §S17)
-PerfectWorld/SptTree.cs | nossa versao do SpeedTree: .spt, curvas, RNG, galhos recursivos, pontos e texturas de folha
+PerfectWorld/SptTree.cs | nossa versao do SpeedTree: .spt, curvas, RNG, galhos recursivos (eixos por vertice como CIdvBranch::Compute, PW-KB §S13), pontos e texturas de folha
 UI/WorldTrees.cs | arvores no Mundo 3D: casca + folhas viradas p/ camera (1 cartao por folha, refeito ao girar; mipmap proprio do recorte), ate 900 m; CLI --spt | frondes em lamina (fitas fixas, 2 lados) | frondes em extrusao | cor dos galhos/frondes/folhas pelos materiais do .spt (8000)
 UI/WorldSky.cs | ceu da area da camera (caixas do .ecbsd) com a geometria do A3DSkySphere: topo baixo repetido 8x + 2 lados de meia volta (PWKB §S17 ecbsd/ceu)
 PerfectWorld/ClientWater.cs | agua do cliente (bsdata do mapa): cor, altura, retangulo; WorldView.DrawWater usa ela (cor + ondas wave1.dds somadas) e so usa o watermap do servidor sem pasta bsdata | PW-KB agua

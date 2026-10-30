@@ -403,18 +403,47 @@ public sealed class SptMesh
     public float Height, Scale = 1;   // Scale: unidades da árvore → metros (para o tamanho das folhas)
 }
 
-/// <summary>Crescimento dos galhos (CTreeEngine: galho recursivo, filhos com semente +3 cada).</summary>
+/// <summary>
+/// Crescimento dos galhos (CIdvBranch::Compute, PW-KB §S13 "SpeedTreeRT galhos"): galho recursivo com um sistema de eixos
+/// por vértice (linhas X, Y, Z no mundo; o galho cresce no X local), no espaço do SpeedTree (Z para cima). Filhos com
+/// semente +3 cada. As variações das curvas vêm de um gerador à parte, como os geradores estáticos do runtime.
+/// </summary>
 public static class SptGrower
 {
+    /// <summary>Eixos locais no mundo; a direção do galho é X.</summary>
+    readonly record struct Frame(Vector3 X, Vector3 Y, Vector3 Z)
+    {
+        public static readonly Frame Identity = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ);
+
+        /// <summary>Gira os três eixos em volta de um eixo do mundo (graus, mão direita).</summary>
+        public Frame Turn(Vector3 axis, float deg)
+        {
+            var q = Quaternion.FromAxisAngle(axis, MathHelper.DegreesToRadians(deg));
+            return new(Vector3.Transform(X, q), Vector3.Transform(Y, q), Vector3.Transform(Z, q));
+        }
+
+        /// <summary>CRotTransform::RotateYZ em graus, rotação local: +90 aponta o X para −Z (baixo), −90 para cima.</summary>
+        public Frame RotateYZ(float a, float b)
+        {
+            float ra = MathHelper.DegreesToRadians(a), rb = MathHelper.DegreesToRadians(b);
+            float ca = MathF.Cos(ra), sa = MathF.Sin(ra), cb = MathF.Cos(rb), sb = MathF.Sin(rb);
+            return new(ca * cb * X + ca * sb * Y - sa * Z, -sb * X + cb * Y, sa * cb * X + sa * sb * Y + ca * Z);
+        }
+    }
+
+    /// <summary>Espaço do SpeedTree (Z para cima) → o nosso (Y para cima).</summary>
+    static Vector3 Ours(Vector3 v) => new(v.X, v.Z, -v.Y);
+
     /// <summary>Gera a árvore em metros, com Y para cima e a base do tronco na origem.</summary>
     public static SptMesh Build(SptFile f)
     {
         var m = new SptMesh();
         if (f.Levels.Count == 0) return m;
         var rng = new SptRandom(f.Seed);
+        var vr = new SptRandom(f.Seed + 1);
         float size = Math.Max(1, rng.Range(f.Size - f.SizeVariance, f.Size + f.SizeVariance));
         int seed = f.Seed;
-        Grow(f, m, rng, ref seed, 0, Vector3.Zero, Vector3.UnitY, Vector3.UnitX, 0, -1, 1);
+        Grow(f, m, rng, vr, ref seed, 0, Vector3.Zero, Frame.Identity, Vector3.UnitZ, 0, -1, 1);
         // tamanho da árvore = altura (pés → metros), como SetTreeSize(tamanho × 0,3048) no cliente
         float top = 0;
         foreach (var p in m.Pos) top = Math.Max(top, p.Y);
@@ -431,16 +460,37 @@ public static class SptGrower
     static Vector3 Rotate(Vector3 v, Vector3 axis, float deg) =>
         Vector3.Transform(v, Quaternion.FromAxisAngle(axis, MathHelper.DegreesToRadians(deg)));
 
-    static void Grow(SptFile f, SptMesh m, SptRandom rng, ref int seed, int level, Vector3 pos, Vector3 dir, Vector3 side,
+    /// <summary>
+    /// Gravidade num vértice: gira os eixos em volta de (direção × baixo) por p·g·a·horiz graus, com a = ângulo entre a
+    /// direção e baixo, horiz = 1 − |90 − a|/90 e p = −2·(perfil(t) − 0,5). Positivo puxa para baixo, negativo endireita.
+    /// </summary>
+    static Frame Gravity(Frame tm, SptLevel L, float gravity, float t, SptRandom vr)
+    {
+        var down = -Vector3.UnitZ;
+        var d = tm.X.Normalized();
+        float a = MathHelper.RadiansToDegrees(MathF.Acos(Math.Clamp(Vector3.Dot(d, down), -1, 1)));
+        float horiz = 1 - MathF.Abs(90 - a) / 90;
+        float p = -2 * (L.GravityProfile.Eval(t, vr) - 0.5f);
+        var axis = Vector3.Cross(d, down);
+        return axis.LengthSquared < 1e-8f ? tm : tm.Turn(axis.Normalized(), p * gravity * a * horiz);
+    }
+
+    /// <summary>
+    /// Um galho: pos/parent/axis no espaço do SpeedTree. parent = eixos do vértice do pai (identidade no tronco); axis = eixo
+    /// do giro sorteado (no tronco Z, no filho a direção do pai).
+    /// </summary>
+    static void Grow(SptFile f, SptMesh m, SptRandom rng, SptRandom vr, ref int seed, int level, Vector3 pos, Frame parent, Vector3 axis,
         float rel, float maxRadius, float scale)
     {
         var L = f.Levels[level];
-        float length = L.Length.Eval(rel, rng) * scale;
+        // sorteios na ordem do runtime: comprimento, giro, ângulo inicial, gravidade, raio, flexibilidade (vento, não usado)
+        float length = L.Length.Eval(rel, vr) * scale;
         float roll = rng.Range(-180, 180);
-        float gravity = L.Gravity.Eval(rel, rng);
-        L.Flexibility.Eval(rel, rng);   // vento: não usado aqui, mas consome o gerador como no runtime
-        float radius = L.Radius.Eval(rel, rng) * scale;
-        float baseR = L.Taper.Eval(0, rng) * radius;
+        float start = L.StartAngle.Eval(rel, vr);
+        float gravity = L.Gravity.Eval(rel, vr);
+        float radius = L.Radius.Eval(rel, vr) * scale;
+        L.Flexibility.Eval(rel, vr);
+        float baseR = L.Taper.Eval(0, vr) * radius;
         if (maxRadius > 0 && baseR > maxRadius * 0.85f) { radius *= maxRadius * 0.85f / baseR; baseR = maxRadius * 0.85f; }
         if (length <= 0 || radius <= 0) return;
 
@@ -448,30 +498,27 @@ public static class SptGrower
         float tileV = L.AbsoluteV ? L.TileV : length / scale * L.TileV;
         float tileU = L.AbsoluteU ? L.TileU : L.TileU * radius * MathF.Tau;
 
-        // eixo do galho: segmentos com perturbação e gravidade
-        var centers = new Vector3[segs + 1]; var dirs = new Vector3[segs + 1]; var radii = new float[segs + 1];
-        centers[0] = pos; dirs[0] = dir; radii[0] = baseR;
-        var d = dir; var s = side;
+        // vértice 0: eixos do pai, giro em volta do eixo, ângulo inicial + perturbação, gravidade
+        var tms = new Frame[segs + 1]; var pts = new Vector3[segs + 1]; var radii = new float[segs + 1];
+        var tm = parent.Turn(axis.Normalized(), roll);
+        float d1 = L.Disturbance.Jitter(0, vr), d2 = L.Disturbance.Jitter(0, vr);
+        tm = Gravity(tm.RotateYZ(start + d2, d1), L, gravity, 0, vr);
+        tms[0] = tm; pts[0] = pos; radii[0] = baseR;
+        float step = length / segs;
         for (int i = 1; i <= segs; i++)
         {
             float t = i / (float)segs;
-            var perp = Vector3.Cross(d, s); if (perp.LengthSquared < 1e-6f) perp = Vector3.Cross(d, Vector3.UnitZ);
-            d = Rotate(d, s.Normalized(), L.Disturbance.Jitter(t, rng));
-            d = Rotate(d, perp.Normalized(), L.Disturbance.Jitter(t, rng));
-            // gravidade: dobra em volta de (direção × cima), mais forte no galho deitado; o perfil (6017) diz o sentido
-            float sgn = -2 * (L.GravityProfile.Eval(t, rng) - 0.5f);
-            var bendAxis = Vector3.Cross(d, Vector3.UnitY);
-            if (level > 0 && bendAxis.LengthSquared > 1e-6f)
-            {
-                float fromUp = MathHelper.RadiansToDegrees(MathF.Acos(Math.Clamp(Vector3.Dot(d, Vector3.UnitY), -1, 1)));
-                float horiz = 1 - MathF.Abs(fromUp - 90) / 90;
-                d = Rotate(d, bendAxis.Normalized(), -gravity * horiz * sgn * 90 / segs);
-            }
-            s = Vector3.Cross(Vector3.Cross(d, s), d); if (s.LengthSquared < 1e-6f) s = Vector3.Cross(d, Vector3.UnitZ); s.Normalize();
-            centers[i] = centers[i - 1] + d * (length / segs);
-            dirs[i] = d;
-            radii[i] = MathF.Min(L.Taper.Eval(t, rng) * radius, baseR);
+            radii[i] = MathF.Min(L.Taper.Eval(t, vr) * radius, baseR);
+            L.FlexScale.Eval(t, vr);
+            tm = Gravity(tm, L, gravity, t, vr);
+            d1 = L.Disturbance.Jitter(t, vr); d2 = L.Disturbance.Jitter(t, vr);
+            tm = tm.RotateYZ(d2, d1);
+            pts[i] = pts[i - 1] + tms[i - 1].X * step;   // avança na direção do vértice anterior
+            tms[i] = tm;
         }
+        var centers = pts.Select(Ours).ToArray();
+        var dirs = tms.Select(x => Ours(x.X).Normalized()).ToArray();
+        var side = Ours(tms[0].Y).Normalized();
 
         bool leafLevel = level >= f.Levels.Count - 1;
         bool frond = !leafLevel && f.Frond is { Type: 0 or 1, Maps.Count: > 0 } fr0 && level >= fr0.Level;
@@ -510,22 +557,23 @@ public static class SptGrower
         bool childIsLeaf = level + 1 >= f.Levels.Count - 1;
         for (int c = 0; c < count; c++)
         {
-            seed += 3;
-            rng.Seed(seed);
+            // galho: semente +3 a cada filho; folhas seguem o mesmo gerador sem ressemear
+            if (!childIsLeaf) { seed += 3; rng.Seed(seed); }
             float at = c == 0 && !childIsLeaf
                 ? rng.Range(Lerp(L.First, L.Last, 0.85f), Lerp(L.First, L.Last, 0.95f))
                 : rng.Range(L.First, L.Last);
             float childRel = L.Last != L.First ? (at - L.First) / (L.Last - L.First) : 1;
             float u = at * segs; int k = Math.Min((int)u, segs - 1); float fr = u - k;
-            var p = Vector3.Lerp(centers[k], centers[k + 1], fr);
-            var pd = Vector3.Lerp(dirs[k], dirs[k + 1], fr).Normalized();
+            var p = Vector3.Lerp(pts[k], pts[k + 1], fr);
             float pr = Lerp(radii[k], radii[k + 1], fr);
-            // direção do filho: ângulo inicial a partir do eixo do pai, girado em volta dele
-            var axis = Vector3.Cross(pd, side); if (axis.LengthSquared < 1e-6f) axis = Vector3.Cross(pd, Vector3.UnitZ); axis.Normalize();
-            float start = C.StartAngle.Eval(childRel, rng);
-            var cd = Rotate(Rotate(pd, axis, start), pd, rng.Range(-180, 180) + roll);
-            if (childIsLeaf) { m.Leaves.Add((p, cd)); continue; }
-            Grow(f, m, rng, ref seed, level + 1, p, cd.Normalized(), pd, childRel, pr, scale);
+            if (childIsLeaf)
+            {
+                var lf = tms[k].Turn(tms[k].X.Normalized(), rng.Range(-180, 180)).RotateYZ(C.StartAngle.Eval(childRel, vr), 0);
+                m.Leaves.Add((Ours(p), Ours(lf.X).Normalized()));
+                continue;
+            }
+            rng.Seed(seed); rng.Range(0, 100);   // o runtime ressemeia e descarta um número antes do filho
+            Grow(f, m, rng, vr, ref seed, level + 1, p, tms[k], tms[k].X, childRel, pr, scale);
         }
     }
 
