@@ -980,6 +980,7 @@ public sealed class EditorForm : Form
         _unusedCache.Clear();
         _typeCache.Clear();
         _edits.Clear();
+        _dupAtLoad = IdRefactor.Duplicates(module).Keys.ToHashSet();
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _atlasPck = r.AtlasPck; _atlas = r.Atlas;          // ícones: cache novo para este pacote
@@ -1212,9 +1213,20 @@ public sealed class EditorForm : Form
         SaveElementsCore(target);
     }
 
+    // IDs já repetidos no arquivo aberto (alguns jogos vêm assim); só os repetidos NOVOS impedem salvar
+    private HashSet<string> _dupAtLoad = new();
+
     private bool SaveElementsCore(string target)
     {
         if (_store.Current?.Source is not ElementsLayout) return false;
+        var dups = IdRefactor.Duplicates(_store.Current).Where(kv => !_dupAtLoad.Contains(kv.Key)).ToList();
+        if (dups.Count > 0)
+        {
+            MessageBox.Show(this, Loc.T("save.dupIds", "Não salvei: estes IDs ficaram repetidos e o jogo não acharia um deles (item que não cai, NPC que some). Troque o ID do novo com \"Mudar ID\":") + "\n\n"
+                + string.Join("\n", dups.Take(12).Select(kv => "• " + string.Join("  =  ", kv.Value))) + (dups.Count > 12 ? $"\n… +{dups.Count - 12}" : ""),
+                Loc.T("save.dupTitle", "IDs repetidos"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
         try
         {
             UseWaitCursor = true;
@@ -3343,8 +3355,12 @@ public sealed class EditorForm : Form
         };
     }
 
-    private static long NextCode(ItemList block)
+    // ID de item novo/clonado: livre no ESPAÇO de IDs todo (itens, NPCs, monstros… dividem o "essence"), não só no
+    // bloco. O gs acha o registro pelo ID em todas as listas: a asa clonada 61334 caía em cima do NPC 61334 e não
+    // era criada (PW-KB §S28).
+    private long NextCode(ItemList block)
     {
+        if (_store.Current is { } m) return IdRefactor.NextFreeId(m, block);
         long max = 0;
         foreach (var it in block.Items) if (long.TryParse(it.Id, out var n) && n > max) max = n;
         return max + 1;

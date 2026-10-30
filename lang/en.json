@@ -3760,5 +3760,7 @@
   "gm.onlineList": "Refresh who is online",
   "gm.broadcastSent": "Message sent through the server: ",
   "gm.spirit": "Spirit: give",
-  "gm.spiritGo": "times (each time = level × 10,000)"
+  "gm.spiritGo": "times (each time = level × 10,000)",
+  "save.dupIds": "Not saved: these IDs became duplicated and the game would not find one of them (item that does not drop, NPC that disappears). Change the new one's ID with \"Change ID\":",
+  "save.dupTitle": "Duplicated IDs"
 }

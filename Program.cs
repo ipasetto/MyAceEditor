@@ -150,6 +150,8 @@ internal static class Program
             (Model.Item It, string List)? Find(string id) => m.Lists.SelectMany(l => l.Items.Select(i => (i, l.Name))).FirstOrDefault(x => x.i.Id == id) is var r && r.i is not null ? r : null;
             var (a, b) = (Find(args[2]), Find(args[3]));
             var sb = new StringBuilder($"{args[2]}: {a?.List ?? "não existe"}\n{args[3]}: {b?.List ?? "não existe"}\n");
+            foreach (var id in new[] { args[2], args[3] })   // o mesmo ID em mais de uma lista (o gs acha pelo ID em todas)
+                sb.AppendLine($"{id} em: " + string.Join(", ", m.Lists.Where(l => l.Items.Any(i => i.Id == id)).Select(l => $"{l.Name} ({string.Join(" / ", l.Items.Where(i => i.Id == id).Select(i => i.Name))})")));
             if (a is { } x && b is { } y)
                 foreach (var k in x.It.Fields.Keys.Union(y.It.Fields.Keys))
                     if (x.It.Fields.GetValueOrDefault(k)?.Value != y.It.Fields.GetValueOrDefault(k)?.Value)

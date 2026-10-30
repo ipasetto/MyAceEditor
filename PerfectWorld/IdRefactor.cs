@@ -40,6 +40,27 @@ public static class IdRefactor
         return max + 1;
     }
 
+    /// <summary>
+    /// IDs repetidos no mesmo espaço de IDs ("espaço|ID" → "bloco ID nome" de cada um). O jogo acha o registro pelo ID:
+    /// um repetido faz o item (ou o NPC) não existir para o gs.
+    /// </summary>
+    public static Dictionary<string, List<string>> Duplicates(Module module)
+    {
+        var seen = new Dictionary<string, List<string>>();
+        foreach (var l in module.Lists)
+        {
+            var space = IdSpaces.Of(l.Name);
+            foreach (var i in l.Items)
+            {
+                if (i.Id is "" or "0") continue;
+                var k = $"{space}|{i.Id}";
+                if (!seen.TryGetValue(k, out var who)) seen[k] = who = new();
+                who.Add($"{l.Name} {i.Id} {i.Name}");
+            }
+        }
+        return seen.Where(kv => kv.Value.Count > 1).ToDictionary(kv => kv.Key, kv => kv.Value);
+    }
+
     // Campo de quest que guarda um ID do tipo do bloco (os nomes vêm do TaskSchema93)
     static bool QuestFieldPoints(string blockName, TaskField f)
     {

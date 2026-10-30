@@ -28,7 +28,9 @@ start)
     if ! pgrep -f "authd [^ ]*table.xml" >/dev/null; then (cd $AU && ./authd.sh start >/dev/null 2>&1); echo "##SUBIU authd"; else echo "##JA authd"; fi
     wait_port 29200 30 || echo "##AVISO authd não abriu a porta 29200"
     svc gamedbd "gamedbd gamesys.conf" gamedbd ./gamedbd gamesys.conf; sleep 3
-    svc gacd "gacd gamesys.conf" gacd ./gacd gamesys.conf; sleep 2
+    # gacd executa código do anti-cheat montado em memória de dados; sem READ_IMPLIES_EXEC o kernel atual derruba
+    # (segfault "error 15" com ip no heap) quando ele roda essa rotina — parecia cair ao dar itens
+    svc gacd "gacd gamesys.conf" gacd setarch i386 -X ./gacd gamesys.conf; sleep 2
     svc gfactiond "gfactiond gamesys.conf" gfactiond ./gfactiond gamesys.conf; sleep 2
     svc gdeliveryd "gdeliveryd gamesys.conf" gdeliveryd ./gdeliveryd gamesys.conf; sleep 3
     svc glinkd "glinkd gamesys.conf 1" glinkd ./glinkd gamesys.conf 1; sleep 3
