@@ -80,6 +80,7 @@ internal sealed class WorldView : Form
     readonly WorldModels _models;
     readonly WorldBuildings _buildings;
     readonly WorldTrees _trees;
+    readonly WorldGrass _grass;
     readonly WorldSky _sky;
     bool _showBuildings = true;
     bool _gameFog = true;   // N: neblina da área (jogo) ou a longe
@@ -151,12 +152,14 @@ internal sealed class WorldView : Form
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
         _trees = new WorldTrees(element, t.Name);
+        _grass = new WorldGrass(element, t);
         _sky = new WorldSky(element, t.Dir);
         if (_sky.SunDir is { } sun) WorldTrees.Sun = sun;   // luz do mapa nas árvores (geradas depois, ao aparecer)
         // teste do --world-shot: esconder partes para achar quem desenha o quê
         var hide = Environment.GetEnvironmentVariable("MYACE_HIDE") ?? "";
         if (hide.Contains("terrain")) _terrain.Visible = false;
         if (hide.Contains("buildings")) _showBuildings = false;
+        if (hide.Contains("grass")) _grass.Visible = false;
         RefreshMarkers();
         HideLidTerrain(start.Y);
         LookAt(start);
@@ -269,7 +272,7 @@ internal sealed class WorldView : Form
         FormClosed += (_, _) =>
         {
             _tick.Dispose(); _load.Dispose(); _gl.MakeCurrent();
-            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _sky.Dispose(); _worldMap?.Dispose();
+            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _grass.Dispose(); _sky.Dispose(); _worldMap?.Dispose();
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
         };
@@ -304,6 +307,7 @@ internal sealed class WorldView : Form
             case Keys.H or Keys.F1: ToggleLegend(); return;
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
+            case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
             case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;               // neblina do jogo (por área) ou longe
             case Keys.Delete:
                 if (_selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
@@ -464,7 +468,8 @@ internal sealed class WorldView : Form
             _buildings.Update(pieces);
         }
         if (_showBuildings) _buildings.Draw(_cam, Forward);
-        _trees.Draw(_cam, Forward);   // árvores do .ecwld (nossa versão do SpeedTree)
+        _trees.Draw(_cam, Forward);
+        _grass.Draw(_cam);   // grama do .ecwld/.ecbsd perto da câmera   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();
 
         // pontos perto da câmera (refeitos a cada 100 m andados ou quando algo mudou)
@@ -517,7 +522,7 @@ internal sealed class WorldView : Form
 
     // ---------- foto para diagnóstico (--world-shot): câmera fixa, espera carregar, lê o quadro ----------
     bool _grab; Bitmap? _grabbed;
-    internal bool Loading => _busy || _trees.Pending;
+    internal bool Loading => _busy || _trees.Pending || _grass.Pending;
     internal void SetCamera(Vector3 game, float yaw, float pitch) { _cam = Gl(game.X, game.Y, game.Z); _yaw = yaw; _pitch = pitch; _legendOpen = false; _gl.Invalidate(); }
     internal void OpenLegend() { _legendOpen = true; _gl.Invalidate(); }
     internal Bitmap? CaptureFrame() { _grab = true; Render(); var b = _grabbed; _grabbed = null; return b; }
@@ -779,6 +784,7 @@ internal sealed class WorldView : Form
             new(K("legend.gView", "Visão"), Header: true),
             new(K("legend.kTerrain", "esconder o terreno (ver cavernas)"), Keys: new[] { "T" }),
             new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "B" }),
+            new(K("legend.kGrass", "esconder a grama"), Keys: new[] { "G" }),
             new(K("legend.kFog", "neblina do jogo / neblina longe"), Keys: new[] { "N" }),
             new(K("legend.kLegend", "abrir / fechar esta legenda"), Keys: new[] { "H" }),
             new(""),

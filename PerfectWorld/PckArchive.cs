@@ -98,7 +98,7 @@ public sealed class PckArchive : IDisposable
         return e.CSize < e.Size ? Inflate(data, e.Size, _token) : data;
     }
 
-    static byte[] Inflate(byte[] data, int size, CancellationToken token = default)
+    internal static byte[] Inflate(byte[] data, int size, CancellationToken token = default)
     {
         var outBuf = new byte[size];
         using var z = new ZLibStream(new MemoryStream(data), CompressionMode.Decompress);

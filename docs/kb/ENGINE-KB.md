@@ -139,6 +139,7 @@ UI/WorldBuildings.cs | construcoes dos pedacos em volta da camera (luz embutida 
 PerfectWorld/WorldScene.cs | .ecwld: tipos de arvore (.spt + compmap) e posicoes (PW-KB §S17)
 PerfectWorld/SptTree.cs | nossa versao do SpeedTree: .spt, curvas, RNG, galhos recursivos (eixos por vertice como CIdvBranch::Compute, PW-KB §S13), pontos e texturas de folha
 UI/WorldTrees.cs | arvores no Mundo 3D: casca + folhas viradas p/ camera (1 cartao por folha, refeito ao girar; mipmap proprio do recorte), ate 900 m; CLI --spt | frondes em lamina (fitas fixas, 2 lados) | frondes em extrusao | cor dos galhos/frondes/folhas pelos materiais do .spt (8000)
+UI/WorldGrass.cs + PerfectWorld/MoxModel.cs | grama do Mundo 3D: WorldScene.LoadGrass (areas + mapa de bits do bsdata), .mox de grasses.pck, pedacos de 32x32 celulas perto da camera (ate a distancia do tipo, 6 por quadro), tecla G esconde; MYACE_HIDE=grass no --world-shot. PW-KB §S17 GRAMA
 UI/WorldSky.cs | ceu da area da camera (caixas do .ecbsd) com a geometria do A3DSkySphere: topo baixo repetido 8x + 2 lados de meia volta (PWKB §S17 ecbsd/ceu)
 PerfectWorld/ClientWater.cs | agua do cliente (bsdata do mapa): cor, altura, retangulo; WorldView.DrawWater usa ela (cor + ondas wave1.dds somadas) e so usa o watermap do servidor sem pasta bsdata | PW-KB agua
 PerfectWorld/GameConsole.cs + UI/GmPanel.cs | Painel do GM (docs/GM-PAINEL.md): programa a parte (--gm / MyAceGM.exe) que manda comandos ao console do jogo aberto (SendInput); itens/NPCs do elements.data do cliente, mapa do surfaces.pck | PW-KB §S12

@@ -3845,5 +3845,6 @@
   "legend.keyMiddle": "鼠标中键",
   "legend.keyLeft": "左键",
   "legend.keyGizmo": "箭头 / 圆环",
-  "legend.keyRight": "右键"
+  "legend.keyRight": "右键",
+  "legend.kGrass": "隐藏草"
 }

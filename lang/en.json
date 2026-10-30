@@ -3843,5 +3843,6 @@
   "legend.keyMiddle": "Middle button",
   "legend.keyLeft": "Left",
   "legend.keyGizmo": "Arrows / ring",
-  "legend.keyRight": "Right"
+  "legend.keyRight": "Right",
+  "legend.kGrass": "hide the grass"
 }

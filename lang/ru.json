@@ -3843,5 +3843,6 @@
   "legend.keyMiddle": "Средняя кнопка",
   "legend.keyLeft": "Левая",
   "legend.keyGizmo": "Стрелки / кольцо",
-  "legend.keyRight": "Правая"
+  "legend.keyRight": "Правая",
+  "legend.kGrass": "скрыть траву"
 }

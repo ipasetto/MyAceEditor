@@ -578,7 +578,10 @@ internal static class Program
         if (Directory.EnumerateFiles(mapDir, "*.ecwld").FirstOrDefault() is { } ecw)
         {
             var scene = new WorldScene(ecw);
-            if (Directory.EnumerateFiles(mapDir, "*.ecbsd").FirstOrDefault() is { } bsd) scene.LoadAreas(bsd);
+            if (Directory.EnumerateFiles(mapDir, "*.ecbsd").FirstOrDefault() is { } bsd) { scene.LoadAreas(bsd); scene.LoadGrass(bsd); }
+            diag.AppendLine($"grama: {scene.GrassTypes.Count} tipos, {scene.GrassRefs.Count} refs, {scene.Grass.Count} áreas lidas, {scene.Grass.Sum(g => Enumerable.Range(0, g.Cols * g.Rows).Count(i => g.On(i % g.Cols, i / g.Cols)))} tufos");
+            diag.AppendLine((scene.GrassDebug ?? "") + " · " + scene.GrassStats);
+            foreach (var g in scene.Grass.Take(3)) diag.AppendLine(FormattableString.Invariant($"  grama tipo {g.Type} ({scene.GrassTypes.ElementAtOrDefault(g.Type)?.Mox}) centro {g.X:0},{g.Y:0},{g.Z:0} célula {g.Cell} {g.Cols}x{g.Rows}"));
             foreach (var a in scene.Areas.Take(6))
                 diag.AppendLine(FormattableString.Invariant($"área {(a.Default ? "padrão" : "caixa")} ({a.Pos[0]:0},{a.Pos[2]:0}): neblina {a.FogStart:0}..{a.FogEnd:0} {a.FogColor:X8} | noite {a.FogStartNight:0}..{a.FogEndNight:0} {a.FogColorNight:X8} | luz dir {a.LightDir[0]:0.00},{a.LightDir[1]:0.00},{a.LightDir[2]:0.00} amb {a.Ambient:X8} sol {a.SunColor:X8}"));
             foreach (var c in cams)
