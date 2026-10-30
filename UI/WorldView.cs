@@ -400,7 +400,8 @@ internal sealed class WorldView : Form
         GL.Fog(FogParameter.FogStart, 1500f); GL.Fog(FogParameter.FogEnd, 8000f);
         GL.Fog(FogParameter.FogColor, new[] { 0.62f, 0.76f, 0.9f, 1f });
 
-        // terreno só de cima (faces da frente sobem: a→d→b), como o jogo: visto de baixo, a tampa das cavernas some
+        // terreno só de cima (faces da frente sobem: a→d→b), como o jogo: visto de baixo, a tampa das cavernas some.
+        // O "teto" das instâncias (a35, a24, a27) não é terreno — é o céu da área (A3DSkySphere com texturas de pedra).
         GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(FrontFaceDirection.Ccw);
         bool terrainBusy = _terrain.Draw(_cam, Forward);
         GL.Disable(EnableCap.CullFace);

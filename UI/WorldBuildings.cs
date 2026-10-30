@@ -107,7 +107,12 @@ internal sealed class WorldBuildings : IDisposable
                 bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
                 if (!need || _tex is null) continue;
                 byte[]? td; lock (_tex) td = _tex.Find(mesh.Texture.ToLowerInvariant()) is { } te ? _tex.Read(te) : null;
-                try { tex[mesh.Texture] = td is null ? null : mesh.Texture.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) ? FromTga(td) : DdsDecoder.DecodeMax(td, 512); } catch { tex[mesh.Texture] = null; }
+                try
+                {
+                    var ext = Path.GetExtension(mesh.Texture).ToLowerInvariant();
+                    tex[mesh.Texture] = td is null ? null : ext == ".tga" ? FromTga(td) : ext is ".bmp" or ".jpg" or ".png" ? FromImage(td) : DdsDecoder.DecodeMax(td, 512);
+                }
+                catch { tex[mesh.Texture] = null; }
                 if (tex[mesh.Texture] is null) MissingTextures.Add(mesh.Texture);
             }
         }
@@ -145,6 +150,19 @@ internal sealed class WorldBuildings : IDisposable
     {
         using var bmp = IconLoader.DecodeTga(d);
         if (bmp is null) return null;
+        var bd = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        var px = new int[bmp.Width * bmp.Height];
+        System.Runtime.InteropServices.Marshal.Copy(bd.Scan0, px, 0, px.Length);
+        bmp.UnlockBits(bd);
+        return (px, bmp.Width, bmp.Height);
+    }
+
+    // .bmp/.jpg/.png (o teto da entrada da a35 usa e\4ad.bmp): leitor do Windows
+    static (int[] Px, int W, int H)? FromImage(byte[] d)
+    {
+        using var ms = new MemoryStream(d);
+        using var src = new Bitmap(ms);
+        using var bmp = src.Clone(new Rectangle(0, 0, src.Width, src.Height), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         var bd = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         var px = new int[bmp.Width * bmp.Height];
         System.Runtime.InteropServices.Marshal.Copy(bd.Scan0, px, 0, px.Length);

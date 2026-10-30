@@ -147,6 +147,8 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] agua do cliente so nas celulas da mascara
 - [ ] a26: superficies azuis = malhas com texturas h\82c / j53 desenhadas so com a cor do vertice (decodificam no teste --bmd-check uv, mas nao no Mundo 3D?). Fotos do teste em scratch: MYACE_HIDETEX=82c/b53 (conferir qual some)
 - [ ] a17: faixa marrom (nao e o 血池.sdr; achar a malha com MYACE_HIDETEX); a23: paredes marrons esticadas (talvez normal); a33: ceu roxo (perguntar se e assim no jogo)
-- [ ] tetos (a35, a24, a27): fotografar olhando para cima; a15: mancha clara pequena na borda
+- [ ] tetos (a35, a24, a27): NAO e terreno (acima do salao da a35 nao ha nada) nem construcao: e o CEU da area (CECScene::SkyInit, caixas de area do .ecbsd com as texturas do ceu, A3DSkySphere). Proximo passo: ler as caixas de area e desenhar a esfera do ceu. a15: mancha clara pequena na borda
+- [x] texturas .bmp/.jpg/.png nas construcoes (a35: e\4ad.bmp)
+- [~] a26: perto da entrada so ha a plataforma litmodel_440 (17 m); o azul abaixo e o domo do ceu (construcao) visto pelo vazio — provavelmente normal (palacio flutuante); confirmar com print do jogo
 - [ ] a21 arvores; bambu deitado (angulo do nivel 1 77..130 tomado a partir do eixo do pai)
 - ferramentas: --instances, --world-shot (nome "ov" = camera do Mundo 3D), --bmd-check <pck> <mapas> [uv], --lit-list, --scene-models; MYACE_HIDE=terrain|buildings, MYACE_HIDETEX=<trecho>, MYACE_BCULL=cw|ccw|off (teste)
