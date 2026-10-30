@@ -21,6 +21,8 @@ public sealed class GameConfigs
         Color.FromArgb(0xFF, 0xFF, 0xFF),
     };
 
+    /// <summary>configs.pck de onde veio (para gravar cor e descrição de volta, ItemTexts).</summary>
+    public string? PckPath { get; private set; }
     public Dictionary<int, int> ItemColors { get; } = new();
     public Dictionary<int, string> ItemDescs { get; } = new();
     /// <summary>Nome da habilidade por ID (skillstr.txt: linha "ID*10 \"nome\""; ID*10+1 é a descrição).</summary>
@@ -40,13 +42,9 @@ public sealed class GameConfigs
                 var p = line.Trim().Split('\t', ' ');
                 if (p.Length >= 2 && int.TryParse(p[0], out var id) && int.TryParse(p[^1], out var idx)) gc.ItemColors[id] = idx;
             }
-        if (pck.Find(@"configs\item_ext_desc.txt") is { } d)
-            foreach (var line in Decode(pck.Read(d)).Split('\n'))
-            {
-                context?.Check();
-                var m = Regex.Match(line, "^(\\d+)\\s+\"(.*)\"\\s*$");
-                if (m.Success) gc.ItemDescs[int.Parse(m.Groups[1].Value)] = m.Groups[2].Value;
-            }
+        if (pck.Find(ItemTexts.DescFile) is { } d)
+            foreach (var kv in ItemTexts.ReadDescs(Decode(pck.Read(d)))) gc.ItemDescs[kv.Key] = kv.Value;   // inclui as de 2+ linhas
+        gc.PckPath = configsPck;
         if (pck.Find(@"configs\skillstr.txt") is { } s)
             // "ID*10 \"nome\"" e "ID*10+1 \"descrição\"" (a descrição pode ocupar várias linhas até fechar as aspas)
             foreach (Match m in Regex.Matches(Decode(pck.Read(s)), "(?m)^(\\d+)([01])\\s+\"([^\"]*)\""))

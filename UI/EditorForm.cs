@@ -120,8 +120,11 @@ public sealed class EditorForm : Form
     }
     private AiPolicyView? _aiView;
 
-    public EditorForm()
+    private readonly string? _startFile;   // elements.data passado na linha de comando (ou arrastado sobre o exe)
+
+    public EditorForm(string? startFile = null)
     {
+        _startFile = startFile;
         Bind(() => _search.PlaceholderText = Loc.T("search.placeholder", "  Pesquisar item por nome ou ID…"));
         Bind(() => { if (_store.Current is null) _status.Text = Loc.T("status.start", "Abra a pasta do Perfect World para começar."); });
         Text = "MyAceEditor";
@@ -140,7 +143,7 @@ public sealed class EditorForm : Form
         Shown += (_, _) =>
         {
             if (_split is not null) _split.SplitterDistance = 430;
-            var last = LoadLast();
+            var last = _startFile ?? LoadLast();
             if (last is not null && File.Exists(last)) LoadElements(last);
             CheckServer(ask: true);   // o servidor local ficou para trás desde a última vez? (ex.: salvo e não enviado)
         };
@@ -566,7 +569,7 @@ public sealed class EditorForm : Form
         var tDesc = new TabPage() { BackColor = CTreeBg, Padding = new Padding(12) };
         Bind(() => tDesc.Text = Loc.T("detail.description", "Descrição e cor"));
         _descBox.BackColor = CTreeBg; _descBox.ForeColor = CTreeFg;
-        tDesc.Controls.Add(_descBox);
+        BuildDescEditor(tDesc);
         _tabLinks = new TabPage() { BackColor = CSurface };
         Bind(() => _tabLinks.Text = Loc.T("detail.links", "Vínculos"));
         _links.Columns.Add("Bloco", 170); _links.Columns.Add("ID", 70, HorizontalAlignment.Right);
@@ -892,7 +895,7 @@ public sealed class EditorForm : Form
     /// </summary>
     private bool ConfirmLeaveGame()
     {
-        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _aiView?.HasUnsaved == true;
+        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _aiView?.HasUnsaved == true || _cfgDirty;
         if (!dirty) return true;
         var r = MessageBox.Show(this, Loc.T("load.unsavedAsk", "Há alterações não salvas no PW aberto. Salvar tudo antes de abrir o outro?\n\nSim: salva e abre · Não: descarta e abre · Cancelar: continua aqui"),
             Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
@@ -986,6 +989,7 @@ public sealed class EditorForm : Form
         _atlasPck = r.AtlasPck; _atlas = r.Atlas;          // ícones: cache novo para este pacote
         _iconIdx.Clear(); _treeIcons.Images.Clear(); _thumbs?.Dispose(); _thumbs = null; _thumbBatch.Clear();
         _cfgs = r.Cfgs;
+        _cfgColorIds.Clear(); _cfgDescIds.Clear(); _cfgDirty = false; FillDescPalette();   // cor/descrição: nada pendente no jogo novo
         _tasks = r.Tasks; _tasksPath = r.TasksPath; _tasksDirty = false;   // sem tasks.data no jogo novo, a aba fica vazia
         _qTree.Nodes.Clear(); _qCur = null; _qGrid.Rows.Clear();
         RefreshQuests();
@@ -1077,6 +1081,7 @@ public sealed class EditorForm : Form
         if (_gshop?.HasUnsaved == true) pending.Add("gshop / gshopsev");
         if (_npcgen?.HasUnsaved == true) pending.Add("npcgen.data");
         if (_aiView?.HasUnsaved == true) pending.Add(_aiView.FilePath ?? "aipolicy.data");
+        if (_cfgDirty) pending.Add(Loc.T("save.itemTexts", "configs.pck (cor do nome / descrição)"));
         if (pending.Count == 0) { if (!quiet) Status(Loc.T("status.nothingToSave", "Nada para salvar.")); return; }
         if (!quiet && MessageBox.Show(string.Format(Loc.T("save.allAsk", "Gravar as alterações (com cópia de segurança ao lado de cada arquivo)?\n\n{0}"), string.Join("\n", pending)),
                 Loc.T("save.allTitle", "Salvar tudo"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
@@ -1086,7 +1091,8 @@ public sealed class EditorForm : Form
         if (_gshop is not null) done.AddRange(_gshop.SaveAll(quiet).Select(Path.GetFileName)!);
         if (_npcgen is not null) done.AddRange(_npcgen.SaveAll(quiet).Select(p => Path.GetFileName(Path.GetDirectoryName(p)) + "\\npcgen.data"));
         if (_aiView?.SaveIfDirty() is { } ai) done.Add(Path.GetFileName(ai));
-        foreach (var d in done) _unsent.Add(d);
+        if (SaveItemTexts(quiet) is { } ct) done.Add(ct);
+        foreach (var d in done) if (!d.Equals("configs.pck", StringComparison.OrdinalIgnoreCase)) _unsent.Add(d);   // configs.pck é só do cliente
         UpdateSendGlow();
         if (checkServer && done.Count > 0) CheckServer(ask: !quiet);
         Status((quiet ? Loc.T("status.autoSaved", "Salvo automaticamente: ") : Loc.T("status.savedAll", "Salvo: ")) + (done.Count == 0 ? "—" : string.Join(", ", done)) + $" ({DateTime.Now:HH:mm})");
@@ -1166,7 +1172,7 @@ public sealed class EditorForm : Form
     // fechar com mudanças: oferece salvar tudo
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _npcgen?.HasUnsaved == true || _aiView?.HasUnsaved == true;
+        bool dirty = ElementsDirty || _tasksDirty || _gshop?.HasUnsaved == true || _npcgen?.HasUnsaved == true || _aiView?.HasUnsaved == true || _cfgDirty;
         if (dirty && e.CloseReason == CloseReason.UserClosing)
         {
             var r = MessageBox.Show(this, Loc.T("save.onClose", "Há alterações não salvas. Salvar tudo antes de sair?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
@@ -3020,8 +3026,151 @@ public sealed class EditorForm : Form
         Status($"'{FieldLabels.Label(key)}' = {value}");
     }
 
-    // Descrição do jogo com as cores (^RRGGBB) — como aparece no tooltip do cliente.
-    private void FillDescription(Item item)
+    // ---------- cor do nome e descrição (configs.pck: item_color.txt e item_ext_desc.txt, ItemTexts) ----------
+    private readonly ComboBox _nameColor = new() { DropDownStyle = ComboBoxStyle.DropDownList, DrawMode = DrawMode.OwnerDrawFixed, Width = 220, ItemHeight = 20 };
+    private readonly TextBox _descEdit = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, Font = new Font("Consolas", 10f), AcceptsReturn = true };
+    private readonly FlowLayoutPanel _descPalette = new() { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+    private readonly HashSet<int> _cfgColorIds = new(), _cfgDescIds = new();   // itens com cor/descrição mudada (gravar)
+    private bool _cfgDirty, _descBinding;
+    private readonly ToolTip _descTips = new();
+
+    // nomes das cores oficiais do nome (GameConfigs.NameColors, índice do item_color.txt)
+    private static string NameColorLabel(int i) => i switch
+    {
+        0 => Loc.T("ncol.0", "0 · Branco (comum)"), 1 => Loc.T("ncol.1", "1 · Azul"), 2 => Loc.T("ncol.2", "2 · Amarelo"),
+        3 => Loc.T("ncol.3", "3 · Roxo"), 4 => Loc.T("ncol.4", "4 · Laranja"), 5 => Loc.T("ncol.5", "5 · Branco"),
+        6 => Loc.T("ncol.6", "6 · Cinza"), 7 => Loc.T("ncol.7", "7 · Verde-água"), 8 => Loc.T("ncol.8", "8 · Vermelho"),
+        _ => Loc.T("ncol.none", "Sem cor definida"),
+    };
+
+    private void BuildDescEditor(TabPage page)
+    {
+        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, BackColor = CTreeBg };
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize)); grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 35)); grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 65));
+        Label L(Func<string> t) { var l = new Label { AutoSize = true, ForeColor = CTreeFg, Margin = new Padding(0, 6, 8, 0) }; Bind(() => l.Text = t()); return l; }
+        Button B(Func<string> t, Action a) { var b = new Button { AutoSize = true, Height = 28, Margin = new Padding(0, 2, 6, 2), BackColor = CSurface, ForeColor = CFg, FlatStyle = FlatStyle.Flat }; Bind(() => b.Text = t()); b.Click += (_, _) => a(); return b; }
+
+        // cor do nome (índice do item_color.txt)
+        _nameColor.Items.Add(-1); for (int i = 0; i < 9; i++) _nameColor.Items.Add(i);
+        _nameColor.DrawItem += (_, e) =>
+        {
+            e.DrawBackground();
+            if (e.Index < 0) return;
+            int idx = (int)_nameColor.Items[e.Index]!;
+            var sw = new Rectangle(e.Bounds.X + 3, e.Bounds.Y + 3, 22, e.Bounds.Height - 6);
+            if (idx >= 0) { using var br = new SolidBrush(GameConfigs.NameColors[idx]); e.Graphics.FillRectangle(br, sw); e.Graphics.DrawRectangle(Pens.Gray, sw); }
+            TextRenderer.DrawText(e.Graphics, NameColorLabel(idx), e.Font, new Point(sw.Right + 6, e.Bounds.Y + 2), e.ForeColor);
+        };
+        _nameColor.SelectedIndexChanged += (_, _) => { if (!_descBinding) ApplyItemTexts(color: true); };
+        var top = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+        top.Controls.Add(L(() => Loc.T("desc.nameColor", "Cor do nome")));
+        top.Controls.Add(_nameColor);
+        top.Controls.Add(L(() => Loc.T("desc.colorsHint", "Descrição: clique numa cor para pôr no cursor (cores já usadas no jogo)")));
+
+        // botões de baixo: aplicar, sem descrição
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+        actions.Controls.Add(B(() => Loc.T("desc.apply", "Aplicar descrição"), () => ApplyItemTexts(color: false)));
+        actions.Controls.Add(B(() => Loc.T("desc.remove", "Sem descrição"), () => { _descEdit.Clear(); ApplyItemTexts(color: false, remove: true); }));
+        actions.Controls.Add(L(() => Loc.T("desc.saveHint", "Grava no configs.pck do cliente ao Salvar (com backup).")));
+        _descEdit.BackColor = CSurface; _descEdit.ForeColor = CFg;
+        _descEdit.TextChanged += (_, _) => { if (!_descBinding && _current is not null) FillDescription(_current, _descEdit.Text); };
+
+        grid.Controls.Add(top, 0, 0); grid.Controls.Add(_descPalette, 0, 1); grid.Controls.Add(_descEdit, 0, 2);
+        grid.Controls.Add(actions, 0, 3); grid.Controls.Add(_descBox, 0, 4);
+        page.Controls.Add(grid);
+    }
+
+    // cores ^RRGGBB mais usadas nas descrições do jogo (paleta), + "Outra cor…" e quebra de linha
+    private void FillDescPalette()
+    {
+        _descPalette.Controls.Clear();
+        var used = _cfgs?.ItemDescs.Values.SelectMany(d => System.Text.RegularExpressions.Regex.Matches(d, "\\^([0-9a-fA-F]{6})").Select(m => m.Groups[1].Value.ToLowerInvariant()))
+            .GroupBy(c => c).OrderByDescending(g => g.Count()).Take(16).Select(g => g.Key).ToList() ?? new();
+        void Insert(string s) { _descEdit.SelectedText = s; _descEdit.Focus(); }
+        foreach (var hex in used)
+        {
+            var c = Color.FromArgb(Convert.ToInt32(hex, 16) | unchecked((int)0xFF000000));
+            var b = new Button { Width = 28, Height = 24, BackColor = c, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 2, 4, 2), Tag = hex };
+            _descTips.SetToolTip(b, "^" + hex);
+            b.Click += (_, _) => Insert("^" + hex);
+            _descPalette.Controls.Add(b);
+        }
+        var other = new Button { AutoSize = true, Height = 24, Text = Loc.T("desc.otherColor", "Outra cor…"), FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg, Margin = new Padding(6, 2, 4, 2) };
+        other.Click += (_, _) => { using var d = new ColorDialog { FullOpen = true }; if (d.ShowDialog(this) == DialogResult.OK) Insert($"^{d.Color.R:x2}{d.Color.G:x2}{d.Color.B:x2}"); };
+        _descPalette.Controls.Add(other);
+    }
+
+    // texto do jogo (\r literal) ↔ caixa de edição (quebra de linha de verdade)
+    private static string DescToEdit(string s) => s.Replace("\\r", Environment.NewLine);
+    private static string EditToDesc(string s) => s.Replace("\r\n", "\\r").Replace("\n", "\\r").Replace("\r", "\\r");
+
+    private void BindItemTexts(Item item)
+    {
+        _descBinding = true;
+        try
+        {
+            bool ok = _cfgs is not null && int.TryParse(item.Id, out _);
+            _nameColor.Enabled = _descEdit.Enabled = ok;
+            int id = ok ? int.Parse(item.Id) : 0;
+            int idx = ok && _cfgs!.ItemColors.TryGetValue(id, out var ci) && ci is >= 0 and < 9 ? ci : -1;
+            _nameColor.SelectedIndex = idx + 1;
+            _descEdit.Text = ok && _cfgs!.ItemDescs.TryGetValue(id, out var d) ? DescToEdit(d) : "";
+        }
+        finally { _descBinding = false; }
+    }
+
+    /// <summary>Passa a cor escolhida ou o texto da caixa para o item atual (um passo do histórico; grava ao Salvar).</summary>
+    private void ApplyItemTexts(bool color, bool remove = false)
+    {
+        if (_cfgs is null || _current is not { } item || !int.TryParse(item.Id, out var id)) return;
+        var cfgs = _cfgs;
+        if (color)
+        {
+            int? now = _nameColor.SelectedIndex <= 0 ? null : _nameColor.SelectedIndex - 1;
+            int? was = cfgs.ItemColors.TryGetValue(id, out var w) ? w : null;
+            if (now == was) return;
+            void Set(int? v) { if (v is { } x) cfgs.ItemColors[id] = x; else cfgs.ItemColors.Remove(id); _cfgColorIds.Add(id); _cfgDirty = true; _list.Invalidate(); if (_current == item) FillDescription(item); }
+            _edits.Custom(string.Format(Loc.T("hist.nameColor", "Cor do nome de {0}"), item.Id), () => Set(now), () => Set(was));
+        }
+        else
+        {
+            string? now = remove || _descEdit.Text.Trim().Length == 0 ? null : EditToDesc(_descEdit.Text.TrimEnd());
+            string? was = cfgs.ItemDescs.TryGetValue(id, out var w) ? w : null;
+            if (now == was) return;
+            void Set(string? v) { if (v is not null) cfgs.ItemDescs[id] = v; else cfgs.ItemDescs.Remove(id); _cfgDescIds.Add(id); _cfgDirty = true; if (_current == item) { BindItemTexts(item); FillDescription(item); } }
+            _edits.Custom(string.Format(Loc.T("hist.itemDesc", "Descrição de {0}"), item.Id), () => Set(now), () => Set(was));
+        }
+        UpdateSendGlow();
+        Status(Loc.T("desc.pending", "Cor/descrição alteradas — salve para gravar no configs.pck."));
+    }
+
+    /// <summary>Grava no configs.pck as cores/descrições mudadas (só as linhas desses itens). Nome do arquivo ou null.</summary>
+    private string? SaveItemTexts(bool quiet)
+    {
+        if (!_cfgDirty || _cfgs?.PckPath is not { } pck) return null;
+        try
+        {
+            var colors = _cfgColorIds.ToDictionary(i => i, i => _cfgs.ItemColors.TryGetValue(i, out var v) ? (int?)v : null);
+            var descs = _cfgDescIds.ToDictionary(i => i, i => _cfgs.ItemDescs.TryGetValue(i, out var v) ? v : null);
+            var bak = ItemTexts.Save(pck, colors, descs);
+            AppLog.Info($"salvo {pck} (cor/descrição de {colors.Count + descs.Count} item(ns); backup {Path.GetFileName(bak)})");
+            _cfgColorIds.Clear(); _cfgDescIds.Clear(); _cfgDirty = false;
+            return Path.GetFileName(pck);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("salvar cor/descrição", ex);
+            if (!quiet) MessageBox.Show(this, ex.Message, Loc.T("desc.saveFail", "Não gravei a cor/descrição"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+    }
+
+    // Descrição do jogo com as cores (^RRGGBB) — como aparece no tooltip do cliente. editing = texto da caixa (prévia).
+    private void FillDescription(Item item) { BindItemTexts(item); FillDescription(item, null); }
+
+    private void FillDescription(Item item, string? editing)
     {
         _descBox.Clear();
         void Put(string t, Color c, bool bold = false)
@@ -3034,7 +3183,9 @@ public sealed class EditorForm : Form
         Put((string.IsNullOrEmpty(item.Name) ? Loc.T("block.noName", "(sem nome)") : TasksFile.SplitColor(item.Name).Text) + "\n", NameColor(item), bold: true);
         Put($"ID {item.Id}\n\n", CMuted);
         PutTooltipSummary(item, Put);
-        if (_cfgs is not null && int.TryParse(item.Id, out var id) && _cfgs.ItemDescs.TryGetValue(id, out var desc))
+        if (editing is not null)
+            foreach (var (t, c) in GameConfigs.Runs(EditToDesc(editing), CTreeFg)) Put(t, c);
+        else if (_cfgs is not null && int.TryParse(item.Id, out var id) && _cfgs.ItemDescs.TryGetValue(id, out var desc))
             foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg)) Put(t, c);
         else Put(_cfgs is null ? Loc.T("desc.noConfigs", "(configs.pck não encontrado)") : Loc.T("desc.none", "(este item não tem descrição no configs.pck)"), CMuted);
         _descBox.SelectionStart = 0; _descBox.SelectionLength = 0; _descBox.ScrollToCaret();   // AppendText rola até o fim

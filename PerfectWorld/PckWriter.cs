@@ -13,7 +13,8 @@ public static class PckWriter
 {
     const int Key1 = -1466731422;
     const int Key2Default = unchecked((int)0xF1A43653);   // só para pacote vazio; senão vem da própria tabela
-    const int EntrySize = 276, Footer = 280;
+    // v2: rodapé 280 B, entrada 276 B (posição u32 em 260); v3: rodapé 288 B, entrada 288 B (posição i64 em 264),
+    // posição da tabela i64 e tamanho do pacote i64 no cabeçalho (PckArchive lê os dois)
 
     static readonly Encoding Gbk;
     static PckWriter() { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); Gbk = Encoding.GetEncoding(936); }
@@ -30,10 +31,11 @@ public static class PckWriter
             {
                 long len = fs.Length;
                 var tail = ReadAt(fs, len - 8, 8);
-                if (BitConverter.ToInt16(tail, 4) == 3) throw new NotSupportedException(UI.Loc.T("pck.v3Unsupported", "Pacote v3: gravar ainda não é suportado."));
+                bool v3 = BitConverter.ToInt16(tail, 4) == 3;
+                int Footer = v3 ? 288 : 280, EntrySize = v3 ? 288 : 276, countAt = v3 ? 280 : 272;
                 var footer = ReadAt(fs, len - Footer, Footer);
-                int count = BitConverter.ToInt32(footer, 272);
-                long tableOff = (uint)(BitConverter.ToInt32(footer, 8) ^ Key1);
+                int count = BitConverter.ToInt32(footer, countAt);
+                long tableOff = v3 ? BitConverter.ToInt64(footer, 8) ^ Key1 : (uint)(BitConverter.ToInt32(footer, 8) ^ Key1);
                 var table = ReadAt(fs, tableOff, checked((int)(len - Footer - tableOff)));
 
                 // entradas cruas (276 B), na ordem do pacote
@@ -65,10 +67,19 @@ public static class PckWriter
                     }
                     var data = Deflate(content);
                     if (data.Length >= content.Length) data = content;   // o jogo lê cru quando csize == size
-                    if (fs.Position + data.Length > uint.MaxValue) throw new NotSupportedException(UI.Loc.T("pck.over4gb", "Pacote passaria de 4 GB."));
-                    BitConverter.TryWriteBytes(raws[i].AsSpan(260), (uint)fs.Position);
-                    BitConverter.TryWriteBytes(raws[i].AsSpan(264), content.Length);
-                    BitConverter.TryWriteBytes(raws[i].AsSpan(268), data.Length);
+                    if (!v3 && fs.Position + data.Length > uint.MaxValue) throw new NotSupportedException(UI.Loc.T("pck.over4gb", "Pacote passaria de 4 GB."));
+                    if (v3)
+                    {
+                        BitConverter.TryWriteBytes(raws[i].AsSpan(264), fs.Position);
+                        BitConverter.TryWriteBytes(raws[i].AsSpan(272), content.Length);
+                        BitConverter.TryWriteBytes(raws[i].AsSpan(276), data.Length);
+                    }
+                    else
+                    {
+                        BitConverter.TryWriteBytes(raws[i].AsSpan(260), (uint)fs.Position);
+                        BitConverter.TryWriteBytes(raws[i].AsSpan(264), content.Length);
+                        BitConverter.TryWriteBytes(raws[i].AsSpan(268), data.Length);
+                    }
                     fs.Write(data);
                 }
 
@@ -82,13 +93,14 @@ public static class PckWriter
                     fs.Write(BitConverter.GetBytes(b.Length ^ key2));
                     fs.Write(b);
                 }
-                BitConverter.TryWriteBytes(footer.AsSpan(8), (int)(uint)newTable ^ Key1);
-                BitConverter.TryWriteBytes(footer.AsSpan(272), raws.Count);
+                if (v3) BitConverter.TryWriteBytes(footer.AsSpan(8), newTable ^ Key1);
+                else BitConverter.TryWriteBytes(footer.AsSpan(8), (int)(uint)newTable ^ Key1);
+                BitConverter.TryWriteBytes(footer.AsSpan(countAt), raws.Count);
                 fs.Write(footer);
                 fs.SetLength(fs.Position);
-                if (fs.Length > uint.MaxValue) throw new NotSupportedException(UI.Loc.T("pck.over4gb", "Pacote passaria de 4 GB."));
-                fs.Position = 4;                                   // cabeçalho: tamanho do pacote
-                fs.Write(BitConverter.GetBytes((uint)fs.Length));
+                if (!v3 && fs.Length > uint.MaxValue) throw new NotSupportedException(UI.Loc.T("pck.over4gb", "Pacote passaria de 4 GB."));
+                fs.Position = 4;                                   // cabeçalho: tamanho do pacote (u32 no v2, i64 no v3)
+                fs.Write(v3 ? BitConverter.GetBytes(fs.Length) : BitConverter.GetBytes((uint)fs.Length));
             }
 
             // confere relendo a cópia: os gravados iguais e nenhuma entrada perdida

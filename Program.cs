@@ -159,6 +159,34 @@ internal static class Program
             File.WriteAllText("item-diff.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--item-texts")   // <configs.pck> <pasta de teste>: round-trip + editar cor/descrição numa CÓPIA e conferir (item-texts.txt)
+        {
+            var sb = new StringBuilder();
+            var copy = Path.Combine(args[2], "configs.pck");
+            Directory.CreateDirectory(args[2]); File.Copy(args[1], copy, true);
+            using (var p = new PckArchive(copy))
+                foreach (var f in new[] { ItemTexts.ColorFile, ItemTexts.DescFile })
+                    sb.AppendLine($"{f}: round-trip {(p.Find(f) is { } e && ItemTexts.Decode(p.Read(e)) is not null ? "OK" : "FALHOU")}");
+            var before = GameConfigs.Load(copy)!;
+            int multi = before.ItemDescs.Keys.FirstOrDefault(k => before.ItemDescs[k].Contains("Dexterity +10-11"));
+            int anyId = before.ItemDescs.Keys.First(), newId = 999_001;
+            sb.AppendLine($"descrições: {before.ItemDescs.Count}  cores: {before.ItemColors.Count}  (2 linhas, ex.: {multi})");
+            ItemTexts.Save(copy, new Dictionary<int, int?> { [anyId] = 8, [newId] = 3 },
+                new Dictionary<int, string?> { [anyId] = "^ff0000Teste\n^ffffffLinha 2", [newId] = "^aa32ffNovo", [multi] = null });
+            var after = GameConfigs.Load(copy)!;
+            sb.AppendLine($"cor {anyId}: {after.ItemColors.GetValueOrDefault(anyId)} (8)  cor {newId}: {after.ItemColors.GetValueOrDefault(newId)} (3)");
+            sb.AppendLine($"desc {anyId}: {after.ItemDescs.GetValueOrDefault(anyId)}");
+            sb.AppendLine($"desc {newId}: {after.ItemDescs.GetValueOrDefault(newId)}  desc {multi} tirada: {!after.ItemDescs.ContainsKey(multi)}");
+            int changed = before.ItemDescs.Count(kv => kv.Key != anyId && kv.Key != multi && after.ItemDescs.GetValueOrDefault(kv.Key) != kv.Value);
+            sb.AppendLine($"outras descrições alteradas: {changed}; total {after.ItemDescs.Count} (esperado {before.ItemDescs.Count})");
+            using (var a = new PckArchive(args[1])) using (var b = new PckArchive(copy))   // os outros arquivos do pacote seguem iguais
+            {
+                int diff = a.Entries.Count(e => e.Path != ItemTexts.ColorFile && e.Path != ItemTexts.DescFile && (b.Find(e.Path) is not { } be || !a.Read(e).AsSpan().SequenceEqual(b.Read(be))));
+                sb.AppendLine($"outros arquivos do pacote diferentes: {diff} de {a.Entries.Count - 2}");
+            }
+            File.WriteAllText("item-texts.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--next-id")   // <elements.data> <bloco>: ID que Clonar/Novo item daria e itens de loja acima do limite (next-id.txt)
         {
             var m = CfgCatalog.Load(args[1]).Module;
@@ -251,7 +279,7 @@ internal static class Program
             Application.Run(new GmPanel(args.Length >= 2 && args[0] == "--gm" ? args[1] : null));
             return;
         }
-        Application.Run(new EditorForm());
+        Application.Run(new EditorForm(args.Length == 1 && File.Exists(args[0]) ? Path.GetFullPath(args[0]) : null));
     }
 
     /// <summary>
