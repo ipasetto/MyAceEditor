@@ -9,6 +9,7 @@ namespace MyAceEditor.PerfectWorld;
 /// índices u16 ×3 por triângulo, normais 3f, cores de dia e de noite (BGRA, 1 por vértice) e dados extras de tamanho
 /// variável — a próxima malha é achada pela versão. Desenho usa a cor de dia (a do vértice pode ser outra, ex.: a19).
 /// Versão 0x80000001 (metade dos arquivos do 1.4.4): 1 byte + 0x10000002 depois da versão, resto 5 bytes adiante, malhas 0x10000005.
+/// Esse byte é bCollideOnly (CELBuilding::Load): 1 = peça só de colisão, o jogo não desenha (SetVisibility(false)).
 /// </summary>
 public sealed class BmdModel
 {
@@ -18,6 +19,8 @@ public sealed class BmdModel
     public float[] Dir = new float[3], Up = new float[3], Pos = new float[3];
     public List<Mesh> Meshes { get; } = new();
     public int Declared;
+    /// <summary>Só colisão (invisível no jogo): não desenhar.</summary>
+    public bool CollideOnly;
 
     static readonly Encoding Gbk;
     static BmdModel() { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); Gbk = Encoding.GetEncoding(936); }
@@ -32,7 +35,7 @@ public sealed class BmdModel
         if (d.Length < 0x3C || Encoding.ASCII.GetString(d, 0, 4) != "MOXB") return null;
         // versão 0x80000001: 1 byte + a versão antiga (0x10000002) na frente; o resto igual, 5 bytes adiante
         int sh = BitConverter.ToUInt32(d, 4) == 0x80000001 ? 5 : 0;
-        var m = new BmdModel { Scale = BitConverter.ToSingle(d, 8 + sh) };
+        var m = new BmdModel { Scale = BitConverter.ToSingle(d, 8 + sh), CollideOnly = sh > 0 && d[8] != 0 };
         for (int i = 0; i < 3; i++)
         {
             m.Dir[i] = BitConverter.ToSingle(d, 0x14 + sh + i * 4);

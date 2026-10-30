@@ -84,7 +84,7 @@ internal sealed class WorldBuildings : IDisposable
         {
             byte[] d;
             try { lock (_lit!) d = _lit.Read(e); } catch { continue; }
-            if (BmdModel.Read(d) is not { } m || m.Meshes.Count == 0) continue;
+            if (BmdModel.Read(d) is not { } m || m.Meshes.Count == 0 || m.CollideOnly) continue;   // só colisão: o jogo não desenha
             var dir = new Vector3(m.Dir[0], m.Dir[1], m.Dir[2]); var up = new Vector3(m.Up[0], m.Up[1], m.Up[2]);
             if (dir.LengthSquared < 1e-6f || up.LengthSquared < 1e-6f) { dir = Vector3.UnitZ; up = Vector3.UnitY; }
             var right = Vector3.Cross(up, dir);

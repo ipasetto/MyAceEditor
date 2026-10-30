@@ -353,6 +353,10 @@ internal static class Program
                 sb.AppendLine($"== {mp}: {es.Count} arquivos");
                 foreach (var g in es.GroupBy(e => { var r = e.Path[pre.Length..]; int k = r.IndexOf('\\'); return (k < 0 ? "(raiz)" : r[..k]) + " " + Path.GetExtension(e.Path).ToLowerInvariant(); }).OrderBy(g => g.Key))
                     sb.AppendLine($"  {g.Key}: {g.Count()}  ex.: {g.First().Path[pre.Length..]}");
+                // peças só de colisão (bCollideOnly): o jogo não desenha
+                foreach (var e in es.Where(e => e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)))
+                    if (BmdModel.Read(pck.Read(e)) is { CollideOnly: true } m)
+                        sb.AppendLine($"  só colisão: {e.Path[pre.Length..]} em ({m.Pos[0]:0},{m.Pos[1]:0},{m.Pos[2]:0}) {string.Join(", ", m.Meshes.Select(x => x.Texture).Distinct())}");
             }
             File.WriteAllText("lit-list.txt", sb.ToString(), new UTF8Encoding(false));
             return;

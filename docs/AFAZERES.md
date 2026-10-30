@@ -145,10 +145,9 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] construcoes com faces de tras descartadas como no jogo (FrontFace CW; a08: plano bege de 51x25 m cobria a parede); recorte segue dos 2 lados
 - [x] texturas .tga nas construcoes; superficie .sdr sem textura nao e desenhada (domos da a33)
 - [x] agua do cliente so nas celulas da mascara
-- [ ] a26: superficies azuis = malhas com texturas h\82c / j53 desenhadas so com a cor do vertice (decodificam no teste --bmd-check uv, mas nao no Mundo 3D?). Fotos do teste em scratch: MYACE_HIDETEX=82c/b53 (conferir qual some)
-- [ ] a17: faixa marrom (nao e o 血池.sdr; achar a malha com MYACE_HIDETEX); a23: paredes marrons esticadas (talvez normal); a33: ceu roxo (perguntar se e assim no jogo)
+- [x] a26 planos azuis, a17 faixa marrom, a23 paredes marrons esticadas = pecas SO DE COLISAO (.bmd v0x80000001 com bCollideOnly = 1; o jogo nao desenha). Agora puladas; --lit-list lista essas pecas por mapa
+- [ ] a33: ceu roxo (perguntar se e assim no jogo); a23: plano verde liso no alto a direita (conferir)
 - [x] tetos (a35, a24, a27) = CEU da area: WorldSky le as caixas de area do .ecbsd (ECBSDFILEBOXAREA11 + 6 textos de ceu) e desenha a cupula (topo + 2 metades) com textures\sky\...; area da camera = caixa que a contem, senao a padrao mais perto. So dia. a15: mancha clara pequena na borda
 - [x] texturas .bmp/.jpg/.png nas construcoes (a35: e\4ad.bmp)
-- [~] a26: perto da entrada so ha a plataforma litmodel_440 (17 m); o azul abaixo e o domo do ceu (construcao) visto pelo vazio — provavelmente normal (palacio flutuante); confirmar com print do jogo
-- [ ] a21 arvores; bambu deitado (angulo do nivel 1 77..130 tomado a partir do eixo do pai)
+- [ ] a21 arvores; bambu deitado (angulo do nivel 1 77..130 tomado a partir do eixo do pai). Pista (30/10): o nivel 0 do bambu tem angulo +90 e o das outras arvores -90; no SpeedTreeRT (FUN_100056d0) cada galho, tronco incluso, gira pelo proprio angulo no inicio (local_60). So virar o tronco para baixo nao bastou (colmos ainda 50..103 graus do alto): falta ler como o angulo e a gravidade negativa (-1) entram ali
 - ferramentas: --instances, --world-shot (nome "ov" = camera do Mundo 3D), --bmd-check <pck> <mapas> [uv], --lit-list, --scene-models; MYACE_HIDE=terrain|buildings, MYACE_HIDETEX=<trecho>, MYACE_BCULL=cw|ccw|off (teste)
