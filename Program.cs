@@ -187,11 +187,40 @@ internal static class Program
             File.WriteAllText("item-texts.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--keys")   // <elements.data> <bloco>: campos do 1º item com o valor (keys.txt)
+        {
+            var it = CfgCatalog.Load(args[1]).Module.FindListByName(args[2])?.Items.FirstOrDefault();
+            File.WriteAllText("keys.txt", it is null ? "bloco?" : string.Join("\n", it.Fields.Select(kv => $"{kv.Key}={kv.Value.Value}")), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--item-rules")   // <elements.data>: regras do gs por tipo (item-rules.txt)
+        {
+            var mod = CfgCatalog.Load(args[1]).Module;
+            if (args.Length >= 3 && args[2] == "teste")   // estraga 1 registro por regra (só na memória) e confere que cada uma acusa
+            {
+                var before = ItemRules.Check(mod).Select(p => p.Key).ToHashSet();
+                void Set(string block, Func<Model.Item, bool> pick, string k, string v) { if (mod.FindListByName(block)?.Items.FirstOrDefault(pick) is { } it && it.Fields.ContainsKey(k)) it.Fields[k] = Model.Field.Of(it.Fields[k].Type, v); }
+                Set("MONSTER_ESSENCE", _ => true, "aggro_strategy_1_probability", "0.5");
+                Set("MONSTER_ESSENCE", i => i != mod.FindListByName("MONSTER_ESSENCE")!.Items[0], "id_type", "999999");
+                Set("ARMOR_ESSENCE", _ => true, "id_sub_type", "999999");
+                Set("WEAPON_ESSENCE", i => i.Fields.GetValueOrDefault("id_sub_type")?.Value is not ("300" or "293" or "76" or "291"), "id_sub_type", "76");
+                var tsid = mod.FindListByName("NPC_TRANSMIT_SERVICE")?.Items.FirstOrDefault(i => i.Fields.GetValueOrDefault("num_targets")?.Value == "0")?.Id;
+                if (tsid is not null) Set("NPC_ESSENCE", _ => true, "id_transmit_service", tsid);
+                Set("FLYSWORD_ESSENCE", _ => true, "ID", "70000");
+                if (mod.FindListByName("FLYSWORD_ESSENCE")?.Items.FirstOrDefault() is { } fs) { fs.Id = "70000"; fs.Fields["proc_type"] = Model.Field.Of(fs.Fields["proc_type"].Type, "8"); }
+                var fresh = ItemRules.Check(mod).Where(p => !before.Contains(p.Key)).ToList();
+                File.WriteAllText("item-rules.txt", string.Join("\n", fresh.Select(p => $"{p.Rule}: {p}")) + "\n", new UTF8Encoding(false));
+                return;
+            }
+            var probs = ItemRules.Check(mod);
+            File.WriteAllText("item-rules.txt", string.Join("\n", probs.GroupBy(p => p.Rule).Select(g => $"{g.Key}: {g.Count()}  ex.: {g.First()}")) + "\n", new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--next-id")   // <elements.data> <bloco>: ID que Clonar/Novo item daria e itens de loja acima do limite (next-id.txt)
         {
             var m = CfgCatalog.Load(args[1]).Module;
             var list = m.FindListByName(args[2]);
-            File.WriteAllText("next-id.txt", (list is null ? "bloco?" : IdRefactor.NextFreeId(m, list).ToString()) + "\n" + string.Join("\n", IdRefactor.CashItemsOverLimit(m)), new UTF8Encoding(false));
+            File.WriteAllText("next-id.txt", (list is null ? "bloco?" : IdRefactor.NextFreeId(m, list).ToString()) + "\n" + string.Join("\n", ItemRules.Check(m).Where(p => p.Rule == "cash-id")), new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 3 && args[0] == "--names")   // <elements.data> <bloco>: ID e nome dos 15 primeiros itens (names.txt)

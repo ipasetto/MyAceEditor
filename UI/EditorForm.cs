@@ -983,7 +983,9 @@ public sealed class EditorForm : Form
         _unusedCache.Clear();
         _typeCache.Clear();
         _edits.Clear();
-        _dupAtLoad = IdRefactor.Duplicates(module).Keys.ToHashSet();
+        var atLoad = ItemRules.Check(module, cashLimit: true);
+        _cashLimit = !atLoad.Any(p => p.Rule == "cash-id");
+        _rulesAtLoad = atLoad.Where(p => _cashLimit || p.Rule != "cash-id").Select(p => p.Key).ToHashSet();
         _refs = new RefIndex(module);
         _aiView?.SetElements(module);   // nomes de monstros e "quem usa cada política" na aba AI Policy
         _atlasPck = r.AtlasPck; _atlas = r.Atlas;          // ícones: cache novo para este pacote
@@ -1220,25 +1222,20 @@ public sealed class EditorForm : Form
         SaveElementsCore(target);
     }
 
-    // IDs já repetidos no arquivo aberto (alguns jogos vêm assim); só os repetidos NOVOS impedem salvar
-    private HashSet<string> _dupAtLoad = new();
+    // regras do gs (ItemRules) já quebradas no arquivo aberto: alguns jogos vêm assim (ex.: 180 tem itens de loja acima
+    // de 65534 e o gs dele aceita); só problemas NOVOS impedem salvar
+    private HashSet<string> _rulesAtLoad = new();
+    private bool _cashLimit = true;   // o limite de 65534 só vale se o arquivo do jogo não tiver item de loja acima dele
 
     private bool SaveElementsCore(string target)
     {
         if (_store.Current?.Source is not ElementsLayout) return false;
-        var dups = IdRefactor.Duplicates(_store.Current).Where(kv => !_dupAtLoad.Contains(kv.Key)).ToList();
-        if (dups.Count > 0)
+        var fresh = ItemRules.Check(_store.Current, _cashLimit).Where(p => !_rulesAtLoad.Contains(p.Key)).ToList();
+        if (fresh.Count > 0)
         {
-            MessageBox.Show(this, Loc.T("save.dupIds", "Não salvei: estes IDs ficaram repetidos e o jogo não acharia um deles (item que não cai, NPC que some). Troque o ID do novo com \"Mudar ID\":") + "\n\n"
-                + string.Join("\n", dups.Take(12).Select(kv => "• " + string.Join("  =  ", kv.Value))) + (dups.Count > 12 ? $"\n… +{dups.Count - 12}" : ""),
-                Loc.T("save.dupTitle", "IDs repetidos"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return false;
-        }
-        if (IdRefactor.CashItemsOverLimit(_store.Current) is { Count: > 0 } cash)
-        {
-            MessageBox.Show(this, string.Format(Loc.T("save.cashId", "Não salvei: item de loja com ID acima de {0} derruba o servidor ao iniciar (gs). Troque o ID com \"Mudar ID\":"), IdRefactor.MaxCashItemId) + "\n\n"
-                + string.Join("\n", cash.Take(12).Select(c => "• " + c)) + (cash.Count > 12 ? $"\n… +{cash.Count - 12}" : ""),
-                Loc.T("save.cashTitle", "ID de item alto demais"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, Loc.T("save.rules", "Não salvei: o servidor (gs) não aceitaria isto. Corrija (ID: \"Mudar ID\"; subtipo: campo id_sub_type) e salve de novo:") + "\n\n"
+                + string.Join("\n", fresh.Take(12).Select(p => "• " + p)) + (fresh.Count > 12 ? $"\n… +{fresh.Count - 12}" : ""),
+                Loc.T("save.rulesTitle", "O jogo não aceitaria"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
         try

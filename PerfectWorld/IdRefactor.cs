@@ -56,14 +56,6 @@ public static class IdRefactor
         return used.Count == 0 ? 1 : used.Max() + 1;
     }
 
-    /// <summary>Itens de loja com ID acima do que o gs aceita (ver <see cref="MaxCashItemId"/>): "bloco ID nome".</summary>
-    public static List<string> CashItemsOverLimit(Module module) =>
-        module.Lists.Where(l => IdSpaces.Of(l.Name) == IdSpaces.Space.Essence && !IsMonsterOrNpc(l.Name))
-            .SelectMany(l => l.Items.Where(i => int.TryParse(i.Id, out var v) && v > MaxCashItemId
-                && i.Fields.TryGetValue("proc_type", out var pt) && long.TryParse(pt.Value, out var p) && (p & CashItemFlag) != 0)
-                .Select(i => $"{l.Name} {i.Id} {i.Name}"))
-            .ToList();
-
     /// <summary>
     /// IDs repetidos no mesmo espaço de IDs ("espaço|ID" → "bloco ID nome" de cada um). O jogo acha o registro pelo ID:
     /// um repetido faz o item (ou o NPC) não existir para o gs.
