@@ -1479,9 +1479,11 @@ public sealed class EditorForm : Form
 
         UpdateCounters();
         // a lista virtual guarda a rolagem antiga ao encolher (linhas vazias no topo até clicar): zera antes
+        // tamanho 0 ANTES de limpar a seleção: limpar com o tamanho antigo pede a linha selecionada, que pode não
+        // existir mais na lista nova (ex.: o item excluído era o último)
         _list.BeginUpdate();
-        _list.SelectedIndices.Clear();
         _list.VirtualListSize = 0;
+        _list.SelectedIndices.Clear();
         _list.VirtualListSize = _view.Count;
         if (_view.Count > 0) _list.EnsureVisible(0);
         _list.EndUpdate();
@@ -1492,6 +1494,8 @@ public sealed class EditorForm : Form
 
     private void OnRetrieveItem(object? s, RetrieveVirtualItemEventArgs e)
     {
+        // a lista pode pedir uma linha antiga no meio da troca de tamanho: linha vazia em vez de erro
+        if (e.ItemIndex < 0 || e.ItemIndex >= _view.Count) { e.Item = new ListViewItem(""); e.Item.SubItems.Add(""); e.Item.SubItems.Add(""); return; }
         var it = _view[e.ItemIndex];
         e.Item = new ListViewItem(it.Id, IconIndexFor(it)) { Tag = it };
         e.Item.SubItems.Add(string.IsNullOrEmpty(it.Name) ? Loc.T("block.noName", "(sem nome)") : it.Name);

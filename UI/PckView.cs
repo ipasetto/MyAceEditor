@@ -135,8 +135,8 @@ internal sealed class PckView : Panel
     {
         var f = _filter.Text.Trim();
         _view = _pck is null ? new() : _pck.Entries.Where(e => f.Length == 0 || e.Path.Contains(f, StringComparison.OrdinalIgnoreCase)).ToList();
+        _lv.VirtualListSize = 0;   // zera a rolagem antiga (senão sobram linhas vazias ao encolher); antes de limpar a seleção
         _lv.SelectedIndices.Clear();
-        _lv.VirtualListSize = 0;   // zera a rolagem antiga (senão sobram linhas vazias ao encolher)
         _lv.VirtualListSize = _view.Count;
         _lv.Invalidate();
         UpdateButtons(); UpdateInfo();

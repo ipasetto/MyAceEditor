@@ -253,8 +253,8 @@ public sealed class GmPanel : Form
             foreach (var it in l.Items)
                 if (q.Length == 0 || it.Id == q || it.Name.Contains(q, StringComparison.OrdinalIgnoreCase)) rows.Add((it, l.Name));
         }
+        s.List.VirtualListSize = 0;   // zera a rolagem antiga; antes de limpar a seleção (a linha antiga pode não existir)
         s.List.SelectedIndices.Clear();
-        s.List.VirtualListSize = 0;   // zera a rolagem antiga
         s.List.VirtualListSize = rows.Count;
         s.List.Invalidate();
     }
