@@ -1429,7 +1429,7 @@ internal static class Program
                 var m = SptGrower.Build(f);
                 static string Mat(float[]? x) => x is null ? "-" : string.Join(" ", x.Take(6).Select(v => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)));
                 sb.Append($"mat galho [{Mat(f.BranchMaterial)}] fronde [{Mat(f.FrondMaterial)}] folha [{Mat(f.LeafMaterial)}] ajuste {f.LeafLightAdjust:0.##}\t");
-                sb.Append($"{e.Path}\tníveis {f.Levels.Count}\tvértices {m.Pos.Count}\ttriângulos {m.Index.Count / 3}\tfolhas {m.Leaves.Count}\tfrondes {m.FrondIndex.Count / 6}\taltura {m.Height:0.0} m\tcasca {f.BarkTexture}\n");
+                sb.Append($"{e.Path}\tníveis {f.Levels.Count}\tvértices {m.Pos.Count}\ttriângulos {m.Index.Count / 3}\tfolhas {m.Leaves.Count}\tfrondes {m.FrondIndex.Count / 6}\taltura {m.Height:0.0} m\tfolha mais baixa {(m.Leaves.Count > 0 ? m.Leaves.Min(l => l.Pos.Y) : 0):0.0} m\tfronde mais baixa {(m.FrondPos.Count > 0 ? m.FrondPos.Min(p => p.Y) : 0):0.0} m\tcasca {f.BarkTexture}\n");
                 // vista de lado (X, Y) para conferir a forma
                 float minX = m.Pos.Count == 0 ? 0 : m.Pos.Min(p => p.X), maxX = m.Pos.Count == 0 ? 1 : m.Pos.Max(p => p.X);
                 float h = Math.Max(1, m.Height), w = Math.Max(maxX - minX, 1);

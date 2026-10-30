@@ -217,7 +217,7 @@ internal sealed class WorldTrees : IDisposable
         for (int l = 0; l < n; l++)
         {
             var pos = m.Leaves[l].Pos;
-            var map = f.LeafMaps[Math.Min((int)(rng.Uniform() * f.LeafMaps.Count), f.LeafMaps.Count - 1)];
+            var map = f.LeafMaps[l < m.LeafMap.Count ? m.LeafMap[l] : Math.Min((int)(rng.Uniform() * f.LeafMaps.Count), f.LeafMaps.Count - 1)];
             float w = map.Size.X * m.Scale, h = map.Size.Y * m.Scale;
             float s0 = MathF.Min(MathF.Min(map.Uv[0], map.Uv[2]), MathF.Min(map.Uv[4], map.Uv[6])), s1 = MathF.Max(MathF.Max(map.Uv[0], map.Uv[2]), MathF.Max(map.Uv[4], map.Uv[6]));
             float t0 = MathF.Min(MathF.Min(map.Uv[1], map.Uv[3]), MathF.Min(map.Uv[5], map.Uv[7])), t1 = MathF.Max(MathF.Max(map.Uv[1], map.Uv[3]), MathF.Max(map.Uv[5], map.Uv[7]));

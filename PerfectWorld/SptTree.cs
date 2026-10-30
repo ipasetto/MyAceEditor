@@ -26,6 +26,21 @@ public sealed class SptFile
     /// null = arquivo sem a seção.
     /// </summary>
     public float[]? BranchMaterial { get; private set; }
+    /// <summary>
+    /// Folhas que se amontoam (3007 SpacingTolerance, padrão 0,5; 3008 colisão: 0 nenhuma, 1 só do mesmo galho, 2 da
+    /// árvore toda, padrão 2): CBranch::RoomForLeaf descarta a folha cujo ponto cai a menos de espaçamento × lado maior
+    /// da textura de outra já posta (caixa nos 3 eixos). É o que deixa a copa aberta e o tronco à mostra.
+    /// </summary>
+    public float LeafSpacing { get; private set; } = 0.5f;
+    public int LeafCollision { get; private set; } = 2;
+    /// <summary>
+    /// Flores (3000 distância, 3001 nível, 3002 peso; texturas com 4000): a folha é flor se a posição no galho passa da
+    /// distância (negativa = antes dela) e um sorteio ≤ peso. Sem textura que não seja flor, a folha que não é flor
+    /// some (CBranch::MakeLeaf) — várias árvores do PW só têm "flores".
+    /// </summary>
+    public float BlossomDistance { get; private set; }
+    public int BlossomLevel { get; private set; }
+    public float BlossomWeighting { get; private set; }
     public float[]? FrondMaterial { get; private set; }
     public float[]? LeafMaterial { get; private set; }
     public float LeafLightAdjust { get; private set; }
@@ -130,8 +145,12 @@ public sealed class SptFile
         for (int t = r.Int(); t != 1005 && !r.End; t = r.Int())
             switch (t)
             {
-                case 3000 or 3002 or 3004 or 3005 or 3007 or 3010: r.Float(); break;
-                case 3001 or 3008: r.Int(); break;
+                case 3004 or 3005 or 3010: r.Float(); break;
+                case 3000: BlossomDistance = r.Float(); break;
+                case 3001: BlossomLevel = r.Int(); break;
+                case 3002: BlossomWeighting = r.Float(); break;
+                case 3007: LeafSpacing = r.Float(); break;
+                case 3008: LeafCollision = r.Int(); break;
                 case 3003 or 3006 or 3009: r.Bool(); break;
                 case 1009:
                     if (r.Int() != 1006) throw new InvalidDataException("lista de folhas sem 1006");
@@ -142,7 +161,7 @@ public sealed class SptFile
                         for (int k = r.Int(); k != 1008; k = r.Int())
                             switch (k)
                             {
-                                case 4000: r.Bool(); break;
+                                case 4000: m.Blossom = r.Bool(); break;
                                 case 4001 or 4006: r.Vec(); break;
                                 case 4002 or 4007: r.Float(); break;
                                 case 4003: m.Texture = r.Str(); break;
@@ -175,6 +194,7 @@ public sealed class SptFile
 public sealed class SptLeafMap
 {
     public string Texture = "";
+    public bool Blossom;   // 4000: flor (SptFile.BlossomDistance)
     public Vector2 Origin = new(0.5f, 0.5f), Size = new(0.1f, 0.1f);
     public readonly float[] Uv = { 1, 1, 0, 1, 0, 0, 1, 0 };
 }
@@ -397,6 +417,8 @@ public sealed class SptMesh
     public readonly List<Vector2> Uv = new();
     public readonly List<int> Index = new();
     public readonly List<(Vector3 Pos, Vector3 Dir)> Leaves = new();
+    /// <summary>Textura (índice em SptFile.LeafMaps) de cada folha, sorteada na geração como no runtime.</summary>
+    public readonly List<int> LeafMap = new();
     /// <summary>Fitas das frondes (posição, uv no mapa composto, índices), à parte da casca.</summary>
     public readonly List<Vector3> FrondPos = new();
     public readonly List<Vector2> FrondUv = new();
@@ -444,8 +466,12 @@ public static class SptGrower
         var vr = new SptRandom(f.Seed + 1);
         float size = Math.Max(1, rng.Range(f.Size - f.SizeVariance, f.Size + f.SizeVariance));
         int seed = f.Seed;
+        _leafPts = new List<Vector3>();
         Grow(f, m, rng, vr, ref seed, 0, Vector3.Zero, Frame.Identity, Vector3.UnitZ, 0, -1, 1);
-        // tamanho da árvore = altura (pés → metros), como SetTreeSize(tamanho × 0,3048) no cliente
+        _leafPts = null;
+        // tamanho da árvore = altura (pés → metros), como SetTreeSize(tamanho × 0,3048) no cliente (EL_Tree.cpp). Testado
+        // 30/10 contra o jogo: multiplicar todas as medidas pelo tamanho (como no fonte do SpeedTree 4.1) deixa o tronco da
+        // shingleoak4 com 6 m de diâmetro; no jogo ele tem ~2,5 m, que é o que esta escala dá
         float top = 0;
         foreach (var p in m.Pos) top = Math.Max(top, p.Y);
         foreach (var p in m.FrondPos) top = Math.Max(top, p.Y);
@@ -556,6 +582,8 @@ public static class SptGrower
         var C = f.Levels[level + 1];
         int count = (int)(L.Frequency * length / scale);   // frequência = filhos por unidade de comprimento do pai
         bool childIsLeaf = level + 1 >= f.Levels.Count - 1;
+        var local = new List<Vector3>();   // folhas deste galho (colisão 1)
+        var leafPts = _leafPts ??= new List<Vector3>();
         for (int c = 0; c < count; c++)
         {
             // galho: semente +3 a cada filho; folhas seguem o mesmo gerador sem ressemear
@@ -574,7 +602,27 @@ public static class SptGrower
                 float bud = C.Length.Eval(childRel, vr) * scale / Math.Max(1, C.Segments);
                 var lf = tms[k].Turn(tms[k].X.Normalized(), rng.Range(-180, 180)).RotateYZ(60, 0);
                 var ld = lf.X.Normalized();
-                m.Leaves.Add((Ours(p + ld * bud), Ours(ld)));
+                // CBranch::MakeLeaf: textura sorteada entre as que não são flor; RoomForLeaf; só a folha aceita sorteia
+                // o grupo de balanço e a variação de cor
+                var lp = p + ld * bud;
+                int map = ChooseLeafMap(f, rng, f.BlossomLevel == 0 ? childRel : rel);
+                if (map < 0) continue;
+                if (f.LeafCollision != 0)
+                {
+                    var sz = f.LeafMaps[map].Size;
+                    float room = MathF.Max(sz.X, sz.Y) * f.LeafSpacing;
+                    var near = f.LeafCollision == 1 ? local : leafPts;
+                    bool crowded = false;
+                    for (int q = near.Count - 1; q >= 0 && !crowded; q--)
+                    {
+                        var o = near[q];
+                        crowded = MathF.Abs(lp.X - o.X) < room && MathF.Abs(lp.Y - o.Y) < room && MathF.Abs(lp.Z - o.Z) < room;
+                    }
+                    if (crowded) continue;
+                }
+                rng.Range(0, 10000); rng.Range(0, 1);
+                leafPts.Add(lp); local.Add(lp);
+                m.Leaves.Add((Ours(lp), Ours(ld))); m.LeafMap.Add(map);
                 continue;
             }
             rng.Seed(seed); rng.Range(0, 100);   // o runtime ressemeia e descarta um número antes do filho
@@ -583,6 +631,28 @@ public static class SptGrower
     }
 
     static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    [ThreadStatic] static List<Vector3>? _leafPts;   // folhas já postas na árvore em geração (colisão 2)
+
+    /// <summary>
+    /// Textura da folha (CBranch::MakeLeaf/IsBlossom): cada textura conta 2 vezes (normal e espelhada); flor ou não pela
+    /// posição no galho e pelo peso; -1 = folha descartada (não é flor e a árvore só tem flores).
+    /// </summary>
+    static int ChooseLeafMap(SptFile f, SptRandom rng, float percent)
+    {
+        var bloss = new List<int>(); var plain = new List<int>();
+        for (int i = 0; i < f.LeafMaps.Count; i++) (f.LeafMaps[i].Blossom ? bloss : plain).Add(i);
+        bool isBlossom = false;
+        if (bloss.Count > 0)
+        {
+            float d = f.BlossomDistance;
+            isBlossom = (d < 0 ? percent < -d : percent > d) && rng.Range(0, 1) <= f.BlossomWeighting;
+        }
+        var list = isBlossom ? bloss : plain;
+        if (list.Count == 0) return -1;
+        int idx = (int)rng.Range(0, isBlossom ? 100000 : 1000000) % (2 * list.Count);
+        return list[idx / 2];
+    }
 
     /// <summary>
     /// Fronde em extrusão (CFrondEngine tipo 1, FUN_10025990/FUN_10024aa0): a seção é o perfil 13005 espelhado — n pontos de
