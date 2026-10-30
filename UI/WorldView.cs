@@ -78,6 +78,7 @@ internal sealed class WorldView : Form
     readonly WorldTrees _trees;
     readonly WorldSky _sky;
     bool _showBuildings = true;
+    bool _gameFog = true;   // N: neblina da área (jogo) ou a longe
     readonly HashSet<Keys> _keys = new();
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 10 };
@@ -145,6 +146,7 @@ internal sealed class WorldView : Form
         _buildings = new WorldBuildings(element, t.Name, _load);
         _trees = new WorldTrees(element, t.Name);
         _sky = new WorldSky(element, t.Dir);
+        if (_sky.SunDir is { } sun) WorldTrees.Sun = sun;   // luz do mapa nas árvores (geradas depois, ao aparecer)
         // teste do --world-shot: esconder partes para achar quem desenha o quê
         var hide = Environment.GetEnvironmentVariable("MYACE_HIDE") ?? "";
         if (hide.Contains("terrain")) _terrain.Visible = false;
@@ -275,6 +277,7 @@ internal sealed class WorldView : Form
             case Keys.H or Keys.F1: ToggleLegend(); return;
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
+            case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;               // neblina do jogo (por área) ou longe
             case Keys.Delete:
                 if (_selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
                 return;
@@ -400,8 +403,17 @@ internal sealed class WorldView : Form
         _sky.Draw(_cam);   // céu da área (tetos das instâncias); sem céu fica a cor de fundo
         GL.Enable(EnableCap.Fog);
         GL.Fog(FogParameter.FogMode, (int)FogMode.Linear);
-        GL.Fog(FogParameter.FogStart, 1500f); GL.Fog(FogParameter.FogEnd, 8000f);
-        GL.Fog(FogParameter.FogColor, new[] { 0.62f, 0.76f, 0.9f, 1f });
+        // neblina da área da câmera (.ecbsd, como o jogo); N troca pela neblina longe, para editar enxergando o mapa todo
+        if (_gameFog && _sky.Fog(_cam) is { } fog)
+        {
+            GL.Fog(FogParameter.FogStart, fog.Start); GL.Fog(FogParameter.FogEnd, fog.End);
+            GL.Fog(FogParameter.FogColor, new[] { fog.Color.X, fog.Color.Y, fog.Color.Z, 1f });
+        }
+        else
+        {
+            GL.Fog(FogParameter.FogStart, 1500f); GL.Fog(FogParameter.FogEnd, 8000f);
+            GL.Fog(FogParameter.FogColor, new[] { 0.62f, 0.76f, 0.9f, 1f });
+        }
 
         // terreno só de cima (faces da frente sobem: a→d→b), como o jogo: visto de baixo, a tampa das cavernas some.
         // O "teto" das instâncias (a35, a24, a27) não é terreno — é o céu da área (A3DSkySphere com texturas de pedra).
@@ -724,7 +736,7 @@ internal sealed class WorldView : Form
                 rows.Add((Color.Yellow, Loc.T("legend.selected", "Amarelo — selecionado")));
                 rows.Add((Color.Empty, ""));
                 rows.Add((Color.Silver, Loc.T("legend.keys1", "W/A/S/D andar · Espaço/Z subir/descer · Shift correr")));
-                rows.Add((Color.Silver, Loc.T("legend.keys2", "Roda aproxima · botão do meio gira · M mapa · T esconde o terreno · B as construções")));
+                rows.Add((Color.Silver, Loc.T("legend.keys2", "Roda aproxima · botão do meio gira · M mapa · T esconde o terreno · B as construções · N neblina do jogo")));
                 rows.Add((Color.Silver, Loc.T("legend.keys3", "Esquerdo no ponto arrasta · direito: novo, clonar, mover, excluir, editar")));
                 rows.Add((Color.Silver, Loc.T("legend.keys4", "Ctrl+C/Ctrl+V copia e cola o ponto · Delete exclui · Ctrl+Z/Ctrl+Y")));
             }

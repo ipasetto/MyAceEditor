@@ -1592,7 +1592,7 @@
   "legend.title": "▾ Legend (click or H to close)",
   "legend.trigger": "Violet — trigger-activated (dungeon stage, GM)",
   "legend.keys1": "W/A/S/D move · Space/Z up/down · Shift runs",
-  "legend.keys2": "Wheel zooms · middle button turns · M map · T hides terrain · B buildings",
+  "legend.keys2": "Wheel zooms · middle button turns · M map · T hides terrain · B buildings · N game fog",
   "legend.keys3": "Left on a point drags · right: new, clone, move, delete, edit",
   "legend.keys4": "Ctrl+C/Ctrl+V copy and paste a point · Delete · Ctrl+Z/Ctrl+Y",
   "legend.closed": "▸ Legend and shortcuts (H)",

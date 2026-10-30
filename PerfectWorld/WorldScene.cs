@@ -64,7 +64,15 @@ public sealed class WorldScene
 
     /// <summary>Área de ambiente (CECScnBoxArea): caixa orientada + céu de dia (3 texturas: topo e as duas metades do
     /// lado, A3DSkySphere). A área padrão (Default) vale onde nenhuma outra caixa contém a câmera.</summary>
-    public sealed record BoxArea(bool Default, float[] Pos, float[] Ext, float[] AxisX, float[] AxisY, float[] AxisZ, string[] Sky);
+    public sealed record BoxArea(bool Default, float[] Pos, float[] Ext, float[] AxisX, float[] AxisY, float[] AxisZ, string[] Sky)
+    {
+        /// <summary>Neblina de dia (+68: início, fim, densidade, cor ARGB) e de noite (+100).</summary>
+        public float FogStart, FogEnd, FogStartNight, FogEndNight;
+        public uint FogColor, FogColorNight;
+        /// <summary>Luz direcional (+116 direção, +128 ambiente, +132 cor do sol; noite +136/+140, cores ARGB).</summary>
+        public float[] LightDir = { 0, -1, 0 };
+        public uint Ambient, SunColor, AmbientNight, SunColorNight;
+    }
     public List<BoxArea> Areas { get; } = new();
 
     /// <summary>Lê as áreas do .ecbsd (arquivo BSD da cena): ECBSDFILEBOXAREA11 (224 B, versão ≥ 11) + 6 textos de céu
@@ -85,7 +93,13 @@ public sealed class WorldScene
             try
             {
                 var sky = new[] { Str(d, ref q), Str(d, ref q), Str(d, ref q) };
-                Areas.Add(new BoxArea(def, area.Pos, area.Ext, area.X, area.Y, area.Z, sky));
+                float F(int o) => BitConverter.ToSingle(d, p + o);
+                uint U(int o) => BitConverter.ToUInt32(d, p + o);
+                Areas.Add(new BoxArea(def, area.Pos, area.Ext, area.X, area.Y, area.Z, sky)
+                {
+                    FogStart = F(68), FogEnd = F(72), FogColor = U(80), FogStartNight = F(100), FogEndNight = F(104), FogColorNight = U(112),
+                    LightDir = V(116), Ambient = U(128), SunColor = U(132), AmbientNight = U(136), SunColorNight = U(140),
+                });
             }
             catch (ArgumentException) { }
         }

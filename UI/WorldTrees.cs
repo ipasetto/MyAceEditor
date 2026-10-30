@@ -42,7 +42,8 @@ internal sealed class WorldTrees : IDisposable
     readonly Dictionary<int, Kind?> _kinds = new();
     readonly Dictionary<(int, int), List<int>> _cells = new();   // célula de 256 m → índices em _scene.Trees
     const float Cell = 256, Range = 900;
-    static readonly Vector3 Sun = new Vector3(-0.4f, 1f, 0.3f).Normalized();
+    /// <summary>Direção PARA o sol (OpenGL); o Mundo 3D põe a da área padrão do mapa (.ecbsd) antes de gerar as árvores.</summary>
+    internal static Vector3 Sun = new Vector3(-0.4f, 1f, 0.3f).Normalized();
 
     public int Count => _scene?.Trees.Count ?? 0;
 

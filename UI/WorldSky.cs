@@ -14,7 +14,7 @@ namespace MyAceEditor.UI;
 internal sealed class WorldSky : IDisposable
 {
     readonly PckArchive? _pck;
-    readonly List<WorldScene.BoxArea> _areas = new();
+    readonly List<WorldScene.BoxArea> _areas = new(), _all = new();
     readonly Dictionary<string, int> _tex = new(StringComparer.OrdinalIgnoreCase);
     WorldScene.BoxArea? _cur;
 
@@ -27,6 +27,7 @@ internal sealed class WorldSky : IDisposable
             {
                 var scene = new WorldScene(ecwld);
                 if (Directory.EnumerateFiles(mapDir, "*.ecbsd").FirstOrDefault() is { } bsd) scene.LoadAreas(bsd);
+                _all.AddRange(scene.Areas);
                 _areas.AddRange(scene.Areas.Where(a => a.Sky.Any(s => s.Length > 0)));
             }
         }
@@ -36,17 +37,48 @@ internal sealed class WorldSky : IDisposable
     public bool HasSky => _areas.Count > 0 && _pck is not null;
 
     // área da câmera: a caixa (não padrão) que a contém; senão a área padrão mais perto (no mundo há uma por bloco de 1 km)
-    WorldScene.BoxArea? AreaAt(Vector3 game)
+    WorldScene.BoxArea? AreaAt(Vector3 game) => AreaAt(_areas, game);
+
+    static WorldScene.BoxArea? AreaAt(List<WorldScene.BoxArea> areas, Vector3 game)
     {
-        foreach (var a in _areas.Where(a => !a.Default))
+        foreach (var a in areas.Where(a => !a.Default))
         {
             var d = new Vector3(game.X - a.Pos[0], game.Y - a.Pos[1], game.Z - a.Pos[2]);
             if (MathF.Abs(Vector3.Dot(d, new Vector3(a.AxisX[0], a.AxisX[1], a.AxisX[2]))) <= a.Ext[0]
                 && MathF.Abs(Vector3.Dot(d, new Vector3(a.AxisY[0], a.AxisY[1], a.AxisY[2]))) <= a.Ext[1]
                 && MathF.Abs(Vector3.Dot(d, new Vector3(a.AxisZ[0], a.AxisZ[1], a.AxisZ[2]))) <= a.Ext[2]) return a;
         }
-        return _areas.Where(a => a.Default).MinBy(a => (a.Pos[0] - game.X) * (a.Pos[0] - game.X) + (a.Pos[2] - game.Z) * (a.Pos[2] - game.Z))
-            ?? _areas.FirstOrDefault();
+        return areas.Where(a => a.Default).MinBy(a => (a.Pos[0] - game.X) * (a.Pos[0] - game.X) + (a.Pos[2] - game.Z) * (a.Pos[2] - game.Z))
+            ?? areas.FirstOrDefault();
+    }
+
+    float _fogStart = -1, _fogEnd;
+    Vector3 _fogColor;
+
+    /// <summary>
+    /// Neblina de dia da área da câmera (início, fim em metros e cor), indo aos poucos de uma área para outra como no jogo
+    /// (CECScnBoxArea: a troca leva dwTransTime; aqui ~1 s). null = mapa sem áreas.
+    /// </summary>
+    public (float Start, float End, Vector3 Color)? Fog(Vector3 camGl)
+    {
+        if (AreaAt(_all, new Vector3(camGl.X, camGl.Y, -camGl.Z)) is not { } a || a.FogEnd <= 0) return null;
+        var col = new Vector3((a.FogColor >> 16 & 255) / 255f, (a.FogColor >> 8 & 255) / 255f, (a.FogColor & 255) / 255f);
+        float end = MathF.Max(a.FogEnd, a.FogStart + 1);
+        if (_fogStart < 0) (_fogStart, _fogEnd, _fogColor) = (a.FogStart, end, col);
+        const float k = 0.15f;
+        _fogStart += (a.FogStart - _fogStart) * k; _fogEnd += (end - _fogEnd) * k; _fogColor += (col - _fogColor) * k;
+        return (_fogStart, _fogEnd, _fogColor);
+    }
+
+    /// <summary>Direção da luz do sol do mapa (área padrão no centro, coordenadas OpenGL, apontando PARA o sol).</summary>
+    public Vector3? SunDir
+    {
+        get
+        {
+            if (AreaAt(_all, Vector3.Zero) is not { LightDir: var d } || d.Length < 3) return null;
+            var v = -new Vector3(d[0], d[1], -d[2]);
+            return v.LengthSquared > 1e-6f ? v.Normalized() : null;
+        }
     }
 
     int Texture(string name)
