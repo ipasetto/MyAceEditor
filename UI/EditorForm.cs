@@ -1074,6 +1074,7 @@ public sealed class EditorForm : Form
     /// <summary>Grava de uma vez tudo o que mudou: elements.data, tasks.data, lojas (cliente + servidor) e npcgen.</summary>
     private void SaveAll(bool quiet, bool checkServer = true)
     {
+        CommitDescEdit();   // descrição digitada e não aplicada também vai
         _grid.EndEdit(); _qGrid.EndEdit();
         var pending = new List<string>();
         if (ElementsDirty && _dataPath is not null) pending.Add(_dataPath);
@@ -3106,8 +3107,21 @@ public sealed class EditorForm : Form
     private static string DescToEdit(string s) => s.Replace("\\r", Environment.NewLine);
     private static string EditToDesc(string s) => s.Replace("\r\n", "\\r").Replace("\n", "\\r").Replace("\r", "\\r");
 
+    // item cuja descrição está na caixa: o texto digitado vai para ele ao trocar de item ou ao salvar, mesmo sem
+    // clicar em "Aplicar" (antes ficava só na caixa e se perdia; a 61366 saiu sem descrição)
+    private Item? _descItem;
+
+    private void CommitDescEdit()
+    {
+        if (_descBinding || _descItem is not { } it || _cfgs is null || !int.TryParse(it.Id, out var id)) return;
+        string? typed = _descEdit.Text.Trim().Length == 0 ? null : EditToDesc(_descEdit.Text.TrimEnd());
+        if (typed != (_cfgs.ItemDescs.TryGetValue(id, out var cur) ? cur : null)) ApplyItemTexts(color: false, target: it);
+    }
+
     private void BindItemTexts(Item item)
     {
+        if (!ReferenceEquals(item, _descItem)) CommitDescEdit();
+        _descItem = item;
         _descBinding = true;
         try
         {
@@ -3122,9 +3136,9 @@ public sealed class EditorForm : Form
     }
 
     /// <summary>Passa a cor escolhida ou o texto da caixa para o item atual (um passo do histórico; grava ao Salvar).</summary>
-    private void ApplyItemTexts(bool color, bool remove = false)
+    private void ApplyItemTexts(bool color, bool remove = false, Item? target = null)
     {
-        if (_cfgs is null || _current is not { } item || !int.TryParse(item.Id, out var id)) return;
+        if (_cfgs is null || (target ?? _current) is not { } item || !int.TryParse(item.Id, out var id)) return;
         var cfgs = _cfgs;
         if (color)
         {
