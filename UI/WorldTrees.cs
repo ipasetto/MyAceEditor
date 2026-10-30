@@ -86,7 +86,7 @@ internal sealed class WorldTrees : IDisposable
                 var p = m.Pos[i];
                 radius = MathF.Max(radius, p.Length);
                 v[i * 6] = p.X; v[i * 6 + 1] = p.Y; v[i * 6 + 2] = p.Z;
-                v[i * 6 + 3] = Lit(f.BranchMaterial, MathF.Max(0, Vector3.Dot(m.Normal[i], Sun)));
+                v[i * 6 + 3] = Lit(Vector3.Dot(m.Normal[i], Sun));
                 v[i * 6 + 4] = m.Uv[i].X; v[i * 6 + 5] = m.Uv[i].Y;
             }
             // casca: mesma pasta do .spt, extensão .dds (como CELTree::Init)
@@ -100,10 +100,18 @@ internal sealed class WorldTrees : IDisposable
             if (m.FrondIndex.Count > 0)
             {
                 var fv = new float[m.FrondPos.Count * 6];
-                float fcol = Lit(f.FrondMaterial, 0.7f);
+                // normal de cada vértice pelos triângulos da fronde; dois lados = |N·L| (a fronde é vista dos dois lados)
+                var fn = new Vector3[m.FrondPos.Count];
+                for (int t = 0; t + 2 < m.FrondIndex.Count; t += 3)
+                {
+                    int a = m.FrondIndex[t], b = m.FrondIndex[t + 1], c = m.FrondIndex[t + 2];
+                    var n = Vector3.Cross(m.FrondPos[b] - m.FrondPos[a], m.FrondPos[c] - m.FrondPos[a]);
+                    fn[a] += n; fn[b] += n; fn[c] += n;
+                }
                 for (int i = 0; i < m.FrondPos.Count; i++)
                 {
                     var q = m.FrondPos[i]; radius = MathF.Max(radius, q.Length);
+                    float fcol = Lit(fn[i].LengthSquared > 1e-12f ? MathF.Abs(Vector3.Dot(fn[i].Normalized(), Sun)) : 0.5f);
                     fv[i * 6] = q.X; fv[i * 6 + 1] = q.Y; fv[i * 6 + 2] = q.Z; fv[i * 6 + 3] = fcol; fv[i * 6 + 4] = m.FrondUv[i].X; fv[i * 6 + 5] = m.FrondUv[i].Y;
                 }
                 fronds = Upload(fv, m.FrondIndex.ToArray(), comp);
@@ -127,10 +135,14 @@ internal sealed class WorldTrees : IDisposable
     /// Cor do vértice pelo material do .spt (seção 8000: difusa e ambiente por canal) com luz ambiente 0,8 e do sol 0,5 × N·L;
     /// sem material = cinza neutro. Metade do valor: o desenho dobra (RGB_SCALE 2).
     /// </summary>
-    static float Lit(float[]? mat, float nl)
+    // Luz das árvores como CELForest::Render (EL_Forest.cpp, source do cliente): material BRANCO (o material do .spt não
+    // entra no desenho com LIGHT_DYNAMIC), ambiente × 0,5 + sol × 0,5 × N·L, textura × 2 (MODULATE2X = nosso RGB_SCALE 2).
+    // Ambiente e sol = luz fixa de dia do Mundo 3D.
+    const float SceneAmbient = 0.55f, SceneSun = 0.8f;
+    static float Lit(float nl)
     {
-        byte C(int k) => (byte)Math.Clamp((mat is null ? 0.8f + 0.1f * nl : mat[k + 3] * 0.8f + mat[k] * 0.5f * nl) * 0.5f * 255, 0, 255);
-        return BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(C(0) << 16) | (uint)(C(1) << 8) | C(2))));
+        byte v = (byte)Math.Clamp((SceneAmbient * 0.5f + SceneSun * 0.5f * MathF.Max(0, nl)) * 255, 0, 255);
+        return BitConverter.Int32BitsToSingle(unchecked((int)(0xFF000000u | (uint)(v << 16) | (uint)(v << 8) | v)));
     }
 
     int Texture(string path, int max, bool cutout = false)
@@ -188,6 +200,11 @@ internal sealed class WorldTrees : IDisposable
         var set = new LeafSet { Center = new float[n * 3], Corner = new float[n * 8], Rest = new float[n * 12] };
         var idx = new int[n * 6];
         var rng = new SptRandom(f.Seed + 7);
+        // normal da folha: do centro da copa para fora (o runtime acende cada folha pela sua normal: lado do sol claro,
+        // lado de trás só com o ambiente)
+        var crown = Vector3.Zero;
+        foreach (var lf in m.Leaves) crown += lf.Pos;
+        crown /= Math.Max(1, n);
         for (int l = 0; l < n; l++)
         {
             var pos = m.Leaves[l].Pos;
@@ -196,7 +213,8 @@ internal sealed class WorldTrees : IDisposable
             float s0 = MathF.Min(MathF.Min(map.Uv[0], map.Uv[2]), MathF.Min(map.Uv[4], map.Uv[6])), s1 = MathF.Max(MathF.Max(map.Uv[0], map.Uv[2]), MathF.Max(map.Uv[4], map.Uv[6]));
             float t0 = MathF.Min(MathF.Min(map.Uv[1], map.Uv[3]), MathF.Min(map.Uv[5], map.Uv[7])), t1 = MathF.Max(MathF.Max(map.Uv[1], map.Uv[3]), MathF.Max(map.Uv[5], map.Uv[7]));
             float spin = MathHelper.DegreesToRadians(rng.Range(-15, 15)), cs = MathF.Cos(spin), sn = MathF.Sin(spin);
-            float col = Lit(f.LeafMaterial, 0.7f + rng.Range(-0.15f, 0.15f));
+            var ln = m.Leaves[l].Pos - crown;
+            float col = Lit(ln.LengthSquared > 1e-8f ? Vector3.Dot(ln.Normalized(), Sun) : 0.5f);
             set.Center[l * 3] = pos.X; set.Center[l * 3 + 1] = pos.Y; set.Center[l * 3 + 2] = pos.Z;
             radius = MathF.Max(radius, pos.Length + MathF.Max(w, h));
             for (int k = 0; k < 4; k++)

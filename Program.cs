@@ -259,6 +259,24 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--tasks-svc") { TaskSvc(args[1], args[2]); return; }   // <elements.data> <tasks.data>: que ID (pai ou filha) os NPCs guardam no serviço de dar/receber   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
+        if (args.Length >= 3 && args[0] == "--spt-levels")   // <trees.pck> <trecho do nome>: parâmetros de cada nível (spt-levels.txt)
+        {
+            using var pck = new PckArchive(args[1]);
+            var sb = new StringBuilder();
+            foreach (var e in pck.Entries.Where(e => e.Path.EndsWith(".spt", StringComparison.OrdinalIgnoreCase) && e.Path.Contains(args[2], StringComparison.OrdinalIgnoreCase)).Take(3))
+            {
+                var f = new SptFile(pck.Read(e));
+                sb.AppendLine($"{e.Path} tamanho {f.Size} ±{f.SizeVariance}");
+                for (int i = 0; i < f.Levels.Count; i++)
+                {
+                    var L = f.Levels[i];
+                    string S(SptSpline sp) { var r = new SptRandom(1); return FormattableString.Invariant($"[{sp.Min:0.##}..{sp.Max:0.##} ±{sp.Variance:0.##}: {sp.Eval(0, r):0.##} {sp.Eval(0.5f, r):0.##} {sp.Eval(1, r):0.##}]"); }
+                    sb.AppendLine(FormattableString.Invariant($"  nível {i}: ângulo {S(L.StartAngle)} comprimento {S(L.Length)} gravidade {S(L.Gravity)} perfil {S(L.GravityProfile)} perturb {S(L.Disturbance)} freq {L.Frequency} de {L.First} a {L.Last} segs {L.Segments}"));
+                }
+            }
+            File.WriteAllText("spt-levels.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--spt") { SptTest(args[1], args[2]); return; }   // <trees.pck> <pasta>: gera todas as árvores, spt-test.txt + PNG de lado
         if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
@@ -379,7 +397,9 @@ internal static class Program
                 return FormattableString.Invariant($"{cx},{ground + 25},{cz - 70},-90,-12,{s}");
             }).ToArray();
         }
-        var cams = shots.Select(s => s.Split(',')).Select(p => (Pos: new OpenTK.Mathematics.Vector3(float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture), float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture)),
+        // altura "g" = chão + 2 m (olhos de quem está de pé, como o print do jogo)
+        float Y(string y, string x, string z) => y == "g" ? (t.HeightAt(float.Parse(x, System.Globalization.CultureInfo.InvariantCulture), float.Parse(z, System.Globalization.CultureInfo.InvariantCulture)) ?? 0) + 2 : float.Parse(y, System.Globalization.CultureInfo.InvariantCulture);
+        var cams = shots.Select(s => s.Split(',')).Select(p => (Pos: new OpenTK.Mathematics.Vector3(float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture), Y(p[1], p[0], p[2]), float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture)),
             Yaw: float.Parse(p[3], System.Globalization.CultureInfo.InvariantCulture), Pitch: float.Parse(p[4], System.Globalization.CultureInfo.InvariantCulture), Name: p.Length > 5 ? p[5] : null)).ToList();
         File.WriteAllText(Path.Combine(outDir, "world-shot.txt"), diag.ToString());
         using var w = new MyAceEditor.UI.WorldView(t, cams[0].Pos, () => Array.Empty<MyAceEditor.UI.WorldView.Marker>(), () => null, _ => { }, (_, _) => { }, null)
