@@ -144,6 +144,23 @@ internal static class Program
             File.WriteAllText("field.txt", string.Join("\n", (list?.Items ?? new()).Take(8).Select(i => $"{i.Id}\t{i.Name}\t{(i.Fields.TryGetValue(args[3], out var f) ? $"{f.Type}: {f.Value}" : "(sem o campo)")}")), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--drops")   // <elements.data> [elements antigo]: drop dos monstros novos/mudados (ou com item a 100%) (drops.txt)
+        {
+            var mon = CfgCatalog.Load(args[1]).Module.FindListByName("MONSTER_ESSENCE");
+            var old = args.Length >= 3 ? CfgCatalog.Load(args[2]).Module.FindListByName("MONSTER_ESSENCE")?.Items.ToDictionary(i => i.Id, i => i) : null;
+            string V(Model.Item it, string k) => it.Fields.TryGetValue(k, out var f) ? f.Value : "?";
+            var sb = new StringBuilder();
+            foreach (var it in mon?.Items ?? new())
+            {
+                var drops = Enumerable.Range(1, 32).Select(i => (Id: V(it, $"drop_matters_{i}_id"), P: V(it, $"drop_matters_{i}_probability"))).Where(d => d.Id is not ("0" or "?")).ToList();
+                bool changed = old is not null && (!old.TryGetValue(it.Id, out var o) || it.Fields.Any(f => V(o, f.Key) != f.Value.Value));
+                if (old is not null ? !changed : !drops.Any(d => float.TryParse(d.P, System.Globalization.CultureInfo.InvariantCulture, out var p) && p >= 0.99f)) continue;
+                sb.AppendLine($"{it.Id}\t{it.Name}\tnum0..3 = {V(it, "probability_drop_num0")} {V(it, "probability_drop_num1")} {V(it, "probability_drop_num2")} {V(it, "probability_drop_num3")}\tdrop_times = {V(it, "drop_times")}\tdinheiro = {V(it, "money_average")}±{V(it, "money_var")}\tnível = {V(it, "level")}");
+                sb.AppendLine("\titens: " + string.Join(", ", drops.Select(d => $"{d.Id} ({d.P})")));
+            }
+            File.WriteAllText("drops.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--item-diff")   // <elements.data> <id> <id>: campos que diferem entre os dois itens (item-diff.txt)
         {
             var m = CfgCatalog.Load(args[1]).Module;

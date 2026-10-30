@@ -151,3 +151,9 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] texturas .bmp/.jpg/.png nas construcoes (a35: e\4ad.bmp)
 - [ ] a21 arvores; bambu deitado (angulo do nivel 1 77..130 tomado a partir do eixo do pai). Pista (30/10): o nivel 0 do bambu tem angulo +90 e o das outras arvores -90; no SpeedTreeRT (FUN_100056d0) cada galho, tronco incluso, gira pelo proprio angulo no inicio (local_60). So virar o tronco para baixo nao bastou (colmos ainda 50..103 graus do alto): falta ler como o angulo e a gravidade negativa (-1) entram ali
 - ferramentas: --instances, --world-shot (nome "ov" = camera do Mundo 3D), --bmd-check <pck> <mapas> [uv], --lit-list, --scene-models; MYACE_HIDE=terrain|buildings, MYACE_HIDETEX=<trecho>, MYACE_BCULL=cw|ccw|off (teste)
+## PEDIDO 30/10 (painel do GM, NPC novo, drop, quest seguinte, selecao multipla)
+- [x] painel do GM: barras de chi (d 1991 / d 1992) e eventos (GM_ACTIVITY_CONFIG + gatilho do npcgen pelo gdeliveryd). Testar no jogo. Tudo de GM: PW-KB §S31
+- [~] monstro de teste so dropa moedas ("Ourico Teste" 61642): dados certos (3 itens x 10 sorteios do ID 6 a 100%, cliente = servidor); causa provavel = penalidade de nivel do PARAM_ADJUST_CONFIG (40+ niveis acima: item 20%, moeda 100%). Confirmar o nivel do personagem; depois mostrar a chance real por morte no painel de drop. Diagnostico: --drops <elements> [antigo]
+- [ ] Mundo 3D "Novo NPC aqui": criar NPC_ESSENCE novo copiado de um NPC base, sem descricao e sem quests (hoje so aponta para um NPC existente via _pick em NpcGenView.NewPoint)
+- [ ] Mundo 3D quest seguinte: criar ali mesmo a quest de "fale com outro NPC" (hoje pede o ID); ver se e subquest
+- [ ] listas (drops, addons e todas): selecionar varios com Shift/Ctrl e apagar com Delete de uma vez
