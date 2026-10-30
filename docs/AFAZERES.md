@@ -160,4 +160,4 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 ## ARVORES / BAMBU (30/10)
 - [x] algoritmo do galho lido na lib de depuracao do SpeedTree (AngelicaSDK2): ver PW-KB §S13 (linhas [C 30/10] SpeedTreeRT galhos / Compute / gravidade / geradores)
 - [x] SptGrower.Grow reescrito com sistema de eixos por vertice no espaco do SpeedTree (Z para cima -> nosso (x, z, -y)); bambus de pe, 0 erros em 144/155/1.5.5/180
-- [ ] conferir no Mundo 3D (a21) contra o jogo: bambu, palmeiras (tronco curvo agora) e scotchpine (tronco em gancho)
+- [~] conferido com as fotos do jogo de 29/10 (mundo): palmeiras de tronco curvo e pinheiros/folhosas retos batem com o novo. [ ] falta foto do jogo com bambu e scotchpine (a21)
