@@ -513,6 +513,7 @@ internal sealed class WorldView : Form
     bool _grab; Bitmap? _grabbed;
     internal bool Loading => _busy || _trees.Pending;
     internal void SetCamera(Vector3 game, float yaw, float pitch) { _cam = Gl(game.X, game.Y, game.Z); _yaw = yaw; _pitch = pitch; _legendOpen = false; _gl.Invalidate(); }
+    internal void OpenLegend() { _legendOpen = true; _gl.Invalidate(); }
     internal Bitmap? CaptureFrame() { _grab = true; Render(); var b = _grabbed; _grabbed = null; return b; }
 
     Bitmap ReadFrame()
@@ -743,43 +744,116 @@ internal sealed class WorldView : Form
     // ---------- legenda e atalhos (canto superior esquerdo; H ou clique abre/fecha) ----------
     Rectangle LegendRect() => new(10, 10, _legendW, _legendH);
 
+    // linha da legenda: cor (amostra de cor do ponto), teclas (desenhadas como teclas), texto; Header = título de grupo
+    readonly record struct LegendRow(string Text, Color Swatch = default, string[]? Keys = null, bool Header = false);
+
+    List<LegendRow>[] LegendColumns()
+    {
+        string K(string key, string pt) => Loc.T(key, pt);
+        var colors = new List<LegendRow>
+        {
+            new(K("legend.gColors", "Cores dos pontos"), Header: true),
+            new(K("legend.normal", "Branco — monstro ou NPC normal (nasce sempre)"), Color.White),
+            new(K("legend.event", "Verde — evento com data/hora (gatilho agendado)"), Color.LimeGreen),
+            new(K("legend.trigger", "Lilás — ativado por gatilho (fase de DG, GM)"), Color.Violet),
+            new(K("legend.guard", "Vermelho — guarda (NPC em ponto de monstro)"), Color.OrangeRed),
+            new(K("legend.gather", "Ciano — coletável"), Color.Cyan),
+            new(K("legend.selected", "Amarelo — selecionado"), Color.Yellow),
+            new(""),
+            new(K("legend.gCamera", "Câmera"), Header: true),
+            new(K("legend.kMove", "andar"), Keys: new[] { "W", "A", "S", "D" }),
+            new(K("legend.kUpDown", "subir / descer"), Keys: new[] { K("legend.keySpace", "Espaço"), "Z" }),
+            new(K("legend.kRun", "correr (segurando)"), Keys: new[] { "Shift" }),
+            new(K("legend.kZoom", "aproximar / afastar"), Keys: new[] { K("legend.keyWheel", "Roda") }),
+            new(K("legend.kTurn", "girar a câmera (arrastar no vazio)"), Keys: new[] { K("legend.keyMiddle", "Botão do meio") }),
+            new(K("legend.kMap", "mapa"), Keys: new[] { "M" }),
+        };
+        var keys = new List<LegendRow>
+        {
+            new(K("legend.gView", "Visão"), Header: true),
+            new(K("legend.kTerrain", "esconder o terreno (ver cavernas)"), Keys: new[] { "T" }),
+            new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "B" }),
+            new(K("legend.kFog", "neblina do jogo / neblina longe"), Keys: new[] { "N" }),
+            new(K("legend.kLegend", "abrir / fechar esta legenda"), Keys: new[] { "H" }),
+            new(""),
+            new(K("legend.gPoints", "Pontos"), Header: true),
+            new(K("legend.kPick", "selecionar / arrastar o ponto"), Keys: new[] { K("legend.keyLeft", "Esquerdo") }),
+            new(K("legend.kGizmo", "setas: mover no eixo · anel: girar (Shift = 15°)"), Keys: new[] { K("legend.keyGizmo", "Setas / anel") }),
+            new(K("legend.kRight", "novo, clonar, mover, excluir, editar"), Keys: new[] { K("legend.keyRight", "Direito") }),
+            new(""),
+            new(K("legend.gEdit", "Editar"), Header: true),
+            new(K("legend.kCopy", "copiar e colar o ponto"), Keys: new[] { "Ctrl+C", "Ctrl+V" }),
+            new(K("legend.kDelete", "excluir o ponto"), Keys: new[] { "Delete" }),
+            new(K("legend.kUndo", "desfazer / refazer"), Keys: new[] { "Ctrl+Z", "Ctrl+Y" }),
+        };
+        return new[] { colors, keys };
+    }
+
     void DrawLegend()
     {
         if (_legendTex == 0 || _legendState != _legendOpen)
         {
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
-            var rows = new List<(Color C, string T)>();
-            if (_legendOpen)
-            {
-                rows.Add((Color.White, Loc.T("legend.title", "▾ Legenda (clique ou H para fechar)")));
-                rows.Add((Color.White, Loc.T("legend.normal", "Branco — monstro ou NPC normal (nasce sempre)")));
-                rows.Add((Color.LimeGreen, Loc.T("legend.event", "Verde — evento com data/hora (gatilho agendado)")));
-                rows.Add((Color.Violet, Loc.T("legend.trigger", "Lilás — ativado por gatilho (fase de DG, GM)")));
-                rows.Add((Color.OrangeRed, Loc.T("legend.guard", "Vermelho — guarda (NPC em ponto de monstro)")));
-                rows.Add((Color.Cyan, Loc.T("legend.gather", "Ciano — coletável")));
-                rows.Add((Color.Yellow, Loc.T("legend.selected", "Amarelo — selecionado")));
-                rows.Add((Color.Empty, ""));
-                rows.Add((Color.Silver, Loc.T("legend.keys1", "W/A/S/D andar · Espaço/Z subir/descer · Shift correr")));
-                rows.Add((Color.Silver, Loc.T("legend.keys2", "Roda aproxima · botão do meio gira · M mapa · T esconde o terreno · B as construções · N neblina do jogo")));
-                rows.Add((Color.Silver, Loc.T("legend.keys3", "Esquerdo no ponto arrasta · direito: novo, clonar, mover, excluir, editar")));
-                rows.Add((Color.Silver, Loc.T("legend.keys4", "Ctrl+C/Ctrl+V copia e cola o ponto · Delete exclui · Ctrl+Z/Ctrl+Y")));
-            }
-            else rows.Add((Color.White, Loc.T("legend.closed", "▸ Legenda e atalhos (H)")));
-            using var font = new Font("Segoe UI", 9.5f);
-            int w = rows.Max(r => TextRenderer.MeasureText(r.T, font).Width) + 34, h = rows.Count * 19 + 12;
+            using var font = new Font("Segoe UI", 10f);
+            using var bold = new Font("Segoe UI", 10f, FontStyle.Bold);
+            using var keyFont = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            const int Row = 24, Pad = 10, Gap = 28;
+            int KeyW(string k) => TextRenderer.MeasureText(k, keyFont).Width + 8;
+            int KeysW(string[]? ks) => ks is null ? 0 : ks.Sum(KeyW) + (ks.Length - 1) * 4;
+            string title = _legendOpen ? Loc.T("legend.title", "▾ Legenda e atalhos (clique ou H para fechar)") : Loc.T("legend.closed", "▸ Legenda e atalhos (H)");
+            var cols = _legendOpen ? LegendColumns() : Array.Empty<List<LegendRow>>();
+            // largura de cada coluna: a coluna das teclas alinha o texto depois da tecla mais larga
+            var keyCol = cols.Select(c => c.Count == 0 ? 0 : c.Max(r => KeysW(r.Keys))).ToArray();
+            var colW = cols.Select((c, i) => c.Max(r => (r.Keys is null ? r.Swatch.IsEmpty ? 0 : 18 : keyCol[i] + 10)
+                + TextRenderer.MeasureText(r.Text, r.Header ? bold : font).Width)).ToArray();
+            int w = Math.Max(TextRenderer.MeasureText(title, bold).Width + 2 * Pad, colW.Sum() + Gap * Math.Max(0, cols.Length - 1) + 2 * Pad);
+            int h = Row + 8 + (cols.Length == 0 ? 0 : cols.Max(c => c.Count) * Row + Pad);
             using var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             using (var g = Graphics.FromImage(bmp))
             {
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                using var bg = new SolidBrush(Color.FromArgb(150, 0, 0, 0));
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using var bg = new SolidBrush(Color.FromArgb(200, 12, 14, 18));
                 g.FillRectangle(bg, 0, 0, w, h);
-                for (int i = 0; i < rows.Count; i++)
+                using var white = new SolidBrush(Color.White);
+                using var text = new SolidBrush(Color.FromArgb(225, 228, 235));
+                using var gold = new SolidBrush(Color.Gold);
+                using var cap = new SolidBrush(Color.FromArgb(70, 76, 90));
+                using var capEdge = new Pen(Color.FromArgb(150, 160, 180));
+                g.DrawString(title, bold, white, Pad, 6);
+                int x0 = Pad;
+                for (int c = 0; c < cols.Length; c++)
                 {
-                    if (rows[i].C.IsEmpty) continue;
-                    using var b = new SolidBrush(rows[i].C);
-                    bool swatch = _legendOpen && i is >= 1 and <= 6;
-                    if (swatch) g.FillRectangle(b, 8, 8 + i * 19 + 4, 10, 10);
-                    g.DrawString(rows[i].T, font, b, swatch ? 24 : 8, 6 + i * 19);
+                    int y = Row + 8;
+                    foreach (var r in cols[c])
+                    {
+                        if (r.Header)
+                        {
+                            g.DrawString(r.Text, bold, gold, x0, y);
+                            g.DrawLine(Pens.DimGray, x0, y + Row - 3, x0 + colW[c], y + Row - 3);
+                        }
+                        else if (r.Keys is { } ks)
+                        {
+                            int kx = x0;
+                            foreach (var k in ks)
+                            {
+                                int kw = KeyW(k);
+                                var rect = new Rectangle(kx, y + 2, kw, Row - 6);
+                                g.FillRectangle(cap, rect); g.DrawRectangle(capEdge, rect);
+                                TextRenderer.DrawText(g, k, keyFont, rect, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                                kx += kw + 4;
+                            }
+                            g.DrawString(r.Text, font, text, x0 + keyCol[c] + 10, y + 1);
+                        }
+                        else if (!r.Swatch.IsEmpty)
+                        {
+                            using var b = new SolidBrush(r.Swatch);
+                            g.FillRectangle(b, x0, y + 6, 11, 11);
+                            g.DrawString(r.Text, font, b, x0 + 18, y + 1);
+                        }
+                        y += Row;
+                    }
+                    x0 += colW[c] + Gap;
                 }
             }
             _legendTex = UploadBitmap(bmp); _legendW = w; _legendH = h; _legendState = _legendOpen;

@@ -595,6 +595,7 @@ internal static class Program
             // nome começando com "ov": câmera como o Mundo 3D abre (Overview da entrada); yaw/pitch = ponto para onde olhar (x,z)
             if (c.Name?.StartsWith("ov") == true) w.Overview(c.Pos, false, new OpenTK.Mathematics.Vector3(c.Yaw, c.Pos.Y, c.Pitch));
             else w.SetCamera(c.Pos, c.Yaw, c.Pitch);
+            if (c.Name?.StartsWith("leg") == true) w.OpenLegend();   // "leg…": foto com a legenda aberta
             var until = DateTime.Now.AddSeconds(90); var quiet = DateTime.MaxValue;
             while (DateTime.Now < until)
             {
