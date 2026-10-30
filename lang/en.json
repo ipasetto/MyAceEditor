@@ -3762,5 +3762,8 @@
   "gm.spirit": "Spirit: give",
   "gm.spiritGo": "times (each time = level × 10,000)",
   "save.dupIds": "Not saved: these IDs became duplicated and the game would not find one of them (item that does not drop, NPC that disappears). Change the new one's ID with \"Change ID\":",
-  "save.dupTitle": "Duplicated IDs"
+  "save.dupTitle": "Duplicated IDs",
+  "save.cashId": "Not saved: a store item with an ID above {0} crashes the server at startup (gs). Change the ID with \"Change ID\":",
+  "save.cashTitle": "Item ID too high",
+  "ls.gsCrashed": "The gs crashed at startup (it was not the AI Policy). Check the last item you created/cloned (Ctrl+E and the warning when saving) and see the gs log in server administration."
 }

@@ -1227,6 +1227,13 @@ public sealed class EditorForm : Form
                 Loc.T("save.dupTitle", "IDs repetidos"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
+        if (IdRefactor.CashItemsOverLimit(_store.Current) is { Count: > 0 } cash)
+        {
+            MessageBox.Show(this, string.Format(Loc.T("save.cashId", "Não salvei: item de loja com ID acima de {0} derruba o servidor ao iniciar (gs). Troque o ID com \"Mudar ID\":"), IdRefactor.MaxCashItemId) + "\n\n"
+                + string.Join("\n", cash.Take(12).Select(c => "• " + c)) + (cash.Count > 12 ? $"\n… +{cash.Count - 12}" : ""),
+                Loc.T("save.cashTitle", "ID de item alto demais"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
         try
         {
             UseWaitCursor = true;

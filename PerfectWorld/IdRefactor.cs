@@ -30,15 +30,39 @@ public static class IdRefactor
         return null;
     }
 
-    /// <summary>Primeiro ID livre depois do maior do espaço de IDs do bloco.</summary>
+    /// <summary>Maior ID de item de loja (proc_type com 0x8) que o gs aceita: world_manager::SetCashItem tem uma tabela de
+    /// 65535 posições e, acima disso, ASSERT que derruba o gs ao subir (conferido no gs 1.5.5 e no source 1.5.3).</summary>
+    public const int MaxCashItemId = 65534;
+    public const int CashItemFlag = 0x8;   // item::ITEM_PROC_TYPE_CASHITEM
+
+    static bool IsMonsterOrNpc(string block) => block is "MONSTER_ESSENCE" or "NPC_ESSENCE";
+
+    /// <summary>
+    /// ID livre para um registro novo do bloco: o primeiro depois do maior do PRÓPRIO bloco que ninguém do espaço de IDs
+    /// usa (itens, NPCs e monstros dividem o espaço; o gs acha o registro pelo ID em todas as listas). Itens ficam até
+    /// <see cref="MaxCashItemId"/> (um clone de item de loja acima disso derruba o gs); sem vaga acima, o primeiro buraco.
+    /// </summary>
     public static int NextFreeId(Module module, ItemList block)
     {
         var space = IdSpaces.Of(block.Name);
-        int max = 0;
+        var used = new HashSet<int>();
         foreach (var l in module.Lists.Where(l => IdSpaces.Of(l.Name) == space))
-            foreach (var i in l.Items) if (int.TryParse(i.Id, out var v) && v > max) max = v;
-        return max + 1;
+            foreach (var i in l.Items) if (int.TryParse(i.Id, out var v)) used.Add(v);
+        int cap = space == IdSpaces.Space.Essence && !IsMonsterOrNpc(block.Name) ? MaxCashItemId : int.MaxValue - 1;
+        // maior do bloco dentro do limite (um item já acima dele não puxa os próximos para cima)
+        int start = block.Items.Select(i => int.TryParse(i.Id, out var v) && v <= cap ? v : 0).DefaultIfEmpty(0).Max() + 1;
+        for (int id = Math.Max(1, start); id <= cap; id++) if (!used.Contains(id)) return id;
+        for (int id = Math.Min(start, cap); id >= 1; id--) if (!used.Contains(id)) return id;   // o buraco mais perto abaixo
+        return used.Count == 0 ? 1 : used.Max() + 1;
     }
+
+    /// <summary>Itens de loja com ID acima do que o gs aceita (ver <see cref="MaxCashItemId"/>): "bloco ID nome".</summary>
+    public static List<string> CashItemsOverLimit(Module module) =>
+        module.Lists.Where(l => IdSpaces.Of(l.Name) == IdSpaces.Space.Essence && !IsMonsterOrNpc(l.Name))
+            .SelectMany(l => l.Items.Where(i => int.TryParse(i.Id, out var v) && v > MaxCashItemId
+                && i.Fields.TryGetValue("proc_type", out var pt) && long.TryParse(pt.Value, out var p) && (p & CashItemFlag) != 0)
+                .Select(i => $"{l.Name} {i.Id} {i.Name}"))
+            .ToList();
 
     /// <summary>
     /// IDs repetidos no mesmo espaço de IDs ("espaço|ID" → "bloco ID nome" de cada um). O jogo acha o registro pelo ID:

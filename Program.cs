@@ -159,6 +159,13 @@ internal static class Program
             File.WriteAllText("item-diff.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--next-id")   // <elements.data> <bloco>: ID que Clonar/Novo item daria e itens de loja acima do limite (next-id.txt)
+        {
+            var m = CfgCatalog.Load(args[1]).Module;
+            var list = m.FindListByName(args[2]);
+            File.WriteAllText("next-id.txt", (list is null ? "bloco?" : IdRefactor.NextFreeId(m, list).ToString()) + "\n" + string.Join("\n", IdRefactor.CashItemsOverLimit(m)), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--names")   // <elements.data> <bloco>: ID e nome dos 15 primeiros itens (names.txt)
         {
             var list = CfgCatalog.Load(args[1]).Module.FindListByName(args[2]);

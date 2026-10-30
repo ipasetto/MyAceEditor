@@ -580,12 +580,18 @@ public sealed class LocalServer
         hung = false;
         for (int i = 0; i < 24; i++)
         {
-            var o = Bash("grep -a -c 'Failed to Load AIPolicy' /home/logs/gs-gs01.log; grep -a -c announceproviderid /home/logs/gs-gs01.log", timeoutMs: 60_000).Output
+            var o = Bash("grep -a -c 'Failed to Load AIPolicy' /home/logs/gs-gs01.log; grep -a -c announceproviderid /home/logs/gs-gs01.log; pgrep -x gs >/dev/null && echo 1 || echo 0", timeoutMs: 60_000).Output
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (o.Length >= 2 && int.TryParse(o[0], out var failed) && int.TryParse(o[1], out var ready))
+            if (o.Length >= 3 && int.TryParse(o[0], out var failed) && int.TryParse(o[1], out var ready))
             {
                 if (failed > 0) return true;
                 if (ready > 0) return false;   // o gs já falou com os glinkd: carregou tudo
+                if (o[2] == "0")
+                {
+                    // caiu sem acusar a IA (ex.: item de loja com ID > 65534 derruba no SetCashItem): não é a IA
+                    Log("##ERRO " + Loc.T("ls.gsCrashed", "O gs caiu ao iniciar (não foi a AI Policy). Confira o último item criado/clonado (Ctrl+E e o aviso ao salvar) e veja o log do gs na administração do servidor."));
+                    return false;
+                }
             }
             Thread.Sleep(5000);
         }
