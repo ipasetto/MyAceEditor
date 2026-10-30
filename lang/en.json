@@ -3792,8 +3792,8 @@
   "rule.weaponAnim": "weapon of subtype {0} (no animation): the gs never creates it",
   "rule.mobType": "type {0} does not exist in MONSTER_TYPE: the gs crashes at startup",
   "rule.mobAddon": "addon {0} with param1 {1} (only 0 to 9): the gs crashes at startup",
-  "rule.mobAddonSum": "addon chances add up to {0:0.#####} (must be 1): the gs crashes at startup",
-  "rule.mobAggro": "aggro chances (aggro_strategy) add up to {0:0.#####} (must be 1): the gs crashes at startup",
   "rule.npcTransmit": "teleport service {0} with no destination: the gs crashes at startup",
-  "rule.npcReset": "service {0} with a negative attribute: the gs crashes at startup"
+  "rule.npcReset": "service {0} with a negative attribute: the gs crashes at startup",
+  "rule.stoneLevel": "level {0} (only 1 to 20): the gs crashes when the stone is used",
+  "rule.configFixed": "the gs looks up config {0} ({1}) by this fixed ID: do not change the ID or delete it"
 }

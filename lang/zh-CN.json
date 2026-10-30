@@ -3794,8 +3794,8 @@
   "rule.weaponAnim": "子类型 {0} 的武器（无动作）：gs 永远不会生成",
   "rule.mobType": "类型 {0} 不在 MONSTER_TYPE 中：gs 启动时崩溃",
   "rule.mobAddon": "附加属性 {0} 的 param1 为 {1}（只能 0 到 9）：gs 启动时崩溃",
-  "rule.mobAddonSum": "附加属性概率总和为 {0:0.#####}（必须为 1）：gs 启动时崩溃",
-  "rule.mobAggro": "仇恨策略（aggro_strategy）概率总和为 {0:0.#####}（必须为 1）：gs 启动时崩溃",
   "rule.npcTransmit": "传送服务 {0} 没有目的地：gs 启动时崩溃",
-  "rule.npcReset": "服务 {0} 有负数属性：gs 启动时崩溃"
+  "rule.npcReset": "服务 {0} 有负数属性：gs 启动时崩溃",
+  "rule.stoneLevel": "等级 {0}（只能 1 到 20）：使用该宝石时 gs 崩溃",
+  "rule.configFixed": "gs 按这个固定 ID 查找配置 {0}（{1}）：不要修改 ID 或删除"
 }

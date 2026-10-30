@@ -200,7 +200,8 @@ internal static class Program
             {
                 var before = ItemRules.Check(mod).Select(p => p.Key).ToHashSet();
                 void Set(string block, Func<Model.Item, bool> pick, string k, string v) { if (mod.FindListByName(block)?.Items.FirstOrDefault(pick) is { } it && it.Fields.ContainsKey(k)) it.Fields[k] = Model.Field.Of(it.Fields[k].Type, v); }
-                Set("MONSTER_ESSENCE", _ => true, "aggro_strategy_1_probability", "0.5");
+                Set("STONE_ESSENCE", _ => true, "level", "0");
+                foreach (var l in mod.Lists) l.Items.RemoveAll(i => i.Id == "1424" && l.Name.EndsWith("_CONFIG"));   // config de renascer (ID fixo)
                 Set("MONSTER_ESSENCE", i => i != mod.FindListByName("MONSTER_ESSENCE")!.Items[0], "id_type", "999999");
                 Set("ARMOR_ESSENCE", _ => true, "id_sub_type", "999999");
                 Set("WEAPON_ESSENCE", i => i.Fields.GetValueOrDefault("id_sub_type")?.Value is not ("300" or "293" or "76" or "291"), "id_sub_type", "76");

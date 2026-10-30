@@ -57,12 +57,35 @@ public static class ItemRules
 
         CheckNpcTemplates(m, list, N);
 
+        // pedra: player.cpp faz ASSERT(level 1..20) ao herdar/encaixar — o gs cai na hora em que o jogador usa
+        if (m.FindListByName("STONE_ESSENCE") is { } stones)
+            foreach (var i in stones.Items)
+                if (int.TryParse(F(i, "level"), out var lv) && (lv < 1 || lv > 20))
+                    list.Add(new("stone-level", stones.Name, i.Id, N(i), string.Format(UI.Loc.T("rule.stoneLevel", "nível {0} (só 1 a 20): o gs cai quando a pedra é usada"), lv)));
+
+        // registros de config que o gs busca por ID fixo (source 1.5.3): sem eles a função cai ou para de funcionar.
+        // Versão que não tem o registro no original fica de fora (vira base no salvar).
+        var configIds = m.Lists.Where(l => IdSpaces.Of(l.Name) == IdSpaces.Space.Config).SelectMany(l => l.Items).Select(i => i.Id).ToHashSet();
+        foreach (var (fid, what) in FixedConfigs)
+            if (!configIds.Contains(fid))
+                list.Add(new("config-fixed", "CONFIG", fid, what, string.Format(UI.Loc.T("rule.configFixed", "o gs busca a config {0} ({1}) por este ID fixo: não mude o ID nem exclua"), fid, what)));
+
         if (m.FindListByName("WEAPON_ESSENCE") is { } w)
             foreach (var i in w.Items)
                 if (i.Fields.TryGetValue("id_sub_type", out var st) && WeaponNoAnim.Contains(st.Value))
                     list.Add(new("weapon-anim", w.Name, i.Id, N(i), string.Format(UI.Loc.T("rule.weaponAnim", "arma do subtipo {0} (sem animação): o gs nunca cria"), st.Value)));
         return list;
     }
+
+    // get_data_ptr(<ID fixo>, ID_SPACE_CONFIG) no gs (defines do source 1.5.3)
+    static readonly (string Id, string What)[] FixedConfigs =
+    {
+        ("696", "ACC_STORAGE_BLACKLIST_CONFIG"), ("701", "MULTI_EXP_CONFIG"), ("801", "WEDDING_CONFIG"), ("854", "FACTION_FORTRESS_CONFIG"),
+        ("1022", "PLAYER_DEATH_DROP_CONFIG"), ("1023", "ONLINE_AWARD_CONFIG"), ("1024", "CONSUME_POINTS_CONFIG"), ("1025", "CONSUME_POINTS_CONFIG"),
+        ("1026", "CONSUME_POINTS_CONFIG"), ("1027", "COUNTRY_CONFIG"), ("1038", "PET_EVOLVE_CONFIG"), ("1064", "MERIDIAN_CONFIG"),
+        ("1290", "TOUCH_SHOP_CONFIG"), ("1424", "PLAYER_REINCARNATION_CONFIG"), ("1425", "HISTORY_ADVANCE_CONFIG"), ("1444", "TRICKBATTLE_CONFIG"),
+        ("1637", "GT_CONFIG"), ("1735", "PROFIT_TIME_CONFIG"), ("1740", "FACTION_PVP_CONFIG"), ("2013", "EQUIP_MAKE_HOLE_CONFIG"),
+    };
 
     static string? F(Item i, string k) => i.Fields.TryGetValue(k, out var f) ? f.Value : null;
     static float Fl(string? v) => float.TryParse(v?.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) ? x : 0f;
@@ -81,23 +104,15 @@ public static class ItemRules
                     list.Add(new("mob-type", mobs.Name, mob.Id, N(mob), string.Format(UI.Loc.T("rule.mobType", "tipo {0} não existe em MONSTER_TYPE: o gs cai ao iniciar"), F(mob, "id_type"))));
                     continue;
                 }
-                // atributos do tipo: probabilidades (> 1e-8) somam 1 e o param1 do MONSTER_ADDON fica em 0..9
-                float sum = 0f;
+                // atributos do tipo: o param1 do MONSTER_ADDON fica em 0..9. As chances (dos atributos e de ódio) NÃO
+                // entram: elementdataman::NormalizeRandom divide pela soma ao carregar (tudo 0 = a 1ª vale 1), o ASSERT
+                // de soma 1 depois disso nunca falha
                 for (int j = 1; j <= 16; j++)
                 {
-                    float pr = Fl(F(mt, $"addons_{j}_probability_addon"));
-                    if (pr <= 1e-8f) continue;
-                    sum += pr;
+                    if (Fl(F(mt, $"addons_{j}_probability_addon")) <= 1e-8f) continue;
                     if (F(mt, $"addons_{j}_id_addon") is { } aid && addons.TryGetValue(aid, out var ad) && int.TryParse(F(ad, "param1"), out var p1) && (p1 < 0 || p1 > 9))
                         list.Add(new("mob-addon", "MONSTER_TYPE", mt.Id, N(mt), string.Format(UI.Loc.T("rule.mobAddon", "atributo {0} com param1 {1} (só 0 a 9): o gs cai ao iniciar"), aid, p1)));
                 }
-                if (Math.Abs(sum - 1f) >= 1e-5f)
-                    list.Add(new("mob-addon-sum", "MONSTER_TYPE", mt.Id, N(mt), string.Format(UI.Loc.T("rule.mobAddonSum", "chances dos atributos somam {0:0.#####} (precisa 1): o gs cai ao iniciar"), sum)));
-                // estratégias de ódio (>= 1e-7) somam 1
-                float ag = 0f;
-                for (int j = 1; j <= 4; j++) { float pr = Fl(F(mob, $"aggro_strategy_{j}_probability")); if (pr >= 1e-7f) ag += pr; }
-                if (Math.Abs(ag - 1f) >= 1e-5f)
-                    list.Add(new("mob-aggro", mobs.Name, mob.Id, N(mob), string.Format(UI.Loc.T("rule.mobAggro", "chances de ódio (aggro_strategy) somam {0:0.#####} (precisa 1): o gs cai ao iniciar"), ag)));
             }
 
         if (m.FindListByName("NPC_ESSENCE") is not { } npcs) return;
