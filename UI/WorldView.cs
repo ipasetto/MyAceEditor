@@ -34,6 +34,8 @@ internal sealed class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? DeletePoint { get; set; }
     /// <summary>Anel de giro: novo ângulo do ponto (graus; 0 = olhando para +Z, 90 = +X).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, float>? RotatePoint { get; set; }
+    /// <summary>Clique no vazio: nenhum ponto selecionado.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action? ClearSelection { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? UndoAction { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? RedoAction { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public IReadOnlyList<string> Maps { get; set; } = Array.Empty<string>();
@@ -232,7 +234,11 @@ internal sealed class WorldView : Form
             }
             if (e.Button == MouseButtons.Right) RightClick(e.Location);
             // clique esquerdo no vazio (sem arrastar a câmera): o NPC perde a seleção e a barra de quests some
-            else if (e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4) _quests.HidePanel();
+            else if (e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4)
+            {
+                _quests.HidePanel();
+                if (_selected() is not null) { ClearSelection?.Invoke(); _gizmoHover = 0; _gl.Invalidate(); }
+            }
         };
         _gl.MouseMove += (_, e) =>
         {

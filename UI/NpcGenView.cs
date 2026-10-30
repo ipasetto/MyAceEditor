@@ -632,6 +632,8 @@ internal sealed class NpcGenView : UserControl
     // ---------- mundo 3D ----------
     /// <summary>Abre o Mundo 3D do arquivo aberto (ou leva a câmera ao ponto selecionado, se já aberto).</summary>
     public void OpenWorld() => OpenWorld(false);
+    /// <summary>Mundo 3D pelo botão de fora do NPCGen: abre na visão geral do mapa (CameraStarts), não no ponto selecionado.</summary>
+    public void OpenWorldOverview() => OpenWorld(true);
 
     // fromSwitch: veio da troca de mapa no 3D — a câmera vai para a entrada, não para o ponto selecionado da lista
     void OpenWorld(bool fromSwitch)
@@ -742,6 +744,7 @@ internal sealed class NpcGenView : UserControl
             finally { _pickOwner = null; w.Activate(); w.RefreshMarkers(); }
         };
         w.DeletePoint = o => { SelectObject(o); DeletePoint(); };
+        w.ClearSelection = () => _list.SelectedIndices.Clear();
         // anel de giro do Mundo 3D: criatura = vetor de direção (x, z); coletável = eixo comprimido + ângulo 0..255 de
         // 360° (AIGenExportor: a3d_CompressDir do eixo; eixo para cima = 0, 0)
         w.RotatePoint = (o, yaw) =>

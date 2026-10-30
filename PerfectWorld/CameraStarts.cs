@@ -9,7 +9,7 @@ public static class CameraStarts
 {
     static readonly Dictionary<string, (float X, float Y, float Z)> Known = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["world"] = (1529.27f, 230f, 1085.53f),
+        ["world"] = (1090.03f, 240f, 1033.48f),   // usuário 30/10: meio do mapa
         ["a05"] = (-176.98f, 340f, 128.91f),
         ["a12"] = (-445.92f, 465f, -375.14f),
         ["a26"] = (338.76f, 5f, -169.58f),   // usuário 30/10

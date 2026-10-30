@@ -304,7 +304,7 @@ public sealed class EditorForm : Form
         tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
         tb.Items.Add(B(() => { if (_tabs is not null) _tabs.SelectedIndex = 0; CreateCreatureWizard(this, NpcGenView.Kind.Monster); },
             b => b.Text = Loc.T("tb.newCreature", "✚ Monstro/NPC novo")));
-        tb.Items.Add(B(() => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorld()); },
+        tb.Items.Add(B(() => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); },
             b => b.Text = Loc.T("tb.world", "🌐 Mundo 3D")));
         return tb;
     }
