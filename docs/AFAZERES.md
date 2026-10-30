@@ -164,5 +164,6 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 ## MUNDO 3D MAIS PERTO DO JOGO (pedido 30/10)
 - [x] entrada da a26 em 338.76, 5, -169.58 (CameraStarts)
 - [x] neblina por area (.ecbsd ECBSDFILEBOXAREA11), tecla N; luz da area nas arvores
-- [ ] grama do .ecwld (grasses.pck, .mox) | [ ] setas X/Y/Z + giro no NPC/monstro/coletavel SELECIONADO (so aparecem com selecao; orientacao para alinhar NPCs)
+- [x] setas X/Y/Z + anel de giro no ponto SELECIONADO (WorldView DrawGizmo/GizmoDrag; NpcGenView RotatePoint). [ ] testar no app
+- [ ] PROXIMO: grama. Ja sabido (PW-KB §ecbsd "GRAMA"): tipos no .ecwld, areas ECBSDFILEGRASS7 -> mapa de bits no bsdata, 1 .mox por bit. Falta: ler o .mox (Angelica2.2 A3DFrame::Load / A3DMesh), achar o registro de grama no bsdata N.dat, desenhar (WorldGrass.cs, perto da camera, como as arvores)
 - regra: modelos de criaturas ficam ESTATICOS (posicao inicial; usuario 30/10)
