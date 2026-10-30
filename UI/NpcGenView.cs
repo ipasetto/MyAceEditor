@@ -732,7 +732,14 @@ internal sealed class NpcGenView : UserControl
         w.DeletePoint = o => { SelectObject(o); DeletePoint(); };
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
-        if (overview is { } ov) w.Overview(new OpenTK.Mathematics.Vector3(ov.X, ov.Y, ov.Z), _cur.Equals("world", StringComparison.OrdinalIgnoreCase));
+        if (overview is { } ov)
+        {
+            // instância: olhar para onde está o conteúdo (média dos 10 pontos de criatura mais perto da entrada)
+            OpenTK.Mathematics.Vector3? toward = null;
+            var near10 = f.Spawns.OrderBy(s => (s.Position.X - ov.X) * (s.Position.X - ov.X) + (s.Position.Z - ov.Z) * (s.Position.Z - ov.Z)).Take(10).ToList();
+            if (near10.Count > 0) toward = new OpenTK.Mathematics.Vector3(near10.Average(s => s.Position.X), ov.Y, near10.Average(s => s.Position.Z));
+            w.Overview(new OpenTK.Mathematics.Vector3(ov.X, ov.Y, ov.Z), _cur.Equals("world", StringComparison.OrdinalIgnoreCase), toward);
+        }
         if (_configDir is not null) w.WaterDir = Path.Combine(_configDir, _cur, "watermap");
         w.MapTag = MapTagOf(_cur);
         w.FormClosed += (_, _) => { if (_world == w) _world = null; };

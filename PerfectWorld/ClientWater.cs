@@ -9,7 +9,12 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public static class ClientWater
 {
-    public sealed record Area(int Argb, float Height, int Cols, int Rows, float Cell, float X, float Z);
+    /// <param name="Mask">um byte por célula (linha × colunas + coluna), diferente de 0 = célula com água. A área cobre o
+    /// pedaço inteiro, mas só as células marcadas têm água (desenhar o retângulo todo enchia instâncias de lajes de água).</param>
+    public sealed record Area(int Argb, float Height, int Cols, int Rows, float Cell, float X, float Z, byte[] Mask)
+    {
+        public bool Wet(int col, int row) => Mask.Length < Cols * Rows || Mask[row * Cols + col] != 0;
+    }
 
     public static List<Area>? Read(string mapDir)
     {
@@ -27,7 +32,8 @@ public static class ClientWater
             for (int i = 0; i < n; i++)
                 if (Entry(b, BitConverter.ToInt32(b, (int)table + i * 4), (int)table) is { } a) list.Add(a);
         }
-        return list;
+        // a mesma área pode vir em mais de um .dat: uma vez só
+        return list.GroupBy(a => (a.X, a.Z, a.Height, a.Cols, a.Rows, a.Cell)).Select(g => g.First()).ToList();
     }
 
     static Area? Entry(byte[] b, int o, int end)
@@ -43,6 +49,8 @@ public static class ClientWater
         int cols = BitConverter.ToInt32(b, p), rows = BitConverter.ToInt32(b, p + 4);
         float cell = BitConverter.ToSingle(b, p + 8), x = BitConverter.ToSingle(b, p + 12), z = BitConverter.ToSingle(b, p + 20);
         if (cols <= 0 || rows <= 0 || cols > 4096 || rows > 4096 || !(cell > 0 && cell < 10000) || !float.IsFinite(h) || !float.IsFinite(x) || !float.IsFinite(z)) return null;
-        return new Area(argb, h, cols, rows, cell, x, z);
+        int m = p + 24 + (ver == 0x10003000 ? 1 : 0);
+        var mask = m + cols * rows <= end ? b.AsSpan(m, cols * rows).ToArray() : Array.Empty<byte>();
+        return new Area(argb, h, cols, rows, cell, x, z, mask);
     }
 }

@@ -25,6 +25,8 @@ internal sealed class WorldBuildings : IDisposable
     readonly Dictionary<string, int> _textures = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<int> _cutout = new();   // texturas com recorte de verdade (o resto desenha sem teste de alfa)
     readonly HashSet<string> _texSent = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Texturas de construção que não foram achadas no pacote (diagnóstico do --world-shot).</summary>
+    public static readonly System.Collections.Concurrent.ConcurrentBag<string> MissingTextures = new();
     const int Batch = 16;
 
     public WorldBuildings(string? elementDir, string map, WorldLoader load)
@@ -104,6 +106,7 @@ internal sealed class WorldBuildings : IDisposable
                 if (!need || _tex is null) continue;
                 byte[]? td; lock (_tex) td = _tex.Find(mesh.Texture.ToLowerInvariant()) is { } te ? _tex.Read(te) : null;
                 try { tex[mesh.Texture] = td is null ? null : DdsDecoder.DecodeMax(td, 512); } catch { tex[mesh.Texture] = null; }
+                if (tex[mesh.Texture] is null) MissingTextures.Add(mesh.Texture);
             }
         }
         return (models, tex);

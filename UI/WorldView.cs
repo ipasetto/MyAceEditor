@@ -300,13 +300,25 @@ internal sealed class WorldView : Form
     }
 
     /// <summary>Câmera acima do ponto, olhando para baixo (abrir sem nada selecionado). high: vista alta do mapa inteiro.</summary>
-    public void Overview(Vector3 p, bool high)
+    /// <param name="toward">instância: para onde olhar (centro dos monstros/NPCs); a câmera fica logo atrás da entrada,
+    /// onde o jogo põe o jogador. Antes: 35 m atrás e 25 m acima do maior entre o ponto e o terreno — nas instâncias
+    /// fechadas o terreno é uma tampa acima do piso (a26: tampa a 800 m, piso perto de 22 m) e a câmera ia parar em cima
+    /// da tampa ou dentro da rocha.</param>
+    public void Overview(Vector3 p, bool high, Vector3? toward = null)
     {
         if (!high) HideLidTerrain(p.Y);
         float ground = _terrain.Visible ? _t.HeightAt(p.X, p.Z) ?? p.Y : p.Y;
-        if (high) { _cam = Gl(p.X, ground + 400, p.Z - 400); _pitch = -40; }
-        else { _cam = Gl(p.X, Math.Max(p.Y, ground) + 25, p.Z - 35); _pitch = -30; }
-        _yaw = -90; ClampCamera(); _gl.Invalidate();
+        if (high) { _cam = Gl(p.X, ground + 400, p.Z - 400); _pitch = -40; _yaw = -90; }
+        else
+        {
+            // terreno bem acima do ponto = tampa/teto: não conta; chão um pouco acima (ponto enterrado) sobe o ponto
+            float floor = ground > p.Y + 20 ? p.Y : Math.Max(p.Y, ground);
+            var dir = toward is { } t0 && new Vector2(t0.X - p.X, t0.Z - p.Z) is { LengthSquared: > 4 } h ? h.Normalized() : new Vector2(0, 1);
+            _cam = Gl(p.X - dir.X * 8, floor + 4, p.Z - dir.Y * 8);
+            _yaw = MathHelper.RadiansToDegrees(MathF.Atan2(-dir.Y, dir.X));
+            _pitch = -14;
+        }
+        ClampCamera(); _gl.Invalidate();
     }
 
     // câmera 14 m ao sul e 7 m acima, olhando para o ponto
@@ -525,9 +537,24 @@ internal sealed class WorldView : Form
     /// (textures\water\wave1.dds) tingida pela cor. Mapa sem água no cliente (a09: a lava é o chão) não ganha plano; só sem
     /// a pasta bsdata usa a água do servidor (watermap), na cor padrão.
     /// </summary>
+    // só as células com água da máscara da área (linha 0 ao norte: conferido com o chão abaixo/acima da água na a18 e no
+    // mundo), juntas em faixas por linha
+    static IEnumerable<(float, float, float, float, float, int)> WetStrips(ClientWater.Area a)
+    {
+        float left = a.X - a.Cols * a.Cell / 2, top = a.Z + a.Rows * a.Cell / 2;
+        for (int r = 0; r < a.Rows; r++)
+            for (int c = 0; c < a.Cols; c++)
+            {
+                if (!a.Wet(c, r)) continue;
+                int c0 = c;
+                while (c + 1 < a.Cols && a.Wet(c + 1, r)) c++;
+                yield return (left + c0 * a.Cell, top - (r + 1) * a.Cell, left + (c + 1) * a.Cell, top - r * a.Cell, a.Height, a.Argb);
+            }
+    }
+
     void DrawWater()
     {
-        _clientWater ??= ClientWater.Read(_t.Dir) is { } cw ? cw.Select(a => (a.X - a.Cols * a.Cell / 2, a.Z - a.Rows * a.Cell / 2, a.X + a.Cols * a.Cell / 2, a.Z + a.Rows * a.Cell / 2, a.Height, a.Argb)).ToList()
+        _clientWater ??= ClientWater.Read(_t.Dir) is { } cw ? cw.SelectMany(WetStrips).ToList()
             : Water().Select(w => (w.Item1, w.Item2, w.Item3, w.Item4, w.Item5, unchecked((int)0xFF2E6B8C))).ToList();
         if (_clientWater.Count == 0) return;
         if (_waveTex == 0) _waveTex = WaveTexture();

@@ -259,6 +259,46 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--tasks-svc") { TaskSvc(args[1], args[2]); return; }   // <elements.data> <tasks.data>: que ID (pai ou filha) os NPCs guardam no serviço de dar/receber   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
+        if (args.Length >= 3 && args[0] == "--instances")   // <gamed\config> <element>: ponto de entrada de cada mapa e o chão ali (instances.txt + instances-shots.txt)
+        {
+            var sb = new StringBuilder(); var shots = new StringBuilder();
+            foreach (var d in Directory.GetDirectories(args[1]).OrderBy(x => x))
+            {
+                var map = Path.GetFileName(d);
+                if (!File.Exists(Path.Combine(d, "npcgen.data")) || map.Equals("world", StringComparison.OrdinalIgnoreCase)) continue;
+                var spawns = NpcGenFile.Read(File.ReadAllBytes(Path.Combine(d, "npcgen.data"))).Spawns;
+                var portal = RegionFile.EntranceOf(args[1], map);
+                var p = portal ?? (spawns.FirstOrDefault(s => s.Type == 1) ?? spawns.FirstOrDefault())?.Position;
+                string how = portal is not null ? "portal" : p is not null ? "1º NPC" : "nada";
+                var cm = MapTags.ClientMapFor(args[1], args[2], map);
+                var t = TerrainFile.Open(Path.Combine(args[2], "maps", cm));
+                string ground = "-", flag = "";
+                if (t is null) flag = "SEM TERRENO NO CLIENTE";
+                else if (p is { } q)
+                {
+                    bool inside = Math.Abs(q.X) <= t.Width / 2 && Math.Abs(q.Z) <= t.Height / 2;
+                    var g = t.HeightAt(q.X, q.Z);
+                    ground = g is float gv ? gv.ToString("0") : "-";
+                    if (!inside) flag = "FORA DO TERRENO";
+                    else if (g is float h2 && q.Y < h2 - 2) flag = $"ABAIXO DO CHÃO ({q.Y - h2:0} m)";
+                    else if (g is float h3 && q.Y > h3 + 60) flag = $"ALTO ({q.Y - h3:0} m acima do chão)";
+                    // como o NpcGenView: altura do ponto de criatura mais perto (até 600 m, se diferir mais de 30 m) e para onde olhar
+                    float y = q.Y;
+                    if (spawns.Count > 0)
+                    {
+                        var near = spawns.MinBy(s => (s.Position.X - q.X) * (s.Position.X - q.X) + (s.Position.Z - q.Z) * (s.Position.Z - q.Z))!.Position;
+                        if ((near.X - q.X) * (near.X - q.X) + (near.Z - q.Z) * (near.Z - q.Z) < 600 * 600 && Math.Abs(near.Y - q.Y) > 30) y = near.Y;
+                    }
+                    var n10 = spawns.OrderBy(s => (s.Position.X - q.X) * (s.Position.X - q.X) + (s.Position.Z - q.Z) * (s.Position.Z - q.Z)).Take(10).ToList();
+                    float tx = n10.Count > 0 ? n10.Average(s => s.Position.X) : q.X, tz = n10.Count > 0 ? n10.Average(s => s.Position.Z) : q.Z + 10;
+                    shots.AppendLine(FormattableString.Invariant($"{cm}\t{q.X:0},{q.Y + 2:0},{q.Z:0},0,-5,{map}\t{q.X:0},{y:0},{q.Z:0},{tx:0},{tz:0},ov"));
+                }
+                sb.AppendLine(FormattableString.Invariant($"{map}\tcliente {cm}\t{how}\t{(p is { } r ? $"{r.X:0},{r.Y:0},{r.Z:0}" : "-")}\tchão {ground}\t{(t is null ? "" : $"{t.Width:0}×{t.Height:0}")}\t{flag}"));
+            }
+            File.WriteAllText("instances.txt", sb.ToString(), new UTF8Encoding(false));
+            File.WriteAllText("instances-shots.txt", shots.ToString(), new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--spt-levels")   // <trees.pck> <trecho do nome>: parâmetros de cada nível (spt-levels.txt)
         {
             using var pck = new PckArchive(args[1]);
@@ -377,7 +417,21 @@ internal static class Program
         Directory.CreateDirectory(outDir);
         // diagnóstico: água do cliente e alturas do chão numa grade de 9 × 9 (world-shot.txt)
         var diag = new StringBuilder($"{t.Name} {t.Width}×{t.Height} m\n");
-        foreach (var a in ClientWater.Read(mapDir) ?? new()) diag.AppendLine($"água: cor {a.Argb:X8} altura {a.Height:0.0} {a.Cols}×{a.Rows}×{a.Cell} centro {a.X:0},{a.Z:0}");
+        foreach (var a in ClientWater.Read(mapDir) ?? new())
+        {
+            // orientação da máscara: célula com água deve ter chão abaixo da água (linha 0 ao norte ou ao sul?)
+            int wet = 0, dryN = 0, dryS = 0, belowN = 0, belowS = 0;
+            for (int r = 0; r < a.Rows; r++)
+                for (int c = 0; c < a.Cols; c++)
+                {
+                    float x = a.X - a.Cols * a.Cell / 2 + (c + 0.5f) * a.Cell;
+                    float zS = a.Z - a.Rows * a.Cell / 2 + (r + 0.5f) * a.Cell, zN = a.Z + a.Rows * a.Cell / 2 - (r + 0.5f) * a.Cell;
+                    bool w2 = a.Wet(c, r); if (w2) wet++;
+                    bool bn = t.HeightAt(x, zN) is float hn && hn < a.Height, bs = t.HeightAt(x, zS) is float hs && hs < a.Height;
+                    if (w2) { if (bn) belowN++; if (bs) belowS++; } else { if (!bn) dryN++; if (!bs) dryS++; }
+                }
+            diag.AppendLine($"água: cor {a.Argb:X8} altura {a.Height:0.0} {a.Cols}×{a.Rows}×{a.Cell} centro {a.X:0},{a.Z:0} | {wet} células com água; chão abaixo: linha0 ao sul {belowS}, ao norte {belowN}; secas acima: sul {dryS}, norte {dryN}");
+        }
         for (int i = 0; i <= 8; i++)
             diag.AppendLine(string.Join(" ", Enumerable.Range(0, 9).Select(j => t.HeightAt(-t.Width / 2 + t.Width * j / 8f, t.Height / 2 - t.Height * i / 8f) is float h ? $"{h,6:0}" : "     -")));
         // "dense[N]": câmera diante do N-ésimo pedaço de 128 m com mais árvores do .ecwld (para conferir árvores)
@@ -408,7 +462,9 @@ internal static class Program
         for (int i = 0; i < cams.Count; i++)
         {
             var c = cams[i];
-            w.SetCamera(c.Pos, c.Yaw, c.Pitch);
+            // nome começando com "ov": câmera como o Mundo 3D abre (Overview da entrada); yaw/pitch = ponto para onde olhar (x,z)
+            if (c.Name?.StartsWith("ov") == true) w.Overview(c.Pos, false, new OpenTK.Mathematics.Vector3(c.Yaw, c.Pos.Y, c.Pitch));
+            else w.SetCamera(c.Pos, c.Yaw, c.Pitch);
             var until = DateTime.Now.AddSeconds(90); var quiet = DateTime.MaxValue;
             while (DateTime.Now < until)
             {
@@ -418,6 +474,8 @@ internal static class Program
             using var bmp = w.CaptureFrame();
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
+        var miss = MyAceEditor.UI.WorldBuildings.MissingTextures.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (miss.Count > 0) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), $"texturas de construção não achadas ({miss.Count}):\n" + string.Join("\n", miss.Take(40)) + "\n");
         w.Close();
     }
 
