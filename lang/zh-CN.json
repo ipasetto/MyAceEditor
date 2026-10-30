@@ -1407,7 +1407,7 @@
   "addonEd.uniques": "唯一属性",
   "addonEd.title": "附加属性编辑器 — {0} {1}",
   "addonEd.chances": "概率",
-  "addonEd.hint": "拖动条形图；锁定可固定某个槽位。双击名称可更换属性。Ctrl+Z 撤销。",
+  "addonEd.hint": "拖动条形图；锁定可固定某个槽位。双击名称可更换属性。按住 Shift/Ctrl 点击可多选；Delete 删除。Ctrl+Z 撤销。",
   "addonEd.full": "列表已满（{0} 个槽位，文件上限）。选中一行再点“添加”替换该项，或用“✕ 移除”空出槽位。",
   "addonEd.noRoom": "{0} 放不下。",
   "addonEd.remove": "✕ 移除",
@@ -1423,7 +1423,7 @@
   "dropEd.num": "掉落 N 件物品的概率",
   "dropEd.list": "掉落物品",
   "dropEd.title": "掉落编辑器 — {0} {1}",
-  "dropEd.hint": "拖动条形图；锁定可固定某个槽位。双击名称可更换物品。Ctrl+Z 撤销。",
+  "dropEd.hint": "拖动条形图；锁定可固定某个槽位。双击名称可更换物品。按住 Shift/Ctrl 点击可多选；Delete 删除。Ctrl+Z 撤销。",
   "dropEd.name": "掉落编辑器",
   "addonEd.name": "附加属性编辑器",
   "status.chanceEditor": "{0}：{2} 的 {1} 个字段已修改",
@@ -3815,5 +3815,7 @@
   "gm.eventNoServer": "活动需要本机服务器。没有服务器时，请在游戏内使用 Ctrl+G。",
   "gm.eventDone": "{0}：已在地图 {1} 执行。",
   "gm.eventNone": "{0}：没有运行中的地图有这个触发器。",
-  "world.existingNpc": "在此放置已有的 NPC…"
+  "world.existingNpc": "在此放置已有的 NPC…",
+  "addonEd.removed": "已删除 {0} 行。Ctrl+Z 撤销。",
+  "npcgen.deletedMany": "已删除 {0} 个点。Ctrl+Z 撤销。"
 }

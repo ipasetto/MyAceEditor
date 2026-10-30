@@ -83,8 +83,8 @@ internal sealed class ChanceEditor : Form
             DialogResult = DialogResult.OK;
         };
         bottom.Controls.Add(_status, 0, 0); bottom.Controls.Add(ok, 1, 0); bottom.Controls.Add(cancel, 2, 0);
-        Info(drops ? Loc.T("dropEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o item. Ctrl+Z desfaz.")
-            : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon. Ctrl+Z desfaz."));
+        Info(drops ? Loc.T("dropEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o item. Shift/Ctrl+clique marca várias; Delete remove. Ctrl+Z desfaz.")
+            : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon. Shift/Ctrl+clique marca várias; Delete remove. Ctrl+Z desfaz."));
         CancelButton = cancel;
         Controls.Add(tabs); Controls.Add(bottom);
     }
@@ -135,15 +135,24 @@ internal sealed class ChanceEditor : Form
             if (ids.Count > n) Warn(msg); else Info(msg);
             view.Rebuild();
         });
-        B(Loc.T("addonEd.remove", "✕ Remover"), () =>
+        // remove todas as linhas marcadas (Shift/Ctrl+clique, Ctrl+A); também pela tecla Delete
+        void Remove()
         {
-            if (view.Selected is not { } row) { Warn(Loc.T("addonEd.pickRow", "Selecione uma linha.")); return; }
+            var rows = view.SelectedRows.Count > 0 ? view.SelectedRows.ToList() : view.Selected is { } one ? new List<ProbRow> { one } : new();
+            if (rows.Count == 0) { Warn(Loc.T("addonEd.pickRow", "Selecione uma linha.")); return; }
             Snapshot();
-            if (row.Ref is not null) Put(row.Ref, "0");
-            Put(row.Prob, "0");
-            _locks.Remove(row.Prob);
+            foreach (var row in rows)
+            {
+                if (row.Ref is not null) Put(row.Ref, "0");
+                Put(row.Prob, "0");
+                _locks.Remove(row.Prob);
+            }
+            view.SelectedRows.Clear();
             view.Rebuild();
-        });
+            Info(string.Format(Loc.T("addonEd.removed", "{0} linha(s) removida(s). Ctrl+Z desfaz."), rows.Count));
+        }
+        B(Loc.T("addonEd.remove", "✕ Remover"), Remove);
+        view.DeleteRequested += Remove;
         B(Loc.T("addonEd.sort", "Ordenar"), () => { Snapshot(); AddonGroups.Sort(_work, listSection); _locks.Clear(); view.Rebuild(); });
         B(Loc.T("addonEd.normalize", "Ajustar para 100%"), () => { Snapshot(); AddonGroups.Normalize(_work, listSection, _locks); view.Rebuild(); });
         B(Loc.T("addonEd.equal", "Dividir igual"), () =>
@@ -195,6 +204,11 @@ internal sealed class ProbListView : ScrollableControl
     Dictionary<string, Field>? _before;
 
     public ProbRow? Selected { get; private set; }
+    /// <summary>Linhas marcadas: clique = uma, Ctrl+clique alterna, Shift+clique marca o intervalo, Ctrl+A todas.</summary>
+    public HashSet<ProbRow> SelectedRows { get; } = new();
+    ProbRow? _anchor;
+    /// <summary>Delete na lista: apagar as linhas marcadas.</summary>
+    public event Action? DeleteRequested;
     public event Action? Changed;
     public event Action<ProbRow>? PickFor;
     public event Action? BeforeChange;
@@ -220,6 +234,7 @@ internal sealed class ProbListView : ScrollableControl
             y += 8;
         }
         if (Selected is not null && !_layout.Any(l => l.Row == Selected)) Selected = null;
+        SelectedRows.RemoveWhere(r => !_layout.Any(l => l.Row == r));
         AutoScrollMinSize = new Size(0, y);
         Invalidate();
         Changed?.Invoke();
@@ -267,7 +282,7 @@ internal sealed class ProbListView : ScrollableControl
                 continue;
             }
             var c = Cols(y, sec.HasRefs);
-            if (row == Selected) using (var sb = new SolidBrush(Sel)) g.FillRectangle(sb, 4, y, ClientSize.Width - 8, RowH);
+            if (row == Selected || SelectedRows.Contains(row)) using (var sb = new SolidBrush(Sel)) g.FillRectangle(sb, 4, y, ClientSize.Width - 8, RowH);
             if (row.Prob == "") { TextRenderer.DrawText(g, RowName(row), Font, c.Name, Muted, TextFormatFlags.PreserveGraphicsTranslateTransform | TextFormatFlags.VerticalCenter); continue; }
             var nameBox = c.Name;
             if (row.Ref is not null && _icon?.Invoke(_item.Fields[row.Ref].Value) is { } img)
@@ -304,8 +319,10 @@ internal sealed class ProbListView : ScrollableControl
         base.OnMouseDown(e);
         Focus();
         if (e.Button != MouseButtons.Left || Hit(e.Location, out var c) is not { } h) return;
-        Selected = h.Row;
         var x = e.X - AutoScrollPosition.X;
+        if ((ModifierKeys & (Keys.Shift | Keys.Control)) != 0 && !c.Lock.Contains(x, c.Lock.Y + 1)) { Mark(h.Row); Invalidate(); return; }
+        Selected = h.Row; _anchor = h.Row;
+        SelectedRows.Clear(); SelectedRows.Add(h.Row);
         if (c.Lock.Contains(x, c.Lock.Y + 1)) { if (!_locks.Remove(h.Row.Prob)) _locks.Add(h.Row.Prob); Invalidate(); return; }
         if (x >= c.Bar.X - 4 && x <= c.Bar.Right + 4)
         {
@@ -323,6 +340,39 @@ internal sealed class ProbListView : ScrollableControl
         if (_drag is null || e.Button != MouseButtons.Left) return;
         foreach (var (sec, row, ry) in _layout)
             if (row == _drag) { DragTo(e.X - AutoScrollPosition.X, Cols(ry, sec.HasRefs).Bar); return; }
+    }
+
+    // Ctrl: alterna a linha; Shift: do último clique até esta (na ordem da tela)
+    void Mark(ProbRow row)
+    {
+        var rows = _layout.Where(l => l.Row is { Prob.Length: > 0 }).Select(l => l.Row!).ToList();
+        if ((ModifierKeys & Keys.Shift) != 0 && _anchor is not null && rows.IndexOf(_anchor) is var a and >= 0)
+        {
+            int b = rows.IndexOf(row);
+            if ((ModifierKeys & Keys.Control) == 0) SelectedRows.Clear();
+            for (int i = Math.Min(a, b); i <= Math.Max(a, b); i++) SelectedRows.Add(rows[i]);
+        }
+        else
+        {
+            if (!SelectedRows.Remove(row)) SelectedRows.Add(row);
+            _anchor = row;
+        }
+        Selected = SelectedRows.Contains(row) ? row : SelectedRows.FirstOrDefault();
+    }
+
+    protected override bool IsInputKey(Keys keyData) => (keyData & Keys.KeyCode) is Keys.Delete || base.IsInputKey(keyData);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.KeyCode == Keys.Delete) { e.Handled = true; DeleteRequested?.Invoke(); }
+        else if (e.Control && e.KeyCode == Keys.A)
+        {
+            e.Handled = true; e.SuppressKeyPress = true;
+            foreach (var l in _layout) if (l.Row is { Prob.Length: > 0 } r) SelectedRows.Add(r);
+            Selected ??= SelectedRows.FirstOrDefault();
+            Invalidate();
+        }
     }
 
     protected override void OnScroll(ScrollEventArgs se) { base.OnScroll(se); Invalidate(); }

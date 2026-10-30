@@ -54,7 +54,7 @@ internal sealed class NpcGenView : UserControl
     /// <summary>Linha de filtros abaixo dos botões (fundo preto, rótulos destacados): mapa, tipo de ponto, procura, quantos sobraram.</summary>
     readonly FlowLayoutPanel _filters = new() { Dock = DockStyle.Top, Height = 38, BackColor = Color.FromArgb(20, 22, 26), WrapContents = false, Padding = new Padding(6, 6, 0, 4) };
     readonly Label _count = new() { AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(10, 6, 0, 0) };
-    readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, VirtualMode = true, HideSelection = false, MultiSelect = false, GridLines = true };
+    readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, VirtualMode = true, HideSelection = false, MultiSelect = true, GridLines = true };
     readonly ImageList _icons = new() { ImageSize = new Size(20, 20), ColorDepth = ColorDepth.Depth32Bit };
     readonly Dictionary<int, int> _iconIndex = new();
     readonly System.Windows.Forms.Timer _searchWait = new() { Interval = 250 };
@@ -68,7 +68,7 @@ internal sealed class NpcGenView : UserControl
     readonly DataGridView _grid = new()
     {
         Width = 440, Height = 220, AllowUserToAddRows = false, AllowUserToDeleteRows = false, RowHeadersVisible = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None, MultiSelect = false,
+        BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None, MultiSelect = true,
     };
     readonly Label _gridHint = new() { AutoSize = true, ForeColor = Muted, MaximumSize = new Size(440, 0) };
 
@@ -310,6 +310,12 @@ internal sealed class NpcGenView : UserControl
         _list.RetrieveVirtualItem += (_, e) => e.Item = RowItem(e.ItemIndex);
         _list.SelectedIndexChanged += (_, _) => ShowPoint();
         // com o Mundo 3D aberto, duplo clique leva a câmera até o ponto
+        // Delete apaga todos os pontos marcados (Shift/Ctrl+clique); Ctrl+A marca todos
+        _list.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Delete) { e.Handled = true; DeletePoint(); }
+            else if (e.Control && e.KeyCode == Keys.A) { e.Handled = true; e.SuppressKeyPress = true; for (int k = 0; k < _rows.Count; k++) _list.SelectedIndices.Add(k); }
+        };
         _list.DoubleClick += (_, _) => { if (_world is { IsDisposed: false } w && Cur is { } f && SelectedIndex() is { } i) { w.GoTo(ListOf(f)[i]!); w.Activate(); } };
     }
 
@@ -441,6 +447,8 @@ internal sealed class NpcGenView : UserControl
         Heads(); AppLang.Changed += Heads;
         _grid.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex <= 1) SwapCreature(e.RowIndex); };
         _grid.CellEndEdit += (_, e) => GridEdited(e.RowIndex, e.ColumnIndex);
+        // Delete (fora da edição de uma célula) remove as linhas marcadas com Shift/Ctrl
+        _grid.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { e.Handled = true; RemoveCreature(); } };
 
         foreach (var n in new[] { _px, _py, _pz, _sx, _sy, _sz, _trigger, _maxNum }) n.ValueChanged += (_, _) => PointEdited(n);
         _location.SelectedIndexChanged += (_, _) => PointEdited(_location);
@@ -595,9 +603,13 @@ internal sealed class NpcGenView : UserControl
     {
         if (Cur is not { } f || SelectedIndex() is not { } i || _grid.CurrentRow is not { } gr) return;
         int n = _kind == Kind.Mine ? f.Resources[i].Items.Count : f.Spawns[i].Creatures.Count;
-        if (n <= 1) { MessageBox.Show(this, Loc.T("npcgen.lastOne", "O ponto precisa de pelo menos um. Para tirar o ponto inteiro use \"Excluir\"."), "NPCGen"); return; }
+        // todas as linhas marcadas (ou as das células marcadas), do fim para o começo
+        var rows = _grid.SelectedRows.Cast<DataGridViewRow>().Select(r => r.Index)
+            .Concat(_grid.SelectedCells.Cast<DataGridViewCell>().Select(c => c.RowIndex)).Append(gr.Index)
+            .Where(r => r >= 0 && r < n).Distinct().OrderDescending().ToList();
+        if (n - rows.Count < 1) { MessageBox.Show(this, Loc.T("npcgen.lastOne", "O ponto precisa de pelo menos um. Para tirar o ponto inteiro use \"Excluir\"."), "NPCGen"); return; }
         Snapshot("remove");
-        if (_kind == Kind.Mine) f.Resources[i].Items.RemoveAt(gr.Index); else f.Spawns[i].Creatures.RemoveAt(gr.Index);
+        foreach (var r in rows) { if (_kind == Kind.Mine) f.Resources[i].Items.RemoveAt(r); else f.Spawns[i].Creatures.RemoveAt(r); }
         Touch(); ShowPoint();
     }
 
@@ -835,12 +847,19 @@ internal sealed class NpcGenView : UserControl
 
     void DeletePoint()
     {
-        if (Cur is not { } f || SelectedIndex() is not { } i) return;
+        if (Cur is not { } f || SelectedIndex() is null) return;
         var l = ListOf(f);
-        Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Insert, i, l[i]));
+        // todos os marcados, do fim para o começo (os índices de cima não mudam); um Ctrl+Z volta o lote inteiro
+        var sel = _list.SelectedIndices.Cast<int>().Where(k => k < _rows.Count).Select(k => _rows[k]).Distinct().OrderDescending().ToList();
+        int batch = sel.Count > 1 ? ++_batch : 0;
+        foreach (var i in sel)
+        {
+            Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Insert, i, l[i], batch));
+            l.RemoveAt(i);
+        }
         _redo.Clear();
-        l.RemoveAt(i);
         _dirty.Add(_cur!);
+        if (sel.Count > 1) DeletedMany?.Invoke(sel.Count);
         int next = _list.SelectedIndices.Count > 0 ? _list.SelectedIndices[0] : 0;
         Refill(-1);
         if (_rows.Count > 0) { _list.SelectedIndices.Clear(); int k = Math.Min(next, _rows.Count - 1); _list.SelectedIndices.Add(k); _list.EnsureVisible(k); }
@@ -851,11 +870,15 @@ internal sealed class NpcGenView : UserControl
     // ---------- desfazer / refazer ----------
     // cada passo diz como voltar: trocar o ponto pela cópia, inserir de volta ou remover
     enum OpKind { Replace, Insert, Remove }
-    sealed record Op(string File, bool Mine, OpKind Kind, int Index, object? Obj);
+    // Batch: passos com o mesmo número (≠ 0) são desfeitos/refeitos juntos (excluir vários pontos de uma vez)
+    sealed record Op(string File, bool Mine, OpKind Kind, int Index, object? Obj, int Batch = 0);
     readonly List<Op> _undo = new(), _redo = new();
+    int _batch;
+    /// <summary>Vários pontos excluídos de uma vez (quantos).</summary>
+    public event Action<int>? DeletedMany;
     string? _lastKey; DateTime _lastPush;
 
-    static void Push(List<Op> l, Op o) { l.Add(o); if (l.Count > 100) l.RemoveAt(0); }
+    static void Push(List<Op> l, Op o) { l.Add(o); if (l.Count > 2000) l.RemoveAt(0); }   // cabe um lote grande de exclusão
 
     /// <summary>Guarda o ponto antes de mudar. Mudanças seguidas no mesmo campo viram um passo só.</summary>
     void Snapshot(string key)
@@ -873,15 +896,19 @@ internal sealed class NpcGenView : UserControl
     bool Apply(List<Op> from, List<Op> to)
     {
         if (from.Count == 0) return false;
-        var op = from[^1]; from.RemoveAt(from.Count - 1);
-        var f = Load(op.File)!;
-        IList l = op.Mine ? f.Resources : f.Spawns;
-        switch (op.Kind)
+        Op op; IList l;
+        do
         {
-            case OpKind.Replace: Push(to, op with { Obj = l[op.Index] }); l[op.Index] = op.Obj; break;
-            case OpKind.Insert: Push(to, op with { Kind = OpKind.Remove, Obj = null }); l.Insert(op.Index, op.Obj); break;
-            case OpKind.Remove: Push(to, op with { Kind = OpKind.Insert, Obj = l[op.Index] }); l.RemoveAt(op.Index); break;
-        }
+            op = from[^1]; from.RemoveAt(from.Count - 1);
+            var f = Load(op.File)!;
+            l = op.Mine ? f.Resources : f.Spawns;
+            switch (op.Kind)
+            {
+                case OpKind.Replace: Push(to, op with { Obj = l[op.Index] }); l[op.Index] = op.Obj; break;
+                case OpKind.Insert: Push(to, op with { Kind = OpKind.Remove, Obj = null }); l.Insert(op.Index, op.Obj); break;
+                case OpKind.Remove: Push(to, op with { Kind = OpKind.Insert, Obj = l[op.Index] }); l.RemoveAt(op.Index); break;
+            }
+        } while (op.Batch != 0 && from.Count > 0 && from[^1].Batch == op.Batch);
         _dirty.Add(op.File); _lastKey = null;
         // mostra o ponto que voltou
         if (op.File != _cur) { _binding = true; _fileBox.SelectedItem = op.File; _binding = false; _cur = op.File; }

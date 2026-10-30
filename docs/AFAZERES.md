@@ -156,4 +156,4 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [~] monstro de teste so dropa moedas ("Ourico Teste" 61642): dados certos (3 itens x 10 sorteios do ID 6 a 100%, cliente = servidor); causa provavel = penalidade de nivel do PARAM_ADJUST_CONFIG (40+ niveis acima: item 20%, moeda 100%). Confirmar o nivel do personagem; depois mostrar a chance real por morte no painel de drop. Diagnostico: --drops <elements> [antigo]
 - [x] Mundo 3D "Novo NPC aqui…" cria NPC_ESSENCE novo pelo assistente (copia a base; nome "NPC - ID", sem hello_msg e sem nenhum servico: EditorForm.ClearNpc); "NPC que ja existe aqui…" mantem o jeito antigo. Testar no app
 - [ ] Mundo 3D quest seguinte: criar ali mesmo a quest de "fale com outro NPC" (hoje pede o ID); ver se e subquest
-- [ ] listas (drops, addons e todas): selecionar varios com Shift/Ctrl e apagar com Delete de uma vez
+- [~] selecao multipla + Delete: feito em drops/addons (ChanceEditor: Shift/Ctrl+clique, Ctrl+A, Delete; Ctrl+Z volta tudo), pontos do NPCGen (lote desfeito num Ctrl+Z) e criaturas de um ponto. Lista principal ja era. Falta perguntar quais outras listas (quest, gshop, loja do NPC…)

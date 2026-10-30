@@ -1407,7 +1407,7 @@
   "addonEd.uniques": "Unique addons",
   "addonEd.title": "Addon editor — {0} {1}",
   "addonEd.chances": "Chances",
-  "addonEd.hint": "Drag the bars; the lock fixes a slot. Double-click the name to change the addon. Ctrl+Z undoes.",
+  "addonEd.hint": "Drag the bars; the lock fixes a slot. Double-click the name to change the addon. Shift/Ctrl+click selects several; Delete removes. Ctrl+Z undoes.",
   "addonEd.full": "List full ({0} slots, the file limit). Select a row and click Add to replace its item, or use ✕ Remove to free a slot.",
   "addonEd.noRoom": "{0} did not fit.",
   "addonEd.remove": "✕ Remove",
@@ -1423,7 +1423,7 @@
   "dropEd.num": "Chance to drop N items",
   "dropEd.list": "Dropped items",
   "dropEd.title": "Drop editor — {0} {1}",
-  "dropEd.hint": "Drag the bars; the lock fixes a slot. Double-click the name to change the item. Ctrl+Z undoes.",
+  "dropEd.hint": "Drag the bars; the lock fixes a slot. Double-click the name to change the item. Shift/Ctrl+click selects several; Delete removes. Ctrl+Z undoes.",
   "dropEd.name": "Drop editor",
   "addonEd.name": "Addon editor",
   "status.chanceEditor": "{0}: {1} field(s) changed on {2}",
@@ -3813,5 +3813,7 @@
   "gm.eventNoServer": "Events need the server on this PC. Without it, use Ctrl+G inside the game.",
   "gm.eventDone": "{0}: done on map(s) {1}.",
   "gm.eventNone": "{0}: no running map has this trigger.",
-  "world.existingNpc": "Put an existing NPC here…"
+  "world.existingNpc": "Put an existing NPC here…",
+  "addonEd.removed": "{0} row(s) removed. Ctrl+Z undoes.",
+  "npcgen.deletedMany": "{0} point(s) deleted. Ctrl+Z undoes."
 }
