@@ -60,6 +60,36 @@ public sealed class WorldScene
     /// <summary>Ornamentos do bloco: (ID de exportação, offset no bsdata). No bsdata: ECBSDFILEORNAMENT (posição, direção,
     /// cima, 2 bool = 40 B) + nome do .bmd.</summary>
     public List<(uint Id, uint Offset)> OrnamentRefs { get; } = new();
+    public List<(uint Id, uint Offset)> AreaRefs { get; } = new();
+
+    /// <summary>Área de ambiente (CECScnBoxArea): caixa orientada + céu de dia (3 texturas: topo e as duas metades do
+    /// lado, A3DSkySphere). A área padrão (Default) vale onde nenhuma outra caixa contém a câmera.</summary>
+    public sealed record BoxArea(bool Default, float[] Pos, float[] Ext, float[] AxisX, float[] AxisY, float[] AxisZ, string[] Sky);
+    public List<BoxArea> Areas { get; } = new();
+
+    /// <summary>Lê as áreas do .ecbsd (arquivo BSD da cena): ECBSDFILEBOXAREA11 (224 B, versão ≥ 11) + 6 textos de céu
+    /// (dia 0..2, noite 0..2) + música. EC_ScnBoxArea.cpp.</summary>
+    public void LoadAreas(string ecbsdPath)
+    {
+        if (!File.Exists(ecbsdPath)) return;
+        var d = File.ReadAllBytes(ecbsdPath);
+        if (d.Length < 12 || BitConverter.ToInt32(d, 8) < 11) return;   // versões antigas têm outra struct (sem suporte ainda)
+        foreach (var (id, off) in AreaRefs.DistinctBy(a => a.Id))
+        {
+            int p = (int)off;
+            if (p <= 0 || p + 224 > d.Length) continue;
+            float[] V(int o) => new[] { BitConverter.ToSingle(d, p + o), BitConverter.ToSingle(d, p + o + 4), BitConverter.ToSingle(d, p + o + 8) };
+            bool def = BitConverter.ToInt32(d, p) != 0;
+            var area = (Pos: V(8), Ext: V(20), X: V(32), Y: V(44), Z: V(56));
+            int q = p + 224;
+            try
+            {
+                var sky = new[] { Str(d, ref q), Str(d, ref q), Str(d, ref q) };
+                Areas.Add(new BoxArea(def, area.Pos, area.Ext, area.X, area.Y, area.Z, sky));
+            }
+            catch (ArgumentException) { }
+        }
+    }
 
     // depois das árvores, na ordem do CECSceneBlock (EC_SceneBlock.cpp, v ≥ 7): água, ornamentos, áreas e grama são
     // referências de 8 B ao bsdata; efeitos são struct + 1 texto; modelos EC são ECWDFILEECMODEL (40 B) + arquivo + ação
@@ -68,6 +98,11 @@ public sealed class WorldScene
         if (Version < 7 || counts < 8) return;
         int C(int k) => BitConverter.ToInt32(b, o + 4 + 4 * k);   // 0 árvores, 1 água, 2 grama, 3 ornamentos, 4 áreas, 5 efeitos, 6 modelos EC
         int nWater = C(1), nGrass = C(2), nOrn = C(3), nBox = C(4), nFx = C(5), nEcm = C(6);
+        for (int k = 0; k < nBox && t + 8 * (nWater + nOrn + k) + 8 <= b.Length; k++)
+        {
+            int r = t + 8 * (nWater + nOrn + k);
+            AreaRefs.Add((BitConverter.ToUInt32(b, r), BitConverter.ToUInt32(b, r + 4)));
+        }
         // referências dos ornamentos (construções .bmd): posição/direção ficam no bsdata, no offset dado
         for (int k = 0; k < nOrn && t + 8 * (nWater + k) + 8 <= b.Length; k++)
         {

@@ -268,6 +268,9 @@ internal static class Program
                 if (ec is null) { sb.AppendLine($"== {mp}: sem .ecwld"); continue; }
                 var sc = new WorldScene(ec);
                 sb.AppendLine($"== {mp}: v{sc.Version}, {sc.Trees.Count} árvores, {sc.Models.Count} modelos EC, {sc.OrnamentRefs.Count} ornamentos");
+                if (Directory.EnumerateFiles(Path.Combine(args[1], mp), "*.ecbsd").FirstOrDefault() is { } ecb) sc.LoadAreas(ecb);
+                foreach (var a in sc.Areas.Take(6))
+                    sb.AppendLine(FormattableString.Invariant($"  área {(a.Default ? "PADRÃO" : "")} centro {a.Pos[0]:0},{a.Pos[1]:0},{a.Pos[2]:0} meia {a.Ext[0]:0}×{a.Ext[1]:0}×{a.Ext[2]:0} céu: {string.Join(" | ", a.Sky)}"));
                 // ornamentos: registro no bsdata (posição do jogo) × posição dentro do .bmd (a que usamos)
                 var bsd = Directory.EnumerateFiles(Path.Combine(args[1], mp, "bsdata"), "*.dat").OrderBy(x => x).ToList();
                 using var lit = new PckArchive(Path.Combine(Path.GetDirectoryName(args[1].TrimEnd('\\', '/'))!, "litmodels.pck"));

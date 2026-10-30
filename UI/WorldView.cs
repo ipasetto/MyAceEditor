@@ -76,6 +76,7 @@ internal sealed class WorldView : Form
     readonly WorldModels _models;
     readonly WorldBuildings _buildings;
     readonly WorldTrees _trees;
+    readonly WorldSky _sky;
     bool _showBuildings = true;
     readonly HashSet<Keys> _keys = new();
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
@@ -143,6 +144,7 @@ internal sealed class WorldView : Form
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
         _trees = new WorldTrees(element, t.Name);
+        _sky = new WorldSky(element, t.Dir);
         // teste do --world-shot: esconder partes para achar quem desenha o quê
         var hide = Environment.GetEnvironmentVariable("MYACE_HIDE") ?? "";
         if (hide.Contains("terrain")) _terrain.Visible = false;
@@ -238,7 +240,7 @@ internal sealed class WorldView : Form
         FormClosed += (_, _) =>
         {
             _tick.Dispose(); _load.Dispose(); _gl.MakeCurrent();
-            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _worldMap?.Dispose();
+            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _sky.Dispose(); _worldMap?.Dispose();
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
         };
@@ -395,6 +397,7 @@ internal sealed class WorldView : Form
         GL.Enable(EnableCap.DepthTest);
         GL.MatrixMode(MatrixMode.Projection); var p = Proj; GL.LoadMatrix(ref p);
         GL.MatrixMode(MatrixMode.Modelview); var v = View; GL.LoadMatrix(ref v);
+        _sky.Draw(_cam);   // céu da área (tetos das instâncias); sem céu fica a cor de fundo
         GL.Enable(EnableCap.Fog);
         GL.Fog(FogParameter.FogMode, (int)FogMode.Linear);
         GL.Fog(FogParameter.FogStart, 1500f); GL.Fog(FogParameter.FogEnd, 8000f);
