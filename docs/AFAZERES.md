@@ -171,3 +171,9 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] grama sem triangulos brancos (recorte nos mipmaps); arvores de cartoes dos .bmd recortadas. [ ] Besouro Estrela (1063) sem textura: busca de textura do modelo aceita outra extensao e registra no log as que faltam; usuario conferir
 - [x] Besouro Estrela branco: pele de mesmo nome do .SMD so entra se o .SMD citar (WorldModels.ResolveSki)
 - [ ] ARVORES x JOGO (30/10, prints do usuario): world 1560,220,454 = shingleoak4 (鹅卵石像树大, 3 niveis, tamanho 100 pes, tronco raio 0.1, galhos 10%..100% freq 30, folhas freq 300 = 9.530 cartoes 0.4 = SizeUsed 40/100). No jogo: tronco grosso visivel ate ~10 m, copa alta; no nosso: arbusto colunar com folhas ate o chao. Ja descartado: tamanho da folha (4006 SizeUsed = 4005 x tamanho, mesma proporcao). Suspeitas: posicao/angulo dos galhos baixos, quantidade de folhas, LOD de folhas do cliente. Usuario tambem notou menos arvores e pouca variacao de tamanho/cor de tronco no nosso.
+## MUNDO 3D x JOGO (30/10, rodada de 200k) — ESPERANDO O TESTE DO USUARIO
+- [x] folhas como o SpeedTree (flores 3000-3002/4000, espacamento 3007, colisao 3008): copas abertas; escala mantida (altura = tamanho)
+- [x] grama com a luz do terreno (MODULATE2X) e textura achada pelo nome; [x] Besouro 1063 (pele do .SMD)
+- [x] dia/noite (tecla L): neblina, ceu de noite, .t2lm1, grama, cores de noite dos .bmd, luz das arvores e dos modelos
+- [x] agua: reflexo do ceu pelo angulo, borda transparente, ondas andando, noite
+- [ ] usuario testar no app: arvores (shingleoak4 em 1560,220,454), grama, L de noite, agua; depois conferir 144/155/180 (pedir permissao)

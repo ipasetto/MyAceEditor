@@ -399,6 +399,7 @@ internal sealed class WorldView : Form
     // movimento pelo tempo real do quadro; redesenha enquanto há carga em andamento
     void Step()
     {
+        if (_wavesNear && _clock.Elapsed.TotalSeconds - _wavesAt > 0.05) { _wavesAt = _clock.Elapsed.TotalSeconds; _gl.Invalidate(); }
         double now = _clock.Elapsed.TotalSeconds; float dt = (float)Math.Min(0.1, now - _last); _last = now;
         // tecla solta sem KeyUp (Espaço com o foco num botão/caixa da barra vira clique e o KeyUp some): confere com o
         // Windows se ainda está apertada — senão a câmera subia sem parar até trocar de mapa
@@ -444,6 +445,7 @@ internal sealed class WorldView : Form
         {
             GL.Fog(FogParameter.FogStart, fog.Start); GL.Fog(FogParameter.FogEnd, fog.End);
             GL.Fog(FogParameter.FogColor, new[] { fog.Color.X, fog.Color.Y, fog.Color.Z, 1f });
+            _skyTint = fog.Color;
         }
         else
         {
@@ -642,28 +644,82 @@ internal sealed class WorldView : Form
             GL.TexCoord2(x0 / Tile, z1 / Tile); GL.Vertex3(x0, y, -z1);
             GL.End();
         }
-        // 1ª passada: a cor da área (o jogo mistura com o reflexo do céu: aqui um pouco mais clara e translúcida)
+        // Água como a do jogo (A3DTerrainWaterRender), aproximada sem segunda câmera: em grade de 8 m perto da câmera,
+        //  · cor = cor da área misturada com o reflexo do céu (cor da neblina/céu), mais céu quanto mais rasante o olhar;
+        //  · transparente na beira e mais densa no fundo (profundidade = água − chão);
+        //  · de noite escurece com a luz da área (o jogo passa o fator dia/noite ao material da água);
+        //  · duas camadas de onda andando em direções diferentes por cima.
         GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.AlphaTest);
+        var (amb, sun) = _sky.Light(_cam, _nf) ?? (new Vector3(0.55f), new Vector3(0.8f));
+        var light = Vector3.Clamp((amb + sun) * 0.65f, new Vector3(0.15f), new Vector3(1.1f));
+        float camX = _cam.X, camZ = -_cam.Z;
+        const float G = 8, Near = 520;
+        bool nearWater = false;
         foreach (var (x0, z0, x1, z1, y, argb) in _clientWater)
         {
+            float gx0 = MathF.Max(x0, camX - Near), gx1 = MathF.Min(x1, camX + Near), gz0 = MathF.Max(z0, camZ - Near), gz1 = MathF.Min(z1, camZ + Near);
             var c = Color.FromArgb(argb);
-            GL.Color4(0.25f + c.R / 255f * 0.6f, 0.25f + c.G / 255f * 0.6f, 0.25f + c.B / 255f * 0.6f, 0.7f);
-            Quad(x0, z0, x1, z1, y);
+            var water = new Vector3(c.R, c.G, c.B) / 255f;
+            if (gx0 < gx1 && gz0 < gz1)
+            {
+                nearWater = true;
+                int nx = Math.Max(1, (int)MathF.Ceiling((gx1 - gx0) / G)), nz = Math.Max(1, (int)MathF.Ceiling((gz1 - gz0) / G));
+                for (int j = 0; j < nz; j++)
+                {
+                    GL.Begin(PrimitiveType.QuadStrip);
+                    for (int i = 0; i <= nx; i++)
+                        for (int k = 1; k >= 0; k--)
+                        {
+                            float x = MathF.Min(gx0 + i * G, gx1), z = MathF.Min(gz0 + (j + k) * G, gz1);
+                            var to = new Vector3(x - camX, y - _cam.Y, z - camZ);
+                            float graze = 1 - MathF.Abs(to.Y) / MathF.Max(to.Length, 0.01f);
+                            float fres = 0.15f + 0.75f * graze * graze * graze;
+                            var col = Vector3.Lerp(water, _skyTint, fres) * light;
+                            float depth = _t.HeightAt(x, z) is float h ? y - h : 5;
+                            float a = Math.Clamp(0.25f + depth * 0.18f, 0.25f, 0.88f);
+                            GL.Color4(col.X, col.Y, col.Z, a);
+                            GL.Vertex3(x, y, -z);
+                        }
+                    GL.End();
+                }
+            }
+            // longe: o resto da área em até 4 retângulos em volta da grade, sem grade (fica sob a neblina)
+            var far = Vector3.Lerp(water, _skyTint, 0.7f) * light;
+            GL.Color4(far.X, far.Y, far.Z, 0.85f);
+            if (gx0 >= gx1 || gz0 >= gz1) Quad(x0, z0, x1, z1, y);
+            else
+            {
+                if (x0 < gx0) Quad(x0, z0, gx0, z1, y);
+                if (gx1 < x1) Quad(gx1, z0, x1, z1, y);
+                if (z0 < gz0) Quad(gx0, z0, gx1, gz0, y);
+                if (gz1 < z1) Quad(gx0, gz1, gx1, z1, y);
+            }
         }
-        // 2ª passada: as ondas (textura escura) somadas por cima, só como brilho
+        // ondas: duas camadas somadas, andando (o jogo anda a textura de relevo da água)
         if (_waveTex > 0)
         {
             GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, _waveTex);
             GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
-            GL.Color4(1f, 1f, 1f, 0.45f);
-            foreach (var (x0, z0, x1, z1, y, _) in _clientWater) Quad(x0, z0, x1, z1, y + 0.02f);
+            float tsec = (float)_clock.Elapsed.TotalSeconds;
+            GL.MatrixMode(MatrixMode.Texture);
+            for (int layer = 0; layer < 2; layer++)
+            {
+                GL.LoadIdentity();
+                if (layer == 0) GL.Translate(tsec * 0.010f, tsec * 0.006f, 0); else { GL.Scale(0.6f, 0.6f, 1); GL.Translate(-tsec * 0.007f, tsec * 0.009f, 0); }
+                GL.Color4(light.X, light.Y, light.Z, 0.28f);
+                foreach (var (x0, z0, x1, z1, y, _) in _clientWater) Quad(x0, z0, x1, z1, y + 0.02f + layer * 0.01f);
+            }
+            GL.LoadIdentity(); GL.MatrixMode(MatrixMode.Modelview);
             GL.Disable(EnableCap.Texture2D);
+            _wavesNear = nearWater;   // ondas andando: o cronômetro (Step) redesenha, nunca de dentro do desenho
         }
         GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color4(1f, 1f, 1f, 1f);
     }
 
     List<(float X0, float Z0, float X1, float Z1, float Y, int Argb)>? _clientWater;
+    Vector3 _skyTint = new(0.62f, 0.76f, 0.9f);   // cor do céu/neblina da área (reflexo na água)
+    bool _wavesNear; double _wavesAt;
     int _waveTex;
 
     int WaveTexture()
