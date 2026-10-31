@@ -1549,7 +1549,7 @@ public sealed class EditorForm : Form
         var key = "ecm:" + fm.Value;
         if (_iconIdx.TryGetValue(key, out var idx)) return idx;
         var el = _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath));
-        if (el is null || !File.Exists(Path.Combine(el, "models.pck"))) return -1;
+        if (el is null || !PckArchive.Exists(Path.Combine(el, "models.pck"))) return -1;
         if (_thumbs is null || _thumbsDir != el)
         {
             _thumbs?.Dispose(); _thumbsDir = el;
@@ -2523,7 +2523,7 @@ public sealed class EditorForm : Form
     {
         for (var dir = Path.GetDirectoryName(elementsPath); dir is not null; dir = Path.GetDirectoryName(dir))
             foreach (var c in new[] { Path.Combine(dir, name), Path.Combine(dir, "element", name) })
-                if (File.Exists(c)) return c;
+                if (PckArchive.Locate(c) is { } f) return f;   // aceita as partes com número (models-005.pck)
         return null;
     }
 

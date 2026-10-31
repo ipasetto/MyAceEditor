@@ -13,7 +13,7 @@ internal sealed class ModelPacks : IDisposable
 
     public ModelPacks(string? elementDir) => _dir = elementDir;
 
-    public bool Any => _dir is not null && File.Exists(Path.Combine(_dir, "models.pck"));
+    public bool Any => _dir is not null && PckArchive.Exists(Path.Combine(_dir, "models.pck"));
 
     /// <summary>Pacote do caminho (pela 1ª pasta); models.pck quando o caminho não diz.</summary>
     public PckArchive? For(string path)
@@ -22,7 +22,7 @@ internal sealed class ModelPacks : IDisposable
         var p = path.Replace('/', '\\').TrimStart('\\');
         int slash = p.IndexOf('\\');
         var root = slash > 0 ? p[..slash] : "models";
-        if (!File.Exists(Path.Combine(_dir, root + ".pck"))) root = "models";
+        if (!PckArchive.Exists(Path.Combine(_dir, root + ".pck"))) root = "models";
         lock (_open)
         {
             if (!_open.TryGetValue(root, out var pck))

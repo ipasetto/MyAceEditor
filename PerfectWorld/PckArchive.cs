@@ -24,26 +24,57 @@ public sealed class PckArchive : IDisposable
 
     readonly CancellationToken _token;
     readonly FileStream _pck;
-    readonly FileStream? _pkx;
+    // continuações lógicas do .pck: .pkx, .pkx1, .pkx2… (o 180 tem 3 partes)
+    readonly List<FileStream> _parts = new();
     readonly Dictionary<string, PckEntry> _byPath = new(StringComparer.OrdinalIgnoreCase);
 
     public string FilePath { get; }
     public int Version { get; }
     public IReadOnlyList<PckEntry> Entries { get; }
 
-    long Length => _pck.Length + (_pkx?.Length ?? 0);
+    long Length => _pck.Length + _parts.Sum(p => p.Length);
+
+    /// <summary>
+    /// Arquivo de cada parte de um pacote. Clientes da comunidade (155, 180) trazem as partes com um número no nome:
+    /// litmodels-020.pck + litmodels-013.pkx + litmodels-019.pkx1 (o elementclient monta "%s-%d" e ".pkx%d"). Vale o nome
+    /// sem número; senão o único "nome-N.ext" da pasta. null = não existe.
+    /// </summary>
+    public static string? Locate(string path)
+    {
+        if (File.Exists(path)) return path;
+        var dir = System.IO.Path.GetDirectoryName(path);
+        if (dir is null || !Directory.Exists(dir)) return null;
+        var name = System.IO.Path.GetFileNameWithoutExtension(path);
+        var ext = System.IO.Path.GetExtension(path);
+        var hits = Directory.EnumerateFiles(dir, name + "-*" + ext)
+            .Where(f => System.IO.Path.GetExtension(f).Equals(ext, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(System.IO.Path.GetFileNameWithoutExtension(f)[(name.Length + 1)..], out _)).ToList();
+        return hits.Count == 1 ? hits[0] : null;
+    }
+
+    /// <summary>O pacote existe (com ou sem número no nome)?</summary>
+    public static bool Exists(string pckPath) => Locate(pckPath) is not null;
 
     public PckArchive(string pckPath, CancellationToken cancellationToken = default)
     {
         _token = cancellationToken; _token.ThrowIfCancellationRequested();
+        pckPath = Locate(pckPath) ?? pckPath;
         FilePath = pckPath;
         // ReadWrite: o jogo (elementclient) mantém os .pck abertos; com FileShare.Read o editor não abria nada com o jogo aberto
         _pck = new FileStream(pckPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         try
         {
-            var pkxPath = System.IO.Path.ChangeExtension(pckPath, ".pkx");
-            if (File.Exists(pkxPath))
-                _pkx = new FileStream(pkxPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            // nome-base sem o número ("litmodels-020.pck" → litmodels) para achar .pkx, .pkx1…
+            var dir = System.IO.Path.GetDirectoryName(pckPath) ?? "";
+            var baseName = System.IO.Path.GetFileNameWithoutExtension(pckPath);
+            int dash = baseName.LastIndexOf('-');
+            if (dash > 0 && int.TryParse(baseName[(dash + 1)..], out _) && !File.Exists(System.IO.Path.Combine(dir, baseName + ".pkx"))) baseName = baseName[..dash];
+            for (int i = 0; i < 16; i++)
+            {
+                var part = Locate(System.IO.Path.Combine(dir, baseName + ".pkx" + (i == 0 ? "" : i.ToString())));
+                if (part is null) break;
+                _parts.Add(new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
+            }
 
             var head = ReadAt(0, 4);
             if (BitConverter.ToInt32(head) != FSig1)
@@ -76,7 +107,7 @@ public sealed class PckArchive : IDisposable
             }
             Entries = entries;
         }
-        catch { _pkx?.Dispose(); _pck.Dispose(); throw; }
+        catch { foreach (var x in _parts) x.Dispose(); _pck.Dispose(); throw; }
     }
 
     static PckEntry ParseEntry(byte[] b, int version)
@@ -113,7 +144,7 @@ public sealed class PckArchive : IDisposable
         return outBuf;
     }
 
-    /// <summary>Lê no endereço lógico do par .pck+.pkx (pode cruzar a fronteira).</summary>
+    /// <summary>Lê no endereço lógico de .pck + .pkx + .pkx1… (pode cruzar as fronteiras).</summary>
     byte[] ReadAt(long pos, int count)
     {
         var buf = new byte[count];
@@ -122,7 +153,13 @@ public sealed class PckArchive : IDisposable
         {
             _token.ThrowIfCancellationRequested();
             long p = pos + done;
-            var (s, local) = p < _pck.Length ? (_pck, p) : (_pkx ?? throw new EndOfStreamException(), p - _pck.Length);
+            FileStream s = _pck; long local = p;
+            if (p >= _pck.Length)
+            {
+                local = p - _pck.Length; s = null!;
+                foreach (var part in _parts) { if (local < part.Length) { s = part; break; } local -= part.Length; }
+                if (s is null) throw new EndOfStreamException();
+            }
             s.Position = local;
             int n = s.Read(buf, done, (int)Math.Min(1024 * 1024, Math.Min(count - done, s.Length - local)));
             if (n <= 0) throw new EndOfStreamException();
@@ -134,6 +171,6 @@ public sealed class PckArchive : IDisposable
     public void Dispose()
     {
         _pck.Dispose();
-        _pkx?.Dispose();
+        foreach (var x in _parts) x.Dispose();
     }
 }

@@ -39,8 +39,8 @@ internal sealed class WorldBuildings : IDisposable
         try
         {
             if (elementDir is null) return;
-            if (File.Exists(Path.Combine(elementDir, "litmodels.pck"))) _lit = new PckArchive(Path.Combine(elementDir, "litmodels.pck"));
-            if (File.Exists(Path.Combine(elementDir, "building.pck"))) _tex = new PckArchive(Path.Combine(elementDir, "building.pck"));
+            if (PckArchive.Exists(Path.Combine(elementDir, "litmodels.pck"))) _lit = new PckArchive(Path.Combine(elementDir, "litmodels.pck"));
+            if (PckArchive.Exists(Path.Combine(elementDir, "building.pck"))) _tex = new PckArchive(Path.Combine(elementDir, "building.pck"));
         }
         catch { _lit = null; }
         if (_lit is null) return;

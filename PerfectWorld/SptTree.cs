@@ -458,12 +458,41 @@ public static class SptGrower
     static Vector3 Ours(Vector3 v) => new(v.X, v.Z, -v.Y);
 
     /// <summary>Gera a árvore em metros, com Y para cima e a base do tronco na origem.</summary>
+    /// <remarks>
+    /// As variações das curvas (perturbação dos galhos) vêm, no jogo, de um gerador estático sem semente fixa, e a gravidade
+    /// positiva no tronco é instável: dependendo do sorteio o tronco entorta em gancho e enterra a copa (scotchpine_rt: 27
+    /// de 40 sorteios, folha mais baixa até −25 m). O jogo gera cada tipo uma vez só e as árvores dele aparecem inteiras;
+    /// aqui vale o primeiro sorteio (de 12) com a árvore toda acima do chão — senão o que enterra menos.
+    /// </remarks>
     public static SptMesh Build(SptFile f)
+    {
+        SptMesh? best = null; float bestLow = float.MinValue;
+        for (int i = 0; i < 12; i++)
+        {
+            var m = Build(f, f.Seed + 1 + i * 7919);
+            float low = Lowest(m);
+            if (low >= -0.5f) return m;
+            if (low > bestLow) (best, bestLow) = (m, low);
+        }
+        return best!;
+    }
+
+    // ponto mais baixo da COPA (folhas; sem folhas, frondes): tronco e raiz podem descer de propósito (bambu: nível 0 = raiz)
+    static float Lowest(SptMesh m)
+    {
+        float low = 0;
+        if (m.Leaves.Count > 0) foreach (var l in m.Leaves) low = MathF.Min(low, l.Pos.Y);
+        else foreach (var p in m.FrondPos) low = MathF.Min(low, p.Y);
+        return low;
+    }
+
+    /// <summary>varianceSeed: semente do gerador das variações das curvas (no jogo é um gerador estático, sem semente fixa).</summary>
+    public static SptMesh Build(SptFile f, int varianceSeed)
     {
         var m = new SptMesh();
         if (f.Levels.Count == 0) return m;
         var rng = new SptRandom(f.Seed);
-        var vr = new SptRandom(f.Seed + 1);
+        var vr = new SptRandom(varianceSeed);
         float size = Math.Max(1, rng.Range(f.Size - f.SizeVariance, f.Size + f.SizeVariance));
         int seed = f.Seed;
         _leafPts = new List<Vector3>();

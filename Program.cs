@@ -107,7 +107,7 @@ internal static class Program
                 // texturas das construções que não estão no building.pck (saem só com a cor do vértice)
                 using var bp = new PckArchive(Path.Combine(args[1], "building.pck"));
                 var others = new[] { "textures", "gfx", "models", "surfaces", "grasses", "trees" }
-                    .Where(n => File.Exists(Path.Combine(args[1], n + ".pck"))).Select(n => (n, p: new PckArchive(Path.Combine(args[1], n + ".pck")))).ToList();
+                    .Where(n => PckArchive.Exists(Path.Combine(args[1], n + ".pck"))).Select(n => (n, p: new PckArchive(Path.Combine(args[1], n + ".pck")))).ToList();
                 foreach (var (tn, cnt) in texNames.OrderByDescending(k => k.Value))
                 {
                     if (bp.Find(tn.ToLowerInvariant()) is not null) continue;
@@ -434,6 +434,25 @@ internal static class Program
                 }
             }
             File.WriteAllText("spt-levels.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--spt-seeds")   // <trees.pck> <trecho do nome>: forma da árvore com 40 sementes de variação (spt-seeds.txt)
+        {
+            using var pck = new PckArchive(args[1]);
+            var sb = new StringBuilder();
+            foreach (var e in pck.Entries.Where(e => e.Path.EndsWith(".spt", StringComparison.OrdinalIgnoreCase) && e.Path.Contains(args[2], StringComparison.OrdinalIgnoreCase)))
+            {
+                var f = new SptFile(pck.Read(e));
+                int under = 0; var lows = new List<float>();
+                for (int sd = 1; sd <= 40; sd++)
+                {
+                    var m = SptGrower.Build(f, sd);
+                    float low = m.Leaves.Count > 0 ? m.Leaves.Min(l => l.Pos.Y) : 0;
+                    lows.Add(low); if (low < 0) under++;
+                }
+                sb.AppendLine($"{e.Path}: copa abaixo do chão em {under}/40 · folha mais baixa min {lows.Min():0.0} mediana {lows.OrderBy(x => x).ElementAt(20):0.0} máx {lows.Max():0.0}");
+            }
+            File.WriteAllText("spt-seeds.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 2 && args[0] == "--mox-check") { MoxCheck(args[1]); return; }   // <grasses.pck>: lê todo .mox e acha a textura (mox-check.txt)

@@ -49,6 +49,8 @@ public sealed class BmdModel
         m.Declared = BitConverter.ToInt32(d, 0x38 + sh);
         if (m.Declared <= 0 || m.Declared > 10000) return m;
         int o = 0x3C + sh;
+        // modelo 0x10000300+ (cliente 180: 0x80000001 + byte + 0x10000302): malhas em outro formato
+        if (BitConverter.ToUInt32(d, sh > 0 ? 9 : 4) >= 0x10000300) { ParseV300(d, o, m); return m; }
         uint ver = BitConverter.ToUInt32(d, o);
         for (int k = 0; k < m.Declared && o > 0 && o + 4 + 64 + 256 + 8 <= d.Length; k++)
         {
@@ -92,6 +94,59 @@ public sealed class BmdModel
             o = k + 1 < m.Declared ? NextMesh(d, end + nv * 12, ver) : -1;
         }
         return m;
+    }
+
+    /// <summary>
+    /// Malhas do modelo 0x10000300+ (cliente 180; A3DLitMesh mais novo que o fonte do Angelica 2.2): u32, nome e
+    /// textura com tamanho na frente (i32 + GBK), i32 vértices, i32 faces, vértices 24 B, índices de 32 BITS (12 B por
+    /// face), normais, cores de dia e de noite (4 B cada) e 150 B fixos (caixa + material) até a próxima. Conferido no
+    /// litmodels\world\88\litmodel_50.bmd: posições, índices e normais iguais aos do 1.5.5.
+    /// </summary>
+    static void ParseV300(byte[] d, int o, BmdModel m)
+    {
+        for (int k = 0; k < m.Declared && o + 16 <= d.Length; k++)
+        {
+            int q = o + 4;
+            int ln = BitConverter.ToInt32(d, q);
+            if (ln < 0 || ln > 256 || q + 4 + ln + 4 > d.Length) break;
+            q += 4 + ln;
+            int lt = BitConverter.ToInt32(d, q);
+            if (lt < 0 || lt > 512 || q + 4 + lt + 8 > d.Length) break;
+            var texName = Gbk.GetString(d, q + 4, lt).TrimEnd('\0');
+            q += 4 + lt;
+            int nv = BitConverter.ToInt32(d, q), nf = BitConverter.ToInt32(d, q + 4);
+            q += 8;
+            if (nv <= 0 || nf <= 0 || nv > 65536) break;
+            int io = q + nv * 24, no = io + nf * 12, day = no + nv * 12, night = day + nv * 4, end = night + nv * 4;
+            if (end > d.Length) break;
+            var verts = new byte[nv * 24];
+            Buffer.BlockCopy(d, q, verts, 0, verts.Length);
+            var idx = new ushort[nf * 3];
+            bool ok = true;
+            for (int i = 0; i < idx.Length; i++)
+            {
+                uint v = BitConverter.ToUInt32(d, io + i * 4);
+                if (v >= nv) { ok = false; break; }
+                idx[i] = (ushort)v;
+            }
+            byte[]? nightCol = null;
+            int opaque = 0;
+            for (int i = 0; i < nv; i++) if (d[day + i * 4 + 3] == 0xFF) opaque++;
+            if (opaque >= nv * 9 / 10)
+            {
+                for (int i = 0; i < nv; i++) Buffer.BlockCopy(d, day + i * 4, verts, i * 24 + 12, 3);
+                nightCol = new byte[nv * 4];
+                for (int i = 0; i < nv; i++) { Buffer.BlockCopy(d, night + i * 4, nightCol, i * 4, 3); nightCol[i * 4 + 3] = verts[i * 24 + 15]; }
+            }
+            for (int i = 0; i < nv && ok; i++)
+                for (int c = 0; c < 3; c++)
+                {
+                    float v = BitConverter.ToSingle(verts, i * 24 + c * 4);
+                    if (!float.IsFinite(v) || Math.Abs(v) > 100_000) { ok = false; break; }
+                }
+            if (ok) m.Meshes.Add(new Mesh(texName, verts, idx) { Night = nightCol });
+            o = end + 150;
+        }
     }
 
     // próxima malha: mesma versão, nome legível (ou vazio) e contagens plausíveis
