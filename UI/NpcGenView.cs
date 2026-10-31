@@ -205,7 +205,7 @@ internal sealed class NpcGenView : UserControl
     void Open(string dir)
     {
         if (_dirty.Count > 0 && MessageBox.Show(this, Loc.T("npcgen.discard", "Há mudanças no npcgen não salvas. Descartar?"), "NPCGen", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
-        _paths.Clear(); _files.Clear(); _dirty.Clear(); _undo.Clear(); _redo.Clear();
+        _paths.Clear(); _files.Clear(); _dirty.Clear(); _undo.Clear(); _redo.Clear(); _level.Clear(); _savedLevel.Clear();
         // mundo (world) e instâncias (aNN, bNN…); se a pasta já é a do arquivo, só ele
         if (File.Exists(Path.Combine(dir, "world", "npcgen.data"))) _paths["world"] = Path.Combine(dir, "world", "npcgen.data");
         foreach (var sub in Directory.GetDirectories(dir).OrderBy(d => d))
@@ -276,7 +276,7 @@ internal sealed class NpcGenView : UserControl
             foreach (var k in _dirty.ToList())
             {
                 AtomicFileSave.Write(_paths[k], _files[k].Write());
-                _dirty.Remove(k); saved.Add(_paths[k]);
+                _dirty.Remove(k); saved.Add(_paths[k]); _savedLevel[k] = Level(k);
             }
             if (!quiet) MessageBox.Show(this, string.Format(Loc.T("npcgen.saved", "Salvo (com backup):\n{0}\n\nCopie para o servidor e reinicie o mapa (gs) para valer."), string.Join("\n", saved)), "NPCGen");
         }
@@ -851,7 +851,7 @@ internal sealed class NpcGenView : UserControl
     void InsertPoint(int at, object p)
     {
         var f = Cur!;
-        Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Remove, at, null));
+        Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Remove, at, null)); Step(_cur!, +1);
         _redo.Clear();
         ListOf(f).Insert(at, p);
         _dirty.Add(_cur!);
@@ -867,7 +867,7 @@ internal sealed class NpcGenView : UserControl
         int batch = sel.Count > 1 ? ++_batch : 0;
         foreach (var i in sel)
         {
-            Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Insert, i, l[i], batch));
+            Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Insert, i, l[i], batch)); Step(_cur!, +1);
             l.RemoveAt(i);
         }
         _redo.Clear();
@@ -899,9 +899,14 @@ internal sealed class NpcGenView : UserControl
         if (Cur is not { } f || SelectedIndex() is not { } i) return;
         var now = DateTime.Now;
         if (key == _lastKey && (now - _lastPush).TotalSeconds < 2) { _lastPush = now; return; }
-        Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Replace, i, CloneOf(ListOf(f)[i]!)));
+        Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Replace, i, CloneOf(ListOf(f)[i]!))); Step(_cur!, +1);
         _redo.Clear(); _lastKey = key; _lastPush = now;
     }
+
+    // quantos passos o arquivo está à frente do que foi salvo (Ctrl+Z até o ponto salvo = sem mudança para salvar/enviar)
+    readonly Dictionary<string, int> _level = new(StringComparer.OrdinalIgnoreCase), _savedLevel = new(StringComparer.OrdinalIgnoreCase);
+    int Level(string file) => _level.GetValueOrDefault(file);
+    void Step(string file, int d) => _level[file] = Level(file) + d;
 
     public bool Undo() => Apply(_undo, _redo);
     public bool Redo() => Apply(_redo, _undo);
@@ -913,6 +918,7 @@ internal sealed class NpcGenView : UserControl
         do
         {
             op = from[^1]; from.RemoveAt(from.Count - 1);
+            Step(op.File, from == _undo ? -1 : +1);
             var f = Load(op.File)!;
             l = op.Mine ? f.Resources : f.Spawns;
             switch (op.Kind)
@@ -922,7 +928,8 @@ internal sealed class NpcGenView : UserControl
                 case OpKind.Remove: Push(to, op with { Kind = OpKind.Insert, Obj = l[op.Index] }); l.RemoveAt(op.Index); break;
             }
         } while (op.Batch != 0 && from.Count > 0 && from[^1].Batch == op.Batch);
-        _dirty.Add(op.File); _lastKey = null;
+        if (Level(op.File) == _savedLevel.GetValueOrDefault(op.File)) _dirty.Remove(op.File); else _dirty.Add(op.File);
+        _lastKey = null; UpdateInfo();
         // mostra o ponto que voltou
         if (op.File != _cur) { _binding = true; _fileBox.SelectedItem = op.File; _binding = false; _cur = op.File; }
         if (op.Mine != (_kind == Kind.Mine) || (!op.Mine && op.Kind != OpKind.Remove && l.Count > op.Index && ((NpcGenSpawn)l[op.Index]!).Type != (_kind == Kind.Npc ? 1 : 0)))
