@@ -117,7 +117,9 @@ public sealed class WorldScene
             float[] V(int o) => new[] { BitConverter.ToSingle(d, p + o), BitConverter.ToSingle(d, p + o + 4), BitConverter.ToSingle(d, p + o + 8) };
             bool def = BitConverter.ToInt32(d, p) != 0;
             var area = (Pos: V(8), Ext: V(20), X: V(32), Y: V(44), Z: V(56));
-            int q = p + 224;
+            // a caixa cresceu: 224 B no 1.4.4..1.5.5 (.ecbsd v12), 364 B no 180 (v17, 140 B novos no fim; os primeiros 224
+            // iguais). Vale o tamanho em que os 3 textos de céu leem direito.
+            int q = p + (TextsAt(d, p + 224) ? 224 : TextsAt(d, p + 364) ? 364 : 224);
             try
             {
                 var sky = new[] { Str(d, ref q), Str(d, ref q), Str(d, ref q) };
@@ -221,6 +223,18 @@ public sealed class WorldScene
         if (cs <= 0 || o + 8 + cs > f.Length) return null;
         var raw = f.AsSpan(o + 8, comp ? cs : size).ToArray();
         return comp ? PckArchive.Inflate(raw, size) : raw;
+    }
+
+    static bool TextsAt(byte[] d, int q)
+    {
+        for (int k = 0; k < 3; k++)
+        {
+            if (q + 4 > d.Length) return false;
+            int n = BitConverter.ToInt32(d, q);
+            if (n < 0 || n > 260 || q + 4 + n > d.Length) return false;
+            q += 4 + n;
+        }
+        return true;
     }
 
     static string Str(byte[] b, ref int p)

@@ -436,6 +436,7 @@ internal static class Program
             File.WriteAllText("spt-levels.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--mox-check") { MoxCheck(args[1]); return; }   // <grasses.pck>: lê todo .mox e acha a textura (mox-check.txt)
         if (args.Length >= 3 && args[0] == "--spt") { SptTest(args[1], args[2]); return; }   // <trees.pck> <pasta>: gera todas as árvores, spt-test.txt + PNG de lado
         if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
@@ -1432,6 +1433,23 @@ internal static class Program
     }
 
     // --pck <arquivo.pck> [filtro]: lista as entradas em pck-list.txt (UTF-8).
+    private static void MoxCheck(string pckPath)
+    {
+        using var pck = new PckArchive(pckPath);
+        var names = pck.Entries.Where(e => e.Path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)).Select(e => Path.GetFileName(e.Path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        int ok = 0, bad = 0, noTex = 0, otherDir = 0; var sb = new StringBuilder();
+        foreach (var e in pck.Entries.Where(e => e.Path.EndsWith(".mox", StringComparison.OrdinalIgnoreCase)))
+        {
+            var m = MoxModel.Read(pck.Read(e));
+            if (m is null) { bad++; sb.AppendLine($"ILEGÍVEL {e.Path}"); continue; }
+            var t = m.Meshes[0].Texture;
+            if (t.Length == 0 || !names.Contains(Path.GetFileName(t))) { noTex++; sb.AppendLine($"SEM TEXTURA {e.Path} -> '{t}'"); continue; }
+            if (pck.Find(Path.Combine(Path.GetDirectoryName(e.Path) ?? "", "textures", t)) is null) otherDir++;
+            ok++;
+        }
+        File.WriteAllText("mox-check.txt", $"lidos {ok} · textura em outra pasta {otherDir} · sem textura {noTex} · ilegíveis {bad}\n" + sb, new UTF8Encoding(false));
+    }
+
     private static void SptTest(string pckPath, string outDir)
     {
         Directory.CreateDirectory(outDir);

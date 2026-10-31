@@ -57,6 +57,15 @@ public sealed class MoxModel
             int nv = I(), ni = I(), nf = I();
             bool lod = b[p] != 0; p += 2;
             p += mver == 1 ? 4 + BitConverter.ToInt32(b, p) : 4;
+            // o bloco de propriedades da v2 não tem tamanho fixo (陆地03/04 do 1.5.5 têm 4 B a mais): ancora no texto da
+            // textura, que vem logo depois dos vértices, e conta para trás (vértices 32 B × quadros, LOD, índices u16)
+            int tx = IndexOf(b, "TEXTURE: ", p);
+            if (tx >= 6 && Encoding.ASCII.GetString(b, tx - 6, 6) == "DETAIL") tx -= 6;
+            if (tx > 0)
+            {
+                int vStart = tx - 32 * nv * Math.Max(1, nf), iStart = vStart - (lod ? 12 + 2 * nv : 0) - 2 * ni;
+                if (iStart >= p && iStart - p <= 64) p = iStart;
+            }
             var idx = new ushort[ni];
             for (int i = 0; i < ni; i++) idx[i] = BitConverter.ToUInt16(b, p + 2 * i);
             p += 2 * ni;

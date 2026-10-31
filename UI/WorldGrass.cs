@@ -171,11 +171,7 @@ internal sealed class WorldGrass : IDisposable
         GL.Enable(EnableCap.Texture2D); GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.Lighting);
         GL.Enable(EnableCap.AlphaTest);
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE: textura × luz × 2
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8580, 0x1702);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 2f);
+        WorldTrees.TextureTimesColor2x();   // textura × luz do chão × 2
         for (int a = 0; a < _scene.Grass.Count; a++)
         {
             var g = _scene.Grass[a];

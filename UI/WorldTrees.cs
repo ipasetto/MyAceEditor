@@ -160,6 +160,27 @@ internal sealed class WorldTrees : IDisposable
     /// Sobe a imagem ARGB ao OpenGL. cutout = recorte por alfa: os níveis menores (mipmap) só misturam a cor dos pixels
     /// opacos e o alfa vira 0 ou 1 — senão a cor do fundo transparente (branca, preta) aparece ao longe.
     /// </summary>
+    /// <summary>
+    /// Unidade 0 do OpenGL: cor = textura × cor do vértice × 2 (MODULATE2X do jogo), alfa = só o da textura (recorte).
+    /// Define TUDO (fontes e operandos): antes as árvores e a grama dependiam do que o desenho das construções deixava,
+    /// e onde não havia construção perto (155/180 em 1062,1150) as folhas saíam como cartões opacos e a grama preta.
+    /// </summary>
+    internal static void TextureTimesColor2x()
+    {
+        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);          // RGB = MODULATE
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8580, 0x1702);          //   textura
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);          //   × cor do vértice
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8590, 0x0300);          //   operandos: cor
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8591, 0x0300);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 2f);              // RGB_SCALE = 2
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8572, 0x1E01);          // ALFA = REPLACE
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8588, 0x1702);          //   da textura
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8598, 0x0302);          //   operando: alfa
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8D80, 1f);              // ALPHA_SCALE = 1
+    }
+
     internal static int Upload(int[] px, int w, int h, bool cutout)
     {
         int tex = GL.GenTexture();
@@ -259,11 +280,7 @@ internal sealed class WorldTrees : IDisposable
         camRight = camRight.LengthSquared > 1e-6f ? camRight.Normalized() : Vector3.UnitX;
         var camUp = Vector3.Cross(camRight, forward).Normalized();
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE: textura × cor × 2
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8580, 0x1702);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 2f);
+        TextureTimesColor2x();
         float gx = cam.X, gz = -cam.Z;
         int c0 = (int)MathF.Floor((gx - Range) / Cell), c1 = (int)MathF.Floor((gx + Range) / Cell);
         int r0 = (int)MathF.Floor((gz - Range) / Cell), r1 = (int)MathF.Floor((gz + Range) / Cell);
