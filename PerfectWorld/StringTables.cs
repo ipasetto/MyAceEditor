@@ -90,13 +90,46 @@ public static class PackTextTranslator
         other.Length > 0 && other != mine && !mine.Contains("###") && !other.Contains("###")
         && Format.Matches(mine).Select(m => m.Value).SequenceEqual(Format.Matches(other).Select(m => m.Value));
 
+    // janelas do interfaces.pck (texto e dica de cada controle; PW-KB §S20c)
+    static bool IsWindow(string path) =>
+        path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) && path.StartsWith(@"interfaces\", StringComparison.OrdinalIgnoreCase);
+
+    static readonly Regex Cjk = new(@"[㐀-鿿豈-﫿]", RegexOptions.CultureInvariant);
+
+    // texto em chinês só substitui texto em chinês: um cliente parcialmente traduzido não desfaz a tradução do destino
+    static bool WindowTranslatable(string mine, string other) =>
+        Translatable(mine, other) && (Cjk.IsMatch(mine) || !Cjk.IsMatch(other));
+
     /// <summary>Textos que mudam e os arquivos novos do pacote (vazio na simulação: só conta).</summary>
     public static (int Count, Dictionary<string, byte[]> Files) Plan(string dstPck, string srcPck, bool dryRun)
     {
+        var (tables, windows, files) = PlanDetailed(dstPck, srcPck, dryRun);
+        return (tables + windows, files);
+    }
+
+    /// <summary>Como <see cref="Plan"/>, separando os textos das tabelas (.txt/.stf) e os das janelas (.xml).</summary>
+    public static (int Tables, int Windows, Dictionary<string, byte[]> Files) PlanDetailed(string dstPck, string srcPck, bool dryRun)
+    {
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        int total = 0;
+        int total = 0, windows = 0;
         using var dst = new PckArchive(dstPck);
         using var src = new PckArchive(srcPck);
+        foreach (var e in dst.Entries.Where(e => IsWindow(e.Path)))
+        {
+            if (src.Find(e.Path) is not { } se) continue;
+            byte[]? b;
+            try { b = WindowTexts(dst.Read(e), src.Read(se), out int n); if (n == 0) continue; windows += n; }
+            catch { continue; }
+            if (!dryRun && b is not null) files[e.Path] = b;
+        }
+        foreach (var e in dst.Entries.Where(e => e.Path.EndsWith(".htf", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (src.Find(e.Path) is not { } se) continue;
+            byte[]? b;
+            try { b = HintTexts(dst.Read(e), src.Read(se), out int n); if (n == 0) continue; windows += n; }
+            catch { continue; }
+            if (!dryRun && b is not null) files[e.Path] = b;
+        }
         foreach (var e in dst.Entries.Where(e => IsTable(e.Path)))
         {
             if (src.Find(e.Path) is not { } se) continue;
@@ -111,6 +144,57 @@ public static class PackTextTranslator
             total += changes.Count;
             if (!dryRun) files[e.Path] = a.Encode(changes);
         }
-        return (total, files);
+        return (total, windows, files);
+    }
+
+    // .htf (dicas da interface antiga): UTF-16 com BOM, uma linha "controle"<TAB>"dica" (PW-KB §S20c)
+    static readonly Regex HintLine = new(@"^""(?<k>[^""\r\n]*)""[ \t]+""(?<v>[^\r\n]*)""[ \t]*\r?$", RegexOptions.Multiline | RegexOptions.CultureInvariant);
+
+    /// <summary>Tabela de dicas: troca o texto de cada controle pelo do outro cliente (mesmo nome), como está escrito lá.</summary>
+    public static byte[]? HintTexts(byte[] mine, byte[] other, out int count)
+    {
+        count = 0;
+        static string? T(byte[] b) => b.Length >= 2 && b[0] == 0xFF && b[1] == 0xFE ? Encoding.Unicode.GetString(b, 2, b.Length - 2 & ~1) : null;
+        if (T(mine) is not { } a || T(other) is not { } o) return null;
+        var theirs = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (Match m in HintLine.Matches(o)) theirs.TryAdd(m.Groups["k"].Value, m.Groups["v"].Value);
+        var sb = new StringBuilder(a.Length + 256);
+        int at = 0, n = 0;
+        foreach (Match m in HintLine.Matches(a))
+        {
+            var v = m.Groups["v"];
+            if (!theirs.TryGetValue(m.Groups["k"].Value, out var nv) || !WindowTranslatable(v.Value, nv)) continue;
+            sb.Append(a, at, v.Index - at).Append(nv); at = v.Index + v.Length; n++;
+        }
+        if (n == 0) return null;
+        sb.Append(a, at, a.Length - at);
+        count = n;
+        return new byte[] { 0xFF, 0xFE }.Concat(Encoding.Unicode.GetBytes(sb.ToString())).ToArray();
+    }
+
+    /// <summary>
+    /// Uma janela: troca o String do &lt;Text&gt;/&lt;Hint&gt; de cada controle pelo do outro cliente (mesma janela, mesmo tipo e nome
+    /// de controle), copiado como está escrito lá. Só mexe se a janela volta byte a byte igual sem mudança e se, depois,
+    /// relê com os mesmos controles e exatamente os textos pedidos. Devolve os bytes novos (null se nada muda).
+    /// </summary>
+    public static byte[]? WindowTexts(byte[] mine, byte[] other, out int count)
+    {
+        count = 0;
+        var a = new UiDocument(mine);
+        if (!a.ToBytes().AsSpan().SequenceEqual(mine)) return null;   // não volta igual: não arrisca
+        var b = new UiDocument(other);
+        var ta = UiTexts.Find(a.Xml); var tb = UiTexts.Find(b.Xml);
+        var changes = new List<(UiTexts.Item, string)>();
+        foreach (var (k, it) in ta)
+            if (tb.TryGetValue(k, out var o) && o.Raw != it.Raw && !o.Raw.Contains('"') && WindowTranslatable(it.Text, o.Text)) changes.Add((it, o.Raw));
+        if (changes.Count == 0) return null;
+        var xml = UiTexts.Replace(a.Xml, changes);
+        var check = UiTexts.Find(xml);
+        var before = GameDialog.Parse(a.Xml); var after = GameDialog.Parse(xml);
+        if (check.Count != ta.Count || after.Controls.Count != before.Controls.Count || after.Name != before.Name || after.Size != before.Size
+            || changes.Any(c => !check.TryGetValue(c.Item1.Key, out var x) || x.Raw != c.Item2)) return null;
+        a.Restore(xml);
+        count = changes.Count;
+        return a.ToBytes();
     }
 }

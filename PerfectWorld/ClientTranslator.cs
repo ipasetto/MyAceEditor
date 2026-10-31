@@ -164,7 +164,7 @@ public static class ClientTranslator
             {
                 Title = string.Format(Loc.T("ct.pckTextsTitle", "{0}: {1:N0} textos"), p, n),
                 Detail = (p == "configs.pck" ? Loc.T("ct.pckConfigsTexts", "descrições de itens e habilidades, buffs e mensagens")
-                                             : Loc.T("ct.pckInterfacesTexts", "textos das janelas da interface"))
+                                             : Loc.T("ct.pckInterfacesTexts2", "textos da interface: tabelas .stf e o texto e a dica de cada controle das janelas .xml (pela janela e pelo nome do controle; texto em chinês do outro cliente só troca texto em chinês daqui)"))
                     + Loc.T("ct.pckTextsDetail", " — pelo ID de cada texto, em qualquer versão; só troca quando os marcadores (%d, %s…) são os mesmos. Fontes e imagens daqui ficam."),
                 Default = true, Enabled = true,
                 Apply = log =>

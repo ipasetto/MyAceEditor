@@ -23,8 +23,7 @@ public static class ClientDialogs
         var exe = Path.Combine(clientElement, "elementclient.exe");
         var pck = Path.Combine(clientElement, "interfaces.pck");
         if (!File.Exists(exe) || !File.Exists(pck)) return new();
-        var text = Encoding.Latin1.GetString(File.ReadAllBytes(exe));
-        var strings = Regex.Matches(text, @"(?<=\0)[\x20-\x7e]{4,}(?=\0)").Select(m => m.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var strings = ExeStrings(exe);
         var wanted = strings.Where(s => s.StartsWith("Win_") && Regex.IsMatch(s, @"^Win_[A-Za-z0-9_]+$")).ToHashSet();
 
         using var a = new PckArchive(pck);
@@ -98,6 +97,53 @@ public static class ClientDialogs
             }
         }
         if (changed.Count > 0) PckWriter.Write(pck, changed);
+    }
+
+    static HashSet<string> ExeStrings(string exe) =>
+        Regex.Matches(Encoding.Latin1.GetString(File.ReadAllBytes(exe)), @"(?<=\0)[\x20-\x7e]{4,}(?=\0)").Select(m => m.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Nomes de janela (Win_...) que o elementclient.exe procura; vazio sem executável.</summary>
+    public static HashSet<string> ExeWindows(string clientElement)
+    {
+        var exe = Path.Combine(clientElement, "elementclient.exe");
+        return File.Exists(exe) ? ExeStrings(exe).Where(s => s.StartsWith("Win_") && Regex.IsMatch(s, @"^Win_[A-Za-z0-9_]+$")).ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Textos ASCII do elementclient.exe (nomes de janela e de controle que o código procura); vazio sem executável.</summary>
+    public static HashSet<string> ExeNames(string clientElement)
+    {
+        var exe = Path.Combine(clientElement, "elementclient.exe");
+        return File.Exists(exe) ? ExeStrings(exe) : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Nome da janela (DIALOG Name) de um XML.</summary>
+    public static string? DialogNameOf(byte[] xml) => DialogName(xml);
+
+    /// <summary>
+    /// Linha de um .dcf: "arquivo x y mostrar" (PW-KB §S20b). x/y -1 = centralizada; outros negativos = medida a partir da
+    /// direita/de baixo [I]; mostrar 1 = a janela abre ao entrar (chat, mapa, barras).
+    /// </summary>
+    public sealed record DcfLine(string Dcf, string File, int X, int Y, bool Show);
+
+    /// <summary>Onde cada janela do pacote é carregada: caminho no pacote (interfaces\...) → linhas dos .dcf que a citam.</summary>
+    public static Dictionary<string, List<DcfLine>> Layout(PckArchive a)
+    {
+        var map = new Dictionary<string, List<DcfLine>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dcf in Dcfs.Concat(LoginDcfs))
+        {
+            if (a.Find(dcf) is not { } e) continue;
+            foreach (var l in Encoding.GetEncoding(936).GetString(a.Read(e)).Split('\n'))
+            {
+                var p = l.Split(new[] { ' ', '\t', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                if (p.Length == 0 || !p[0].EndsWith(".xml", StringComparison.OrdinalIgnoreCase)) continue;
+                static int I(string[] p, int i) => p.Length > i && int.TryParse(p[i], out var v) ? v : -1;
+                var path = @"interfaces\" + p[0];
+                if (!map.TryGetValue(path, out var list)) map[path] = list = new();
+                list.Add(new DcfLine(Path.GetFileName(dcf), p[0], I(p, 1), I(p, 2), I(p, 3) == 1));
+            }
+        }
+        return map;
     }
 
     /// <summary>Arquivos listados num .dcf (1ª coluna de cada linha).</summary>

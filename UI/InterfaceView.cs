@@ -7,6 +7,8 @@ namespace MyAceEditor.UI;
 /// Editor das janelas do jogo, aberto pelo Extrator PCK em qualquer pacote que tenha janelas XML (interfaces.pck...),
 /// com a tela desenhada como no jogo (texturas do surfaces.pck e fontes do cliente). Clique seleciona um controle;
 /// arrastar move; o quadradinho do canto redimensiona; setas movem 1 px (Shift = 10); duplo clique edita o texto.
+/// Lista de controles (acha os escondidos), dica, "Esconder" (x = -2000, nunca apagar), busca nos textos de todas as
+/// janelas e o .dcf que carrega a janela (ideias estudadas no PIE 2.0 e no AUIEditor; ENGINE-KB §E9b).
 /// Grava na pasta do sPCK (&lt;pacote&gt;.files\&lt;caminho no pacote&gt;); gravar direto no .pck ainda não existe (issue #13).
 /// </summary>
 internal sealed class InterfaceView : UserControl
@@ -28,7 +30,13 @@ internal sealed class InterfaceView : UserControl
     readonly Label _selName = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10), MaximumSize = new Size(270, 0) };
     readonly NumericUpDown _x = N(), _y = N(), _w = N(), _h = N();
     readonly TextBox _text = new() { Multiline = true, Height = 60 };
+    readonly TextBox _hint = new() { Multiline = true, Height = 44 };
     readonly Label _imgs = new() { AutoSize = true, ForeColor = Muted, MaximumSize = new Size(270, 0) };
+    readonly Button _hide = new() { AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = Color.White };
+    readonly CheckBox _inTexts = new() { Dock = DockStyle.Top, Height = 24, Padding = new Padding(4, 0, 0, 0) };
+    readonly TextBox _ctlFilter = new() { Dock = DockStyle.Top };
+    readonly ListBox _ctlList = new() { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
+    readonly ToolTip _tip = new();
     static NumericUpDown N() => new() { Minimum = -3000, Maximum = 5000, Width = 90 };
 
     UiDocument? _doc;
@@ -36,6 +44,11 @@ internal sealed class InterfaceView : UserControl
     bool _fromFolder, _dirty, _binding;
     string? _sel;
     readonly List<string> _undo = new(), _redo = new();
+    Dictionary<string, List<ClientDialogs.DcfLine>> _layout = new();
+    Dictionary<string, string>? _textIndex;   // janela → seus textos (busca "nos textos"), montado na 1ª busca
+
+    // x que o próprio jogo usa para esconder um controle (PW-KB §S20); apagar controle pode derrubar o cliente
+    const int HiddenX = -2000;
 
     public InterfaceView(Action back)
     {
@@ -43,10 +56,11 @@ internal sealed class InterfaceView : UserControl
         BackColor = Bg; Dock = DockStyle.Fill;
         _canvas = new Canvas(this) { Dock = DockStyle.Fill };
         var left = new Panel { Dock = DockStyle.Left, Width = 280, BackColor = Color.White };
-        left.Controls.Add(_files); left.Controls.Add(_filter);
+        left.Controls.Add(_files); left.Controls.Add(_inTexts); left.Controls.Add(_filter);
         BuildBar(); BuildProps();
         Controls.Add(_canvas); Controls.Add(_props); Controls.Add(left); Controls.Add(_info); Controls.Add(_bar);
         _filter.TextChanged += (_, _) => FillList();
+        _inTexts.CheckedChanged += (_, _) => FillList();
         _files.SelectedIndexChanged += (_, _) => { if (_files.SelectedItem is DialogItem f) OpenDialog(f.Path); };
         AppLang.Changed += Texts; Texts();
     }
@@ -55,6 +69,10 @@ internal sealed class InterfaceView : UserControl
     {
         _filter.PlaceholderText = Loc.T("ui.filter", "Filtrar janelas (ex.: shop, inventory)");
         _outlines.Text = Loc.T("ui.outlines", "Mostrar contornos");
+        _inTexts.Text = Loc.T("ui.inTexts", "Procurar também nos textos das janelas");
+        _ctlFilter.PlaceholderText = Loc.T("ui.ctlFilter", "Procurar controle (nome ou texto)");
+        _hide.Text = Loc.T("ui.hide", "Esconder controle");
+        _tip.SetToolTip(_hide, Loc.T("ui.hideTip", "Leva o controle para x = -2000, como o próprio jogo faz, e ele some da janela. Não apague controles: o código do jogo procura cada um pelo nome e pode fechar se faltar. Para mostrar de novo, mude o X."));
     }
 
     void BuildBar()
@@ -72,8 +90,18 @@ internal sealed class InterfaceView : UserControl
         save.BackColor = Accent; save.ForeColor = Color.White;
         B("ui.undo", "↶ Desfazer", () => Undo(), 100);
         B("ui.redo", "↷ Refazer", () => Redo(), 100);
-        B("ui.packFolder", "Gravar pasta .files no pacote", PackFolder, 200);
-        B("ui.openFolder", "Abrir pasta .files", () => { if (_pckPath is not null) { var d = _pckPath + ".files"; Directory.CreateDirectory(d); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(d) { UseShellExecute = true }); } }, 140);
+        // arquivos: exportar/importar (conferido), trocar com outro cliente, telas de carregamento (UiTools)
+        var menu = new ContextMenuStrip();
+        void M(string key, string pt, Action a) { var i = new ToolStripMenuItem(Loc.T(key, pt)); i.Click += (_, _) => a(); AppLang.Changed += () => i.Text = Loc.T(key, pt); menu.Items.Add(i); }
+        M("ui.mExport", "Exportar o pacote para uma pasta…", () => { if (_pckPath is not null) UiTools.Export(this, _pckPath); });
+        M("ui.mImport", "Importar pasta (confere antes de gravar)…", () => { if (_pckPath is not null && AskDiscard()) AfterWrite(UiTools.Import(this, _pckPath)); });
+        M("ui.packFolder", "Gravar pasta .files no pacote", PackFolder);
+        M("ui.openFolder", "Abrir pasta .files", () => { if (_pckPath is not null) { var d = _pckPath + ".files"; Directory.CreateDirectory(d); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(d) { UseShellExecute = true }); } });
+        menu.Items.Add(new ToolStripSeparator());
+        M("ui.mSwap", "Trocar com a interface de outro cliente…", () => { if (_pckPath is not null && AskDiscard()) AfterWrite(UiTools.Swap(this, _pckPath)); });
+        M("ui.mLoading", "Telas de carregamento…", () => { if (_pckPath is not null && AskDiscard()) AfterWrite(UiTools.LoadingScreens(this, Path.GetDirectoryName(_pckPath))); });
+        var files = B("ui.files", "Arquivos ▾", () => { }, 120);
+        files.Click += (_, _) => menu.Show(files, new Point(0, files.Height));
         _bar.Controls.Add(_outlines);
         _outlines.CheckedChanged += (_, _) => _canvas.Invalidate();
     }
@@ -86,11 +114,51 @@ internal sealed class InterfaceView : UserControl
         void Row(string key, string pt, Control c) { var l = new Label { AutoSize = true, ForeColor = Muted, Padding = new Padding(0, 6, 0, 0), Text = Loc.T(key, pt) }; AppLang.Changed += () => l.Text = Loc.T(key, pt); tl.Controls.Add(l); tl.Controls.Add(c); }
         Row("ui.x", "X", _x); Row("ui.y", "Y", _y); Row("ui.w", "Largura", _w); Row("ui.h", "Altura", _h);
         Row("ui.text", "Texto", _text); _text.Dock = DockStyle.Fill;
+        Row("ui.hint", "Dica", _hint); _hint.Dock = DockStyle.Fill;
+        tl.Controls.Add(_hide); tl.SetColumnSpan(_hide, 2);
         tl.Controls.Add(_imgs); tl.SetColumnSpan(_imgs, 2);
-        _props.Controls.Add(tl);
+        var listTitle = new Label { Dock = DockStyle.Top, Height = 24, ForeColor = Muted, Padding = new Padding(0, 8, 0, 0), Text = Loc.T("ui.ctlList", "Controles da janela") };
+        AppLang.Changed += () => listTitle.Text = Loc.T("ui.ctlList", "Controles da janela");
+        // a lista é a única forma de achar um controle escondido (x = -2000) ou coberto por outro
+        _props.Controls.Add(_ctlList); _props.Controls.Add(_ctlFilter); _props.Controls.Add(listTitle); _props.Controls.Add(tl);
         foreach (var n in new[] { _x, _y, _w, _h }) n.ValueChanged += (_, _) => ApplyRect();
         _text.Leave += (_, _) => ApplyText();
         _text.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter && !e.Shift) { ApplyText(); e.SuppressKeyPress = true; } };
+        _hint.Leave += (_, _) => ApplyHint();
+        _hint.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter && !e.Shift) { ApplyHint(); e.SuppressKeyPress = true; } };
+        _hide.Click += (_, _) =>
+        {
+            if (_sel is null || _doc?.Dialog[_sel] is not { } c || c.Rect.X <= -1000) return;
+            var name = _sel;
+            Change(() => _doc!.SetAttr(name, "x", HiddenX.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            ShowProps();
+        };
+        _ctlFilter.TextChanged += (_, _) => FillControls();
+        _ctlList.SelectedIndexChanged += (_, _) => { if (!_binding && _ctlList.SelectedItem is CtlItem it && it.Name != _sel) Select(it.Name); };
+    }
+
+    sealed record CtlItem(string Name, string Label) { public override string ToString() => Label; }
+
+    // todos os controles na ordem do XML (a ordem é a de desenho: os de baixo ficam por cima)
+    void FillControls()
+    {
+        var q = _ctlFilter.Text.Trim();
+        _binding = true;
+        try
+        {
+            _ctlList.BeginUpdate(); _ctlList.Items.Clear();
+            if (_doc is null) return;
+            foreach (var c in _doc.Dialog.Controls.Values)
+            {
+                if (q.Length > 0 && !c.Name.Contains(q, StringComparison.OrdinalIgnoreCase) && c.Text?.Contains(q, StringComparison.OrdinalIgnoreCase) != true
+                    && c.Hint?.Contains(q, StringComparison.OrdinalIgnoreCase) != true) continue;
+                var label = $"{c.Name}  ({c.Tag})" + (c.Rect.X <= -1000 ? "  " + Loc.T("ui.hidden", "[escondido]") : "")
+                    + (c.Text is { Length: > 0 } t ? "  «" + (t.Length > 24 ? t[..24] + "…" : t) + "»" : "");
+                int i = _ctlList.Items.Add(new CtlItem(c.Name, label));
+                if (c.Name == _sel) _ctlList.SelectedIndex = i;
+            }
+        }
+        finally { _ctlList.EndUpdate(); _binding = false; }
     }
 
     // ---------- arquivos ----------
@@ -102,11 +170,13 @@ internal sealed class InterfaceView : UserControl
     {
         if (_pckPath == pckPath && _pck is not null) return;
         _pck?.Dispose(); _surfaces?.Dispose(); _tex?.Dispose();
-        _pckPath = pckPath; _doc = null; _file = null; _sel = null; _dirty = false;
+        _pckPath = pckPath; _doc = null; _file = null; _sel = null; _dirty = false; _textIndex = null;
         var dir = Path.GetDirectoryName(pckPath)!;
         try
         {
             _pck = new PckArchive(pckPath);   // leitura própria (o extrator pode estar lendo o dele)
+            _layout = ClientDialogs.Layout(_pck);
+            FillControls();
             var sp = Path.Combine(dir, "surfaces.pck");
             _surfaces = File.Exists(sp) ? new PckArchive(sp) : null;
             _tex = _surfaces is null ? null : new GameTextures(_surfaces);
@@ -129,19 +199,65 @@ internal sealed class InterfaceView : UserControl
         return set;
     }
 
-    // Item da lista: as janelas de version01 (as que o jogo usa desde a 1.4.4) primeiro; as da raiz do
-    // interfaces.pck são a interface antiga e aparecem marcadas (o jogo não lê, por isso parecem "quebradas").
+    // Item da lista: as janelas de version01 (interface nova) primeiro. A raiz do interfaces.pck é a interface clássica
+    // (ingame.dcf), mas o ingame-v1.dcf também carrega ~100 janelas dela (bag.xml, map.xml, winmain.xml...): quem decide é
+    // o .dcf (PW-KB §S20b). Sem .dcf no pacote, vale a regra antiga: raiz = antiga.
     sealed record DialogItem(string Path, string Label) { public override string ToString() => Label; }
 
-    static bool IsLegacy(string path) => path.StartsWith(@"interfaces\", StringComparison.OrdinalIgnoreCase)
+    static bool IsRoot(string path) => path.StartsWith(@"interfaces\", StringComparison.OrdinalIgnoreCase)
         && !path.Contains(@"\version", StringComparison.OrdinalIgnoreCase);
+
+    // da raiz e fora da interface nova (nenhum *-v1.dcf a carrega)
+    bool IsLegacy(string path) => IsRoot(path)
+        && !(_layout.TryGetValue(path, out var l) && l.Any(x => x.Dcf.Contains("-v", StringComparison.OrdinalIgnoreCase)));
+
+    string LegacyNote(string path) => _layout.Count > 0 && _layout.ContainsKey(path)
+        ? Loc.T("ui.classic", "(só na interface clássica)") : Loc.T("ui.legacy", "(antiga, o jogo não usa)");
+
+    // a cópia de trabalho (pasta .files) vale mais que o pacote
+    byte[]? ReadDialog(string file, out bool fromFolder)
+    {
+        fromFolder = _pckPath is not null && File.Exists(FolderPath(file));
+        if (fromFolder) return File.ReadAllBytes(FolderPath(file));
+        return _pck?.Find(file) is { } e ? _pck.Read(e) : null;
+    }
+
+    // textos (e dicas) de cada janela, para achar em que janela está uma frase
+    Dictionary<string, string> TextIndex()
+    {
+        if (_textIndex is not null) return _textIndex;
+        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Cursor = Cursors.WaitCursor;
+        try
+        {
+            foreach (var f in AllDialogs())
+                try { if (ReadDialog(f, out _) is { } b) d[f] = string.Join("\n", UiTexts.Find(new UiDocument(b).Xml).Values.Select(i => i.Text)); }
+                catch { }
+        }
+        finally { Cursor = Cursors.Default; }
+        return _textIndex = d;
+    }
 
     void FillList()
     {
         var q = _filter.Text.Trim();
+        var idx = _inTexts.Checked && q.Length > 0 ? TextIndex() : null;
+        string? Hit(string f)
+        {
+            if (idx is null || !idx.TryGetValue(f, out var all)) return null;
+            int i = all.IndexOf(q, StringComparison.OrdinalIgnoreCase);
+            if (i < 0) return null;
+            int a = all.LastIndexOf('\n', i) + 1, b = all.IndexOf('\n', i); if (b < 0) b = all.Length;
+            var line = all[a..b];
+            return line.Length > 40 ? line[..40] + "…" : line;
+        }
         _files.BeginUpdate(); _files.Items.Clear();
-        foreach (var f in AllDialogs().Where(f => q.Length == 0 || f.Contains(q, StringComparison.OrdinalIgnoreCase)).OrderBy(IsLegacy).ThenBy(f => f, StringComparer.OrdinalIgnoreCase))
-            _files.Items.Add(new DialogItem(f, IsLegacy(f) ? f + "   " + Loc.T("ui.legacy", "(antiga, o jogo não usa)") : f));
+        foreach (var f in AllDialogs().OrderBy(IsLegacy).ThenBy(f => f, StringComparer.OrdinalIgnoreCase))
+        {
+            var hit = Hit(f);
+            if (q.Length > 0 && !f.Contains(q, StringComparison.OrdinalIgnoreCase) && hit is null) continue;
+            _files.Items.Add(new DialogItem(f, (IsLegacy(f) ? f + "   " + LegacyNote(f) : f) + (hit is null ? "" : "   «" + hit + "»")));
+        }
         _files.EndUpdate();
         _info.Text = string.Format(Loc.T("ui.count2", "{0} janelas · edite na tela; \"Salvar janela\" grava direto no {1} (com backup)."),
             _files.Items.Count, Path.GetFileName(_pckPath));
@@ -155,25 +271,23 @@ internal sealed class InterfaceView : UserControl
         if (_dirty && file != _file && MessageBox.Show(this, Loc.T("ui.discard", "A janela atual tem mudanças não salvas. Descartar?"), Loc.T("tab.interface", "Interface"), MessageBoxButtons.YesNo) != DialogResult.Yes) return;
         try
         {
-            byte[]? bytes = null;
-            // a cópia de trabalho (pasta .files) vale mais que o pacote
-            _fromFolder = _pckPath is not null && File.Exists(FolderPath(file));
-            if (_fromFolder) bytes = File.ReadAllBytes(FolderPath(file));
-            else if (_pck?.Find(file) is { } e) bytes = _pck.Read(e);
+            var bytes = ReadDialog(file, out _fromFolder);
             if (bytes is null) return;
             var doc = new UiDocument(bytes);
             if (doc.Dialog.Controls.Count == 0 && doc.Dialog.Size.Width == 0)
             { _info.Text = string.Format(Loc.T("ui.notDialog", "{0} não é uma janela do jogo (sem <DIALOG>)."), file); return; }
             _doc = doc; _file = file; _sel = null; _dirty = false;
             _undo.Clear(); _redo.Clear();
+            _ctlFilter.Text = ""; FillControls();
             ShowProps(); _canvas.Invalidate(); UpdateInfo();
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("tab.interface", "Interface"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
-    /// <summary>Diagnóstico (--snapshot ... ui:qshop.xml): abre a janela e seleciona o 1º botão.</summary>
+    /// <summary>Diagnóstico (--snapshot ... ui:qshop.xml[?texto]): abre a janela e seleciona o 1º botão; com "?texto", procura o texto em todas as janelas.</summary>
     internal void OpenForSnapshot(string file)
     {
+        if (file.IndexOf('?') is var qi and >= 0) { _inTexts.Checked = true; _filter.Text = file[(qi + 1)..]; file = file[..qi]; }
         var hit = AllDialogs().Where(f => f.EndsWith("\\" + file, StringComparison.OrdinalIgnoreCase) || f.Equals(file, StringComparison.OrdinalIgnoreCase))
             .OrderBy(IsLegacy).FirstOrDefault();
         if (hit is null) return;
@@ -186,9 +300,22 @@ internal sealed class InterfaceView : UserControl
     {
         if (_doc is null || _file is null) return;
         _info.Text = $"{_file} · {_doc.Dialog.Size.Width}×{_doc.Dialog.Size.Height} · {_doc.Dialog.Controls.Count} " + Loc.T("ui.controls", "controles") + " · "
-            + (IsLegacy(_file) ? Loc.T("ui.legacyInfo", "INTERFACE ANTIGA: o jogo usa a cópia em version01") + " · " : "")
+            + (IsLegacy(_file) && !_layout.ContainsKey(_file) ? Loc.T("ui.legacyInfo", "INTERFACE ANTIGA: o jogo usa a cópia em version01") + " · " : "")
             + (_fromFolder ? Loc.T("ui.fromFolder", "cópia de trabalho (pasta .files)") : string.Format(Loc.T("ui.fromPck", "lido do {0}"), Path.GetFileName(_pckPath)))
+            + DcfInfo()
             + (_dirty ? " · " + Loc.T("ui.unsaved", "não salvo") : "");
+    }
+
+    // em que .dcf a janela é carregada (o jogo só carrega o que está lá; PW-KB §S20b)
+    string DcfInfo()
+    {
+        if (_file is null || _layout.Count == 0 || !_file.StartsWith(@"interfaces\", StringComparison.OrdinalIgnoreCase) || IsRoot(_file) && !_layout.ContainsKey(_file) && _pck?.Find(_file.Insert(@"interfaces\".Length, @"version01\")) is not null) return "";
+        if (!_layout.TryGetValue(_file, out var lines))
+            return " · " + Loc.T("ui.dcfNone", "fora dos .dcf: o jogo só usa esta janela se o código a abrir pelo nome");
+        static string P(int v) => v == -1 ? Loc.T("ui.dcfCenter", "centro") : v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var l = lines[0];
+        return " · " + string.Format(Loc.T("ui.dcfIn", "{0}: posição na tela {1}, {2}; abre ao entrar: {3}"),
+            string.Join(", ", lines.Select(x => x.Dcf).Distinct()), P(l.X), P(l.Y), l.Show ? Loc.T("ui.yes", "sim") : Loc.T("ui.no", "não"));
     }
 
     // grava direto no pacote (PckWriter); a cópia de trabalho na pasta .files, se houver, acompanha
@@ -201,35 +328,32 @@ internal sealed class InterfaceView : UserControl
             if (File.Exists(FolderPath(_file))) AtomicFileSave.Write(FolderPath(_file), bytes);
             var bak = WritePack(new Dictionary<string, byte[]> { [_file] = bytes });
             _dirty = false; UpdateInfo();
+            if (_textIndex is not null) _textIndex[_file] = string.Join("\n", UiTexts.Find(_doc.Xml).Values.Select(i => i.Text));
             MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), Loc.T("tab.interface", "Interface"));
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ui.saveFail", "Falha ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
-    /// <summary>Leva ao pacote o que está na pasta .files e é diferente do pacote (edições antigas, feitas antes de o editor gravar o .pck).</summary>
+    /// <summary>
+    /// Leva ao pacote o que está na pasta .files e é diferente do pacote (edições antigas, feitas antes de o editor gravar
+    /// o .pck), agora com a mesma conferência do "Importar pasta".
+    /// </summary>
     void PackFolder()
     {
-        if (_pckPath is null || _pck is null) return;
-        var dir = _pckPath + ".files";
-        var changed = new Dictionary<string, byte[]>();
-        if (Directory.Exists(dir))
-            foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
-            {
-                var rel = Path.GetRelativePath(dir, f);
-                var bytes = File.ReadAllBytes(f);
-                if (_pck.Find(rel) is { } e && _pck.Read(e).AsSpan().SequenceEqual(bytes)) continue;
-                changed[rel] = bytes;
-            }
-        if (changed.Count == 0) { MessageBox.Show(this, Loc.T("ui.packNone", "A pasta .files não tem nada diferente do pacote."), Loc.T("tab.interface", Loc.T("tab.interface", "Interface"))); return; }
-        if (MessageBox.Show(this, string.Format(Loc.T("ui.packAsk", "Gravar no {0} estes {1} arquivo(s) da pasta .files?\n\n{2}\n\nO pacote atual fica como backup."),
-                Path.GetFileName(_pckPath), changed.Count, string.Join("\n", changed.Keys.Take(20))), Loc.T("tab.interface", "Interface"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
-        try
-        {
-            var bak = WritePack(changed);
-            FillList();
-            MessageBox.Show(this, string.Format(Loc.T("ui.saved2", "Janela gravada no {0}.\nBackup do pacote anterior: {1}\n\nFeche e abra o jogo para ver a mudança."), Path.GetFileName(_pckPath), Path.GetFileName(bak)), Loc.T("tab.interface", "Interface"));
-        }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("ui.saveFail", "Falha ao salvar"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        if (_pckPath is null || !AskDiscard()) return;
+        AfterWrite(UiTools.Import(this, _pckPath, _pckPath + ".files"));
+    }
+
+    bool AskDiscard() => !_dirty || MessageBox.Show(this, Loc.T("ui.discard", "A janela atual tem mudanças não salvas. Descartar?"), Loc.T("tab.interface", "Interface"), MessageBoxButtons.YesNo) == DialogResult.Yes;
+
+    // um pacote foi regravado por fora do editor: reabre tudo (o leitor antigo aponta para o backup) e a janela aberta
+    void AfterWrite(bool changed)
+    {
+        if (!changed || _pckPath is null) return;
+        var path = _pckPath; var file = _file;
+        _pck?.Dispose(); _pck = null; _dirty = false;
+        LoadPack(path);
+        if (file is not null && AllDialogs().Contains(file, StringComparer.OrdinalIgnoreCase)) OpenDialog(file);
     }
 
     // o leitor é reaberto depois: o arquivo antigo virou o backup
@@ -245,7 +369,7 @@ internal sealed class InterfaceView : UserControl
     {
         if (_doc is null) return;
         _undo.Add(_doc.Xml); if (_undo.Count > 200) _undo.RemoveAt(0); _redo.Clear();
-        a(); _dirty = true; UpdateInfo(); _canvas.Invalidate();
+        a(); _dirty = true; UpdateInfo(); FillControls(); _canvas.Invalidate();
     }
 
     public bool Undo() => Swap(_undo, _redo);
@@ -254,7 +378,7 @@ internal sealed class InterfaceView : UserControl
     {
         if (_doc is null || from.Count == 0) return false;
         to.Add(_doc.Xml); _doc.Restore(from[^1]); from.RemoveAt(from.Count - 1);
-        _dirty = true; ShowProps(); UpdateInfo(); _canvas.Invalidate();
+        _dirty = true; FillControls(); ShowProps(); UpdateInfo(); _canvas.Invalidate();
         return true;
     }
 
@@ -266,12 +390,16 @@ internal sealed class InterfaceView : UserControl
         try
         {
             var c = _sel is null ? null : _doc?.Dialog[_sel];
-            _props.Enabled = c is not null;
+            foreach (var e in new Control[] { _x, _y, _w, _h, _text, _hint, _hide }) e.Enabled = c is not null;
             _selName.Text = c is null ? Loc.T("ui.pick", "Clique num controle da janela") : $"{c.Name}  ({c.Tag})";
-            if (c is null) return;
+            for (int i = 0; i < _ctlList.Items.Count; i++)
+                if (_ctlList.Items[i] is CtlItem it && it.Name == _sel) { _ctlList.SelectedIndex = i; break; }
+            if (c is null) { _ctlList.ClearSelected(); return; }
             _x.Value = Math.Clamp(c.Rect.X, -3000, 5000); _y.Value = Math.Clamp(c.Rect.Y, -3000, 5000);
             _w.Value = Math.Clamp(c.Rect.Width, -3000, 5000); _h.Value = Math.Clamp(c.Rect.Height, -3000, 5000);
             _text.Text = c.Text ?? ""; _text.Enabled = c.Text is not null;
+            _hint.Text = c.Hint ?? ""; _hint.Enabled = c.Hint is not null;
+            _hide.Enabled = c.Rect.X > -1000;
             _imgs.Text = c.Images.Count == 0 ? "" : Loc.T("ui.images", "Imagens:") + "\n" + string.Join("\n", c.Images.Distinct().Take(6));
         }
         finally { _binding = false; }
@@ -289,6 +417,13 @@ internal sealed class InterfaceView : UserControl
         if (_binding || _sel is null || _doc?.Dialog[_sel] is not { Text: { } old } || old == _text.Text) return;
         var t = _text.Text;
         Change(() => _doc!.SetText(_sel, t));
+    }
+
+    void ApplyHint()
+    {
+        if (_binding || _sel is null || _doc?.Dialog[_sel] is not { Hint: { } old } || old == _hint.Text) return;
+        var t = _hint.Text;
+        Change(() => _doc!.SetHint(_sel, t));
     }
 
     // =====================================================================================

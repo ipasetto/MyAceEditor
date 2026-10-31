@@ -27,8 +27,14 @@ internal sealed class PckView : Panel
     string? _dest;   // pasta de destino; padrão = <pacote>.files ao lado do .pck (como o sPCK)
     readonly Label _destLabel = new() { AutoSize = true, ForeColor = Muted, Padding = new Padding(10, 7, 0, 0), MaximumSize = new Size(420, 0) };
     readonly Button _destChange = new();
-    readonly Button _editUi = new();
+    readonly Button _editUi = new(), _uiMenu = new();
     InterfaceView? _editor;
+
+    // o pacote aberto foi regravado: o leitor antigo aponta para o backup
+    void Reopen(bool changed)
+    {
+        if (changed && _pck is { } p) Open(p.FilePath);
+    }
     Control[] _listMode = Array.Empty<Control>();
 
     /// <summary>Editor de janelas aberto (para o Ctrl+Z da janela principal ir para ele).</summary>
@@ -52,6 +58,13 @@ internal sealed class PckView : Panel
         top.Controls.Add(B(_cancel, () => _work?.Cancel(), 90));
         top.Controls.Add(B(_editUi, OpenEditor, 170));
         _editUi.BackColor = Color.FromArgb(255, 244, 214);
+        // importar (conferido) / trocar com outro cliente / telas de carregamento, para qualquer pacote (UiTools)
+        var menu = new ContextMenuStrip();
+        void M(string key, string pt, Action a) { var i = new ToolStripMenuItem(Loc.T(key, pt)); i.Click += (_, _) => a(); AppLang.Changed += () => i.Text = Loc.T(key, pt); menu.Items.Add(i); }
+        M("ui.mImport", "Importar pasta (confere antes de gravar)…", () => { if (_pck is { } p) Reopen(UiTools.Import(this, p.FilePath)); });
+        M("ui.mSwap", "Trocar com a interface de outro cliente…", () => { if (_pck is { } p) Reopen(UiTools.Swap(this, p.FilePath)); });
+        M("ui.mLoading", "Telas de carregamento…", () => Reopen(UiTools.LoadingScreens(this, _elementDir())));
+        top.Controls.Add(B(_uiMenu, () => menu.Show(_uiMenu, new Point(0, _uiMenu.Height)), 120));
         top.Controls.Add(_destLabel);
         top.Controls.Add(B(_destChange, ChangeDest, 110));
         _cancel.Visible = false;
@@ -88,6 +101,7 @@ internal sealed class PckView : Panel
         _filter.PlaceholderText = Loc.T("pck.filter", "Filtrar (ex.: .dds, configs\\, skillstr)");
         _extractAll.Text = Loc.T("pck.extractAll", "Extrair tudo");
         _destChange.Text = Loc.T("pck.changeDest", "Mudar pasta…");
+        _uiMenu.Text = Loc.T("pck.uiMenu", "Interface ▾");
         _cancel.Text = Loc.T("dlg.cancel", "Cancelar");
         _lv.Columns[0].Text = Loc.T("pck.colPath", "Arquivo"); _lv.Columns[1].Text = Loc.T("pck.colSize", "Tamanho"); _lv.Columns[2].Text = Loc.T("pck.colPacked", "Compactado");
         UpdateButtons(); UpdateInfo();

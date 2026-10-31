@@ -14,7 +14,7 @@ namespace MyAceEditor.PerfectWorld;
 public sealed class GameDialog
 {
     public sealed record Control(string Tag, string Name, Rectangle Rect, string? Text, float FontSize, Color? Color, int Align, IReadOnlyList<string> Images,
-        string? FontName = null, bool Bold = false, Point TextOffset = default, int Frames = 1);
+        string? FontName = null, bool Bold = false, Point TextOffset = default, int Frames = 1, string? Hint = null);
 
     public string Name { get; init; } = "";
     public Size Size { get; init; }
@@ -33,7 +33,8 @@ public sealed class GameDialog
     }
 
     static readonly Regex Head = new(@"<DIALOG\s+Name=""([^""]*)""[^>]*?Width=""(\d+)""[^>]*?Height=""(\d+)""", RegexOptions.Compiled);
-    static readonly Regex Ctl = new(@"<([A-Z]+)\s+Name=""([^""]+)""([^>]*)>", RegexOptions.Compiled);
+    // há texto com < > crus dentro das aspas (ex.: String="12345</Data></Cell>"): os atributos respeitam as aspas
+    static readonly Regex Ctl = new(@"<([A-Z]+)\s+Name=""([^""]+)""((?:[^>""]|""[^""]*"")*)>", RegexOptions.Compiled);
     static readonly Regex Attr = new(@"\b(\w+)=""([^""]*)""", RegexOptions.Compiled);
     static readonly Regex File = new(@"FileName=""([^""]*)""", RegexOptions.Compiled);
 
@@ -59,7 +60,7 @@ public sealed class GameDialog
             var body = xml[(m.Index + m.Length)..(i + 1 < ms.Count ? ms[i + 1].Index : xml.Length)];
             var a = Attrs(m.Groups[3].Value);
             int N(string k) => a.TryGetValue(k, out var v) && int.TryParse(v, out var n) ? n : 0;
-            var textTag = Regex.Match(body, @"<Text\b([^>]*)/?>");
+            var textTag = Regex.Match(body, @"<Text\b((?:[^>""]|""[^""]*"")*)/?>", RegexOptions.IgnoreCase);   // há <text ...> minúsculo
             var ta = textTag.Success ? Attrs(textTag.Groups[1].Value) : new();
             // cor "R,G,B,A"; há arquivos do jogo com valor malformado (ex.: "25color") — vira "sem cor"
             static int? C(string s) => int.TryParse(s.Trim(), out var v) ? Math.Clamp(v, 0, 255) : null;
@@ -70,7 +71,8 @@ public sealed class GameDialog
                 System.Net.WebUtility.HtmlDecode(ta.GetValueOrDefault("String")), size, col, N("Align"), File.Matches(body).Select(x => x.Groups[1].Value).ToList(),
                 ta.GetValueOrDefault("FontName"), ta.TryGetValue("Bold", out var bo) && bo.Equals("true", StringComparison.OrdinalIgnoreCase),
                 new Point(N("TextOffsetX"), N("TextOffsetY")),
-                Regex.Match(body, @"FileName=""[^""]*""\s+Frames=""(\d+)""") is { Success: true } fr ? int.Parse(fr.Groups[1].Value) : 1);
+                Regex.Match(body, @"FileName=""[^""]*""\s+Frames=""(\d+)""") is { Success: true } fr ? int.Parse(fr.Groups[1].Value) : 1,
+                Regex.Match(body, @"<Hint\b(?:[^>""]|""[^""]*"")*?\bString=""([^""]*)""", RegexOptions.IgnoreCase) is { Success: true } hn ? System.Net.WebUtility.HtmlDecode(hn.Groups[1].Value) : null);
         }
         return dlg;
     }
@@ -146,12 +148,7 @@ public sealed class GameTextures : IDisposable
             {
                 var data = _pck.Read(e);
                 var ext = Path.GetExtension(rel).ToLowerInvariant();
-                img = ext switch
-                {
-                    ".tga" => IconLoader.DecodeTga(data),
-                    ".dds" => FromDds(data),
-                    _ => Image.FromStream(new MemoryStream(data)),
-                };
+                img = Decode(data, ext);
                 // .bmp da interface usa magenta (255,0,255) como transparente (o "?" de ajuda aparecia rosa)
                 if (img is Bitmap bm && ext == ".bmp")
                 {
@@ -173,6 +170,22 @@ public sealed class GameTextures : IDisposable
         catch { img = null; }
         _cache[key] = img;
         return img;
+    }
+
+    /// <summary>Imagem da interface a partir dos bytes (.tga, .dds, ou o que o GDI+ lê: .jpg .png .bmp). Null = não abriu.</summary>
+    public static Image? Decode(byte[] data, string ext)
+    {
+        try
+        {
+            return ext.ToLowerInvariant() switch
+            {
+                ".tga" => IconLoader.DecodeTga(data),
+                ".dds" => FromDds(data),
+                _ => Gdi(data),
+            };
+        }
+        catch { return null; }
+        static Bitmap Gdi(byte[] d) { using var s = Image.FromStream(new MemoryStream(d)); return new Bitmap(s); }
     }
 
     static Bitmap? FromDds(byte[] data)

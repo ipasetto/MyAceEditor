@@ -14,11 +14,11 @@
 [x] lista plana: bloco | filtro tipo | busca | ID+icone+nome colorido | ordenar
 [x] detalhe: Valores (coluna Vinculo) | Vinculos (quem usa) | tooltip c/ drops
 [x] tela Rody: cabecalho escuro ID+nome (cor oficial item_color) | sub-abas por grupo (Todos/Basico/.../Queda/Habilidades/Modelo) | col. ∞ vinculos | ◀ ▶ | Descricao e cor (item_ext_desc) | Buscar por campo | barra de status
-[ ] editores especiais: addons, mascaras (classes) c/ checkbox, bool como checkbox, cor, probabilidades
-[ ] editar descricao do item (exige gravar configs.pck)
-[ ] rotulos PT melhores p/ campos (ex. "Magico defences 1 min")
+[~] editores especiais: [x] mascaras (#8) [x] bool como checkbox (#7, campos conhecidos) [x] probabilidades (ChanceEditor) | [ ] addons, cor
+[x] editar descricao e cor do item (ItemTexts, grava no configs.pck; #14)
+[x] rotulos PT melhores p/ campos (#9)
 [x] nomes de skill (skillstr.txt) e de quest nos vinculos (falta clicar e ir a quest)
-[ ] icones de monstro/NPC
+[x] icones de monstro/NPC (miniaturas do modelo 3D; #11)
 [x] converter elements entre versoes (Salvar em outra versao) | [x] traduzir com outro elements.data | [ ] importar/exportar item avulso entre arquivos
 
 [x] desfazer/refazer + historico (#1) | [x] procurar erros + corrigir probabilidades (#4) | [x] alterar campo em lote (somar/multiplicar/sequencia/aleatorio/substituir)
@@ -28,10 +28,10 @@
 [x] tasks.data v93 completo: 21.777 quests, 238 campos, textos, dialogos; leitura/gravacao byte-identica (§E3c)
 [x] aba Quests: arvore + Dados + Textos + Dialogos
 [ ] quests: editar premios/itens/monstros pedidos (hoje preservados como bytes) | criar/clonar/excluir quest | [x] outras versoes na aba Quests (TaskLayout: v128/129/187/198 testadas; campos com chaves m_..., sem rotulo PT)
-[x] traduzir a partir de outro cliente (elements + quests + falas do aipolicy + pacotes de interface/ajuda quando o jogo e o mesmo programa)
+[x] traduzir a partir de outro cliente (elements + quests + falas do aipolicy + pacotes de interface/ajuda quando o jogo e o mesmo programa) | [x] 31/10 textos das janelas .xml do interfaces.pck por janela+controle, qualquer versao (copia 155<-144: 5.498 textos) | [ ] usuario: testar no jogo uma janela traduzida
 [x] GShop (cliente+servidor juntos, tela igual a do jogo; falta validar no jogo e desfazer)
 [ ] AI Policy (PW-KB §S18) | [x] NPCGen: ler/gravar identico, aba com pontos, editar qtde/renascer/monstro, Mudar ID (PW-KB §S22) | [x] Mundo 3D (terreno por altura, camera livre, marcadores, botao direito: copiar/novo ponto/mover) | [x] modelos de monstro/NPC, construcoes, texturas e luz do chao, agua, mapa pintado (M) | [x] arvores (.ecwld + nossa versao do SpeedTree: tronco, galhos, folhas viradas p/ camera) | [x] frondes em lamina | [x] frondes em extrusao + cores pelos materiais do .spt | [x] agua do cliente (bsdata: cor; sem plano onde o cliente nao tem, ex. lava da a09) | [ ] conferir arvores com prints do jogo (pinheiros escuros em leque, copas muito densas?) | [ ] grama, animacao | [ ] objetos e gatilhos (hoje so preservados)
-[x] extrator .pck nativo (aba Extrator PCK) | [ ] gravar .pck (para interface/configs)
+[x] extrator .pck nativo (aba Extrator PCK) | [x] gravar .pck v2/v3 (PckWriter; #13) | [ ] gravar .pkx
 
 ## QUESTS NO MUNDO 3D (spec docs/QUESTS-3D.md)
 [x] etapa 1: tasks.data completo em todas as versoes (TaskLayout) | [>] etapa 2: telas no Mundo 3D
@@ -42,9 +42,11 @@
 [ ] futuro (usuario 29/10, "nao agora"): editor de mapa que cria o cenario (arvores, grama, objetos no .ecwld)
 
 ## FASE 4 — engine
-[ ] corrigir automaticamente o par (exportar loja/elements/tasks p/ os 2 lados)
+[x] corrigir automaticamente o par (Verificacao > Corrigir, --fix-pair; #26)
 [ ] racas iniciais (exe + createrace.xml + mascara; PW-KB §S12) | jogadores na TW (§S25)
-[x] janelas do jogo dentro da engine: aba Interface (ver/editar posicao, tamanho, texto; salva em interfaces.pck.files) | [ ] gravar no .pck
+[x] janelas do jogo dentro da engine: aba Interface (ver/editar posicao, tamanho, texto; grava no .pck) | [x] 31/10 (estudo PIE 2.0 + AUIEditor): lista de controles, dica, esconder, busca nos textos, .dcf da janela | [ ] aviso de texto maior que o controle | [ ] selecao multipla + alinhar | [ ] aba XML com Aplicar | [ ] modo .dcf (posicao na tela) | [ ] adicionar/copiar controle (ENGINE-KB §E9b)
+[x] 31/10 arquivos de interface: exportar/importar pasta com conferencia, trocar com outro cliente (tudo ou parte + imagens), telas de carregamento (classica e 1600), 3 erros do editor corrigidos (texto com < > nas aspas, <text> minusculo, SetRect) | [ ] usuario: testar no jogo uma tela de carregamento trocada, uma janela importada e uma troca parcial | [x] backup do .pck no armazem (BackupStore.Adopt corrigido)
+[ ] futuro (usuario 31/10): trocar o fundo ANIMADO do login — cena maps\login + camera (SceneCtrl.ini / scenectrl.lua), efeito gfx\程序联入\登录界面1.gfx, background.jpg, CG .wmv no 1.7; tudo mapeado em PW-KB §S20e
 [ ] deploy de servidor | editor de mapa (PW-KB §S22) | skills
 
 ## ONDE PARAMOS (26/10/2026, painel do servidor) - RETOMAR AQUI
@@ -69,6 +71,9 @@ Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor
 [ ] proximas etapas do painel: editar personagem (nivel, dinheiro, teleporte; PutRole*), enviar item por correio (SysSendMail), clas, chat (world2.chat)
 [ ] aviso de versao tambem na aba Servidor + "qual pacote de servidor usar"
 Pendencias antigas: VRAM ~1,3 GB | AI Policy x Policy.cpp | arvores e grama | entradas das 19 instancias so por teleporte | botao "Montar dados do servidor" (usuario: "agora nao")
+
+## README (31/10)
+[x] README.md so em ingles, novo do zero, 12 prints em docs/img/en (README.en.md removido)
 
 ## ESTADO GIT
 repo PUBLICO github.com/ipasetto/MyAceEditor (GPL-3.0), branch main. Usuario faz "Push origin" (force push bloqueado p/ mim).
@@ -136,7 +141,8 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] aba Servidor (WSL): instalar, iniciar, parar, estado, conta, enviar arquivos e reiniciar
 - [x] instalacao testada de verdade (25/10): servidor no ar com uma conta GM de teste
 - [ ] entrar no jogo pelo servidor Local (usuario)
-- [ ] instancias no servidor local (hoje sobe so gs01, como o start.sh do pacote)
+- [~] instancias no servidor local: Administrar -> Mapas e instancias (ligar/desligar, estado, padroes gs01+is61) — usuario testou a lista; falta conferir o Estado
+- [~] 31/10: backups fora do cliente, varios campos de uma vez, Ctrl+C/V de addons, mapa M das instancias (3D e GM), teleporte d 8888 corrigido, abas do GM reorganizadas — falta o usuario testar
 - [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp
 ## MUNDO 3D / INSTANCIAS — onde paramos (30/10/2026)
 - [x] camera na entrada (8 m atras, olhando os pontos de criatura); CameraStarts.cs com as posicoes que o usuario conferiu (world, a05, a12, a39, a41, a49, a61, a62, a66)
