@@ -469,14 +469,16 @@ public static class SptGrower
         _leafPts = new List<Vector3>();
         Grow(f, m, rng, vr, ref seed, 0, Vector3.Zero, Frame.Identity, Vector3.UnitZ, 0, -1, 1);
         _leafPts = null;
-        // tamanho da árvore = altura (pés → metros), como SetTreeSize(tamanho × 0,3048) no cliente (EL_Tree.cpp). Testado
-        // 30/10 contra o jogo: multiplicar todas as medidas pelo tamanho (como no fonte do SpeedTree 4.1) deixa o tronco da
-        // shingleoak4 com 6 m de diâmetro; no jogo ele tem ~2,5 m, que é o que esta escala dá
+        // escala do SpeedTree: TODAS as medidas × tamanho do .spt em metros (CTreeEngine::Compute passa fTreeSize ao
+        // galho; o cliente faz SetTreeSize(tamanho × 0,3048), EL_Tree.cpp). Conferido 30/10 com print do jogo
+        // (ColumnarEnglishGreen1 em 1064,1113): tronco limpo até ~9 m e copa bem alta, como esta escala dá (7 m); a
+        // escala antiga (altura = tamanho) deixava as árvores 2,5× menores
         float top = 0;
         foreach (var p in m.Pos) top = Math.Max(top, p.Y);
         foreach (var p in m.FrondPos) top = Math.Max(top, p.Y);
         foreach (var l in m.Leaves) top = Math.Max(top, l.Pos.Y);
-        float k = top > 0 ? size * 0.3048f / top : 1;
+        float k = f.Size * 0.3048f;
+        _ = size;
         for (int i = 0; i < m.Pos.Count; i++) m.Pos[i] *= k;
         for (int i = 0; i < m.FrondPos.Count; i++) m.FrondPos[i] *= k;
         for (int i = 0; i < m.Leaves.Count; i++) m.Leaves[i] = (m.Leaves[i].Pos * k, m.Leaves[i].Dir);
