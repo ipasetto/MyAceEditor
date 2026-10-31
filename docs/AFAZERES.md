@@ -177,3 +177,6 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] dia/noite (tecla L): neblina, ceu de noite, .t2lm1, grama, cores de noite dos .bmd, luz das arvores e dos modelos
 - [x] agua: reflexo do ceu pelo angulo, borda transparente, ondas andando, noite
 - [ ] usuario testar no app: arvores (shingleoak4 em 1560,220,454), grama, L de noite, agua; depois conferir 144/155/180 (pedir permissao)
+- [x] (30/10 tarde) arvores na escala do SpeedTree (x tamanho), conferido com print em 1064,1113; Ctrl+Z ate o ponto salvo tira a marca do npcgen
+- [ ] grama: conferir flores (陆地04/小黄花05) de perto; vento (grama e arvores); [ ] agua: reflexo real (2a camera) e mais transparente/azul como no jogo; [ ] cor do tronco
+- [ ] NAO LIDOS do .ecwld: efeitos .gfx (3.519 no world), bichos/critters (1.347), curvas bezier (42.790), sons (1.044), scenelights.dat

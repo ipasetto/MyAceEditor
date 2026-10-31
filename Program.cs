@@ -530,6 +530,18 @@ internal static class Program
     // --snapshot <saida.png> [aba] [bloco id] [grupo]: abre o editor fora da tela (com a última pasta), salva um print e sai.
     // --world-shot <element\maps\aXX> <pasta de saída> x,y,z,yaw,pitch[,nome] ...: fotos do Mundo 3D (coordenadas do jogo; yaw
     // -90 = olhando para o norte, pitch negativo = para baixo), cada uma depois de terreno, construções e árvores carregarem
+    static int GrassNear(WorldScene.GrassArea g, float x, float z, float r, bool flipX = false, bool flipZ = false)
+    {
+        float ox = g.X - g.Cols * g.Cell / 2, oz = g.Z + g.Rows * g.Cell / 2; int n = 0;
+        for (int row = 0; row < g.Rows; row++)
+            for (int col = 0; col < g.Cols; col++)
+            {
+                float cx = ox + col * g.Cell - x, cz = oz - row * g.Cell - z;
+                if (cx * cx + cz * cz < r * r && g.On(flipX ? g.Cols - 1 - col : col, flipZ ? g.Rows - 1 - row : row)) n++;
+            }
+        return n;
+    }
+
     private static void WorldShot(string mapDir, string outDir, string[] shots)
     {
         var t = TerrainFile.Open(mapDir) ?? throw new FileNotFoundException("terreno não encontrado", mapDir);
@@ -584,6 +596,9 @@ internal static class Program
             foreach (var g in scene.Grass.Take(3)) diag.AppendLine(FormattableString.Invariant($"  grama tipo {g.Type} ({scene.GrassTypes.ElementAtOrDefault(g.Type)?.Mox}) centro {g.X:0},{g.Y:0},{g.Z:0} célula {g.Cell} {g.Cols}x{g.Rows}"));
             foreach (var a in scene.Areas.Take(6))
                 diag.AppendLine(FormattableString.Invariant($"área {(a.Default ? "padrão" : "caixa")} ({a.Pos[0]:0},{a.Pos[2]:0}): neblina {a.FogStart:0}..{a.FogEnd:0} {a.FogColor:X8} | noite {a.FogStartNight:0}..{a.FogEndNight:0} {a.FogColorNight:X8} | luz dir {a.LightDir[0]:0.00},{a.LightDir[1]:0.00},{a.LightDir[2]:0.00} amb {a.Ambient:X8} sol {a.SunColor:X8}"));
+            foreach (var c in cams)
+                foreach (var g in scene.Grass.Where(g => MathF.Abs(g.X - c.Pos.X) < g.Cols * g.Cell / 2 && MathF.Abs(g.Z - c.Pos.Z) < g.Rows * g.Cell / 2))
+                    diag.AppendLine($"{c.Name}: grama tipo {g.Type} {scene.GrassTypes.ElementAtOrDefault(g.Type)?.Mox} · tufos a 20 m: {GrassNear(g, c.Pos.X, c.Pos.Z, 20)} / espelho X {GrassNear(g, c.Pos.X, c.Pos.Z, 20, true)} / Z {GrassNear(g, c.Pos.X, c.Pos.Z, 20, false, true)} / XZ {GrassNear(g, c.Pos.X, c.Pos.Z, 20, true, true)}");
             foreach (var c in cams)
                 foreach (var tr in scene.Trees.OrderBy(tr => c.Pos.Z == 0 ? MathF.Abs(tr.X - c.Pos.X) : (tr.X - c.Pos.X) * (tr.X - c.Pos.X) + (tr.Z - c.Pos.Z) * (tr.Z - c.Pos.Z)).Take(c.Pos.Z == 0 ? 25 : 8))
                     diag.AppendLine(FormattableString.Invariant($"{c.Name ?? $"{c.Pos.X:0},{c.Pos.Z:0}"}: árvore a {MathF.Sqrt((tr.X - c.Pos.X) * (tr.X - c.Pos.X) + (tr.Z - c.Pos.Z) * (tr.Z - c.Pos.Z)):0} m ({tr.X:0},{tr.Y:0},{tr.Z:0}) {scene.TreeTypes[tr.Type].Spt}"));
