@@ -70,3 +70,15 @@ Trabalhe numa cópia da pasta do jogo/servidor até tudo estar conferido.
 - [ ] Ponto criado, movido, clonado e excluído aparece/some no lugar certo.
 - [ ] NPC novo e coletável novo funcionam (clicar, coletar).
 - [ ] Monstro criado pelo assistente nasce com o nome novo.
+
+## Mundo 3D — rodada de 30/10 (conferido só em fotos do editor; falta no app)
+- [ ] Monstro/NPC selecionado: setas X (leste), Y (altura), Z (norte) movem só naquele eixo; o anel gira (Shift = de 15 em 15°); clique no vazio tira a seleção.
+- [ ] Mover com a seta e dar Ctrl+Z → o botão **Salvar e enviar** para de brilhar.
+- [ ] Legenda (H) em grupos, com as teclas desenhadas; G esconde a grama; N troca a neblina; L dia/noite.
+- [ ] Botão Mundo 3D da barra de cima abre o mundo em 1090, 240, 1033; a26 abre em 338.76, 5, -169.58.
+- [ ] Árvores grandes como no jogo (ex.: ColumnarEnglishGreen1 em 1064, 1113; shingleoak4 em 1563, 453).
+- [ ] Grama com a luz do chão e flores amarelas perto de 1066, 1112; sem triângulos brancos.
+- [ ] Tecla L: céu, chão, grama, construções e árvores de noite, como no jogo.
+- [ ] Água: reflexo do céu ao olhar de lado, beira transparente, ondas andando.
+- [ ] Besouro Estrela (1063) com a textura vermelha e laranja.
+
