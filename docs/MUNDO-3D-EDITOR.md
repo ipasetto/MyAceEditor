@@ -77,7 +77,7 @@ Confirma que o caminho do editor oficial é possível fora dele.
 ## 4. Roteiro (do mais fácil e útil ao mais difícil)
 Cada passo: ler → provar gravação **idêntica** ao original → só então editar; Ctrl+Z; funcionar em todas as versões.
 
-1. **Quests no 3D, tipos 3+**: matar monstros (clicar no gerador no mundo), coletar (clicar na coleta), entregar item,
+1. **Quests no 3D, tipos 3+** — [~] matar monstros pronto no QuestBuilder (criar, editar, testado em 4 versões); falta a tela: matar monstros (clicar no gerador no mundo), coletar (clicar na coleta), entregar item,
    escoltar (caminho). Usa o que já lemos do npcgen.
 2. **Geradores completos no 3D**: painel de propriedades como o oficial (quantidade, renascer, altura, agressivo,
    grupo/ajuda, caminho, sumir) e **área** de nascimento desenhada no chão; coleta igual.

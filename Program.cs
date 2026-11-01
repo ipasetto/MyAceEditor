@@ -1357,6 +1357,39 @@ internal static class Program
             }
         }
 
+        // etapa "matar monstros" (passo 1 do roteiro docs/MUNDO-3D-EDITOR.md): cria, relê, abre para editar, troca e apaga
+        {
+            var t5 = new TasksFile(original);
+            int npc5 = int.Parse(V(tpl, "m_ulAwardNPC"));
+            var d5 = new QuestDraft
+            {
+                Id = t5.NextFreeId(), Name = "Caça de teste", Giver = npc5, Exp = 500, OfferText = "Limpe a área.",
+                Steps = { new QuestStep { Kind = QuestStepKind.Kill, Name = "Mate os lobos", Monsters = { (1, 5), (2, 3) } }, new QuestStep { Kind = QuestStepKind.Talk, Name = "Volte", Npc = npc5, Text = "Bom trabalho!" } },
+            };
+            var err5 = QuestBuilder.Validate(t5, d5, _ => true, _ => true);
+            sb.AppendLine("\n[matar monstros] validação: " + (err5.Count == 0 ? "OK" : string.Join("; ", err5)));
+            if (err5.Count == 0)
+            {
+                QuestBuilder.Build(t5, d5);
+                var b5 = new TasksFile(t5.Build());
+                var p5 = (QuestNode)b5.Index.Find(d5.Id)!;
+                var k5 = p5.Children[0];
+                sb.AppendLine($"  relido: método {V(k5, "m_enumMethod")} conclusão {V(k5, "m_enumFinishType")} · monstros {V(k5, "m_ulMonsterWanted")}: {V(k5, "m_MonsterWanted[0].m_ulMonsterTemplId")}×{V(k5, "m_MonsterWanted[0].m_ulMonsterNum")}, {V(k5, "m_MonsterWanted[1].m_ulMonsterTemplId")}×{V(k5, "m_MonsterWanted[1].m_ulMonsterNum")} · drop {V(k5, "m_MonsterWanted[0].m_ulDropItemId")}");
+                var e5 = QuestBuilder.FromQuest(b5, p5, out var why5);
+                sb.AppendLine($"  ler para editar: {(e5 is null ? "NÃO — " + why5 : $"OK · etapa 1 {e5.Steps[0].Kind} {string.Join(",", e5.Steps[0].Monsters)}")}");
+                if (e5 is not null)
+                {
+                    e5.Steps[0].Monsters[0] = (1, 9);
+                    QuestBuilder.Replace(b5, p5, e5);
+                    var b6 = new TasksFile(b5.Build());
+                    var p6 = (QuestNode)b6.Index.Find(d5.Id)!;
+                    sb.AppendLine($"  editada: {V(p6.Children[0], "m_MonsterWanted[0].m_ulMonsterNum")} do monstro 1");
+                    b6.DeleteRoot(p6);
+                    sb.AppendLine($"  sem a quest, regravação: {(b6.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
+                }
+            }
+        }
+
         // editar recado (com opções) e quantas quests reais o assistente consegue abrir para editar
         {
             var t4 = new TasksFile(original);

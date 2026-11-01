@@ -2880,6 +2880,10 @@ public sealed class EditorForm : Form
         {
             if (f._tasks is not { } t) return new() { Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.") };
             var e = QuestBuilder.Validate(t, d, IsNpc, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null);
+            // matar monstros: o ID tem que ser um monstro do elements (senão a etapa nunca conta)
+            foreach (var (mid, _) in d.Steps.Where(s => s.Kind == QuestStepKind.Kill).SelectMany(s => s.Monsters).Distinct())
+                if (mid > 0 && f.CreatureItem(mid) is not { Block.Name: "MONSTER_ESSENCE" })
+                    e.Add(string.Format(Loc.T("qb.noMonster", "O monstro {0} não existe no elements.data."), mid));
             // os vínculos também têm que caber antes de aplicar qualquer coisa (nada pela metade)
             foreach (var (npc, quest, give) in QuestLinks(d))
                 if (IsNpc(npc) && f.AddQuestToService(f.CreatureItem(npc)!.Value.Item, quest, give, dryRun: true) is { } g) e.Add(g);
@@ -2969,6 +2973,8 @@ public sealed class EditorForm : Form
                 var s = d.Steps[i];
                 sb.AppendLine(s.Kind == QuestStepKind.Talk
                     ? string.Format(Loc.T("qb.sumStepTalk", "  {0}. [{1}] \"{2}\": falar com {3}"), i + 1, d.Id + 1 + i, s.Name, N(s.Npc))
+                    : s.Kind == QuestStepKind.Kill
+                    ? string.Format(Loc.T("qb.sumStepKill", "  {0}. [{1}] \"{2}\": matar {3}"), i + 1, d.Id + 1 + i, s.Name, string.Join(", ", s.Monsters.Select(m => $"{m.Count} × {N(m.Id)}")))
                     : string.Format(Loc.T("qb.sumStepReach", "  {0}. [{1}] \"{2}\": chegar a uma de {3} área(s) no mapa {4}"), i + 1, d.Id + 1 + i, s.Name, s.Areas.Count, s.MapTag));
             }
             if (d.Steps.Count > 0 && d.Steps[^1].Kind != QuestStepKind.Talk || d.Order != QuestStepOrder.InOrder)

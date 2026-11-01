@@ -24,7 +24,7 @@ public sealed class QuestDraft
     public int Editing;
 }
 
-public enum QuestStepKind { Talk, Reach }
+public enum QuestStepKind { Talk, Reach, Kill }
 
 /// <summary>Em ordem (uma de cada vez); qualquer ordem (todas ativas, termina quando a última acabar); basta uma.</summary>
 public enum QuestStepOrder { InOrder, AnyOrder, AnyOne }
@@ -46,6 +46,8 @@ public sealed class QuestStep
     /// <summary>Ir até um lugar: tag do mapa (gs.conf; mundo = 1) e as áreas — chegar em qualquer uma conclui a etapa.</summary>
     public int MapTag;
     public List<QuestArea> Areas = new();
+    /// <summary>Matar monstros: ID do monstro e quantos (m_MonsterWanted; a etapa acaba quando todos estiverem contados).</summary>
+    public List<(int Id, int Count)> Monsters = new();
 }
 
 /// <summary>
@@ -57,7 +59,7 @@ public sealed class QuestStep
 public static class QuestBuilder
 {
     /// <summary>Objetivo "falar com NPC" e conclusão ao falar com o NPC que recebe (perfil de 98% dos recados nas v93/v129/v198).</summary>
-    const int MethodTalkToNpc = 3, FinishByTalk = 1, MethodNone = 0, MethodReachSite = 4, FinishDirect = 0;
+    const int MethodTalkToNpc = 3, FinishByTalk = 1, MethodNone = 0, MethodReachSite = 4, FinishDirect = 0, MethodKillMonster = 1;
 
     /// <summary>O rascunho é um recado simples (sem subquests): sem etapas ou só "falar com NPC".</summary>
     public static bool IsRecado(QuestDraft d) => d.Steps.Count == 0 || d.Steps.Count == 1 && d.Steps[0].Kind == QuestStepKind.Talk;
@@ -118,7 +120,7 @@ public static class QuestBuilder
     }
 
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TasksFile, StepTemplates> _stepTpl = new();
-    sealed record StepTemplates(QuestNode? Parent, QuestNode? Reach, QuestNode? Talk);
+    sealed record StepTemplates(QuestNode? Parent, QuestNode? Reach, QuestNode? Talk, QuestNode? Kill);
 
     /// <summary>
     /// As opções de quest do diálogo (dar, concluir, entregar item) são exatamente as da própria quest: uma ou mais, todas com
@@ -139,8 +141,8 @@ public static class QuestBuilder
     /// </summary>
     static StepTemplates Templates(TasksFile t)
     {
-        if (_stepTpl.TryGetValue(t, out var c) && new[] { c.Parent, c.Reach, c.Talk }.All(q => q is null || t.Index.Find(q.Id) == q)) return c;
-        QuestNode? parent = null, reach = null, talk = null;
+        if (_stepTpl.TryGetValue(t, out var c) && new[] { c.Parent, c.Reach, c.Talk, c.Kill }.All(q => q is null || t.Index.Find(q.Id) == q)) return c;
+        QuestNode? parent = null, reach = null, talk = null, kill = null;
         foreach (var q in t.Roots ?? new())
         {
             if (parent is null && q.Children.Count > 0 && q.Talks.Length >= 5 && q.Talks[0].Windows.Count == 1 && OwnOptions(q, 0, TasksFile.NpcGiveTask) && NoTalks(q, 1, 4))
@@ -150,12 +152,17 @@ public static class QuestBuilder
             }
             foreach (var k in q.Descendants())
             {
-                if (reach is not null && talk is not null) break;
+                if (reach is not null && talk is not null && kill is not null) break;
                 if (k.Children.Count > 0 || k.Talks.Length < 5) continue;
                 if (reach is null && NoTalks(k, 0, 4))
                 {
                     var r = ReadRec(k, t.Version);
                     if (r.Int("m_enumMethod") == MethodReachSite && r.Int("m_enumFinishType") == FinishDirect && r.Int("m_ulReachSiteCnt") >= 1) reach = k;
+                }
+                if (kill is null && NoTalks(k, 0, 4))
+                {
+                    var r = ReadRec(k, t.Version);
+                    if (r.Int("m_enumMethod") == MethodKillMonster && r.Int("m_enumFinishType") == FinishDirect && r.Int("m_ulMonsterWanted") >= 1) kill = k;
                 }
                 if (talk is null && NoTalks(k, 0, 3) && k.Talks[4].Windows.Count == 1 && OwnOptions(k, 4, TasksFile.NpcCompleteTask))
                 {
@@ -163,9 +170,9 @@ public static class QuestBuilder
                     if (r.Int("m_enumMethod") == MethodTalkToNpc && r.Int("m_enumFinishType") == FinishByTalk && r.Int("m_ulAwardNPC") > 0) talk = k;
                 }
             }
-            if (parent is not null && reach is not null && talk is not null) break;
+            if (parent is not null && reach is not null && talk is not null && kill is not null) break;
         }
-        c = new StepTemplates(parent, reach, talk);
+        c = new StepTemplates(parent, reach, talk, kill);
         _stepTpl.AddOrUpdate(t, c);
         return c;
     }
@@ -253,6 +260,13 @@ public static class QuestBuilder
                     if (s.Npc <= 0 || !isNpc(s.Npc)) e.Add(at + T("qb.stepNoNpc", "falta o NPC com quem falar."));
                     if (s.Text.Trim().Length == 0) e.Add(at + T("qb.stepNoText", "falta a fala do NPC ao concluir a etapa."));
                     break;
+                case QuestStepKind.Kill:
+                    if (tpl.Kill is null) e.Add(at + T("qb.noKillTpl", "não há neste tasks.data uma etapa \"matar monstros\" para servir de modelo."));
+                    if (s.Monsters.Count == 0) e.Add(at + T("qb.stepNoMonster", "escolha pelo menos um monstro."));
+                    else if (s.Monsters.Count > TaskVer.GetMaxMonsterWanted(t.Version)) e.Add(at + string.Format(T("qb.stepMonstersMax", "no máximo {0} monstros nesta versão."), TaskVer.GetMaxMonsterWanted(t.Version)));
+                    foreach (var (mid, n) in s.Monsters)
+                        if (mid <= 0 || n <= 0) e.Add(at + string.Format(T("qb.stepBadMonster", "monstro {0}: ID e quantidade precisam ser maiores que zero."), mid));
+                    break;
                 case QuestStepKind.Reach:
                     if (tpl.Reach is null) e.Add(at + T("qb.noReachTpl", "não há neste tasks.data uma etapa \"ir até um lugar\" para servir de modelo."));
                     if (s.MapTag <= 0) e.Add(at + T("qb.stepNoMap", "não sei o número (tag) deste mapa no servidor: abra a pasta do servidor (gs.conf) ou do cliente com o configs.pck."));
@@ -306,7 +320,7 @@ public static class QuestBuilder
         for (int i = 0; i < d.Steps.Count; i++)
         {
             var proto = old is not null && i < old.Children.Count && StepKind(t, old.Children[i]) == d.Steps[i].Kind ? old.Children[i]
-                : d.Steps[i].Kind == QuestStepKind.Reach ? tpl.Reach : tpl.Talk;
+                : d.Steps[i].Kind switch { QuestStepKind.Reach => tpl.Reach, QuestStepKind.Kill => tpl.Kill, _ => tpl.Talk };
             kids.Add(t.AddChild(q, proto ?? throw new InvalidOperationException("sem modelo de etapa"), d.Id + 1 + i));
         }
         var rec = ReadRec(q, t.Version);
@@ -367,6 +381,7 @@ public static class QuestBuilder
         if (k.Children.Count > 0 || k.Talks.Length < 5) return null;
         var r = ReadRec(k, t.Version);
         if (r.Int("m_enumMethod") == MethodReachSite && r.Int("m_enumFinishType") == FinishDirect && NoTalks(k, 0, 4)) return QuestStepKind.Reach;
+        if (r.Int("m_enumMethod") == MethodKillMonster && r.Int("m_enumFinishType") == FinishDirect && NoTalks(k, 0, 4)) return QuestStepKind.Kill;
         if (r.Int("m_enumMethod") == MethodTalkToNpc && r.Int("m_enumFinishType") == FinishByTalk && NoTalks(k, 0, 3) && k.Talks[4].Windows.Count == 1
             && OwnOptions(k, 4, TasksFile.NpcCompleteTask)) return QuestStepKind.Talk;
         return null;
@@ -421,6 +436,9 @@ public static class QuestBuilder
                 var r = ReadRec(k, t.Version);
                 var s = new QuestStep { Kind = kind, Name = k.Name, Description = k.Texts[0] ?? "" };
                 if (kind == QuestStepKind.Talk) { s.Npc = (int)r.Int("m_ulAwardNPC"); s.Text = k.Talks[4].Windows[0].Text; }
+                else if (kind == QuestStepKind.Kill)
+                    for (int m = 0; m < r.Int("m_ulMonsterWanted"); m++)
+                        s.Monsters.Add(((int)r.Int($"m_MonsterWanted[{m}].m_ulMonsterTemplId"), (int)r.Int($"m_MonsterWanted[{m}].m_ulMonsterNum")));
                 else
                 {
                     s.MapTag = (int)r.Int("m_ulReachSiteId");
@@ -509,6 +527,19 @@ public static class QuestBuilder
         if (s.Kind == QuestStepKind.Talk)
         {
             S("m_enumMethod", MethodTalkToNpc); S("m_enumFinishType", FinishByTalk); S("m_ulAwardNPC", s.Npc); S("m_ulReachSiteId", 0);
+            return;
+        }
+        if (s.Kind == QuestStepKind.Kill)
+        {
+            S("m_enumMethod", MethodKillMonster); S("m_enumFinishType", FinishDirect); S("m_ulAwardNPC", 0); S("m_ulReachSiteId", 0);
+            // a lista do modelo (drop, nível de quem mata...) não é zerada pelo Clean (chave com ponto): zera e grava a nossa
+            foreach (var k in r.V.Keys.Where(k => k.StartsWith("m_MonsterWanted[")).ToList()) r.V[k] = Zero(r.V[k]);
+            S("m_ulMonsterWanted", s.Monsters.Count);
+            for (int m = 0; m < s.Monsters.Count; m++)
+            {
+                var b = $"m_MonsterWanted[{m}].";
+                S(b + "m_ulMonsterTemplId", s.Monsters[m].Id); S(b + "m_ulMonsterNum", s.Monsters[m].Count);
+            }
             return;
         }
         S("m_enumMethod", MethodReachSite); S("m_enumFinishType", FinishDirect); S("m_ulAwardNPC", 0);

@@ -4218,5 +4218,11 @@
   "ct.warNamesLog": "{0}：{1} 个领土名称",
   "ct.warTargetsLog": "world_targets.txt：{0} 个传送目的地",
   "ct.warMapLog": "surfaces.pck：领土地图（GuildMap.dds）",
-  "ct.warMapSize": "另一个客户端的领土地图尺寸不同，保留不变"
+  "ct.warMapSize": "另一个客户端的领土地图尺寸不同，保留不变",
+  "qb.noKillTpl": "此 tasks.data 中没有可作模板的“杀怪”步骤。",
+  "qb.stepNoMonster": "请至少选择一个怪物。",
+  "qb.stepMonstersMax": "此版本最多 {0} 个怪物。",
+  "qb.stepBadMonster": "怪物 {0}：ID和数量必须大于零。",
+  "qb.sumStepKill": "  {0}. [{1}]“{2}”：击杀 {3}",
+  "qb.noMonster": "elements.data 中不存在怪物 {0}。"
 }

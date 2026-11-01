@@ -4216,5 +4216,11 @@
   "ct.warNamesLog": "{0}: названий территорий {1}",
   "ct.warTargetsLog": "world_targets.txt: точек телепорта {0}",
   "ct.warMapLog": "surfaces.pck: карта территорий (GuildMap.dds)",
-  "ct.warMapSize": "карта территорий другого клиента другого размера и остаётся"
+  "ct.warMapSize": "карта территорий другого клиента другого размера и остаётся",
+  "qb.noKillTpl": "в этом tasks.data нет этапа «убить монстров», который можно взять за образец.",
+  "qb.stepNoMonster": "выберите хотя бы одного монстра.",
+  "qb.stepMonstersMax": "не более {0} монстров в этой версии.",
+  "qb.stepBadMonster": "монстр {0}: ID и количество должны быть больше нуля.",
+  "qb.sumStepKill": "  {0}. [{1}] «{2}»: убить {3}",
+  "qb.noMonster": "Монстра {0} нет в elements.data."
 }

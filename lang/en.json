@@ -4216,5 +4216,11 @@
   "ct.warNamesLog": "{0}: {1} territory names",
   "ct.warTargetsLog": "world_targets.txt: {0} teleport destinations",
   "ct.warMapLog": "surfaces.pck: territory map (GuildMap.dds)",
-  "ct.warMapSize": "the other client's territory map has a different size and stays"
+  "ct.warMapSize": "the other client's territory map has a different size and stays",
+  "qb.noKillTpl": "there is no \"kill monsters\" step in this tasks.data to use as a model.",
+  "qb.stepNoMonster": "choose at least one monster.",
+  "qb.stepMonstersMax": "at most {0} monsters in this version.",
+  "qb.stepBadMonster": "monster {0}: ID and count must be greater than zero.",
+  "qb.sumStepKill": "  {0}. [{1}] \"{2}\": kill {3}",
+  "qb.noMonster": "Monster {0} does not exist in elements.data."
 }
