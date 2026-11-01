@@ -13,7 +13,7 @@ namespace MyAceEditor.UI;
 /// mover, excluir, editar no software). Teclas: W/A/S/D, Espaço/Z (voo), Shift, roda (aproxima), M (mapa),
 /// Ctrl+Z/Ctrl+Y, Ctrl+C/Ctrl+V, Delete, T (esconde o terreno), H (legenda e atalhos).
 /// </summary>
-internal sealed class WorldView : Form
+internal sealed partial class WorldView : Form
 {
     /// <summary>LabelColor = cor do nome (legenda); OnGround = "no chão" (desenha na altura do terreno quando perto dela).</summary>
     public sealed record Marker(float X, float Y, float Z, Color Color, string Name, object Tag, string? Model = null, float Yaw = 0,
@@ -185,6 +185,7 @@ internal sealed class WorldView : Form
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
+        InitSceneEdit();
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         _element = element;
         if (element is not null) _clientNames = MapTags.ClientMapNames(element);
@@ -255,7 +256,7 @@ internal sealed class WorldView : Form
             // objetos do cenário (O ligado): clique perto de um efeito/som mostra o que é
             if (_sceneObjs && e.Button == MouseButtons.Left && _movingTag is null && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4 && PickSceneObject(e.Location) is { } info)
             {
-                _status.Text = info; _gl.Invalidate();
+                _status.Text = info; ShowObjPanel(); _gl.Invalidate();
                 return;
             }
             if (_movingTag is { } tag)
@@ -371,7 +372,8 @@ internal sealed class WorldView : Form
             case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
             case Keys.O:   // objetos do cenário: efeitos e sons (.ecwld)
                 _sceneObjs = !_sceneObjs; _gl.Invalidate();
-                _status.Text = _trees.Scene is not { } sc ? Loc.T("world.noScene", "Este mapa não tem .ecwld no cliente.")
+                if (_sceneObjs) LoadSceneForEdit(); else { _sceneSel = null; ShowObjPanel(); }
+                _status.Text = ObjScene is not { } sc ? Loc.T("world.noScene", "Este mapa não tem .ecwld no cliente.")
                     : _sceneObjs ? string.Format(Loc.T("world.objsOn", "Objetos do cenário: {0} efeitos e {1} sons (laranja = efeito, azul = som; clique para ver) — O esconde"), sc.Effects.Count, sc.Sounds.Count)
                     : Loc.T("world.objsOff", "Objetos do cenário escondidos — O mostra");
                 return;
@@ -669,7 +671,7 @@ internal sealed class WorldView : Form
     /// <summary>Efeitos (.gfx, laranja) e sons (azul; o escolhido mostra o raio máximo) do .ecwld a até 300 m da câmera.</summary>
     void DrawSceneObjects()
     {
-        if (!_sceneObjs || _trees.Scene is not { } sc) return;
+        if (!_sceneObjs || ObjScene is not { } sc) return;
         const float R2 = 300 * 300;
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Texture2D);
         GL.PointSize(8);
@@ -703,7 +705,7 @@ internal sealed class WorldView : Form
     /// <summary>Efeito ou som mais perto do clique (até 10 px na tela): texto para a barra de status.</summary>
     string? PickSceneObject(Point p)
     {
-        if (_trees.Scene is not { } sc) return null;
+        if (ObjScene is not { } sc) return null;
         object? best = null; float bd = 10;
         void Try(object o, float x, float y, float z)
         {
@@ -1421,6 +1423,12 @@ internal sealed class WorldView : Form
         }
         if (_clip is not null && CloneHere is not null)
             menu.Items.Add(Loc.T("world.paste", "Colar ponto copiado aqui (Ctrl+V)"), null, (_, _) => { CloneHere(_clip, at); RefreshMarkers(); });
+        // objeto do cenário escolhido (O ligado): efeito ou som vai para o chão clicado
+        if (_sceneObjs && _ecw is not null && _sceneSel is not null)
+        {
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(Loc.T("world.objMoveHere", "Mover o efeito/som escolhido para cá"), null, (_, _) => MoveSceneObjectTo(at));
+        }
         menu.Show(_gl, p);
     }
 
@@ -1620,6 +1628,7 @@ internal sealed class WorldView : Form
     // a ação mais recente é desfeita primeiro: quest (se nada de ponto mudou depois dela) ou ponto do NPCGen
     bool UndoAny()
     {
+        if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
         if (_qUndo.Count > 0 && _qUndo[^1] == (UndoDepth?.Invoke() ?? 0) && _host?.Undo() == true)
         {
             _qUndo.RemoveAt(_qUndo.Count - 1); _qRedo.Add(RedoDepth?.Invoke() ?? 0);
@@ -1631,6 +1640,7 @@ internal sealed class WorldView : Form
 
     bool RedoAny()
     {
+        if (SceneUndo(redo: true)) return true;
         if (_qRedo.Count > 0 && _qRedo[^1] == (RedoDepth?.Invoke() ?? 0) && _host?.Redo() == true)
         {
             _qRedo.RemoveAt(_qRedo.Count - 1); _qUndo.Add(UndoDepth?.Invoke() ?? 0);
