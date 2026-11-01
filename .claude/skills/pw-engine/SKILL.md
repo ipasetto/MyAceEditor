@@ -27,7 +27,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 - `source_server_153/cnet` = daemons (gdeliveryd, gamedbd, glinkd, gauthd, gfaction, uniquenamed, logservice, gacd) + `rpcalls.xml`.
 - `source_client_153/CElementClient` = cliente (EC_* jogo, Dlg* janelas), `CElementData` = templates do elements.
 - `Angelica2.2_src/Angelica2.2` = engine (A3D, AFile .pck, AUI).
-- `D:/Perfect World/Estudo PW` (PW-KB §S32): `CPW_Dev/CElement` = cliente + ferramentas OFICIAIS (CElementEditor = editor de mapas 3D, SOURCE-MAP §M17; CTaskTemplEditor = editor de quests, §M18; Doc = comandos de console GM); `174Source.zip` = servidor 1.7.4 (nao extraido; tar.exe do Windows). `D:/Perfect World/PW/Angelica/AngelicaCore_V2` = comercial recuperado: NAO ler codigo.
+- `D:/Perfect World/Estudo PW` (PW-KB §S32): `CPW_Dev/CElement` = cliente + ferramentas OFICIAIS (CElementEditor = editor de mapas 3D, SOURCE-MAP §M17; CTaskTemplEditor = editor de quests, §M18; Doc = comandos de console GM); `174Source.zip` = servidor 1.7.4 (nao extraido; tar.exe do Windows). `D:/Perfect World/PW/Angelica/AngelicaCore_V2/Editor/src_deobf` = Angelica Core (C#, familia RAE): referencia de formatos e funcoes, SOURCE-MAP §M19 (estudar; codigo nosso).
 - Pastas com data (cgame_2014..., cnet_2015..., release_...) = mesmas fontes em outras datas: usar as sem data.
 - O gs do servidor local (`/home/gamed/gs` no WSL) vem COM simbolos: `objdump -t -C /home/gamed/gs | grep <Nome>` acha a funcao no binario.
 - Textos do cliente em GBK (cp936). Regerar o mapa: `python -I .claude/skills/pw-engine/mkmap.py` (quando entrarem fontes novas).

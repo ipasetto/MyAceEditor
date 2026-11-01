@@ -25,6 +25,9 @@ AREAS = [
     # ferramentas oficiais do cliente (D:/Perfect World/Estudo PW/CPW_Dev, GBK): editor de mapas e de quests; roteiro do Mundo 3D em docs/MUNDO-3D-EDITOR.md
     ("M17", "CPW_Dev: CElementEditor = editor OFICIAL de mapas (cena 3D, objetos, terreno, exportadores ecwld/ecbsd/npcgen/precinct/region/path/bht)", "../Estudo PW/CPW_Dev/CElement/CElementEditor", False),
     ("M18", "CPW_Dev: CTaskTemplEditor (editor oficial de quests) + CRandomMap_WYD + CElementData", "../Estudo PW/CPW_Dev/CElement/CTaskTemplEditor", True),
+    # Angelica Core / UDE (C# net48, codigo recuperado e desofuscado em src_deobf; familia RAE): referencia de estudo de formatos e
+    # funcoes (mapa 3D SharpDX, npcgen ao vivo, precinct/region/path, world_targets, domain); codigo do MyAceEditor e nosso (nao copiar)
+    ("M19", "AngelicaCore_V2 (C#): ACE.PWMap = editor de mapa 3D (SharpDX) + demais modulos por namespace", "../PW/Angelica/AngelicaCore_V2/Editor/src_deobf", "angelicacore"),
 ]
 
 def stems(paths):
@@ -123,6 +126,14 @@ for sec, title, rel, rec in AREAS:
             if ps:
                 out.append(f"- {sub}/ ({len(ps)}):")
                 out += ["  " + l for l in compact(stems(ps))]
+        out.append(""); continue
+    if rec == "angelicacore":
+        out.append(f"## §{sec} {title}\n")
+        for sub in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+            d = os.path.join(base, sub)
+            if not os.path.isdir(d) or "Dependency" in sub or sub.startswith("_"): continue
+            ps = [os.path.join(d, f) for f in os.listdir(d) if f.endswith(".cs") and not f.startswith("-")]
+            if ps: out.append(f"- {sub} ({len(ps)}): " + " ".join(stems(ps)[:160]))
         out.append(""); continue
     if rec == "angelica":
         out.append(f"## §{sec} {title}\n")

@@ -6,7 +6,7 @@ do MyAceEditor (WinForms + OpenTK, UiKit, Ctrl+Z em tudo, `docs/REGRAS-DO-JOGO.m
 | Fonte | O que é | Como usamos |
 |---|---|---|
 | `Estudo PW\CPW_Dev\CElement\CElementEditor` | editor **oficial** de mapas da Perfect World (MFC, 442 arquivos, código-fonte) | ler para entender formatos e regras; nada copiado |
-| `PW\Angelica\AngelicaCore_V2` | editor comercial recuperado de binário protegido | só sabemos *que* faz; **não ler nem copiar** o código |
+| `PW\Angelica\AngelicaCore_V2\Editor\src_deobf` | Angelica Core (C#, família do RAE): editor de mapa 3D em SharpDX e demais módulos; mapa em SOURCE-MAP §M19 | referência de formatos e funções; código nosso |
 
 ## 1. O que o editor oficial faz (pelos menus e janelas dele)
 
@@ -59,8 +59,8 @@ Mudar **terreno ou objetos sólidos** no cliente obriga a gerar de novo os mapas
 (`map.bht`, `.rmap/.dhmap`, octree de voo). Sem isso o servidor anda e bate no relevo antigo. Mudar só NPCs/quests/áreas
 não precisa (par cliente + servidor, PW-KB §S7).
 
-## 2. O que o editor comercial (AngelicaCore) mostra que dá para fazer
-Sem ler o código: editor de mapa em DirectX com histórico de mudanças (adicionar, apagar, clonar, propriedade, terreno),
+## 2. O que o Angelica Core (ACE.PWMap) mostra
+Editor de mapa em DirectX com histórico de mudanças (adicionar, apagar, clonar, propriedade, terreno),
 exportar para cliente e para servidor, gerar a octree de passagem, leitores de bht/rmap/dhmap/wmap/ecwld/ecbsd/trn2/bmd.
 Confirma que o caminho do editor oficial é possível fora dele.
 
