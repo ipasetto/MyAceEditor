@@ -4273,5 +4273,20 @@
   "qe.dropsHint": "Optional. Choose the monster above (ID or in the world), then the item, how many to collect and the drop chance. The step counts the items collected, not the kills; on finishing the items are removed.",
   "qe.addDrop": "Add dropped item",
   "qe.questItem": "(quest item)",
-  "qe.dropPickMonster": "Choose the monster above (ID or in the world) before the dropped item."
+  "qe.dropPickMonster": "Choose the monster above (ID or in the world) before the dropped item.",
+  "qo.repeat": "Repeat (daily, weekly…)",
+  "qo.repeat.h": "Can be done once each day, week, month or year (daily quest). Also turns on \"can redo\".",
+  "qo.schedule": "Time when the quest exists",
+  "qo.schedule.h": "The quest is only offered in this time: between two dates, on certain days of the month, on certain weekdays or at certain hours of the day.",
+  "qe.schDate": "Between two dates",
+  "qe.schMonth": "Every month, between two days",
+  "qe.schWeek": "Every week, between two weekdays",
+  "qe.schDay": "Every day, between two hours",
+  "qe.schFrom": "from",
+  "qe.schTo": "to",
+  "qe.schDayN": "day {0}",
+  "qe.repDay": "Once a day",
+  "qe.repWeek": "Once a week",
+  "qe.repMonth": "Once a month",
+  "qe.repYear": "Once a year"
 }

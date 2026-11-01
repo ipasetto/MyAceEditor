@@ -50,6 +50,57 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
                 Controls.Add(Small(Loc.T("qe.flagOn", "✓ ligado")));
                 _value = () => true;
                 break;
+            case QOType.Repeat:
+            {
+                var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                for (int i = 1; i <= 4; i++) c.Items.Add(RepeatName(i));
+                c.SelectedIndex = initial is long r0 && r0 is >= 1 and <= 4 ? (int)r0 - 1 : 0;
+                Controls.Add(c);
+                _value = () => (long)(c.SelectedIndex + 1);   // m_lAvailFrequency: 1 dia, 2 semana, 3 mês, 4 ano
+                break;
+            }
+            case QOType.Schedule:
+            {
+                var type = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                type.Items.AddRange(new object[] { Loc.T("qe.schDate", "Entre duas datas"), Loc.T("qe.schMonth", "Todo mês, entre dois dias"), Loc.T("qe.schWeek", "Toda semana, entre dois dias da semana"), Loc.T("qe.schDay", "Todo dia, entre duas horas") });
+                Controls.Add(type);
+                // início e fim: data/hora (o tipo decide o que vale: data inteira, só o dia do mês, só o dia da semana ou só a hora)
+                (Control Row, Func<TaskTime> Get, Action<TaskTime> Set) Moment(string label)
+                {
+                    var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
+                    row.Controls.Add(Small(label));
+                    var date = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy HH:mm", Width = 150 };
+                    var day = Num(31); day.Width = 50; day.Minimum = 1;
+                    var wday = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                    for (int i = 1; i <= 7; i++) wday.Items.Add(WeekdayName(i));
+                    wday.SelectedIndex = 0;
+                    var time = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Width = 70 };
+                    row.Controls.AddRange(new Control[] { date, day, wday, time });
+                    void Show() { int k = Math.Max(0, type.SelectedIndex); date.Visible = k == 0; day.Visible = k == 1; wday.Visible = k == 2; time.Visible = k != 0; }
+                    type.SelectedIndexChanged += (_, _) => Show();
+                    TaskTime Get() => type.SelectedIndex switch
+                    {
+                        0 => new(date.Value.Year, date.Value.Month, date.Value.Day, date.Value.Hour, date.Value.Minute, 0),
+                        1 => new(0, 0, (int)day.Value, time.Value.Hour, time.Value.Minute, 0),
+                        2 => new(0, 0, 0, time.Value.Hour, time.Value.Minute, wday.SelectedIndex + 1),
+                        _ => new(0, 0, 0, time.Value.Hour, time.Value.Minute, 0),
+                    };
+                    void Set(TaskTime t)
+                    {
+                        if (t.Year > 0) try { date.Value = new DateTime(t.Year, Math.Max(1, t.Month), Math.Max(1, t.Day), t.Hour, t.Min, 0); } catch (ArgumentException) { }
+                        day.Value = Math.Clamp(t.Day, 1, 31); wday.SelectedIndex = Math.Clamp(t.WDay, 1, 7) - 1;
+                        time.Value = DateTime.Today.AddHours(Math.Clamp(t.Hour, 0, 23)).AddMinutes(Math.Clamp(t.Min, 0, 59));
+                    }
+                    Show();
+                    return (row, Get, Set);
+                }
+                var start = Moment(Loc.T("qe.schFrom", "de")); var end = Moment(Loc.T("qe.schTo", "até"));
+                Controls.Add(start.Row); Controls.Add(end.Row);
+                type.SelectedIndex = initial is QuestSchedule s0 ? Math.Clamp(s0.Type, 0, 3) : 3;
+                if (initial is QuestSchedule s1) { start.Set(s1.Start); end.Set(s1.End); }
+                _value = () => new QuestSchedule(type.SelectedIndex, start.Get(), end.Get());
+                break;
+            }
             case QOType.Gender:
             {
                 var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -117,4 +168,26 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
     }
 
     public QuestChoice Choice => new(Option, _value());
+
+    /// <summary>m_lAvailFrequency 1-4.</summary>
+    public static string RepeatName(int f) => f switch
+    {
+        1 => Loc.T("qe.repDay", "Uma vez por dia"), 2 => Loc.T("qe.repWeek", "Uma vez por semana"),
+        3 => Loc.T("qe.repMonth", "Uma vez por mês"), _ => Loc.T("qe.repYear", "Uma vez por ano"),
+    };
+
+    /// <summary>wday 1-7 do task_tm (1 = segunda … 7 = domingo [?]).</summary>
+    public static string WeekdayName(int w) => System.Globalization.CultureInfo.CurrentUICulture.DateTimeFormat.GetDayName((DayOfWeek)(w % 7));
+
+    public static string ScheduleText(QuestSchedule s)
+    {
+        string At(TaskTime t) => s.Type switch
+        {
+            0 => $"{t.Day:00}/{t.Month:00}/{t.Year} {t.Hour:00}:{t.Min:00}",
+            1 => string.Format(Loc.T("qe.schDayN", "dia {0}"), t.Day) + $" {t.Hour:00}:{t.Min:00}",
+            2 => $"{WeekdayName(t.WDay)} {t.Hour:00}:{t.Min:00}",
+            _ => $"{t.Hour:00}:{t.Min:00}",
+        };
+        return $"{At(s.Start)} → {At(s.End)}";
+    }
 }

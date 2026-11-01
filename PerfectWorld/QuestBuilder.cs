@@ -85,7 +85,7 @@ public static class QuestBuilder
     // campos de topo que o modelo traz de outra quest e a nova não deve herdar (requisitos, cadeia, regiões, chaves…)
     static readonly HashSet<string> ResetTop = new()
     {
-        "m_ulTimeLimit", "m_bAbsFail", "m_bAbsTime", "m_ulTimetable", "m_ulPremise_Task_Count", "m_ulPremise_Tasks", "m_ulPremise_Task_Least_Num",
+        "m_ulTimeLimit", "m_bAbsFail", "m_bAbsTime", "m_ulTimetable", "m_tmType", "m_lAvailFrequency", "m_ulPremise_Task_Count", "m_ulPremise_Tasks", "m_ulPremise_Task_Least_Num",
         "m_ulPremise_Cotask", "m_ulCoTaskCond", "m_ulMutexTaskCount", "m_ulMutexTasks", "m_ulPremise_Faction", "m_iPremise_FactionRole", "m_ulGender",
         "m_ulOccupations", "m_Occupations", "m_bPremise_Spouse", "m_bGM", "m_bShieldUser", "m_ulPremise_Deposit", "m_lPremise_Reputation",
         "m_lPremise_RepuMax", "m_ulPremise_Period", "m_ulPremRMBMin", "m_ulPremRMBMax", "m_bCharTime", "m_lSkillLev", "m_iPremNeedRecordTasksNum",

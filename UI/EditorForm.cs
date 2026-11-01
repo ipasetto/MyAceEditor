@@ -3009,6 +3009,8 @@ public sealed class EditorForm : Form
         {
             bool => Loc.T("qe.flagOn", "✓ ligado"),
             long v when c.Option.Type == QOType.Gender => v == 1 ? Loc.T("qe.male", "Masculino") : Loc.T("qe.female", "Feminino"),
+            long v when c.Option.Type == QOType.Repeat => QuestChoiceBlock.RepeatName((int)v),
+            QuestSchedule sc => QuestChoiceBlock.ScheduleText(sc),
             long v => v.ToString("N0"),
             ValueTuple<long, long> r => $"{r.Item1:N0} – {r.Item2:N0}",
             List<int> ids when c.Option.Type == QOType.Classes => string.Join(", ", ids.Select(FieldKinds.ClassName)),

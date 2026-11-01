@@ -1,7 +1,13 @@
 namespace MyAceEditor.PerfectWorld;
 
 /// <summary>Tipo de entrada de uma opção de requisito/prêmio.</summary>
-public enum QOType { Number, Range, Flag, Classes, Gender, Quests, Items, Field }
+public enum QOType { Number, Range, Flag, Classes, Gender, Quests, Items, Field, Repeat, Schedule }
+
+/// <summary>task_tm do tasks.data (ano completo, mês 1-12, dia, hora, minuto, dia da semana 1-7; 0 = não usa).</summary>
+public sealed record TaskTime(int Year, int Month, int Day, int Hour, int Min, int WDay);
+
+/// <summary>Uma faixa de horário (m_tmType 0 data, 1 todo mês, 2 toda semana, 3 todo dia) com início e fim.</summary>
+public sealed record QuestSchedule(int Type, TaskTime Start, TaskTime End);
 
 /// <summary>
 /// Opção de requisito ou prêmio da quest (docs/QUESTS-3D.md): o usuário escolhe o tipo na lista e informa o valor.
@@ -36,6 +42,8 @@ public static class QuestOptions
         new("gm", false, QOType.Flag, "Somente GM", "Só GMs podem aceitar (útil para testar).", "m_bGM"),
         new("timeLimit", false, QOType.Number, "Tempo limite (s)", "Segundos para concluir depois de aceitar.", "m_ulTimeLimit"),
         new("redo", false, QOType.Flag, "Pode refazer", "Pode ser feita de novo depois de concluída.", "m_bCanRedo"),
+        new("repeat", false, QOType.Repeat, "Repetir (diária, semanal…)", "Pode ser feita uma vez a cada dia, semana, mês ou ano (quest diária). Liga também \"pode refazer\".", "m_lAvailFrequency"),
+        new("schedule", false, QOType.Schedule, "Horário em que a quest existe", "A quest só é oferecida dentro deste horário: entre duas datas, em certos dias do mês, em certos dias da semana ou em certas horas do dia.", "m_ulTimetable"),
         new("reqField", false, QOType.Field, "Outro campo (avançado)", "Qualquer outro campo de requisito do formato; escolha o campo e o valor.", ""),
         // prêmios (além de ouro, experiência, espírito, reputação e itens)
         new("newTask", true, QOType.Quests, "Nova quest ao concluir", "Quest dada automaticamente ao concluir (cadeia). Só a 1ª conta.", AwardPrefix + "m_ulNewTask"),
@@ -108,6 +116,14 @@ public static class QuestOptions
                 case QOType.Number or QOType.Gender: if (rec.Int(o.Keys[0]) is var n and not 0) v = n; break;
                 case QOType.Range: if ((rec.Int(o.Keys[0]), rec.Int(o.Keys[1])) is var r && (r.Item1 != 0 || r.Item2 != 0)) v = r; break;
                 case QOType.Flag: if (GetFlag(rec, version, o.Keys[0])) v = true; break;
+                case QOType.Repeat: if (rec.Int(o.Keys[0]) is var f and > 0) v = f; break;
+                case QOType.Schedule:
+                    if (rec.Int("m_ulTimetable") == 1)   // mais de uma faixa: o assistente não mostra (a prova do FromQuest recusa)
+                    {
+                        TaskTime T(string p) => new((int)rec.Int(p + "year"), (int)rec.Int(p + "month"), (int)rec.Int(p + "day"), (int)rec.Int(p + "hour"), (int)rec.Int(p + "min"), (int)rec.Int(p + "wday"));
+                        v = new QuestSchedule((int)rec.Int("m_tmType[0]"), T("m_tmStart[0]."), T("m_tmEnd[0]."));
+                    }
+                    break;
                 case QOType.Classes or QOType.Quests:
                 {
                     if (o.Keys.Length == 1) { if (rec.Int(o.Keys[0]) is var one and not 0) v = new List<int> { (int)one }; break; }
@@ -147,6 +163,23 @@ public static class QuestOptions
             case QOType.Number: rec.V[o.Keys[0]] = (long)c.Value; break;
             case QOType.Range: { var (a, b) = ((long, long))c.Value; rec.V[o.Keys[0]] = a; rec.V[o.Keys[1]] = b; break; }
             case QOType.Flag: SetFlag(rec, version, o.Keys[0], true); break;
+            case QOType.Repeat:
+                rec.V[o.Keys[0]] = (long)c.Value;
+                // quest diária real: m_bCanRedo ligado (perfil --tasks-field 155 BR: 1502 de 1528)
+                if (rec.V.ContainsKey("m_bCanRedo") || SwitchIndex(version, "m_bCanRedo") >= 0) SetFlag(rec, version, "m_bCanRedo", true);
+                break;
+            case QOType.Schedule:
+            {
+                var sc = (QuestSchedule)c.Value;
+                rec.V["m_ulTimetable"] = 1L;
+                if (rec.V.ContainsKey("m_tmType[0]")) rec.V["m_tmType[0]"] = (long)sc.Type;
+                foreach (var (p, t) in new[] { ("m_tmStart[0].", sc.Start), ("m_tmEnd[0].", sc.End) })
+                {
+                    rec.V[p + "year"] = (long)t.Year; rec.V[p + "month"] = (long)t.Month; rec.V[p + "day"] = (long)t.Day;
+                    rec.V[p + "hour"] = (long)t.Hour; rec.V[p + "min"] = (long)t.Min; rec.V[p + "wday"] = (long)t.WDay;
+                }
+                break;
+            }
             case QOType.Gender: rec.V[o.Keys[0]] = (long)c.Value; break;
             case QOType.Classes or QOType.Quests:
             {

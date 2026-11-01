@@ -4275,5 +4275,20 @@
   "qe.dropsHint": "可选。先在上面选择怪物（ID或在世界中选），再选物品、收集数量和掉落几率。该步骤统计收集到的物品而不是击杀数；完成时物品会被收走。",
   "qe.addDrop": "添加掉落物品",
   "qe.questItem": "（任务物品）",
-  "qe.dropPickMonster": "请先在上面选择怪物（ID或在世界中选）。"
+  "qe.dropPickMonster": "请先在上面选择怪物（ID或在世界中选）。",
+  "qo.repeat": "重复（每天、每周……）",
+  "qo.repeat.h": "每天、每周、每月或每年可完成一次（日常任务）。同时开启“可重复”。",
+  "qo.schedule": "任务开放时间",
+  "qo.schedule.h": "只在此时间内发放任务：两个日期之间、每月某几天、每周某几天或每天某几个小时。",
+  "qe.schDate": "两个日期之间",
+  "qe.schMonth": "每月，两天之间",
+  "qe.schWeek": "每周，两个星期几之间",
+  "qe.schDay": "每天，两个时间之间",
+  "qe.schFrom": "从",
+  "qe.schTo": "到",
+  "qe.schDayN": "{0}日",
+  "qe.repDay": "每天一次",
+  "qe.repWeek": "每周一次",
+  "qe.repMonth": "每月一次",
+  "qe.repYear": "每年一次"
 }

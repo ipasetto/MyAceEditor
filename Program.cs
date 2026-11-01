@@ -461,6 +461,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks-recado") { TaskRecado(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }
+        if (args.Length >= 4 && args[0] == "--tasks-field") { TaskField(args[1], args[2], args[3].Split(',')); return; }   // <tasks.data> <campo=valor> <campos,...>: distribuição (tasks-field.txt)
         if (args.Length >= 3 && args[0] == "--tasks-method") { foreach (var m in args[2].Split(',')) TaskMethod(args[1], int.Parse(m)); return; }   // <tasks.data> <método[,método]>: perfil do objetivo (tasks-method.txt)
         if (args.Length >= 3 && args[0] == "--tasks-svc") { TaskSvc(args[1], args[2]); return; }   // <elements.data> <tasks.data>: que ID (pai ou filha) os NPCs guardam no serviço de dar/receber   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
@@ -1169,6 +1170,30 @@ internal static class Program
         File.AppendAllText("tasks-method.txt", sb.ToString() + "\n", new UTF8Encoding(false));
     }
 
+    /// <summary>Distribuição de campos do bloco fixo nas quests onde filtro=valor (tasks-field.txt): ver como o jogo combina opções.</summary>
+    private static void TaskField(string path, string filter, string[] keys)
+    {
+        var t = new TasksFile(path);
+        var (fk, fv) = (filter.Split('=')[0], long.Parse(filter.Split('=')[1]));
+        var hist = keys.ToDictionary(k => k, _ => new Dictionary<string, int>());
+        int n = 0;
+        foreach (var q in t.Roots!.SelectMany(r => r.Descendants().Prepend(r)))
+        {
+            var rec = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(q.Fixed, false)), t.Version);
+            if (rec.Int(fk) != fv) continue;
+            n++;
+            foreach (var k in keys)
+            {
+                var v = k.StartsWith("m_b") && QuestOptions.SwitchIndex(t.Version, k) >= 0 ? (QuestOptions.GetFlag(rec, t.Version, k) ? "1" : "0")
+                    : rec.V.TryGetValue(k, out var o) ? (o is byte[] ? "bytes" : Convert.ToString(o, System.Globalization.CultureInfo.InvariantCulture)!) : "-";
+                hist[k][v] = hist[k].GetValueOrDefault(v) + 1;
+            }
+        }
+        var sb = new StringBuilder($"v{t.Version} · {filter}: {n} quests\n");
+        foreach (var (k, h) in hist) sb.AppendLine($"{k}: " + string.Join(" | ", h.OrderByDescending(x => x.Value).Take(8).Select(x => $"{x.Key} ({x.Value})")));
+        File.AppendAllText("tasks-field.txt", sb + "\n", new UTF8Encoding(false));
+    }
+
     private static void TaskSite(string path)
     {
         var t = new TasksFile(path);
@@ -1305,7 +1330,8 @@ internal static class Program
         foreach (var (id, val) in new (string, object)[]
         {
             ("classes", new List<int> { 0, 6 }), ("gender", 2L), ("preTasks", new List<int> { tpl.Id }), ("premItems", new List<(int, int)> { (11208, 1) }),
-            ("spouse", true), ("redo", true), ("newTask", new List<int> { tpl.Id }), ("bank", 2L), ("levCo", true),
+            ("spouse", true), ("redo", true), ("newTask", new List<int> { tpl.Id }), ("bank", 2L), ("levCo", true), ("repeat", 1L),
+            ("schedule", new QuestSchedule(2, new TaskTime(0, 0, 0, 20, 0, 6), new TaskTime(0, 0, 0, 22, 30, 7))),
         })
             if (QuestOptions.Available(Opt(id), t.Version, model)) d.Choices.Add(new QuestChoice(Opt(id), val));
         sb.AppendLine("opções: " + string.Join(", ", d.Choices.Select(c => c.Option.Id)) + " · indisponíveis nesta versão: "
@@ -1325,7 +1351,7 @@ internal static class Program
                          "m_Award_S.m_CandItems[0].m_ulAwardItems", "m_Award_S.m_CandItems[0].m_AwardItems[0].m_ulItemTemplId",
                          "m_Award_S.m_CandItems[0].m_AwardItems[0].m_ulItemNum", "m_Award_S.m_CandItems[0].m_AwardItems[1].m_ulItemTemplId", "m_Award_S.m_ulNewTask",
                          "m_ulOccupations", "m_Occupations[0]", "m_Occupations[1]", "m_ulGender", "m_ulPremise_Tasks[0]", "m_ulPremItems",
-                         "m_PremItems[0].m_ulItemTemplId", "m_bCanRedo", "m_Award_S.m_ulStorehouseSize", "m_Award_S.m_CandItems[0].m_bRandChoose", "m_Award_S.m_bUseLevCo" })
+                         "m_PremItems[0].m_ulItemTemplId", "m_bCanRedo", "m_lAvailFrequency", "m_ulTimetable", "m_tmType[0]", "m_tmStart[0].wday", "m_tmEnd[0].hour", "m_tmEnd[0].min", "m_Award_S.m_ulStorehouseSize", "m_Award_S.m_CandItems[0].m_bRandChoose", "m_Award_S.m_bUseLevCo" })
                 sb.AppendLine($"  {k} = {V(nq, k)}");
             // bits de CombinedSwitches (v135+) ou campo
             var rr = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(nq.Fixed)), back.Version);
