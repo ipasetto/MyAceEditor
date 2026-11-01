@@ -589,6 +589,7 @@ internal sealed partial class WorldView : Form
         foreach (var m in _nearMarks)
         {
             if (Dist2(m) > 300 * 300) continue;
+            if (HideModelFor(m)) continue;   // Caminhos em patrulha: o círculo de marcar fica no lugar do modelo
             if (m.Model is null || !_models.Draw(m.Model, PosOf(m), m.Tag == _gizmoTag && _gizmoYaw is { } gy ? gy : m.Yaw)) noModel.Add(m);
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);

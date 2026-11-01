@@ -35,7 +35,7 @@ internal sealed partial class WorldView
     DateTime? _pathSavedAt;   // confirmação visível do último Salvar (teste 6, usuário 01/11)
     bool PathDirty => _pathFile is not null && _pathSaved is not null && !_pathFile.Write().AsSpan().SequenceEqual(_pathSaved);
 
-    // criatura de ar/água: no editor só anda numa área (usuário 01/11; patrulha no ar pediria altura em cada ponto)
+    // criatura de ar/água: patrulha com o marcador de voo (WorldView.AirPath.cs)
     readonly Label _pathAirHint = Hint("");
     /// <summary>inhabit_type do monstro (0 terra, 1 água, 2 ar, 3 terra+água, 4 terra+ar, 5 água+ar, 6 todos).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Func<int, int>? InhabitOf { get; set; }
@@ -99,6 +99,7 @@ internal sealed partial class WorldView
 
     void InitPathPage()
     {
+        InitAirPath();
         _modeArea = SmallButton("\uE81E", Loc.T("path.modeArea", "Andar numa área"), () => SetMode(false));
         _modePath = SmallButton("\uE707", Loc.T("path.modePath", "Patrulhar um caminho"), () => SetMode(true));
         _areaNone = SmallButton("\uE7B7", Loc.T("path.areaNone", "Sem área (fica parado no ponto)"), () =>
@@ -120,7 +121,7 @@ internal sealed partial class WorldView
         _pathUndo = SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny());
         _pathRedo = SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny());
         _pathSave = SmallButton("\uE74E", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true);
-        foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirHint, _pathDraw, _pathDone, _pathCancel,
+        foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirHint, _flyMark, _pathDraw, _pathDone, _pathCancel,
                      _loopBox, _pathDel, _pathState, _pathUndo, _pathRedo, _pathSave })
             _pathsPage.Controls.Add(c);
         FormClosing += (_, e) =>
@@ -190,11 +191,15 @@ internal sealed partial class WorldView
         _pathStep1.Visible &= !blocked;
         _pathDone.Visible = _pathCancel.Visible = drawing;
         _pathLoopTitle.Text = Loc.T("path.loopTitle", "3. No fim do caminho");
-        // voador/nadador: só área (sem patrulhar caminho)
-        bool air = !blocked && PathAir;
-        _pathAirHint.Text = Loc.T("path.airOnly", "Esta criatura voa ou nada: aqui ela só anda numa área. Se ela já tem um caminho, você pode apagá-lo.");
-        _pathAirHint.Visible = air;
-        if (air) { _modePath.Visible = false; _pathDraw.Visible = false; }
+        // patrulha (todas as criaturas): o círculo com setas X/Y/Z fica no lugar do modelo (WorldView.AirPath.cs)
+        bool cursor = !blocked && patrol && s is not null;
+        SyncFlyCursor();
+        if (cursor)
+            _pathHint.Text = drawing ? Loc.T("path.cursorDrawing", "Clique no chão para levar o círculo até lá (ou arraste as setas; verde = altura). A cada parada clique em \"Marcar ponto aqui\" (Espaço): os pontos vão se ligando. Enter termina; Esc cancela. Depois é só salvar.")
+                : PathAir ? Loc.T("path.flyEdit2", "Esta criatura voa ou nada: ela segue a altura de cada ponto. Clique num ponto e arraste as setas (verde = altura) para mudá-lo.")
+                : Loc.T("path.cursorEdit", "Clique num ponto do caminho e arraste as setas para mudá-lo. O ponto grande é o começo. \"Redesenhar\" começa de novo.");
+        _pathAirHint.Visible = false;
+        _flyMark.Visible = cursor && drawing;
         _loopBox.Visible = hasPath && !drawing;
         int loop = s is null ? 0 : LoopOf(s);
         _loop0.BackColor = loop == 0 ? UiKit.Accent : Color.FromArgb(40, 45, 54);
@@ -232,7 +237,7 @@ internal sealed partial class WorldView
         else StartDraw();
     }
 
-    void StartDraw() { if (PathSpawn is null || _pathFile is null || PathAir) return; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
+    void StartDraw() { if (PathSpawn is null || _pathFile is null) return; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
 
     void CancelDraw() { _drawPts = null; _drawHover = null; UpdatePathPanel(); _gl.Invalidate(); }
 
@@ -376,7 +381,9 @@ internal sealed partial class WorldView
     bool PathMouseDown(MouseEventArgs e)
     {
         if (_tool != Tool.Paths || e.Button != MouseButtons.Left) return false;
-        if (_drawPts is not null) { _dragging = true; return true; }   // desenhando: arrastar gira a câmera, clicar põe ponto
+        if (FlyMouseDown(e)) return true;
+        if (_drawPts is not null) { _dragging = true; return true; }
+        if (AirPatrol) return false;   // os pontos mudam pelas setas do círculo, não arrastando no chão   // desenhando: arrastar gira a câmera, clicar põe ponto
         if (PathPointAt(e.Location) is >= 0 and var k) { _dragPt = k; _dragBefore = _pathFile!.Write(); return true; }
         return false;
     }
@@ -384,13 +391,14 @@ internal sealed partial class WorldView
     bool PathMouseMove(Point p)
     {
         if (_tool != Tool.Paths) return false;
+        if (FlyMouseMove(p)) return true;
         if (_dragPt >= 0 && SelPath is { } sp && Ray(p) is { } at)
         {
             MovePoint(sp, _dragPt, at - G(sp.Points[_dragPt].Pos));
             RebuildPaths(); _gl.Invalidate();
             return true;
         }
-        if (_drawPts is not null && !_dragging) { _drawHover = Ray(p); _gl.Invalidate(); }
+        if (_drawPts is not null && !_dragging) { _drawHover = AirPatrol ? null : Ray(p); _gl.Invalidate(); }
         int h = _drawPts is null ? PathPointAt(p) : -1;
         if (h != _hoverPt) { _hoverPt = h; _gl.Invalidate(); }
         return false;
@@ -399,6 +407,7 @@ internal sealed partial class WorldView
     bool PathMouseUp(MouseEventArgs e)
     {
         if (_tool != Tool.Paths) return false;
+        if (FlyMouseUp()) return true;
         if (_dragPt >= 0)
         {
             _dragPt = -1;
@@ -409,6 +418,7 @@ internal sealed partial class WorldView
         if (_drawPts is null) return false;
         bool click = Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4;
         if (e.Button == MouseButtons.Right && click) { FinishDraw(); return true; }
+        if (e.Button == MouseButtons.Left && click && AirPatrol && Ray(e.Location) is { } flyTo) { FlyMoveTo(flyTo); return true; }   // o clique leva o círculo
         if (e.Button == MouseButtons.Left && click && Ray(e.Location) is { } at)
         {
             // não atravessa nada sólido (pedra, árvore, construção): o monstro não passaria, igual ao jogador
@@ -430,6 +440,7 @@ internal sealed partial class WorldView
     /// <summary>Teclas da ferramenta: Enter termina o desenho, Esc cancela. true = tecla usada.</summary>
     bool PathKey(Keys k)
     {
+        if (_tool == Tool.Paths && k == Keys.Space && PatrolMode && PathSpawn is not null) { FlyMark(); return true; }
         if (_tool != Tool.Paths || _drawPts is null) return false;
         if (k == Keys.Enter) { FinishDraw(); return true; }
         if (k == Keys.Escape) { CancelDraw(); return true; }
@@ -472,6 +483,7 @@ internal sealed partial class WorldView
     void DrawPathEdit()
     {
         if (_tool != Tool.Paths) return;
+        DrawAirPath();
         if (!ReferenceEquals(_pathPanelFor, PathSpawn)) BeginInvoke(UpdatePathPanel);
         GL.Disable(EnableCap.DepthTest);
         if (_drawPts is null && SelPath is { } sp)

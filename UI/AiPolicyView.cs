@@ -28,20 +28,14 @@ public sealed class AiPolicyView : UserControl
     readonly TextBox _report = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 10), Visible = false, WordWrap = false };
     readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
     readonly ComboBox _newOp = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 230 };
-    readonly Label _lblNewOp = new() { AutoSize = true, Padding = new Padding(0, 6, 0, 0) };
-    readonly Label _lblLang = new() { AutoSize = true, Padding = new Padding(0, 6, 0, 0) };
-    readonly Button _open = new() { AutoSize = true };
-    readonly Button _save = new() { AutoSize = true, Enabled = false };
-    readonly Button _add = new() { AutoSize = true, Enabled = false };
-    readonly Button _del = new() { AutoSize = true, Enabled = false };
-    readonly Button _clone = new() { AutoSize = true, Enabled = false };
-    readonly TextBox _find = new() { Width = 200 };
-    readonly Button _findNext = new() { AutoSize = true };
-    readonly Button _trSel = new() { AutoSize = true, Enabled = false };
-    readonly Button _trAll = new() { AutoSize = true, Enabled = false };
-    readonly CheckBox _orig = new() { AutoSize = true, Padding = new Padding(8, 3, 0, 0) };
-    readonly Label _lblTarget = new() { AutoSize = true, Padding = new Padding(8, 6, 0, 0) };
-    readonly ComboBox _tgt = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 170 };
+    // barra de comandos estilo Word (UiKit; layout refeito 01/11 pela regra das telas)
+    readonly ToolStripButton _open, _save, _add, _del, _clone, _trSel, _trAll;
+    readonly TextBox _find = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10f) };
+    readonly Button _findNext = new() { Dock = DockStyle.Right, Width = 92 };
+    readonly CheckBox _orig = new() { AutoSize = true, Padding = new Padding(8, 3, 0, 0), BackColor = Color.Transparent };
+    readonly ComboBox _tgt = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
+    readonly StatusCard _card = new();   // arquivo aberto (ou o que fazer quando não há)
+    readonly ToolTip _tips = new();
 
     /// <summary>Idioma em que os TEXTOS DO JOGO são traduzidos (independe do idioma do programa). Padrão: português.</summary>
     public string TargetLang { get; private set; } = "pt";
@@ -77,24 +71,35 @@ public sealed class AiPolicyView : UserControl
         };
         _ctx.UsedBy = UsedByOf;
 
-        var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 6, 8, 0), BackColor = bg, WrapContents = false };
-        _lblNewOp.ForeColor = fg; _lblLang.ForeColor = fg; _orig.ForeColor = fg;
-        top.Controls.AddRange(new Control[] { _open, _save, _lblNewOp, _newOp, _add, _del, _clone });
-        var top2 = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(8, 2, 8, 0), BackColor = bg, WrapContents = false };
-        // busca na 2ª linha: na 1ª, no tamanho normal da janela, o "Próximo" ficava cortado
-        top2.Controls.AddRange(new Control[] { _find, _findNext, new Label { Width = 12 }, _trSel, _trAll, _lblTarget, _tgt, _orig, _lblLang });
-        // botões no estilo das outras áreas: plano, ícone da função (UiKit)
-        foreach (var (b, hint) in new[] { (_open, "open"), (_save, "save"), (_add, "add"), (_del, "delete"), (_clone, "clone"), (_findNext, "next"), (_trSel, "translate"), (_trAll, "translate") })
-        { b.Height = 30; b.BackColor = Color.White; b.ForeColor = UiKit.Fg; UiKit.Decorate(b, hint, primary: b == _save); }
+        var top = UiKit.Ribbon();
+        _open = UiKit.Cmd(top, UiKit.OpenFile, "ai.rOpen", "Abrir", () => { using var d = new OpenFileDialog { Filter = "aipolicy.data|aipolicy.data|" + Loc.T("dlg.allFiles", "Todos") + "|*.*" }; if (d.ShowDialog() == DialogResult.OK) LoadFile(d.FileName); },
+            "ai.openAipolicyData", "Abrir aipolicy.data…");
+        _save = UiKit.Cmd(top, UiKit.Save, "ai.rSave", "Salvar", SaveFile, "ai.saveWithBackup", "Salvar (com backup)", primary: true);
+        UiKit.Sep(top);
+        top.Items.Add(new ToolStripControlHost(_newOp) { Margin = new Padding(2, 14, 4, 0), AutoSize = false, Width = 230 });
+        _add = UiKit.Cmd(top, UiKit.Add, "ai.rAddOp", "Pôr operação", AddOp, "ai.rAddOpTip", "Acrescenta ao gatilho escolhido a operação da caixa ao lado.");
+        _del = UiKit.Cmd(top, UiKit.Delete, "ai.rDelete", "Excluir", DeleteSelected, "ai.deleteOperationTrigger", "Excluir operação/gatilho");
+        _clone = UiKit.Cmd(top, UiKit.Copy, "ai.rClone", "Clonar", CloneSelected, "ai.clonePolicyTrigger", "Clonar política/gatilho");
+        UiKit.Sep(top);
+        _trSel = UiKit.Cmd(top, UiKit.Globe, "ai.rTrSel", "Traduzir seleção", () => _ = TranslateSelection(), "ai.rTrSelTip", "Traduz as falas da política ou do gatilho escolhido para o idioma ao lado.");
+        _trAll = UiKit.Cmd(top, UiKit.Globe, "ai.rTrAll", "Traduzir tudo", () => _ = TranslateAll(), "ai.rTrAllTip", "Traduz as falas de todas as políticas.");
+        top.Items.Add(new ToolStripControlHost(_tgt) { Margin = new Padding(2, 14, 4, 0), AutoSize = false, Width = 150 });
+        top.Items.Add(new ToolStripControlHost(_orig) { Margin = new Padding(4, 14, 4, 0) });
+        foreach (var b in new[] { _save, _add, _del, _clone, _trSel, _trAll }) b.Enabled = false;
+        _orig.ForeColor = UiKit.Fg;
+        // busca acima da lista de políticas (lupa à esquerda, Próximo à direita)
+        var searchRow = new Panel { Dock = DockStyle.Top, Height = 34, Padding = new Padding(28, 5, 4, 3), BackColor = treeBg };
+        var lupa = new PictureBox { Image = UiKit.Icon(UiKit.Search, Color.Silver, 18), Size = new Size(18, 18), Location = new Point(6, 8), BackColor = treeBg };
+        _find.BackColor = Color.FromArgb(40, 44, 52); _find.ForeColor = treeFg;
+        _findNext.FlatStyle = FlatStyle.Flat; _findNext.ForeColor = treeFg; _findNext.BackColor = treeBg;
+        searchRow.Controls.Add(_find); searchRow.Controls.Add(_findNext); searchRow.Controls.Add(lupa);
 
         foreach (var tv in new[] { _policies, _detail }) { tv.BackColor = treeBg; tv.ForeColor = treeFg; tv.Font = new Font("Segoe UI", 10); tv.BorderStyle = BorderStyle.None; }
         _meaning.BackColor = treeBg; _meaning.ForeColor = treeFg;
         _grid.Columns.Add("campo", ""); _grid.Columns.Add("valor", "");
         _grid.Columns[0].ReadOnly = true; _grid.Columns[0].FillWeight = 35;
-        _grid.Font = new Font("Segoe UI", 10);
+        _grid.Font = new Font("Segoe UI", 10); _grid.BackgroundColor = treeBg; _grid.BorderStyle = BorderStyle.None;
 
-        var statusBar = new Panel { Dock = DockStyle.Bottom, Height = 26, Padding = new Padding(8, 0, 8, 0), BackColor = bg };
-        _status.ForeColor = fg; statusBar.Controls.Add(_status);
 
         var lower = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
         lower.Panel1.Controls.Add(_grid);
@@ -103,11 +108,11 @@ public sealed class AiPolicyView : UserControl
         right.Panel1.Controls.Add(_detail);
         right.Panel2.Controls.Add(lower);
         var main = new SplitContainer { Dock = DockStyle.Fill };
-        main.Panel1.Controls.Add(_policies);
+        main.Panel1.Controls.Add(_policies); main.Panel1.Controls.Add(searchRow);
         main.Panel2.Controls.Add(right);
         main.Panel2.Controls.Add(_report);
 
-        Controls.Add(main); Controls.Add(top2); Controls.Add(top); Controls.Add(statusBar);
+        Controls.Add(main); Controls.Add(_card); Controls.Add(top);
         _report.BringToFront(); _report.Visible = false;
 
         // distâncias dos divisores só depois que o controle tem tamanho de verdade
@@ -122,8 +127,6 @@ public sealed class AiPolicyView : UserControl
             catch { /* tamanho ainda pequeno: fica no padrão */ }
         };
 
-        _open.Click += (_, _) => { using var d = new OpenFileDialog { Filter = "aipolicy.data|aipolicy.data|" + Loc.T("dlg.allFiles", "Todos") + "|*.*" }; if (d.ShowDialog() == DialogResult.OK) LoadFile(d.FileName); };
-        _save.Click += (_, _) => SaveFile();
         _policies.AfterSelect += (_, e) =>
         {
             if (e.Node?.Tag is AiTrigger t) ShowTrigger(t);
@@ -132,17 +135,13 @@ public sealed class AiPolicyView : UserControl
         };
         _detail.AfterSelect += (_, e) => { ShowFields(e.Node); RefreshMeaning(); UpdateButtons(); };
         _grid.CellEndEdit += OnCellEdit;
-        _add.Click += (_, _) => AddOp();
-        _del.Click += (_, _) => DeleteSelected();
-        _clone.Click += (_, _) => CloneSelected();
         _findNext.Click += (_, _) => FindNext();
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
-        _trSel.Click += async (_, _) => await TranslateSelection();
-        _trAll.Click += async (_, _) => await TranslateAll();
         _orig.CheckedChanged += (_, _) => { RefreshLabels(); if (_current != null) ShowFields(_detail.SelectedNode); RefreshMeaning(); };
 
         Loc.Changed += OnLangChanged;
         ApplyTexts();
+        ClearDetail();   // já começa dizendo o que fazer
         SetStatus(Loc.T("ai.openAipolicyDataClientData", "Abra o aipolicy.data (pasta data do cliente ou config do servidor)."));
     }
 
@@ -156,19 +155,13 @@ public sealed class AiPolicyView : UserControl
 
     void ApplyTexts()
     {
-        _open.Text = Loc.T("ai.openAipolicyData", "Abrir aipolicy.data…");
-        _save.Text = Loc.T("ai.saveWithBackup", "Salvar (com backup)");
-        _lblNewOp.Text = Loc.T("ai.newOperation", "  Nova operação:");
-        _add.Text = "+ " + Loc.T("ai.operation", "Operação");
-        _del.Text = Loc.T("ai.deleteOperationTrigger", "Excluir operação/trigger");
-        _clone.Text = Loc.T("ai.clonePolicyTrigger", "Clonar política/trigger");
         _find.PlaceholderText = Loc.T("ai.searchIdOrName", "Buscar: ID ou nome");
         _findNext.Text = Loc.T("ai.next", "Próximo");
-        _lblTarget.Text = Loc.T("ai.translateTo", "Traduzir para:");
-        _trSel.Text = _cts is null ? Loc.T("ai.translateSelection", "Traduzir seleção") : Loc.T("ai.cancelTranslation", "Cancelar tradução");
-        _trAll.Text = _cts is null ? Loc.T("ai.translateAll", "Traduzir tudo") : Loc.T("ai.cancelTranslation", "Cancelar tradução");
-        _orig.Text = Loc.T("ai.showOriginalTechnicalNames", "Mostrar original / nomes técnicos");
-        _lblLang.Text = string.Format(Loc.T("ai.programLanguage0LanguageMenu", "   Idioma do programa: {0} (menu Idioma)"), AppLang.NameOf(AppLang.Current));
+        _trSel.Text = _cts is null ? Loc.T("ai.rTrSel", "Traduzir seleção") : Loc.T("ai.cancelTranslation", "Cancelar tradução");
+        _trAll.Text = _cts is null ? Loc.T("ai.rTrAll", "Traduzir tudo") : Loc.T("ai.cancelTranslation", "Cancelar tradução");
+        _orig.Text = Loc.T("ai.showOriginal2", "Nomes técnicos");
+        _tips.SetToolTip(_tgt, Loc.T("ai.translateTo", "Traduzir para:"));
+        _tips.SetToolTip(_newOp, Loc.T("ai.newOperation", "Nova operação:"));
         _grid.Columns[0].HeaderText = Loc.T("ai.field", "Campo");
         _grid.Columns[1].HeaderText = Loc.T("ai.value", "Valor");
         int keep = Math.Max(0, _newOp.SelectedIndex);
@@ -290,6 +283,8 @@ public sealed class AiPolicyView : UserControl
     void ClearDetail()
     {
         _detail.Nodes.Clear(); _grid.Rows.Clear(); _setters.Clear(); _current = null;
+        // tela vazia diz o que fazer (regra das telas)
+        _meaning.Text = Loc.T("ai.emptyHint", "Escolha uma política à esquerda e, dentro dela, um gatilho. Aqui aparece em português o que ele faz: SE (condição) → ENTÃO (operações).\r\n\r\nCada monstro usa uma política (campo da aipolicy no elements). Para mudar uma operação, escolha-a acima e edite os campos.");
     }
 
     // ---------- rótulos ----------
@@ -297,7 +292,7 @@ public sealed class AiPolicyView : UserControl
     string PolicyLabel(AiPolicy p)
     {
         int users = _ctx.UsedBy(p.Id).Count;
-        return string.Format(Loc.T("ai.policy01Triggers", "Política {0}  ({1} triggers"), p.Id, p.Triggers.Count)
+        return string.Format(Loc.T("ai.policy01Gatilhos", "Política {0}  ({1} gatilhos"), p.Id, p.Triggers.Count)
                + (users > 0 ? string.Format(Loc.T("ai.0MonsterS", " · {0} monstro(s)"), users) : "") + ")";
     }
 
@@ -745,5 +740,11 @@ public sealed class AiPolicyView : UserControl
         _trAll.Enabled = ok;
     }
 
-    void SetStatus(string s) => _status.Text = s;
+    void SetStatus(string s)
+    {
+        _status.Text = s;
+        var title = _file is null ? Loc.T("ai.cardNone", "Nenhum aipolicy.data aberto")
+            : string.Format(Loc.T("ai.cardOpen", "aipolicy.data · {0:N0} políticas"), _file.Policies.Count) + (_dirty ? "  ●" : "");
+        _card.Set(_file is null ? StatusCard.Kind.Off : !_file.Ok ? StatusCard.Kind.Warn : _dirty ? StatusCard.Kind.Busy : StatusCard.Kind.On, title, s);
+    }
 }

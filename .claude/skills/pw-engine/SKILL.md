@@ -55,6 +55,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
   Atalhos de cima (nada flutuando por padrao). Ferramentas = menu FLUTUANTE a direita (nao colado em cima nem embaixo),
   ladrilhos RETANGULARES, UM POR LINHA (icone grande a esquerda, nome + para que serve; usuario 01/11); o painel de uma ferramenta mostra SO o que serve para ela (ex.: area do monstro so em Caminhos e areas; gizmo de mover escondido la); clicar numa ferramenta liga a visao do que ela mexe no mundo e o painel dela TOMA O
   LUGAR do menu, com seta "voltar" no topo. Nada de menu lateral fixo.
+  Caminhos (usuario 01/11): patrulha de QUALQUER criatura se marca com um CIRCULO + setas X/Y/Z no lugar do modelo (fica so o nome) e o botao 'Marcar ponto aqui' (Espaco) que vai ligando os pontos; clicar num ponto e arrastar as setas muda ele.
 - Pensado no usuario, o mais intuitivo possivel; textos simples, sempre via Loc.T (pt-BR/en/ru/zh-CN).
 - Areas de uma janela: barra lateral `NavBar` (icone + nome, dica diz para que serve), nunca abas em cima.
 - Comandos: barra estilo Word `UiKit.Ribbon/Cmd/Menu` (icone em cima, texto embaixo, dica; acao principal em azul).
