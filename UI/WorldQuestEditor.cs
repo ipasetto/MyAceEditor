@@ -199,7 +199,7 @@ internal sealed class WorldQuestEditor : Panel
         _redoOpt = reqOpts.FirstOrDefault(o => o.Id == "redo"); _repeatOpt = reqOpts.FirstOrDefault(o => o.Id == "repeat");
         if (_redoOpt is not null || _repeatOpt is not null)
         {
-            Caption(npcs, "qe.repeat", "Repetição", "qe.repeatHint", "Quantas vezes o mesmo jogador pode fazer a quest.");
+            Caption(npcs, "qe.repeat", "Repetição", "qe.repeatHint2", "Quantas vezes o mesmo jogador pode fazer a quest. Para testar, use 'Pode refazer': um personagem que já concluiu uma quest com este ID não a vê de novo.");
             var reps = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 2, 0, 6) };
             foreach (var (code, key, pt) in new[] { (0, "qe.rOnce", "Uma vez só"), (-1, "qe.rRedo", "Pode refazer sempre"), (1, "qe.rDaily", "1 vez por dia"),
                          (2, "qe.rWeekly", "1 vez por semana"), (3, "qe.rMonthly", "1 vez por mês") })

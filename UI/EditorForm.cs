@@ -3157,27 +3157,9 @@ public sealed class EditorForm : Form
         if (_tasks is not { FullSchema: true } t) { why = Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data."); return null; }
         if (!t.CanWrite) { why = Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason; return null; }
         if (QuestBuilder.FindRecadoTemplate(t) is null) { why = Loc.T("qb.noTemplate", "Não há uma quest de recado neste tasks.data para servir de modelo."); return null; }
-        return new QuestDraft { Id = Math.Max(t.NextFreeId(), QuestIdsUsed() + 1), Giver = giverNpc };
-    }
-
-    // Maior ID de quest já entregue por este tasks.data (settings questIdsUsed: "caminho<TAB>maior" por linha). Quest nova
-    // nunca reaproveita o ID de uma apagada: o personagem que concluiu a antiga não vê a nova (cliente ATaskTempl::CanShowTask
-    // -> CheckFnshLst; PW-KB §S21). Teste 4 do usuário, 01/11.
-    private int QuestIdsUsed()
-    {
-        if (_tasksPath is null) return 0;
-        foreach (var line in (LoadSetting("questIdsUsed") ?? "").Split('\n'))
-            if (line.Split('\t') is [var path, var max] && string.Equals(path, _tasksPath, StringComparison.OrdinalIgnoreCase) && int.TryParse(max, out var m)) return m;
-        return 0;
-    }
-
-    private void MarkQuestIdsUsed(TasksFile t)
-    {
-        if (_tasksPath is null) return;
-        int max = Math.Max(QuestIdsUsed(), t.NextFreeId() - 1);
-        var lines = (LoadSetting("questIdsUsed") ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Where(l => !l.StartsWith(_tasksPath + "\t", StringComparison.OrdinalIgnoreCase)).Append(_tasksPath + "\t" + max);
-        SaveSetting("questIdsUsed", string.Join("\n", lines));
+        // como o Angelica (sTASKedit TASKS.GetFreeID): maior ID + 1; apagar a última e criar de novo reaproveita o ID
+        // (usuário 01/11: só ~5 mil IDs até 65535; o personagem que já fez a antiga se resolve com "Pode refazer")
+        return new QuestDraft { Id = t.NextFreeId(), Giver = giverNpc };
     }
 
     private string QuestSummary(QuestDraft d)
@@ -3278,7 +3260,6 @@ public sealed class EditorForm : Form
                 if ((err = AddQuestToService(CreatureItem(npc)!.Value.Item, quest, give)) is not null) break;
         }
         if (err is not null) _edits.Undo();   // algo não coube: desfaz a quest e o que já foi ligado
-        else MarkQuestIdsUsed(t);
         RefreshQuests();
         return err;
         }

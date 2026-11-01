@@ -4648,5 +4648,8 @@
   "ci.hintGo2": "Pick a point and change it below (written to npcgen, Ctrl+Z undoes); double-click takes you to it. There is no spawn chance: when the time is up it always spawns; the only roll is the time (Minimum).",
   "wc.minNote2": "0 = no roll; higher = rolls the time",
   "wc.diedIgnored": "not used by the server",
-  "wiz.done2": "{0} created with ID {1} — adjust the fields and save. For it to spawn in the world, place a point in NPCGen or World 3D (amount and respawn time; the game can roll the time, but there is no chance of not spawning)."
+  "wiz.done2": "{0} created with ID {1} — adjust the fields and save. For it to spawn in the world, place a point in NPCGen or World 3D (amount and respawn time; the game can roll the time, but there is no chance of not spawning).",
+  "ci.minShort": "Minimum",
+  "path.airOnly": "This creature flies or swims: here it only walks in an area. If it already has a path, you can delete it.",
+  "qe.repeatHint2": "How many times the same player can do the quest. To test, use 'Can always redo': a character who already finished a quest with this ID does not see it again."
 }
