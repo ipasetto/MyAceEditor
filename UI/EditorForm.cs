@@ -260,8 +260,8 @@ public sealed class EditorForm : Form
     /// <summary>Tela de Preferências. Preferência nova = mais um Pref na lista (seção, ícone, nome, explicação, ler, aplicar).</summary>
     private void OpenPreferences()
     {
-        var server = Loc.T("prefs.secServer", "Servidor local");
-        var editor = Loc.T("prefs.secEditor", "MyAce (editor)");
+        var server = Loc.T("prefs.secServer2", "Servidor");
+        var editor = Loc.T("prefs.secEditor2", "MyAce");
         var list = new List<PreferencesWindow.Pref>
         {
             // ligado = trava REMOVIDA (o que o usuário liga é "velocidade sem limite"); o gs instalado diz o estado real

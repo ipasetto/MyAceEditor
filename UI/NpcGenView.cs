@@ -829,7 +829,7 @@ internal sealed class NpcGenView : UserControl
             if (o is not NpcGenSpawn s || s.Creatures.Count == 0 || _cur is null) return false;
             int id0 = s.Creatures[0].Id;
             var cq = CreatureQuests;
-            panel.Info.Apply = (r, a, sp, d) =>
+            panel.Apply = (r, a, sp, d) =>
             {
                 SelectObject(o); Snapshot("crea3d:" + DateTime.Now.Ticks);
                 r.Group.Amount = a; r.Group.Respawn = sp; r.Group.DiedTimes = d;
@@ -892,7 +892,15 @@ internal sealed class NpcGenView : UserControl
         {
             if (o is not NpcGenSpawn s) return;
             SelectObject(o); Snapshot("path3d:" + DateTime.Now.Ticks);
-            foreach (var c in s.Creatures) c.PathId = id;
+            // caminho novo num monstro que andava na área: "vai e volta" (com 0 ele para no último ponto, gs patrol_agent.h)
+            foreach (var c in s.Creatures) { if (c.PathId == 0 && id > 0 && c.PathLoop == 0) c.PathLoop = 1; c.PathId = id; }
+            Touch(); ShowPoint();
+        };
+        w.SetCreaturePathLoop = (o, type) =>
+        {
+            if (o is not NpcGenSpawn s) return;
+            SelectObject(o); Snapshot("loop3d:" + DateTime.Now.Ticks);
+            foreach (var c in s.Creatures) c.PathLoop = type;
             Touch(); ShowPoint();
         };
         w.PathUsers = id => Cur?.Spawns.Count(x => x.Creatures.Any(c => c.PathId == id)) ?? 0;

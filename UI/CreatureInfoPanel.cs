@@ -15,9 +15,9 @@ internal sealed record QuestUse(int Id, string Name, string How);
 internal sealed class CreatureInfoPanel : UserControl
 {
     readonly bool _dark;
-    readonly Label _spawnTitle = Caption(), _questTitle = Caption(), _hint = new() { Dock = DockStyle.Top, Height = 22, AutoEllipsis = true };
+    readonly Label _spawnTitle = Caption(), _questTitle = Caption(), _hint = new() { Dock = DockStyle.Top, Height = 22 };
     readonly ListView _spawns = List(), _quests = List();
-    readonly FlowLayoutPanel _edit = new() { Dock = DockStyle.Bottom, Height = 40, WrapContents = false, Padding = new Padding(2, 6, 2, 0) };
+    readonly FlowLayoutPanel _edit = new() { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Padding = new Padding(2, 6, 2, 6) };   // quebra em 2 linhas se faltar largura
     readonly NumericUpDown _amount = Num(1, 1000), _respawn = Num(0, 864000), _died = Num(0, 100000);
     readonly Label _respawnText = new() { AutoSize = true, Margin = new Padding(2, 6, 12, 0) };
     readonly Panel _spawnBox = new() { Dock = DockStyle.Fill }, _questBox = new() { Dock = DockStyle.Fill };
@@ -37,6 +37,9 @@ internal sealed class CreatureInfoPanel : UserControl
         var fg = dark ? Color.Gainsboro : UiKit.Fg;
         BackColor = bg; ForeColor = fg; Font = new Font("Segoe UI", 9.5f);
         _hint.ForeColor = dark ? Color.Silver : UiKit.Muted; _hint.Padding = new Padding(4, 2, 0, 0);
+        // dica quebra em linhas: a altura acompanha a largura (antes cortava no fim)
+        void FitHint() { int w = Math.Max(100, _hint.Width - 8); _hint.Height = TextRenderer.MeasureText(_hint.Text, _hint.Font, new Size(w, 0), TextFormatFlags.WordBreak).Height + 6; }
+        _hint.Resize += (_, _) => FitHint(); _hint.TextChanged += (_, _) => FitHint();
         foreach (var lv in new[] { _spawns, _quests })
         {
             lv.BackColor = dark ? Color.FromArgb(22, 25, 30) : Color.White; lv.ForeColor = fg;
@@ -47,11 +50,13 @@ internal sealed class CreatureInfoPanel : UserControl
         _quests.Columns.Add("", 70); _quests.Columns.Add("", 260); _quests.Columns.Add("", 200);
 
         Label L(Func<string> t) { var l = new Label { AutoSize = true, Margin = new Padding(8, 6, 2, 0) }; Bind(() => l.Text = t()); return l; }
+        // nome + campo juntos: ao quebrar a linha, o par vai inteiro
+        Control Pair(params Control[] cs) { var f = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(0) }; f.Controls.AddRange(cs); return f; }
         _edit.Controls.AddRange(new Control[]
         {
-            L(() => Loc.T("ci.amount", "Quantidade")), _amount,
-            L(() => Loc.T("ci.respawn", "Renascer (s)")), _respawn, _respawnText,
-            L(() => Loc.T("ci.diedLabel", "Mortes até parar")), _died,
+            Pair(L(() => Loc.T("ci.amount", "Quantidade")), _amount),
+            Pair(L(() => Loc.T("ci.respawn", "Renascer (s)")), _respawn, _respawnText),
+            Pair(L(() => Loc.T("ci.diedLabel", "Mortes até parar")), _died),
         });
         if (dark) foreach (var n in new[] { _amount, _respawn, _died }) { n.BackColor = Color.FromArgb(40, 46, 56); n.ForeColor = Color.White; }
         foreach (var n in new[] { _amount, _respawn, _died }) n.ValueChanged += (_, _) => Commit();

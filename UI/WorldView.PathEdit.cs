@@ -25,7 +25,7 @@ internal sealed partial class WorldView
     int _dragPt = -1, _hoverPt = -1; byte[]? _dragBefore;
     object? _pathPanelFor = new();       // ponto que o painel está mostrando
 
-    readonly Label _pathHint = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Gainsboro, Margin = new Padding(3, 4, 3, 6) };
+    readonly Label _pathHint = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Gainsboro, Margin = new Padding(3, 2, 3, 6) };
     readonly Label _pathName = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(3, 2, 3, 4) };
     readonly Label _pathState = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
     Button _modeArea = null!, _modePath = null!, _pathDraw = null!, _pathDone = null!, _pathDel = null!;
@@ -38,20 +38,33 @@ internal sealed partial class WorldView
     static int PathIdOf(NpcGenSpawn s) => s.Creatures.Select(c => c.PathId).FirstOrDefault(id => id > 0);
     SevPath? SelPath => PathSpawn is { } s && PathIdOf(s) is > 0 and var id ? _pathFile?.Paths.FirstOrDefault(p => p.Id == id) : null;
 
+    // passos da ferramenta (texto em cima de cada parte do painel)
+    readonly Label _pathStep1 = SectionLabel(""), _pathStep2 = SectionLabel(""), _pathLoopTitle = SectionLabel("");
+    Button _areaNone = null!, _pathCancel = null!, _loop0 = null!, _loop1 = null!, _loop2 = null!;
+    /// <summary>No fim do caminho (npcgen iLoopType, gs patrol_agent.h): 0 para, 1 volta pelo mesmo caminho, 2 recomeça do início.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Action<object, int>? SetCreaturePathLoop { get; set; }
+
     void InitPathPage()
     {
-        _modeArea = SmallButton("", Loc.T("path.modeArea", "Andar numa área"), () => SetMode(false));
-        _modePath = SmallButton("", Loc.T("path.modePath", "Patrulhar um caminho"), () => SetMode(true));
-        _pathDraw = SmallButton("", Loc.T("path.draw", "Desenhar caminho novo"), StartDraw);
-        _pathDone = SmallButton("", Loc.T("path.done", "Terminar o desenho (Enter)"), FinishDraw, main: true);
-        _pathDel = SmallButton("", Loc.T("path.delete", "Apagar o caminho"), DeletePath);
-        _pathsPage.Controls.Add(_pathName);
-        _pathsPage.Controls.Add(_pathHint);
-        foreach (var b in new[] { _modeArea, _modePath, _pathDraw, _pathDone, _pathDel }) _pathsPage.Controls.Add(b);
-        _pathsPage.Controls.Add(_pathState);
-        _pathsPage.Controls.Add(SmallButton("", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
-        _pathsPage.Controls.Add(SmallButton("", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
-        _pathsPage.Controls.Add(SmallButton("", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true));
+        _modeArea = SmallButton("\uE81E", Loc.T("path.modeArea", "Andar numa área"), () => SetMode(false));
+        _modePath = SmallButton("\uE707", Loc.T("path.modePath", "Patrulhar um caminho"), () => SetMode(true));
+        _areaNone = SmallButton("\uE7B7", Loc.T("path.areaNone", "Sem área (fica parado no ponto)"), () =>
+        {
+            if (SelectedMark() is { } m && AreaOf(m.Tag) is { } ar && (ar.Sx > 0 || ar.Sz > 0)) { ResizeArea?.Invoke(m.Tag, 0, 0); RefreshMarkers(); UpdatePathPanel(); _gl.Invalidate(); }
+        });
+        _pathDraw = SmallButton("\uE70F", Loc.T("path.draw", "Desenhar caminho novo"), StartDraw);
+        _pathDone = SmallButton("\uE73E", Loc.T("path.done", "Terminar o desenho (Enter)"), FinishDraw, main: true);
+        _pathCancel = SmallButton("\uE711", Loc.T("path.cancel", "Cancelar o desenho (Esc)"), CancelDraw);
+        _pathDel = SmallButton("\uE74D", Loc.T("path.delete2", "Apagar o caminho (volta a andar na área)"), DeletePath);
+        _loop0 = SmallButton("\uE71A", Loc.T("path.loop0", "Para no último ponto"), () => SetLoop(0));
+        _loop1 = SmallButton("\uE8AB", Loc.T("path.loop1", "Volta pelo mesmo caminho (vai e volta)"), () => SetLoop(1));
+        _loop2 = SmallButton("\uE8EE", Loc.T("path.loop2", "Recomeça do primeiro ponto (circuito)"), () => SetLoop(2));
+        foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathDraw, _pathDone, _pathCancel,
+                     _pathLoopTitle, _loop0, _loop1, _loop2, _pathDel, _pathState })
+            _pathsPage.Controls.Add(c);
+        _pathsPage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
+        _pathsPage.Controls.Add(SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
+        _pathsPage.Controls.Add(SmallButton("\uE74E", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true));
         FormClosing += (_, e) =>
         {
             if (!PathDirty) return;
@@ -61,24 +74,52 @@ internal sealed partial class WorldView
         UpdatePathPanel();
     }
 
-    /// <summary>Painel mostra só o que serve para o ponto escolhido agora.</summary>
+    /// <summary>Modo pedido agora: patrulha quando tem caminho ou está desenhando um.</summary>
+    bool PatrolMode => SelPath is not null || _drawPts is not null;
+    static int LoopOf(NpcGenSpawn s) => s.Creatures.FirstOrDefault()?.PathLoop ?? 0;
+
+    void SetLoop(int type)
+    {
+        if (PathSpawn is not { } s || LoopOf(s) == type) return;
+        SetCreaturePathLoop?.Invoke(s, type);
+        UpdatePathPanel();
+        _status.Text = Loc.T("path.loopSet", "Fim do caminho mudado (Ctrl+Z desfaz). Salve o NPCGen e envie ao servidor.");
+    }
+
+    /// <summary>
+    /// Painel em passos, só com o que serve agora: 1) escolher o monstro; 2) área OU patrulha (um ou outro);
+    /// 3) o que fazer no modo escolhido (área: alça / sem área; patrulha: desenhar, terminar, fim do caminho, apagar).
+    /// </summary>
     void UpdatePathPanel()
     {
         var s = PathSpawn;
         _pathPanelFor = s;
-        bool drawing = _drawPts is not null, hasPath = SelPath is not null;
+        bool drawing = _drawPts is not null, hasPath = SelPath is not null, patrol = PatrolMode;
+        var area = s is not null && SelectedMark() is { } m ? AreaOf(m.Tag) : null;
+        bool hasArea = area is { } a && (a.Sx > 0.25f || a.Sz > 0.25f);
         _pathName.Visible = s is not null;
         _pathName.Text = s is null ? "" : SelectedMark()?.Name ?? "";
+        _pathStep1.Text = Loc.T("path.step1", "1. Como ele anda");
+        _pathStep2.Text = patrol ? Loc.T("path.step2Path", "2. Caminho de patrulha") : Loc.T("path.step2Area", "2. Área onde anda");
+        _pathStep1.Visible = _pathStep2.Visible = s is not null;
         _pathHint.Text = s is null ? Loc.T("path.pick2", "Primeiro clique num monstro ou NPC no mundo: esta ferramenta só funciona com um deles escolhido.\n\nDepois escolha: andar numa área (azul) OU patrulhar um caminho (laranja). É um ou outro.")
             : drawing ? Loc.T("path.drawing", "Clique no chão para pôr os pontos, na ordem em que ele anda. Botão direito ou Enter termina; Esc cancela.")
             : hasPath ? Loc.T("path.editHint", "Arraste os quadrados laranja para mudar o caminho. O ponto grande é o começo.")
-            : Loc.T("path.areaHint", "Ele anda solto dentro da área azul. Arraste a alça amarela para mudar o tamanho.");
+            : hasArea ? Loc.T("path.areaHint", "Ele anda solto dentro da área azul. Arraste a alça amarela para mudar o tamanho.")
+            : Loc.T("path.noAreaHint", "Sem área: ele fica parado no ponto. Para dar uma área, arraste a alça amarela.");
         _modeArea.Visible = _modePath.Visible = s is not null && !drawing;
-        _modeArea.BackColor = s is not null && !hasPath ? UiKit.Accent : Color.FromArgb(40, 45, 54);
-        _modePath.BackColor = hasPath ? UiKit.Accent : Color.FromArgb(40, 45, 54);
-        _pathDraw.Visible = s is not null && !drawing && _pathFile is not null;
+        _modeArea.BackColor = s is not null && !patrol ? UiKit.Accent : Color.FromArgb(40, 45, 54);
+        _modePath.BackColor = patrol ? UiKit.Accent : Color.FromArgb(40, 45, 54);
+        _areaNone.Visible = s is not null && !patrol && hasArea;
+        _pathDraw.Visible = s is not null && patrol && !drawing && _pathFile is not null;
         _pathDraw.Text = "  " + (hasPath ? Loc.T("path.redraw", "Redesenhar (troca o caminho atual)") : Loc.T("path.draw", "Desenhar caminho novo"));
-        _pathDone.Visible = drawing;
+        _pathDone.Visible = _pathCancel.Visible = drawing;
+        _pathLoopTitle.Text = Loc.T("path.loopTitle", "3. No fim do caminho");
+        _pathLoopTitle.Visible = _loop0.Visible = _loop1.Visible = _loop2.Visible = hasPath && !drawing;
+        int loop = s is null ? 0 : LoopOf(s);
+        _loop0.BackColor = loop == 0 ? UiKit.Accent : Color.FromArgb(40, 45, 54);
+        _loop1.BackColor = loop == 1 ? UiKit.Accent : Color.FromArgb(40, 45, 54);
+        _loop2.BackColor = loop is not (0 or 1) ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _pathDel.Visible = hasPath && !drawing;
         _pathState.Text = _pathFile is null ? Loc.T("path.noFile", "Este mapa não tem path.sev no servidor.")
             : PathDirty ? Loc.T("path.dirty", "● Caminhos não salvos.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
@@ -88,7 +129,7 @@ internal sealed partial class WorldView
     void SetMode(bool patrol)
     {
         if (PathSpawn is not { } s) return;
-        if (!patrol) { if (PathIdOf(s) > 0) LinkPath(s, 0, null); return; }
+        if (!patrol) { if (_drawPts is not null) CancelDraw(); if (PathIdOf(s) > 0) DeletePath(); return; }
         if (SelPath is null) StartDraw();
     }
 

@@ -76,6 +76,7 @@ internal sealed partial class WorldView
         _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
+        _toolTitle.ImageAlign = ContentAlignment.MiddleLeft; _toolTitle.TextAlign = ContentAlignment.MiddleLeft;
 
         // ---- menu ----
         _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
@@ -115,7 +116,7 @@ internal sealed partial class WorldView
     void LayoutTools()
     {
         var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, _ => _toolMenu };
-        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(470, _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(640, _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
         foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage }) p.Visible = !_toolsFolded && p == page;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);
@@ -129,8 +130,12 @@ internal sealed partial class WorldView
     {
         _tool = t; _toolsFolded = false;
         _toolBack.Visible = true;
-        if (t == Tool.Scene) { _toolTitle.Text = Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
-        if (t == Tool.Paths) { _toolTitle.Text = Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
+        // só o que a ferramenta faz: sai o painel de baixo (quests/criatura) e a legenda
+        _quests.HidePanel(); _creature.HidePanel();
+        if (_legendOpen) { _legendOpen = false; _gl.Invalidate(); }
+        _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "" : "", Color.White, 18);
+        if (t == Tool.Scene) { _toolTitle.Text = "       " + Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
+        if (t == Tool.Paths) { _toolTitle.Text = "       " + Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
         LayoutTools();
     }
 
@@ -141,7 +146,8 @@ internal sealed partial class WorldView
         if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _gl.Invalidate(); }
         _tool = Tool.None;
         _toolBack.Visible = false;
-        _toolTitle.Text = Loc.T("tools.title", "Ferramentas");
+        _toolTitle.Text = "       " + Loc.T("tools.title", "Ferramentas");
+        _toolTitle.Image = UiKit.Icon("", Color.White, 18);   // chave inglesa antes do texto
         LayoutTools();
     }
 

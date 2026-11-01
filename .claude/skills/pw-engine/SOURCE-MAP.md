@@ -11,6 +11,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 - limite de quests ativas: S/task/TaskProcess.h TASK_DEFAULT_MAX_SIMULTANEOUS_COUT/GetMaxSimultaneousCount; premio m_iTaskLimit -> TaskProcess.cpp ExpandTaskLimit
 - limite de quests no cliente: C/DlgTask.cpp e C/DlgTaskList.cpp (iMaxTaskCount = GetMaxSimultaneousCount), C/Task/TaskProcess.h (mesmas constantes do gs)
 - patrulha do monstro: S/aipolicy.cpp ai_policy::ChangePath, S/patrol_agent.h base_patrol_agent::Init (GetPathMan().GetPath), S/npcgenerator.cpp (ent.path_id = gen.iPathID, path_type = iLoopType)
+- fim do caminho de patrulha (0 para / 1 vai e volta / 2 circuito): S/patrol_agent.h base_patrol_agent (switch _path_type)
 - construcao no cliente (.bmd com brushes) e ornamento: C/../CCommon/EL_BrushBuilding.cpp CELBrushBuilding::Load/LoadCDBrushes; CCHBasedCD/aabbcd.cpp CCDBrush::Load; C/EC_Ornament.cpp CECOrnament::Load (ECBSDFILEORNAMENT, CCommon/EC_WorldFile.h); pck com safe header: Angelica2.2 AngelicaFile/Source/AFilePackage.cpp Open
 - colisao do gs (map.bht): S/../collision/BrushTree.cpp CBrushTree::Load/_ImportNode, CDBrush.cpp CCDBrush::Load, traceman.cpp trace_manager2::Load; S/mapresman.cpp (CollisionFile, MoveMap Path/WaterPath/AirPath -> path_finding::InitMoveMap); export oficial: CElementEditor DlgExportBHT.cpp + BrushTreeExporter.cpp; hulls da construcao: CCommon/EL_Building.cpp LoadConvexHullData
 - velocidade de movimento / trava 3-5 m/s: S/playertemplate.h property_policy::UpdateSpeed; S/config.h MAX_RUN_SPEED

@@ -308,6 +308,17 @@ internal static class Program
                 + $"registros {b.Owners.Count:N0} · quests {b.TaskCount:N0} · icones {b.Atlas?.Count ?? 0:N0}" + $"\ntasks: {b.Tasks?.LoadTimes} · regravacao identica: {b.Tasks?.RoundTripVerified} · {b.Tasks?.ReadOnlyReason ?? b.Tasks?.SchemaError ?? "ok"}", new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--creature-shot")   // <png>: painel da criatura do Mundo 3D com dados de exemplo
+        {
+            var cf = MyAceEditor.UI.WorldCreaturePanel.ShotForm();
+            cf.Show();
+            var until2 = DateTime.Now.AddSeconds(2);
+            while (DateTime.Now < until2) { Application.DoEvents(); Thread.Sleep(20); }
+            using var cb = new System.Drawing.Bitmap(cf.Width, cf.Height);
+            cf.DrawToBitmap(cb, new System.Drawing.Rectangle(0, 0, cf.Width, cf.Height));
+            cb.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--prefs-shot")   // <png>: tela de Preferências com 2 opções de exemplo
         {
             var w = new MyAceEditor.UI.PreferencesWindow(new MyAceEditor.UI.PreferencesWindow.Pref[]

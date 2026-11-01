@@ -221,5 +221,6 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 [x] teto de valor: FieldLimits troca pelo maximo (tipo + regras do jogo)
 [x] secoes Spawn (npcgen editavel) e Quests (quem usa, abre a quest) no elements
 [x] Preferencias: MyAce (editor) x Servidor na barra lateral
-[~] Mundo 3D: painel da criatura (monstro) - compilado, falta ver na tela
-[ ] limite minimo de quests nas Preferencias: exige patch do gs E do elementclient.exe (constante inline 20/30); estudar por versao antes
+[x] Mundo 3D: painel da criatura refeito como ficha (conferido por --creature-shot); falta ver no 3D de verdade
+[~] Caminhos e areas em passos + fim do caminho (para / vai e volta / circuito) + "Sem area" - compilado, falta ver na tela
+[ ] limite minimo de quests nas Preferencias (premio m_iTaskLimit e 1 bit: nao soma 2x): exige patch do gs E do elementclient.exe (constante inline 20/30); estudar por versao antes

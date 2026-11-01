@@ -56,7 +56,7 @@ internal sealed partial class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public string? WaterDir { get; set; }
     /// <summary>Quests que o NPC (ID do elements) dá e recebe; null = não é NPC. Clicar num NPC abre o painel de baixo.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<int, NpcQuestInfo?>? NpcQuests { get; set; }
-    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<int>? OpenQuest { get => _quests.OpenQuest; set => _quests.OpenQuest = value; }
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<int>? OpenQuest { get => _quests.OpenQuest; set { _quests.OpenQuest = value; _creature.OpenQuest = value; } }
     readonly WorldQuestPanel _quests = new();
     readonly WorldCreaturePanel _creature = new();
     /// <summary>Monstro escolhido: preenche o painel da criatura (false = não é ponto de criatura).</summary>
@@ -819,7 +819,7 @@ internal sealed partial class WorldView : Form
     /// </summary>
     void DrawSpawnArea()
     {
-        if (_tool != Tool.Paths || SelPath is not null || SelectedMark() is not { } m || AreaOf(m.Tag) is not { } ar) return;
+        if (_tool != Tool.Paths || PatrolMode || SelectedMark() is not { } m || AreaOf(m.Tag) is not { } ar) return;   // patrulha: a área some
         var (cx, cz, sx, sz) = ar;
         if (m.Tag == _gizmoTag && _gizmoSize is { } gs) (sx, sz) = gs;
         sx /= 2; sz /= 2;
