@@ -17,6 +17,7 @@ indice. Cada camada abaixo diz onde dar o Grep. Custo alvo: 1-3 Greps pequenos p
 | Onde no NOSSO codigo / o que ja existe | `docs/kb/ENGINE-KB.md` | `§E2` capacidade->arquivo->§PW-KB, `§E6` arquivos, `§E7` features |
 | Onde no codigo C++ do JOGO (gs, daemons, cliente, engine) | `SOURCE-MAP.md` (nesta pasta) | Grep `§M0` (assunto -> arquivo:simbolo) ou o nome do arquivo; depois Grep o simbolo no arquivo |
 | Arquitetura para humanos | `docs/ARQUITETURA.md` | so ao mudar camada/fluxo |
+| Mundo 3D como editor de mapas (o que o editor oficial faz, roteiro) | `docs/MUNDO-3D-EDITOR.md` | ler a secao do passo atual |
 
 Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada desta skill: `C:/Godot/MyAceEditor/.claude/skills/pw-engine/`
 (a do usuario em `~/.claude/skills/pw-engine/` e copia dela; ao mudar uma, copiar para a outra).
@@ -26,6 +27,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 - `source_server_153/cnet` = daemons (gdeliveryd, gamedbd, glinkd, gauthd, gfaction, uniquenamed, logservice, gacd) + `rpcalls.xml`.
 - `source_client_153/CElementClient` = cliente (EC_* jogo, Dlg* janelas), `CElementData` = templates do elements.
 - `Angelica2.2_src/Angelica2.2` = engine (A3D, AFile .pck, AUI).
+- `D:/Perfect World/Estudo PW` (PW-KB §S32): `CPW_Dev/CElement` = cliente + ferramentas OFICIAIS (CElementEditor = editor de mapas 3D, SOURCE-MAP §M17; CTaskTemplEditor = editor de quests, §M18; Doc = comandos de console GM); `174Source.zip` = servidor 1.7.4 (nao extraido; tar.exe do Windows). `D:/Perfect World/PW/Angelica/AngelicaCore_V2` = comercial recuperado: NAO ler codigo.
 - Pastas com data (cgame_2014..., cnet_2015..., release_...) = mesmas fontes em outras datas: usar as sem data.
 - O gs do servidor local (`/home/gamed/gs` no WSL) vem COM simbolos: `objdump -t -C /home/gamed/gs | grep <Nome>` acha a funcao no binario.
 - Textos do cliente em GBK (cp936). Regerar o mapa: `python -I .claude/skills/pw-engine/mkmap.py` (quando entrarem fontes novas).

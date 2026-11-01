@@ -22,6 +22,9 @@ AREAS = [
     # servidor 1.7.2 (D:/Perfect World/PW/Source Client/172Source): mais novo que o 1.5.3; comparar quando a versao importar
     ("M15", "servidor 1.7.2: cgame/gs", "../PW/Source Client/172Source/cgame/gs", False),
     ("M16", "servidor 1.7.2: gs/item + gs/template + cskill (habilidades)", "../PW/Source Client/172Source", "s172-misc"),
+    # ferramentas oficiais do cliente (D:/Perfect World/Estudo PW/CPW_Dev, GBK): editor de mapas e de quests; roteiro do Mundo 3D em docs/MUNDO-3D-EDITOR.md
+    ("M17", "CPW_Dev: CElementEditor = editor OFICIAL de mapas (cena 3D, objetos, terreno, exportadores ecwld/ecbsd/npcgen/precinct/region/path/bht)", "../Estudo PW/CPW_Dev/CElement/CElementEditor", False),
+    ("M18", "CPW_Dev: CTaskTemplEditor (editor oficial de quests) + CRandomMap_WYD + CElementData", "../Estudo PW/CPW_Dev/CElement/CTaskTemplEditor", True),
 ]
 
 def stems(paths):
