@@ -169,7 +169,7 @@ public sealed class GmPanel : Form
     {
         if (!File.Exists(Path.Combine(ElementDir, GameConsole.Exe))) { MessageBox.Show(this, Loc.T("gm.noExe", "Não achei o elementclient.exe nesta pasta."), Text); return; }
         SaveDir();
-        try { GameConsole.Launch(ElementDir); AddLog(Loc.T("gm.launched", "Jogo aberto com o console ligado (console:1). Entre com a sua conta GM.")); }
+        try { GameConsole.Launch(ElementDir); AddLog(Loc.T("gm.launched2", "Jogo aberto com o console ligado (console:1) e sem parar ao perder o foco (rendernofocus:1). Entre com a sua conta GM.")); }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Text); }
     }
 
@@ -374,7 +374,7 @@ public sealed class GmPanel : Form
             // d_rendernofocus: liga/desliga desenhar o jogo sem o foco da janela (EC_DlgCmdConsole.cpp CCMD_RENDERNOFOCUS; PW-KB §S31)
             Group(Loc.T("gm.gScreen", "Sua tela"),
                 Row(Btn(Loc.T("gm.noFocus", "Não parar o jogo sem foco (liga/desliga)"), () => Run("d_rendernofocus")),
-                    L(Loc.T("gm.noFocusNote", "O jogo continua desenhando quando você clica em outra janela.")))),
+                    L(Loc.T("gm.noFocusNote2", "Já vem ligado ao abrir o jogo por aqui (rendernofocus:1); o botão desliga e liga de novo.")))),
             Group(Loc.T("gm.gTime", "Hora do dia (só na sua tela)"),
                 Row(hh, L(":"), mm, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d_settimeofday {hh.Value},{mm.Value:00}")))),
             Group(Loc.T("gm.gServer", "Servidor"),

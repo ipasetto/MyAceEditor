@@ -15,7 +15,8 @@ public static class GameConsole
 
     /// <summary>Abre o jogo com o console ligado (mesmos argumentos do eSTART_GEN2.bat dos clientes de teste).</summary>
     public static Process? Launch(string elementDir) =>
-        Process.Start(new ProcessStartInfo(Path.Combine(elementDir, Exe), "startbypatcher nocheck console:1") { WorkingDirectory = elementDir, UseShellExecute = false });
+        // rendernofocus:1 = o jogo não para de desenhar sem o foco da janela (usuário 01/11; PW-KB §S31)
+        Process.Start(new ProcessStartInfo(Path.Combine(elementDir, Exe), "startbypatcher nocheck console:1 rendernofocus:1") { WorkingDirectory = elementDir, UseShellExecute = false });
 
     /// <summary>Janela do jogo aberto (a primeira que tiver janela).</summary>
     public static IntPtr Window() =>

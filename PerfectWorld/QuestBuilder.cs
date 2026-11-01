@@ -209,6 +209,7 @@ public static class QuestBuilder
         string T(string k, string pt) => FieldKinds.Translate(k, pt);
         var e = new List<string>();
         if (!t.CanWrite) e.Add(T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason);
+        if (d.Steps.Count == 0) e.Add(T("qb.noSteps", "Ponha pelo menos uma etapa (o que o jogador faz depois de aceitar)."));
         if (d.Id <= 0) e.Add(T("qb.idPositive", "O ID precisa ser maior que zero."));
         else if (Taken(t, d, d.Id)) e.Add(string.Format(T("qb.idUsed", "O ID {0} já é de outra quest."), d.Id));
         if (d.Name.Trim().Length == 0) e.Add(T("qb.noName", "Falta o nome da quest."));

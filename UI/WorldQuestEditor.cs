@@ -72,7 +72,7 @@ internal sealed class WorldQuestEditor : Panel
     public WorldQuestEditor(IQuestHost host, QuestDraft draft, QuestWorld world)
     {
         _host = host; _d = draft; _world = world;
-        if (_d.Steps.Count == 0) _d.Steps.Add(new QuestStep { Kind = QuestStepKind.Talk, Npc = _d.Receiver, Text = _d.RewardText });   // começa como recado
+        // quest nova começa SEM etapas: o usuário escolhe (antes vinha "Falar com NPC" e era preciso apagar; usuário 01/11)
         Dock = DockStyle.Right; Width = 380; BackColor = Bg; ForeColor = Fg;
         // cabeçalho: ícone + "Nova quest" e, embaixo, de quem é; X fecha (pergunta antes)
         var head = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Bg2 };
@@ -320,8 +320,10 @@ internal sealed class WorldQuestEditor : Panel
         _reachBox.Controls.Add(_areaList);
         var ar = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(340, 0), Margin = new Padding(0, 4, 0, 0) };
         ar.Controls.Add(Btn(Loc.T("qe.markArea", "🎯 Marcar no mundo"), MarkArea));
+        // botões da área do mesmo tamanho (alinhados em grade quando quebram a linha; usuário 01/11)
         ar.Controls.Add(Btn(Loc.T("qe.removeArea", "Remover área"), RemoveArea));
         ar.Controls.Add(Btn(Loc.T("qe.anyHeight", "Qualquer altura"), () => { if (CurArea is { } a) { Remember(); a.Y0 = -9999; a.Y1 = 9999; LoadArea(); RefreshAreas(); } }));
+        foreach (Control c in ar.Controls) if (c is Button b) { b.AutoSize = false; b.Width = 145; b.Height = 30; }
         _reachBox.Controls.Add(ar);
         var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Margin = new Padding(0, 4, 0, 0) };
         string[] rows = { Loc.T("qe.axisX", "X (mín. / máx.)"), Loc.T("qe.axisY", "Altura (mín. / máx.)"), Loc.T("qe.axisZ", "Z (mín. / máx.)") };
@@ -467,7 +469,8 @@ internal sealed class WorldQuestEditor : Panel
         _stepList.SelectedIndex = _d.Steps.Count == 0 ? -1 : Math.Clamp(select, 0, _d.Steps.Count - 1);
         bool recado = QuestBuilder.IsRecado(_d);
         _order.Enabled = _d.Steps.Count > 1;
-        _stepHint.Text = recado
+        _stepHint.Text = _d.Steps.Count == 0 ? Loc.T("qe.noStepsHint", "Ainda sem etapas: escolha abaixo o que o jogador faz depois de aceitar (pelo menos uma).")
+            : recado
             ? Loc.T("qe.recadoHint", "Uma etapa só de falar com NPC: a quest é um recado (sem subquests) e esse NPC entrega o prêmio.")
             : (QuestStepOrder)Math.Max(0, _order.SelectedIndex) == QuestStepOrder.InOrder && _d.Steps[^1].Kind == QuestStepKind.Talk
                 ? Loc.T("qe.stepsHintTalkLast", "O prêmio é entregue ao concluir a última etapa, falando com o NPC dela.")

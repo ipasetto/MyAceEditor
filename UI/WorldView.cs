@@ -326,6 +326,7 @@ internal sealed partial class WorldView : Form
         };
         _gl.MouseMove += (_, e) =>
         {
+            SyncPickCursor();
             if (_areaA is not null) { if (Ray(e.Location) is { } b) _areaB = b; _gl.Invalidate(); return; }
             if (_gizmoAxis > 0) { GizmoDrag(e.Location); return; }
             if (PathMouseMove(e.Location)) return;
@@ -520,6 +521,7 @@ internal sealed partial class WorldView : Form
 
     void Render()
     {
+        SyncPickCursor();
         _gl.MakeCurrent();
         bool loading = _load.Pump(6);   // resultados do segundo plano: no máximo 6 ms por quadro
         GL.Viewport(0, 0, _gl.Width, _gl.Height);
@@ -1255,6 +1257,30 @@ internal sealed partial class WorldView : Form
     // chamado dezenas de vezes por quadro (Caminhos, gizmo, rótulos): guarda o último achado enquanto a escolha e a lista
     // de perto são as mesmas (antes varria os marcadores a cada chamada: a câmera travava na ferramenta Caminhos)
     object? _smTag; List<Marker>? _smList; Marker? _smMark;
+    // escolhendo algo no mundo (NPC, área, monstro, coleta): cursor com bolinha verde, para ficar claro que é para clicar
+    // no 3D (usuário 01/11); volta ao normal quando a escolha termina
+    static Cursor? _pickCursor;
+    bool _pickShown;
+    void SyncPickCursor()
+    {
+        bool picking = _pickNpc is not null || _pickArea is not null || _pickMonster is not null || _pickMine is not null;
+        if (picking == _pickShown) return;
+        _pickShown = picking;
+        if (picking && _pickCursor is null)
+        {
+            using var bmp = new Bitmap(32, 32);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using var white = new Pen(Color.White, 2); using var green = new SolidBrush(Color.FromArgb(40, 220, 90)); using var dark = new Pen(Color.FromArgb(20, 60, 30), 1);
+                g.DrawLine(white, 16, 2, 16, 10); g.DrawLine(white, 16, 22, 16, 30); g.DrawLine(white, 2, 16, 10, 16); g.DrawLine(white, 22, 16, 30, 16);
+                g.FillEllipse(green, 10, 10, 12, 12); g.DrawEllipse(dark, 10, 10, 12, 12);
+            }
+            _pickCursor = new Cursor(bmp.GetHicon());
+        }
+        _gl.Cursor = picking ? _pickCursor! : Cursors.Default;
+    }
+
     Marker? SelectedMark()
     {
         if (_selected() is not { } s) return null;
