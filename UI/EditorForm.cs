@@ -277,6 +277,11 @@ public sealed class EditorForm : Form
                     : Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado."),
                 on => on ? Loc.T("prefs.speedCapAskOff", "Remover a trava de velocidade do servidor local?\n\nO gs é alterado (2 bytes; o original fica guardado) e os mapas reiniciam: quem estiver no jogo cai.")
                          : Loc.T("prefs.speedCapAskOn", "Voltar a trava original de velocidade?\n\nOs mapas reiniciam: quem estiver no jogo cai.")),
+            new(server, "",
+                () => Loc.T("prefs.srvAskTitle", "Perguntar se quer enviar ao servidor"),
+                () => Loc.T("prefs.srvAskDetail", "Ligado: ao abrir e ao salvar, se o servidor local estiver diferente do cliente, pergunta se quer enviar agora. Desligado: não pergunta; o botão \"Salvar e enviar ao servidor\" fica verde e a dica dele lista o que falta."),
+                () => (LoadSetting("srvdiff-ask") == "1", null),
+                on => { SaveSetting("srvdiff-ask", on ? "1" : "0"); return null; }),
         };
         using var w = new PreferencesWindow(list);
         w.ShowDialog(this);
@@ -490,7 +495,7 @@ public sealed class EditorForm : Form
         _search.Dock = DockStyle.Fill; _search.BackColor = CTreeInput; _search.ForeColor = CTreeFg; _search.Font = new Font("Segoe UI", 10);
         // busca só depois de uma pausa na digitação, e a caixa continua com o foco (antes cada letra abria o 1º
         // resultado, a caixa perdia o foco e "8617" virava "88")
-        var searchDelay = new System.Windows.Forms.Timer { Interval = 250 };
+        var searchDelay = _searchDelay;
         searchDelay.Tick += (_, _) =>
         {
             searchDelay.Stop();
@@ -590,6 +595,7 @@ public sealed class EditorForm : Form
         left.Controls.Add(mode);
         _favorites.Clear();
         foreach (var k in LoadFavorites()) _favorites.Add(k);
+        _favModeBtn.Text = FavModeText();   // o Bind acima rodou antes de carregar: mostrava "Favoritos (0)"
         _split.Panel1.Controls.Add(left);
 
         // DIREITA: cabeçalho (ícone + nome) + campos
@@ -1264,7 +1270,8 @@ public sealed class EditorForm : Form
         finally { _checkingServer = false; }
         if (IsDisposed) return;
         UpdateSendGlow();
-        if (!ask || _serverDiff is not { Count: > 0 } d) return;
+        // pergunta só com a preferência ligada (padrão: não; o botão verde já mostra o que falta enviar)
+        if (!ask || LoadSetting("srvdiff-ask") != "1" || _serverDiff is not { Count: > 0 } d) return;
         var list = string.Join("\n• ", d.Take(10)) + (d.Count > 10 ? $"\n… +{d.Count - 10}" : "");
         if (MessageBox.Show(this, string.Format(Loc.T("srvdiff.ask", "O servidor local está diferente do seu cliente em {0} arquivo(s):\n• {1}\n\nEnviar agora? Só o que mudou é copiado e o servidor reinicia."), d.Count, list),
                 Loc.T("srvdiff.title", "Servidor local desatualizado"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
@@ -1526,9 +1533,12 @@ public sealed class EditorForm : Form
     }
 
     // ---------- seletor de blocos (busca + categorias + ícone de cada bloco) ----------
+    private bool _pickerOpen;   // evita abrir de novo enquanto o seletor está aberto (piscava abrindo/fechando)
+    private readonly Dictionary<ItemList, int> _blockIconCache = new();
     private void ShowBlockPicker()
     {
-        if (_store.Current is null || _blockCombo.Items.Count == 0) return;
+        if (_store.Current is null || _blockCombo.Items.Count == 0 || _pickerOpen) return;
+        _pickerOpen = true;
         var screen = _blockCombo.PointToScreen(new Point(0, _blockCombo.Height));
         var f = new Form
         {
@@ -1543,13 +1553,17 @@ public sealed class EditorForm : Form
             Dock = DockStyle.Fill, View = View.Details, HeaderStyle = ColumnHeaderStyle.None, FullRowSelect = true, MultiSelect = false, HideSelection = false,
             BackColor = CTreeBg, ForeColor = CTreeFg, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10), SmallImageList = _treeIcons, ShowGroups = true,
         };
+        typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(lv, true);
         lv.Columns.Add("", f.Width - 24);
         f.Controls.Add(lv); f.Controls.Add(search);
         // ícone do bloco: o de um item dele (ou a miniatura do modelo 3D)
+        // guardado: procurar a cada abertura deixava a lista lenta e os ícones aparecendo aos poucos
         int BlockIcon(ItemList b)
         {
-            foreach (var it in b.Items.Take(40)) if (IconIndexFor(it) is var i && i >= 0) return i;
-            return -1;
+            if (_blockIconCache.TryGetValue(b, out var c)) return c;
+            c = -1;
+            foreach (var it in b.Items.Take(40)) if (IconIndexFor(it) is var i && i >= 0) { c = i; break; }
+            return _blockIconCache[b] = c;
         }
         void Fill()
         {
@@ -1586,7 +1600,9 @@ public sealed class EditorForm : Form
             else if (e.KeyCode is Keys.Down or Keys.Up && search.Focused) { lv.Focus(); }
         };
         f.Deactivate += (_, _) => f.Close();
-        f.FormClosed += (_, _) => f.Dispose();
+        f.FormClosed += (_, _) => { f.Dispose(); BeginInvoke(() => _pickerOpen = false); };
+        // rolar até o bloco atual só depois de a lista ter tamanho (antes abria sempre no topo)
+        f.Shown += (_, _) => { if (lv.SelectedItems.Count > 0) { lv.SelectedItems[0].EnsureVisible(); try { lv.TopItem = lv.SelectedItems[0]; } catch { } } };
         Fill();
         f.Show(this);
         search.Focus();
@@ -3668,6 +3684,7 @@ public sealed class EditorForm : Form
     private void Navigate(int delta)
     {
         int np = _histPos + delta;
+        while (np >= 0 && np < _history.Count && _history[np] == _current) np += delta;   // o próprio item aberto não conta como passo
         if (np < 0 || np >= _history.Count) return;
         _histPos = np;
         _navigating = true;
@@ -3797,12 +3814,15 @@ public sealed class EditorForm : Form
         if (it is not null) GoToItem(it);
     }
 
+    // busca adiada (250 ms): limpar a busca ao navegar a disparava DEPOIS, abrindo outro item e gravando-o no
+    // histórico, e o Voltar precisava de 2 cliques
+    private readonly System.Windows.Forms.Timer _searchDelay = new() { Interval = 250 };
     private void GoToItem(Item it)
     {
         if (!_owner.TryGetValue(it, out var b)) return;
         if (_curBlock != b)
             foreach (var o in _blockCombo.Items)
-                if (o is BlockEntry be && be.Block == b) { _search.Text = ""; _blockCombo.SelectedItem = be; break; }
+                if (o is BlockEntry be && be.Block == b) { _search.Text = ""; _searchDelay.Stop(); _blockCombo.SelectedItem = be; break; }
         if (_typeCombo.Visible && _typeCombo.SelectedIndex > 0) _typeCombo.SelectedIndex = 0;
         _current = it;
         SelectItem(it);
@@ -3834,6 +3854,16 @@ public sealed class EditorForm : Form
         }
         if (also.Count > 0) { Status(string.Format(Loc.T("status.fieldsUpdated", "{0} campos atualizados para {1}"), also.Count + 1, val)); if (_owner.TryGetValue(_current, out var o2)) _unusedCache.Remove(o2); return; }
         if (_owner.TryGetValue(_current, out var ob)) _unusedCache.Remove(ob);
+        // a coluna "significado" seguia mostrando o valor antigo (ex.: zerar "Ovo de pet ao capturar" ainda dizia o ovo)
+        if (cell is not DataGridViewCheckBoxCell)
+        {
+            var desc = Describe(_current, key, val);
+            BeginInvoke(() =>   // fora do evento da grade (trocar a célula dentro dele é reentrante)
+            {
+                if (row < _grid.Rows.Count && _grid.Rows[row].Tag as string == key)
+                    _grid.Rows[row].Cells[2] = desc.StartsWith("→") ? LinkCell(desc) : new DataGridViewTextBoxCell { Value = desc };
+            });
+        }
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase))
         {
             _list.Invalidate();

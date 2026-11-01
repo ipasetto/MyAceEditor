@@ -98,6 +98,9 @@ public static class ItemRules
         if (m.FindListByName("MONSTER_ESSENCE") is { } mobs && types.Count > 0)
             foreach (var mob in mobs.Items)
             {
+                // nível acima de 150: o monstro fica invisível no jogo (teste do usuário 01/11); 150 = "[?]" no alvo (DlgTarget.cpp)
+                if (int.TryParse(F(mob, "level"), out var mlv) && mlv > 150)
+                    list.Add(new("mob-level", mobs.Name, mob.Id, N(mob), string.Format(UI.Loc.T("rule.mobLevel", "nível {0} (máximo 150): o monstro fica invisível no jogo; use 150 para aparecer \"?\" no lugar do nível"), mlv)));
                 // mob.id_type tem de ser um MONSTER_TYPE
                 if (F(mob, "id_type") is not { } tid || !types.TryGetValue(tid, out var mt))
                 {

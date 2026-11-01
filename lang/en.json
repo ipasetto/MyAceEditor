@@ -4469,5 +4469,8 @@
   "path.redone": "Path: redone.",
   "path.undone": "Path: undone (Ctrl+Y redoes).",
   "path.nothing": "Paths: nothing to save.",
-  "path.saved": "path.sev saved (backup made). The monster-to-path link is in npcgen.data: also save in NPCGen. Restart the map on the server."
+  "path.saved": "path.sev saved (backup made). The monster-to-path link is in npcgen.data: also save in NPCGen. Restart the map on the server.",
+  "prefs.srvAskTitle": "Ask whether to send to the server",
+  "prefs.srvAskDetail": "On: when opening and saving, if the local server differs from the client, asks whether to send now. Off: no question; the \"Save and send to server\" button turns green and its tooltip lists what is missing.",
+  "rule.mobLevel": "level {0} (max 150): the monster becomes invisible in the game; use 150 to show \"?\" instead of the level"
 }

@@ -205,3 +205,14 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [ ] adicionar icone novo ao iconlist (ivtrm + ivtrf juntos) para itens novos, como o Glue do IconListEditor
 - [ ] botao "inserir minha posicao" no NPCGen e nas quests (GamePosition ja le a posicao)
 - [ ] gerador XML de skills (UPX): desempacotar e estudar se fizer falta
+
+## TESTES DO USUARIO 01/11 (Desktop\Testes\Testes.txt)
+[x] 2 nao perguntar sempre para enviar ao servidor (Preferencias, padrao desligado)
+[x] 9 seletor de bloco abre no bloco atual, sem piscar; Favoritos (N) certo
+[x] 10 zerar Ovo de pet: coluna significado atualiza (0 = nao capturavel)
+[x] 11 Voltar/Avancar em 1 clique
+[x] 1/8/12/15 pesquisados (PW-KB §S12/§S21/§S22); 8 virou regra mob-level (> 150)
+[ ] 3/4/5/6/14 Caminhos e areas: linha do caminho acompanhando o terreno; so com a ferramenta aberta; riscos rosas no Mostrar; patrulha OU area (um so); exigir criatura selecionada; 1 caminho por criatura; tirar rotulos x/y; dica do que fazer; conferir porque o monstro nao seguiu o caminho
+[ ] 7 Mostrar numa barra inferior (tela pequena corta filtros)
+[ ] 13 tamanho real do modelo no 3D (escala) + nome sobre modelo grande + cor do nome do monstro (tirar se nao existir)
+[ ] 12 sorteio de spawn (aipolicy Rand + controller) e aviso no mundo

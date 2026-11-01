@@ -30,6 +30,7 @@
 | Armadura, ornamento, moda e carta: `id_sub_type` existe na lista `*_SUB_TYPE` | o gs não cria o item | `generate_armor/decoration/fashion/poker` |
 | Arma de subtipo 300, 293, 76 ou 291 (sem animação) | o gs nunca cria a arma | `generate_weapon`; gs 1.5.5 |
 | Monstro com `id_type` existente em `MONSTER_TYPE` | o gs cai ao iniciar | `npc_stubs_manager::LoadTemplate` |
+| Monstro com `level` até 150 (150 = aparece "?" no lugar do nível) | acima de 150 o modelo fica invisível no jogo (teste do usuário 01/11) | cliente `DlgTarget.cpp`; `ItemRules` "mob-level" |
 | `MONSTER_ADDON.param1` de 0 a 9 nos atributos que o tipo do monstro usa | o gs cai ao iniciar | idem |
 | NPC com serviço de teleporte: o serviço tem pelo menos 1 destino | o gs cai ao iniciar | idem |
 | NPC com serviço de redistribuir atributos: nenhum valor negativo | o gs cai ao iniciar | idem |

@@ -4471,5 +4471,8 @@
   "path.redone": "路径：已重做。",
   "path.undone": "路径：已撤销（Ctrl+Y 重做）。",
   "path.nothing": "路径：没有可保存的内容。",
-  "path.saved": "path.sev 已保存（已备份）。怪物与路径的关联在 npcgen.data 中：也请在 NPCGen 中保存。在服务器上重启地图。"
+  "path.saved": "path.sev 已保存（已备份）。怪物与路径的关联在 npcgen.data 中：也请在 NPCGen 中保存。在服务器上重启地图。",
+  "prefs.srvAskTitle": "询问是否发送到服务器",
+  "prefs.srvAskDetail": "开启：打开和保存时，如果本地服务器与客户端不同，询问是否立即发送。关闭：不询问；“保存并发送到服务器”按钮变绿，提示中列出未发送的内容。",
+  "rule.mobLevel": "等级 {0}（最高 150）：怪物在游戏中不可见；用 150 可显示“?”代替等级"
 }
