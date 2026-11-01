@@ -51,6 +51,20 @@ public static class QuestRules
 
     // IDs que a quest aponta (M monstro, N NPC, I item), guardados por nó e refeitos só quando os bytes dele mudam:
     // montar os campos das ~36 mil quests leva ~30 s; com o cache, salvar confere só as quests editadas
+    /// <summary>
+    /// Quests que apontam para o ID (kind: 'M' monstro, 'N' NPC, 'I' item) e por qual campo. Usa o mesmo cache das checagens
+    /// (montado em segundo plano ao abrir); sem cache a 1a vez leva segundos: chamar fora da tela.
+    /// </summary>
+    public static List<(QuestNode Quest, string Field)> UsersOf(TasksFile tasks, char kind, string id)
+    {
+        var list = new List<(QuestNode, string)>();
+        if (!tasks.FullSchema) return list;
+        foreach (var q in tasks.AllNodes())
+            foreach (var r in Refs(q))
+                if (r.Kind == kind && r.Value == id) list.Add((q, r.Field));
+        return list;
+    }
+
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<QuestNode, Cached> Cache = new();
     sealed record Cached(int Hash, List<(char Kind, string Value, string Field)> Refs);
 

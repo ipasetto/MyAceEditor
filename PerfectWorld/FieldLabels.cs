@@ -177,6 +177,8 @@ public static class FieldLabels
         "Habilidades" => Loc.T("group.skills", "Habilidades"),
         "Queda" => Loc.T("group.drops", "Queda"),
         "Modelo" => Loc.T("group.model", "Modelo"),
+        "Spawn" => Loc.T("group.spawn", "Spawn"),
+        "Quests" => Loc.T("group.quests", "Quests"),
         _ => id,
     };
 

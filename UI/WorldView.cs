@@ -57,6 +57,10 @@ internal sealed partial class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<int, NpcQuestInfo?>? NpcQuests { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<int>? OpenQuest { get => _quests.OpenQuest; set => _quests.OpenQuest = value; }
     readonly WorldQuestPanel _quests = new();
+    readonly WorldCreaturePanel _creature = new();
+    /// <summary>Monstro escolhido: preenche o painel da criatura (false = não é ponto de criatura).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] internal Func<object, WorldCreaturePanel, bool>? ShowCreatureInfo { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<int>? EditCreature { get => _creature.EditCreature; set => _creature.EditCreature = value; }
     IQuestHost? _host;
     WorldQuestEditor? _editor;
     Action<int>? _pickNpc;   // painel de criação esperando um clique num NPC
@@ -176,7 +180,7 @@ internal sealed partial class WorldView : Form
         _bar.Items.Add(_grassBtn);
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
-        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
+        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_status);   // painel de quests acima da barra de status
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         _element = element;
         if (element is not null) _clientNames = MapTags.ClientMapNames(element);
@@ -281,8 +285,13 @@ internal sealed partial class WorldView : Form
                     }
                     if (mk is { Id: > 0 } && NpcQuests is not null)
                     {
-                        if (NpcQuests(mk.Id) is { } qi) { _questNpc = mk.Id; _quests.ShowNpc(qi); }   // NPC: quests que dá e recebe
-                        else { _quests.HidePanel(); _status.Text += "   ·   " + Loc.T("wq.notNpc", "não é NPC: o painel de quests abre ao clicar num NPC"); }
+                        if (NpcQuests(mk.Id) is { } qi) { _questNpc = mk.Id; _creature.HidePanel(); _quests.ShowNpc(qi); }   // NPC: quests que dá e recebe
+                        else
+                        {
+                            _quests.HidePanel();
+                            // monstro: painel da criatura (renascer, quantidade, quests que pedem para matar)
+                            if (ShowCreatureInfo?.Invoke(mk.Tag, _creature) != true) _creature.HidePanel();
+                        }
                     }
                 }
                 _movingTag = null; _movePos = null; _gl.Invalidate();
@@ -292,7 +301,7 @@ internal sealed partial class WorldView : Form
             // clique esquerdo no vazio (sem arrastar a câmera): o NPC perde a seleção e a barra de quests some
             else if (e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4)
             {
-                _quests.HidePanel();
+                _quests.HidePanel(); _creature.HidePanel();
                 if (_selected() is not null) { ClearSelection?.Invoke(); _gizmoHover = 0; _gl.Invalidate(); }
             }
         };

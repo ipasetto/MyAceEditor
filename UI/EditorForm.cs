@@ -261,6 +261,7 @@ public sealed class EditorForm : Form
     private void OpenPreferences()
     {
         var server = Loc.T("prefs.secServer", "Servidor local");
+        var editor = Loc.T("prefs.secEditor", "MyAce (editor)");
         var list = new List<PreferencesWindow.Pref>
         {
             // ligado = trava REMOVIDA (o que o usuário liga é "velocidade sem limite"); o gs instalado diz o estado real
@@ -277,13 +278,15 @@ public sealed class EditorForm : Form
                     : Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado."),
                 on => on ? Loc.T("prefs.speedCapAskOff", "Remover a trava de velocidade do servidor local?\n\nO gs é alterado (2 bytes; o original fica guardado) e os mapas reiniciam: quem estiver no jogo cai.")
                          : Loc.T("prefs.speedCapAskOn", "Voltar a trava original de velocidade?\n\nOs mapas reiniciam: quem estiver no jogo cai.")),
-            new(server, "",
+            new(editor, "",
                 () => Loc.T("prefs.srvAskTitle", "Perguntar se quer enviar ao servidor"),
                 () => Loc.T("prefs.srvAskDetail", "Ligado: ao abrir e ao salvar, se o servidor local estiver diferente do cliente, pergunta se quer enviar agora. Desligado: não pergunta; o botão \"Salvar e enviar ao servidor\" fica verde e a dica dele lista o que falta."),
                 () => (LoadSetting("srvdiff-ask") == "1", null),
                 on => { SaveSetting("srvdiff-ask", on ? "1" : "0"); return null; }),
         };
-        using var w = new PreferencesWindow(list);
+        // editor primeiro (o que muda só o MyAce), depois o que mexe no servidor
+        list = list.OrderBy(p => p.Section == editor ? 0 : 1).ToList();
+        using var w = new PreferencesWindow(list, new Dictionary<string, string> { [editor] = UiKit.Settings, [server] = UiKit.Server });
         w.ShowDialog(this);
     }
 
@@ -415,6 +418,8 @@ public sealed class EditorForm : Form
         tabs.TabPages.Add(tN);
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
         _npcgen.QuestsOfNpc = NpcQuests;
+        // painel da criatura no Mundo 3D: quests que usam o monstro/NPC (roda fora da tela)
+        _npcgen.CreatureQuests = id => _tasks is { } tq && CreatureItem(id) is { } ci ? QuestUsesOf(tq, ci.Block.Name == "NPC_ESSENCE" ? 'N' : 'M', id.ToString()) : null;
         _npcgen.DeletedMany += n => Status(string.Format(Loc.T("npcgen.deletedMany", "{0} ponto(s) excluído(s). Ctrl+Z desfaz."), n));
         _npcgen.QuestHost = new QuestHostImpl(this);
         _npcgen.IsMerchant = id => CreatureItem(id) is { } c && c.Item.Fields.TryGetValue("id_sell_service", out var sv) && sv.Value is not ("0" or "");
@@ -612,6 +617,10 @@ public sealed class EditorForm : Form
         var tVal = new TabPage() { BackColor = CSurface };
         Bind(() => tVal.Text = Loc.T("detail.values", "Valores"));
         tVal.Controls.Add(_grid);
+        tVal.Controls.Add(_creaturePanel);   // secoes Spawn e Quests (no lugar da grade)
+        _creaturePanel.Visible = false;
+        _creaturePanel.OpenQuest = id => GoToQuest(id);
+        _creaturePanel.Apply = ApplySpawn;
         // botões dos editores em janela, visíveis só quando o item tem o que editar
         _editorBar.BackColor = CSurface;
         foreach (var b in new[] { _btnAddonEd, _btnDropEd })
@@ -1533,6 +1542,7 @@ public sealed class EditorForm : Form
     }
 
     // ---------- seletor de blocos (busca + categorias + ícone de cada bloco) ----------
+    internal Form? LastPicker;   // --snapshot ... picker: print do seletor de bloco
     private bool _pickerOpen;   // evita abrir de novo enquanto o seletor está aberto (piscava abrindo/fechando)
     private readonly Dictionary<ItemList, int> _blockIconCache = new();
     private void ShowBlockPicker()
@@ -1565,9 +1575,11 @@ public sealed class EditorForm : Form
             foreach (var it in b.Items.Take(40)) if (IconIndexFor(it) is var i && i >= 0) { c = i; break; }
             return _blockIconCache[b] = c;
         }
+        ListViewItem? target = null;
         void Fill()
         {
             var q = search.Text.Trim();
+            target = null;
             lv.BeginUpdate(); lv.Items.Clear(); lv.Groups.Clear();
             var groups = new Dictionary<string, ListViewGroup>();
             ListViewGroup G(string key, string text) { if (!groups.TryGetValue(key, out var g)) { g = new ListViewGroup(key, text); groups[key] = g; lv.Groups.Add(g); } return g; }
@@ -1578,12 +1590,21 @@ public sealed class EditorForm : Form
                 if (q.Length > 0 && !text.Contains(q, StringComparison.OrdinalIgnoreCase) && !(e.Block?.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)) continue;
                 var cat = e.Block is null ? Loc.T("blockPick.top", "Atalhos") : CategoryName(BlockCategory(e.Block.Name));
                 var item = new ListViewItem(text, e.Block is null ? -1 : BlockIcon(e.Block), G(cat, cat)) { Tag = i };
-                if (i == _blockCombo.SelectedIndex) { item.Selected = true; item.Focused = true; }
                 lv.Items.Add(item);
+                if (i == _blockCombo.SelectedIndex) target = item;
             }
             lv.EndUpdate();
-            if (lv.SelectedItems.Count > 0) lv.SelectedItems[0].EnsureVisible();
-            else if (lv.Items.Count > 0 && q.Length > 0) lv.Items[0].Selected = true;
+            if (target is null && lv.Items.Count > 0 && q.Length > 0) target = lv.Items[0];
+            if (lv.IsHandleCreated) MarkTarget();
+        }
+        // a seleção feita antes de a lista existir se perdia: abria no topo sem nada marcado (print do --snapshot)
+        void MarkTarget()
+        {
+            if (target is null || target.ListView != lv) return;
+            target.Selected = true; target.Focused = true;
+            // rola um pouco além para o bloco ficar no meio da lista, não colado embaixo
+            lv.Items[Math.Min(lv.Items.Count - 1, target.Index + 10)].EnsureVisible();
+            target.EnsureVisible();
         }
         void Choose()
         {
@@ -1602,9 +1623,11 @@ public sealed class EditorForm : Form
         f.Deactivate += (_, _) => f.Close();
         f.FormClosed += (_, _) => { f.Dispose(); BeginInvoke(() => _pickerOpen = false); };
         // rolar até o bloco atual só depois de a lista ter tamanho (antes abria sempre no topo)
-        f.Shown += (_, _) => { if (lv.SelectedItems.Count > 0) { lv.SelectedItems[0].EnsureVisible(); try { lv.TopItem = lv.SelectedItems[0]; } catch { } } };
+        f.Shown += (_, _) => MarkTarget();
         Fill();
+        LastPicker = f;
         f.Show(this);
+        MarkTarget();
         search.Focus();
     }
 
@@ -2409,14 +2432,26 @@ public sealed class EditorForm : Form
         if (id.Equals("make", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabMake)) _detailTabs.SelectedTab = _tabMake; return; }
         if (id.Equals("desc", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedIndex = _detailTabs.TabCount - 1; return; }
         if (id.StartsWith("ui:", StringComparison.OrdinalIgnoreCase)) { if (_tabs is not null && _tabPck is not null) _tabs.SelectedTab = _tabPck; _pckView?.OpenUiForSnapshot(id[3..]); return; }
+        if (id.Equals("picker", StringComparison.OrdinalIgnoreCase)) { ShowBlockPicker(); return; }
         if (id.Equals("links", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedTab = _tabLinks; if (_current is not null) FillLinks(_current); return; }
         foreach (TabPage t in _groupTabs.TabPages)
-            if (string.Equals(t.Tag as string, id, StringComparison.OrdinalIgnoreCase)) { _groupTabs.SelectedTab = t; return; }
+            if (string.Equals(t.Tag as string, id, StringComparison.OrdinalIgnoreCase))
+            {
+                _groupTabs.SelectedTab = t;   // sem handle (abas escondidas) o SelectedIndexChanged não dispara
+                SyncSections(); if (_current is not null) FillGrid(_current);
+                return;
+            }
     }
 
     private void RebuildGroupTabs(Item item)
     {
         var groups = GroupsOf(item);
+        // secoes que nao sao campos do elements: onde nasce (npcgen) e quests que usam
+        if (_owner.TryGetValue(item, out var gb))
+        {
+            if (gb.Name is "MONSTER_ESSENCE" or "NPC_ESSENCE") groups.Add("Spawn");
+            if (QuestKind(gb) != ' ') groups.Add("Quests");
+        }
         var keep = SelectedGroupId;
         if (!groups.SequenceEqual(_groupTabs.TabPages.Cast<TabPage>().Select(t => t.Tag as string ?? t.Text)))
         {
@@ -2453,7 +2488,8 @@ public sealed class EditorForm : Form
     {
         "Todos" => "\uE8FD", "Básico" => "\uE946", "Requisitos" => "\uE72E", "Ataque" => "\uECAD", "Defesa" => "\uEA18",
         "Durabilidade" => "\uE90F", "Economia" => "\uE8EC", "Atributos / Addons" => "\uE734", "Habilidades" => "\uE945",
-        "Queda" => "\uE7B8", "Modelo" or "Modelo / Arquivos" => "\uE81E", "Outros" => "\uF0E2", _ => "\uE7C1",
+        "Queda" => "\uE7B8", "Modelo" or "Modelo / Arquivos" => "\uE81E", "Outros" => "\uF0E2",
+        "Spawn" => "\uE916", "Quests" => "\uE8A5", _ => "\uE7C1",
     };
 
     /// <summary>Linha de título de seção na grade (não é campo: Tag deste tipo, nunca string).</summary>
@@ -2521,6 +2557,9 @@ public sealed class EditorForm : Form
     private void FillGrid(Item item)
     {
         var sel = SelectedGroupId;
+        bool info = sel is "Spawn" or "Quests";
+        _creaturePanel.Visible = info; _grid.Visible = !info;
+        if (info) { FillCreaturePanel(item, sel); return; }
         bool same = ReferenceEquals(_gridItem, item) && sel == _gridGroup;
         int keepTop = same ? _grid.FirstDisplayedScrollingRowIndex : -1;
         var keepKey = same ? _grid.CurrentRow?.Tag as string : null;
@@ -3835,6 +3874,13 @@ public sealed class EditorForm : Form
         if (_current is null || row < 0 || _grid.Rows[row].Tag is not string key || !_current.Fields.ContainsKey(key)) return;
         var cell = _grid.Rows[row].Cells[1];
         var val = cell is DataGridViewCheckBoxCell ? (cell.Value is true ? "1" : "0") : cell.Value?.ToString() ?? "";
+        // acima do teto (do tipo gravado ou da regra do jogo): vira o máximo permitido, e a barra de status diz por quê
+        string? capWhy = null;
+        if (cell is not DataGridViewCheckBoxCell && _owner.TryGetValue(_current, out var capBlock))
+        {
+            var capped = FieldLimits.Clamp(capBlock.Name, CfgFieldOf(capBlock, key), key, val, out capWhy);
+            if (capped != val) { val = capped; BeginInvoke(() => { if (row < _grid.Rows.Count && _grid.Rows[row].Tag as string == key) _grid.Rows[row].Cells[1].Value = capped; }); }
+        }
         // várias células de valor selecionadas: o mesmo valor vai para todas do mesmo tipo de campo, num passo só do desfazer
         var type = _current.Fields[key].Type;
         var also = _grid.SelectedCells.Cast<DataGridViewCell>()
@@ -3869,8 +3915,94 @@ public sealed class EditorForm : Form
             _list.Invalidate();
             _header.Text = TasksFile.SplitColor(val).Text;   // o ID já aparece no quadro ao lado
         }
-        Status(string.Format(Loc.T("status.fieldUpdated", "'{0}' atualizado"), FieldLabels.Label(key)));
+        Status(capWhy is not null ? string.Format(Loc.T("status.fieldCapped", "'{0}' = {1} (limite: {2})"), FieldLabels.Label(key), val, capWhy)
+            : string.Format(Loc.T("status.fieldUpdated", "'{0}' atualizado"), FieldLabels.Label(key)));
     }
+
+    // ---------- seções Spawn (npcgen) e Quests (quem usa) ----------
+    private readonly CreatureInfoPanel _creaturePanel = new(dark: false) { Dock = DockStyle.Fill };
+    private int _questFillToken;
+
+    /// <summary>Tipo de referência das quests para o bloco: M monstro, N NPC, I item, ' ' nenhum.</summary>
+    private static char QuestKind(ItemList b) => b.Name switch
+    {
+        "MONSTER_ESSENCE" => 'M', "NPC_ESSENCE" => 'N',
+        _ => IdSpaces.Of(b.Name) == IdSpaces.Space.Essence && b.Name.EndsWith("_ESSENCE") ? 'I' : ' ',
+    };
+
+    /// <summary>Pontos do npcgen (todos os mapas do servidor) onde a criatura nasce.</summary>
+    private List<SpawnRow> SpawnsOf(string id)
+    {
+        var rows = new List<SpawnRow>();
+        if (_npcgen is null || !int.TryParse(id, out var cid)) return rows;
+        foreach (var (map, f) in _npcgen.AllFiles())
+            foreach (var s in f.Spawns)
+                foreach (var g in s.Creatures)
+                    if (g.Id == cid) rows.Add(new SpawnRow(map, s, g));
+        return rows;
+    }
+
+    private void FillCreaturePanel(Item item, string sel)
+    {
+        if (!_owner.TryGetValue(item, out var b)) return;
+        _creaturePanel.Show(spawns: sel == "Spawn", quests: sel == "Quests");
+        if (sel == "Spawn")
+        {
+            Cursor = Cursors.WaitCursor;
+            try
+            {
+                var rows = SpawnsOf(item.Id);
+                _creaturePanel.SetSpawns(_npcgen is null ? Loc.T("ci.noServer", "Sem npcgen: abra a pasta do servidor (aba NPCGen).")
+                    : string.Format(Loc.T("ci.spawnTitle", "Onde nasce: {0} ponto(s) em {1} mapa(s)"), rows.Count, rows.Select(r => r.Map).Distinct().Count()), rows);
+            }
+            finally { Cursor = Cursors.Default; }
+            return;
+        }
+        // quests: o índice das referências pode levar segundos na 1ª vez -> segundo plano
+        var kind = QuestKind(b);
+        if (_tasks is not { } tasks) { _creaturePanel.SetQuests(Loc.T("ci.noTasks", "Sem tasks.data aberto."), Array.Empty<QuestUse>()); return; }
+        _creaturePanel.SetQuests(Loc.T("ci.questsLoading", "Procurando quests…"), Array.Empty<QuestUse>(), loading: true);
+        int token = ++_questFillToken;
+        var npc = kind == 'N' && int.TryParse(item.Id, out var nid) ? NpcQuests(nid) : null;
+        Task.Run(() => QuestUsesOf(tasks, kind, item.Id)).ContinueWith(t =>
+        {
+            if (IsDisposed || token != _questFillToken || t.IsFaulted) return;
+            BeginInvoke(() =>
+            {
+                if (token != _questFillToken) return;
+                var uses = t.Result;
+                // NPC: também o que o serviço do NPC lista (dar / receber), mesmo sem campo na quest
+                if (npc is not null)
+                    foreach (var (list, how) in new[] { (npc.Gives, Loc.T("ci.npcGives", "serviço: dá")), (npc.Takes, Loc.T("ci.npcTakes", "serviço: recebe")) })
+                        foreach (var q in list.Where(q => q.InService))
+                        {
+                            int i = uses.FindIndex(u => u.Id == q.Id);
+                            if (i >= 0) uses[i] = uses[i] with { How = uses[i].How + ", " + how };
+                            else uses.Add(new QuestUse(q.Id, q.Name.Length > 0 ? q.Name : Loc.T("wq.noQuest", "(quest não existe no tasks.data)"), how));
+                        }
+                _creaturePanel.SetQuests(string.Format(Loc.T("ci.questTitle", "Quests que usam: {0} (duplo clique abre no editor de quests)"), uses.Count), uses);
+            });
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>Quests que apontam para o ID (M/N/I), uma linha por quest com os campos que usam. Fora da tela (lento na 1ª vez).</summary>
+    private static List<QuestUse> QuestUsesOf(TasksFile tasks, char kind, string id) =>
+        QuestRules.UsersOf(tasks, kind, id).GroupBy(u => u.Quest.Id)
+            .Select(g => new QuestUse(g.Key, TasksFile.SplitColor(g.First().Quest.Name).Text, string.Join(", ", g.Select(u => QuestLabels.Row(u.Field)).Distinct())))
+            .ToList();
+
+    /// <summary>Muda quantidade/renascer/mortes de um grupo do npcgen (Ctrl+Z no editor de elements desfaz).</summary>
+    private void ApplySpawn(SpawnRow r, int amount, int respawn, int died)
+    {
+        var g = r.Group;
+        var old = (g.Amount, g.Respawn, g.DiedTimes);
+        void Set((int A, int R, int D) v) { g.Amount = v.A; g.Respawn = v.R; g.DiedTimes = v.D; _npcgen?.ExternalEdit(r.Map); UpdateSendGlow(); }
+        _edits.Custom(string.Format(Loc.T("hist.spawn", "Spawn de {0} em {1}"), g.Id, r.Map), () => Set((amount, respawn, died)), () => Set(old));
+        Status(string.Format(Loc.T("status.spawnSet", "{0}: {1} · renasce em {2} · npcgen de {3} (Salvar grava)"), g.Id, amount, CreatureInfoPanel.Time(respawn), r.Map));
+    }
+
+    private CfgField? CfgFieldOf(ItemList block, string key) =>
+        _store.Current?.Source is ElementsLayout lay ? lay.Blocks.FirstOrDefault(s => s.List == block)?.Block.Fields.FirstOrDefault(f => f.Name == key) : null;
 
     // ---------- menu de contexto (clicar direito) ----------
     private ToolStripMenuItem _miFav = null!;
@@ -4023,7 +4155,10 @@ public sealed class EditorForm : Form
     }
     private static string FavFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "favorites.txt");
     private void SaveFavorites()
-    { try { Directory.CreateDirectory(Path.GetDirectoryName(FavFile)!); File.WriteAllLines(FavFile, _favorites); } catch { } }
+    {
+        try { Directory.CreateDirectory(Path.GetDirectoryName(FavFile)!); File.WriteAllLines(FavFile, _favorites); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Info("favoritos: " + ex.Message); Status(Loc.T("status.favSaveFail", "Não consegui gravar os favoritos: ") + ex.Message); }
+    }
     private static IEnumerable<string> LoadFavorites()
     { try { return File.Exists(FavFile) ? File.ReadAllLines(FavFile) : Array.Empty<string>(); } catch { return Array.Empty<string>(); } }
 

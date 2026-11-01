@@ -312,9 +312,10 @@ internal static class Program
         {
             var w = new MyAceEditor.UI.PreferencesWindow(new MyAceEditor.UI.PreferencesWindow.Pref[]
             {
+                new("MyAce (editor)", "", () => "Perguntar se quer enviar ao servidor", () => "Ligado: pergunta ao abrir e ao salvar.", () => (false, null), _ => null),
                 new("Servidor local", "", () => "Velocidade de movimento sem a trava de 3 / 5 m/s", () => "Ligado: os bônus fixos de movimento somam sem limite (até 15 m/s). Desligado: regra original. Reinicia os mapas.", () => (false, null), _ => null),
                 new("Servidor local", "", () => "Exemplo indisponível", () => "Uma opção que depende de algo que não está pronto.", () => (null, "Servidor local ainda não instalado."), _ => null),
-            }) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
+            }, new Dictionary<string, string> { ["MyAce (editor)"] = MyAceEditor.UI.UiKit.Settings, ["Servidor local"] = MyAceEditor.UI.UiKit.Server }) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
             w.Show();
             var until = DateTime.Now.AddSeconds(3);
             while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(20); }
@@ -1004,6 +1005,13 @@ internal static class Program
         var until = DateTime.Now.AddSeconds(12);
         if (item is { } x) { var t0 = DateTime.Now.AddSeconds(8); while (DateTime.Now < t0) { Application.DoEvents(); Thread.Sleep(30); } f.GoToId(x.Block, x.Id); if (group is not null) f.SelectGroup(group); }
         while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
+        if (group == "picker" && f.LastPicker is { IsDisposed: false } pk)   // seletor de bloco (form à parte)
+        {
+            using var pb = new System.Drawing.Bitmap(pk.Width, pk.Height);
+            pk.DrawToBitmap(pb, new System.Drawing.Rectangle(0, 0, pk.Width, pk.Height));
+            pb.Save(outPng, System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
         if (group == "tip" && f.RenderListTip() is { } tip) { tip.Save(outPng, System.Drawing.Imaging.ImageFormat.Png); return; }   // tooltip da lista
         using var bmp = new System.Drawing.Bitmap(f.Width, f.Height);
         f.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));

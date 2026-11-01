@@ -24,6 +24,9 @@ internal sealed class NpcGenView : UserControl
     /// <summary>Quests que o NPC dá/recebe (painel do Mundo 3D); fornecido pelo editor.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<int, NpcQuestInfo?>? QuestsOfNpc { get; set; }
+    /// <summary>Quests que usam a criatura (painel da criatura no Mundo 3D); null = sem tasks.data. Chamado fora da tela.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<int, IReadOnlyList<QuestUse>?>? CreatureQuests { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Action<int>? OpenQuest { get; set; }
     /// <summary>NPC com serviço de venda (filtro "Comerciantes" do Mundo 3D).</summary>
@@ -820,6 +823,22 @@ internal sealed class NpcGenView : UserControl
             (o, g) => { SelectObject(o); Snapshot("move3d:" + DateTime.Now.Ticks); if (o is NpcGenSpawn s) s.Position = new Vec3(g.X, g.Y, g.Z); else if (o is NpcGenResource r) r.Position = new Vec3(g.X, g.Y, g.Z); Touch(); ShowPoint(); });
         w.Tag = _cur; w.ServerConfigDir = _configDir;   // Salvar de construção grava o map.bht deste servidor
         w.NpcQuests = QuestsOfNpc; w.OpenQuest = OpenQuest; w.QuestHost = QuestHost;
+        // painel da criatura (monstro): grupos deste ponto + quests; mudar quantidade/renascer/mortes entra no Ctrl+Z do npcgen
+        w.ShowCreatureInfo = (o, panel) =>
+        {
+            if (o is not NpcGenSpawn s || s.Creatures.Count == 0 || _cur is null) return false;
+            int id0 = s.Creatures[0].Id;
+            var cq = CreatureQuests;
+            panel.Info.Apply = (r, a, sp, d) =>
+            {
+                SelectObject(o); Snapshot("crea3d:" + DateTime.Now.Ticks);
+                r.Group.Amount = a; r.Group.Respawn = sp; r.Group.DiedTimes = d;
+                Touch(); ShowPoint();
+            };
+            panel.ShowCreature(id0, NameOf(id0), s.Creatures.Select(c => new SpawnRow(_cur, s, c)).ToList(), cq is null ? null : () => cq(id0) ?? Array.Empty<QuestUse>());
+            return true;
+        };
+        w.EditCreature = _editItem;
         w.CloneHere = (o, g) =>
         {
             SelectObject(o);

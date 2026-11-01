@@ -216,3 +216,9 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 [ ] 7 Mostrar numa barra inferior (tela pequena corta filtros)
 [ ] 13 tamanho real do modelo no 3D (escala) + nome sobre modelo grande + cor do nome do monstro (tirar se nao existir)
 [ ] 12 sorteio de spawn (aipolicy Rand + controller) e aviso no mundo
+[x] 9b seletor de bloco abre marcado no bloco atual (conferido por print)
+[x] teto de valor: FieldLimits troca pelo maximo (tipo + regras do jogo)
+[x] secoes Spawn (npcgen editavel) e Quests (quem usa, abre a quest) no elements
+[x] Preferencias: MyAce (editor) x Servidor na barra lateral
+[~] Mundo 3D: painel da criatura (monstro) - compilado, falta ver na tela
+[ ] limite minimo de quests nas Preferencias: exige patch do gs E do elementclient.exe (constante inline 20/30); estudar por versao antes

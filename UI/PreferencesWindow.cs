@@ -17,27 +17,34 @@ internal sealed class PreferencesWindow : Form
     internal sealed record Pref(string Section, string Glyph, Func<string> Title, Func<string> Detail,
         Func<(bool? On, string? Why)> Get, Func<bool, string?> Set, Func<bool, string?>? Confirm = null);
 
-    readonly FlowLayoutPanel _list = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(16, 8, 16, 16), BackColor = Color.FromArgb(244, 246, 249) };
-
-    public PreferencesWindow(IEnumerable<Pref> prefs)
+    /// <param name="sectionGlyphs">ícone de cada seção na barra lateral (seção = página: editor, servidor...)</param>
+    public PreferencesWindow(IEnumerable<Pref> prefs, IReadOnlyDictionary<string, string>? sectionGlyphs = null)
     {
         Text = Loc.T("prefs.title", "Preferências");
-        Width = 760; Height = 560; StartPosition = FormStartPosition.CenterParent; MinimizeBox = false; ShowInTaskbar = false;
+        Width = 820; Height = 560; StartPosition = FormStartPosition.CenterParent; MinimizeBox = false; ShowInTaskbar = false;
         Font = new Font("Segoe UI", 9.5f); BackColor = Color.FromArgb(244, 246, 249);
         var head = new Label { Dock = DockStyle.Top, Height = 58, Padding = new Padding(20, 0, 0, 0), TextAlign = ContentAlignment.MiddleLeft, BackColor = Color.White,
             Font = new Font("Segoe UI Semibold", 14f), ForeColor = UiKit.Fg, Image = UiKit.Icon(UiKit.Settings, UiKit.Accent, 26), ImageAlign = ContentAlignment.MiddleLeft };
         head.Text = "       " + Loc.T("prefs.title", "Preferências");
         var sub = new Label { Dock = DockStyle.Top, Height = 26, Padding = new Padding(22, 0, 0, 4), BackColor = Color.White, ForeColor = UiKit.Muted,
             Text = Loc.T("prefs.sub", "Cada opção liga e desliga; o estado mostrado é o real (lido agora)."), TextAlign = ContentAlignment.TopLeft };
-        Controls.Add(_list); Controls.Add(sub); Controls.Add(head);
-
+        // uma página por seção (MyAce / servidor), trocada pela barra lateral (padrão UiKit: nada de abas em cima)
+        var tabs = new TabControl { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
+        var nav = new NavBar(tabs);
+        var lists = new List<FlowLayoutPanel>();
         foreach (var g in prefs.GroupBy(p => p.Section))
         {
-            _list.Controls.Add(new Label { AutoSize = true, Text = g.Key, Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = UiKit.Accent, Margin = new Padding(2, 14, 0, 6) });
-            foreach (var p in g) _list.Controls.Add(new PrefRow(p, this));
+            var list = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(16, 8, 16, 16), BackColor = Color.FromArgb(244, 246, 249) };
+            list.Controls.Add(new Label { AutoSize = true, Text = g.Key, Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = UiKit.Accent, Margin = new Padding(2, 14, 0, 6) });
+            foreach (var p in g) list.Controls.Add(new PrefRow(p, this));
+            var page = new TabPage { BackColor = list.BackColor };
+            page.Controls.Add(list); tabs.TabPages.Add(page); lists.Add(list);
+            var name = g.Key;
+            nav.Add(sectionGlyphs?.GetValueOrDefault(name) ?? UiKit.Settings, () => name, () => name, page);
         }
-        void Fit() { foreach (Control c in _list.Controls) if (c is PrefRow r) r.Width = Math.Max(300, _list.ClientSize.Width - _list.Padding.Horizontal - 4); }
-        _list.Resize += (_, _) => Fit();
+        Controls.Add(tabs); Controls.Add(nav); Controls.Add(sub); Controls.Add(head);
+        void Fit() { foreach (var l in lists) foreach (Control c in l.Controls) if (c is PrefRow r) r.Width = Math.Max(300, l.ClientSize.Width - l.Padding.Horizontal - 4); }
+        foreach (var l in lists) l.Resize += (_, _) => Fit();
         Shown += (_, _) => Fit();
         Fit();
     }
