@@ -71,19 +71,40 @@ public sealed class BhtFile
     /// <summary>Desloca os brushes (caixa toda + dist de cada lado += normal·d). Sem girar: girar exige refazer os planos.</summary>
     public void Move(IEnumerable<int> brushes, float dx, float dy, float dz)
     {
-        foreach (int i in brushes)
-        {
-            int o = _at[i];
-            for (int v = 0; v < 3; v++) { Add(o + v * 4, dx, dy, dz, v); Add(o + 24 + v * 4, dx, dy, dz, v); Add(o + 36 + v * 4, dx, dy, dz, v); }
-            int sides = I(o + 52);
-            for (int s = 0, p = o + 56; s < sides; s++, p += 17)
-                SetF(p + 12, F(p + 12) + F(p) * dx + F(p + 4) * dy + F(p + 8) * dz);
-        }
+        foreach (int i in brushes) MoveAt(_data, _at[i], dx, dy, dz);
     }
 
-    void Add(int at, float dx, float dy, float dz, int axis) => SetF(at, F(at) + (axis == 0 ? dx : axis == 1 ? dy : dz));
+    /// <summary>Desloca 1 brush que começa em <paramref name="at"/> (mesmo formato no map.bht e no fim do .bmd do cliente).</summary>
+    public static void MoveAt(byte[] d, int at, float dx, float dy, float dz)
+    {
+        float[] t = { dx, dy, dz };
+        for (int v = 0; v < 3; v++)
+            foreach (int k in new[] { 0, 24, 36 })   // centro, mínimo, máximo (a meia-extensão não muda)
+                SetF(d, at + k + v * 4, F(d, at + k + v * 4) + t[v]);
+        int sides = BinaryPrimitives.ReadInt32LittleEndian(d.AsSpan(at + 52));
+        for (int s = 0, p = at + 56; s < sides; s++, p += 17)
+            SetF(d, p + 12, F(d, p + 12) + F(d, p) * dx + F(d, p + 4) * dy + F(d, p + 8) * dz);
+    }
+
+    /// <summary>Chave da caixa de 1 brush (mínimo e máximo, 1 cm): a mesma no map.bht e no .bmd que gerou o brush.</summary>
+    public static string KeyAt(byte[] d, int at) => string.Join(" ", Enumerable.Range(0, 6).Select(k => F(d, at + 24 + k * 4).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)));
+
+    /// <summary>Brushes por chave da caixa.</summary>
+    public Dictionary<string, List<int>> Keys()
+    {
+        var r = new Dictionary<string, List<int>>();
+        for (int i = 0; i < _at.Length; i++)
+        {
+            var k = KeyAt(_data, _at[i]);
+            if (!r.TryGetValue(k, out var l)) r[k] = l = new();
+            l.Add(i);
+        }
+        return r;
+    }
+
+    static float F(byte[] d, int o) => BinaryPrimitives.ReadSingleLittleEndian(d.AsSpan(o));
+    static void SetF(byte[] d, int o, float v) => BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(o), v);
     uint U(int o) => BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(o));
     int I(int o) => BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(o));
     float F(int o) => BinaryPrimitives.ReadSingleLittleEndian(_data.AsSpan(o));
-    void SetF(int o, float v) => BinaryPrimitives.WriteSingleLittleEndian(_data.AsSpan(o), v);
 }

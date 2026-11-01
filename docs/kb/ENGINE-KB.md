@@ -111,9 +111,10 @@ client manda Challenge.edition = hex(ELEMENTDATA_VERSION, task_templ_version, gs
 glinkd version = HEX (10404=1.4.4) (PWKB§S5). tasks.data versao divergente = erro -2/-3.
 
 ## §E6 CODIGO (C:\Godot\MyAceEditor)
-UI/WorldView.Tools.cs | menu FLUTUANTE de ferramentas do Mundo 3D (direita, solto; recolhe no cabecalho): botoes grandes Editar cenario / Caminhos de patrulha / Grama; abrir uma ferramenta liga a visao dela e o painel dela toma o lugar do menu (seta voltar): passo a passo, objeto escolhido, Desfazer/Refazer, aviso salvo/nao salvo, Salvar cenario. Filtros Mostrar ficam na barra de cima (_filterDefs); legenda so pelo botao Atalhos
+UI/WorldView.Tools.cs | menu FLUTUANTE de ferramentas do Mundo 3D (direita, solto; recolhe no cabecalho): paleta de LADRILHOS QUADRADOS (icone em cima, nome embaixo, 2 por linha): Editar cenario / Caminhos de patrulha / Grama; abrir uma ferramenta liga a visao dela e o painel dela toma o lugar do menu (seta voltar): passo a passo, objeto escolhido, Desfazer/Refazer, aviso salvo/nao salvo, Salvar cenario. Filtros Mostrar ficam na barra de cima (_filterDefs); legenda so pelo botao Atalhos
+UI/WorldView.BuildingSave.cs | Salvar de construcao movida: plano em memoria (.bmd Pos + brushes, gemeas do mesmo pedaco, brushes do map.bht pela caixa, ornamento do .ecbsd), pergunta, grava litmodels.pck (PckWriter) + map.bht (AtomicFileSave) com backup, recarrega (WorldBuildings.Reopen); ServerConfigDir vem do NPCGen; --world-shot "bldplan" testa sem gravar (MYACE_SERVER) | PW-KB §S6
 UI/WorldView.SceneEdit.cs | parte do WorldView: editar efeitos e sons do .ecwld (painel, Ctrl+Z, Salvar cenario, teste SceneSelfTest)
-PerfectWorld/BhtFile.cs | map.bht (colisao do servidor) para editar: le brushes + arvore ate o ultimo byte, Write igual sem mudanca, Box/Inside/Move (desloca brushes); --bht-check (68/68 iguais) | PW-KB §S6
+PerfectWorld/BhtFile.cs | map.bht (colisao do servidor) para editar: le brushes + arvore ate o ultimo byte, Write igual sem mudanca, Box/Inside/Move/MoveAt/KeyAt/Keys (desloca brushes); --bht-check (68/68 iguais) | PW-KB §S6
 PerfectWorld/EcwldFile.cs | .ecwld para editar: cabecalho + tabela + blocos item a item (bytes originais) + resto; Write remonta (contagens, offsets dos blocos e dos tipos de arvore/grama); Move/Clone/Delete por ID de exportacao em todos os blocos
 PerfectWorld/PathFile.cs | path.sev (caminhos de patrulha do servidor): leitura/gravacao identica + amostragem das Beziers para desenhar
 UI/NpcGenEventsDialog.cs | janela Eventos do mapa (controladores do npcgen): lista + campos + agenda, desfazer proprio, devolve a lista nova
@@ -141,7 +142,7 @@ PerfectWorld/RegionFile.cs | region.sev do servidor (regioes + portais); Entranc
 PerfectWorld/MapTags.cs | pasta do servidor -> mapa do cliente (gs.conf tag -> configs\instance.txt)
 PerfectWorld/Gnet.cs | protocolo interno GNET (writer/reader big-endian, CompactUINT, Octets, Rpc com xid) p/ falar com gdeliveryd:29100 e gamedbd:29400 como o iweb
 PerfectWorld/ServerAdmin.cs + UI/ServerAdminWindow.cs | painel "Administrar" (aba Servidor): contas (pwctl/MySQL), personagens (gamedbd, so leitura), no jogo (expulsar/calar), mundo (atributos em dobro/travas + aviso geral), mapas/instancias (gs por tag, RAM)
-PerfectWorld/PckWriter.cs | grava/acrescenta arquivos num .pck v2 (sem .pkx): copia ao lado, conteudo no lugar da tabela antiga, tabela+rodape novos, relê e confere, File.Replace (original vira .bak; leitores abertos seguem no backup)
+PerfectWorld/PckWriter.cs | grava/acrescenta arquivos num .pck v2/v3, inclusive DIVIDIDO (.pck + .pkx…: so a ultima parte e copiada/trocada com backup, +4 do .pck atualizado, releitura; --pck-split-test) | PW-KB §S3
 PerfectWorld/ClientDialogs.cs | janelas que o exe procura x .dcf do interfaces.pck (Find/Fix); usada na Verificacao/Corrigir
 PerfectWorld/UiImport.cs | importar pasta / trocar com outro cliente para dentro dos pacotes de UI, com conferencia por tipo (xml dcf tabelas imagens) e PckWriter
 PerfectWorld/LoadingScreens.cs | telas de carregamento: familia pelo exe (classica 载入* x 1600), lista, ajustar imagem (recorte+JPG), procbar.ini
@@ -152,7 +153,7 @@ PerfectWorld/ProgramVersion.cs | versao do elements compilada no elementclient.e
 PerfectWorld/LocalServer.cs + UI/ServerView.cs + Server/provision.sh + Server/pwctl.sh | servidor local no WSL (distro PWServer): instala, inicia/para, estado, conta, par corrigido na copia, entrada Local no serverlist
 PerfectWorld/TerrainFile.cs | alturas do terreno do cliente (.trn2 + .t2bk sob demanda), HeightAt interpolado
 PerfectWorld/SkiModel.cs | malhas .ski (modelos de monstro/NPC/mina) na pose de ligacao
-PerfectWorld/BmdModel.cs | construcoes .bmd (litmodels), 2 versoes
+PerfectWorld/BmdModel.cs | construcoes .bmd (litmodels), 2 versoes | CdBrushes: brushes de colisao do fim do .bmd (mesmo formato do map.bht); WorldVertices; --bmd-hulls cruza com o map.bht
 UI/WorldModels.cs | modelos parados no Mundo 3D (.ecm -> .SMD -> .ski + .dds)
 UI/WorldBuildings.cs | construcoes dos pedacos em volta da camera (luz embutida x2)
 PerfectWorld/WorldScene.cs | .ecwld: tipos de arvore (.spt + compmap) e posicoes (PW-KB §S17)

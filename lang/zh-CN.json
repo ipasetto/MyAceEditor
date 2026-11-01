@@ -4427,5 +4427,14 @@
   "tools.grassSub": "显示或隐藏 (G)",
   "tools.sceneSteps": "点击橙色点（特效）、蓝色点（声音）、绿色点（小动物）或建筑。修改 X / 高度 / Z，或使用克隆和删除。右键点击地面：移动到那里。",
   "tools.pathsSteps": "镜头附近的路径显示为淡紫色。选择一个怪物点：它的路径变为橙色，并标出起点。（编辑路径点：下一步。）",
-  "world.objNote3": "特效、声音和小动物：仅客户端。建筑：在 3D 中移动，等服务器碰撞完成前保持待定。"
+  "world.objNote3": "特效、声音和小动物：仅客户端。建筑：在 3D 中移动，等服务器碰撞完成前保持待定。",
+  "world.objNote4": "特效、声音和小动物：仅客户端。建筑：保存会写入客户端 (litmodels.pck) 和服务器碰撞 (map.bht)。",
+  "world.bldPending2": "移动后点击“保存场景”：写入客户端和服务器",
+  "world.bldNoClient": "未找到客户端文件夹。",
+  "world.bldNoServer": "找不到此地图服务器的 map.bht。请打开服务器文件夹（NPCGen 或检查页）后再保存。",
+  "world.bldNoBrush": "{0}：无法读取 .bmd 的碰撞；未保存任何内容。",
+  "world.bldAsk": "保存 {0} 个已移动的建筑（{1} 个孪生副本一起）：\n\n• 客户端：litmodels.pck（位置和玩家碰撞）\n• 服务器：{2}（{3} 个碰撞刷）\n• 场景：.ecbsd（{4} 个装饰物）\n\n全部已备份。之后：在服务器上重启该地图，并把新的 litmodels.pck 发给玩家。NPC 路径 (movemap) 尚未重建：怪物可能仍按原样行走。",
+  "world.bldSaved": "已保存 {0} 个建筑：litmodels.pck + map.bht（已备份）。",
+  "pck.splitTable": "分卷包的文件表不在最后一个分卷中：不支持保存。",
+  "pck.partFull": "包的最后一个分卷将超过 2 GB。"
 }

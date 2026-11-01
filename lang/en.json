@@ -4425,5 +4425,14 @@
   "tools.grassSub": "Show or hide (G)",
   "tools.sceneSteps": "Click an orange point (effect), blue (sound), green (critters) or a building. Change X / height / Z, or use Clone and Delete. Right-click the ground: move there.",
   "tools.pathsSteps": "Paths near the camera show in lilac. Pick a monster point: its path turns orange, with the start marked. (Editing path points: next step.)",
-  "world.objNote3": "Effects, sounds and critters: client only. Buildings: move in 3D and stay pending until the server collision is ready."
+  "world.objNote3": "Effects, sounds and critters: client only. Buildings: move in 3D and stay pending until the server collision is ready.",
+  "world.objNote4": "Effects, sounds and critters: client only. Buildings: Save writes the client (litmodels.pck) and the server collision (map.bht).",
+  "world.bldPending2": "move it and use Save scenery: writes client and server",
+  "world.bldNoClient": "Client folder not found.",
+  "world.bldNoServer": "I could not find this map's server map.bht. Open the server folder (NPCGen or Check tab) and save again.",
+  "world.bldNoBrush": "{0}: could not read the .bmd collision; nothing was saved.",
+  "world.bldAsk": "Save {0} moved building(s) ({1} twin copy(ies) together):\n\n• client: litmodels.pck (position and player collision)\n• server: {2} ({3} collision brush(es))\n• scenery: .ecbsd ({4} ornament(s))\n\nEverything is backed up. Then: restart the map on the server and send the new litmodels.pck to players. NPC paths (movemap) are not rebuilt yet: monsters may walk there as before.",
+  "world.bldSaved": "{0} building(s) saved: litmodels.pck + map.bht (backup made).",
+  "pck.splitTable": "Split package with the table outside the last part: saving is not supported.",
+  "pck.partFull": "The package's last part would exceed 2 GB."
 }

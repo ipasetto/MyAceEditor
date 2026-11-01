@@ -6,6 +6,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 
 ## §M0 Indice por assunto -> arquivo:simbolo (servidor S=`source_server_153/cgame/gs`, cliente C=`source_client_153/CElementClient`)
 
+- construcao no cliente (.bmd com brushes) e ornamento: C/../CCommon/EL_BrushBuilding.cpp CELBrushBuilding::Load/LoadCDBrushes; CCHBasedCD/aabbcd.cpp CCDBrush::Load; C/EC_Ornament.cpp CECOrnament::Load (ECBSDFILEORNAMENT, CCommon/EC_WorldFile.h); pck com safe header: Angelica2.2 AngelicaFile/Source/AFilePackage.cpp Open
 - colisao do gs (map.bht): S/../collision/BrushTree.cpp CBrushTree::Load/_ImportNode, CDBrush.cpp CCDBrush::Load, traceman.cpp trace_manager2::Load; S/mapresman.cpp (CollisionFile, MoveMap Path/WaterPath/AirPath -> path_finding::InitMoveMap); export oficial: CElementEditor DlgExportBHT.cpp + BrushTreeExporter.cpp; hulls da construcao: CCommon/EL_Building.cpp LoadConvexHullData
 - velocidade de movimento / trava 3-5 m/s: S/playertemplate.h property_policy::UpdateSpeed; S/config.h MAX_RUN_SPEED
 - addons de equipamento (tipo -> handler): S/item/item_addon.cpp INSERT_ADDON(id, classe); handlers no mesmo arquivo

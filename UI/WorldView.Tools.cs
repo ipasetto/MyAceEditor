@@ -14,7 +14,7 @@ internal sealed partial class WorldView
     readonly Label _toolTitle = new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10.5f), TextAlign = ContentAlignment.MiddleLeft };
     readonly Button _toolBack = new() { Dock = DockStyle.Left, Width = 40, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Visible = false };
     readonly Button _toolFold = new() { Dock = DockStyle.Right, Width = 40, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
-    readonly FlowLayoutPanel _toolMenu = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(8) };
+    readonly FlowLayoutPanel _toolMenu = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, Padding = new Padding(10, 10, 0, 0) };
     readonly FlowLayoutPanel _scenePage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
     readonly FlowLayoutPanel _pathsPage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(8), Visible = false };
     readonly Label _sceneState = new() { AutoSize = true, MaximumSize = new Size(240, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
@@ -32,21 +32,22 @@ internal sealed partial class WorldView
         (MarkKind.Trigger, "world.fTrigger", "Gatilhos", "Pontos ligados por gatilho sem agenda: fase de DG, GM (nome lilás). Aparecem se o tipo também estiver marcado.", Color.FromArgb(186, 104, 200)),
     };
 
-    Button ToolButton(string glyph, string title, string sub, Action a, Color? back = null)
+    Button ToolButton(string glyph, string title, string sub, Action a)
     {
-        // botão grande: ícone à esquerda, nome em destaque e, embaixo, para que serve (regra: listas com 2ª linha cinza)
-        var b = new Button { Width = 250, Height = 54, FlatStyle = FlatStyle.Flat, BackColor = back ?? Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
-            Margin = new Padding(0, 3, 0, 3), Text = "" };
+        // ladrilho quadrado de paleta de editor (regra do usuário): ícone grande em cima, nome embaixo; a dica diz para que serve
+        var b = new Button { Width = 121, Height = 100, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
+            Margin = new Padding(0, 0, 8, 8), Text = "" };
         b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
-        var icon = UiKit.Icon(glyph, Color.White, 22);
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(52, 60, 74);
+        var icon = UiKit.Icon(glyph, Color.White, 34);
         b.Paint += (_, e) =>
         {
-            e.Graphics.DrawImage(icon, 12, (b.Height - icon.Height) / 2);
-            using var f1 = new Font("Segoe UI Semibold", 10f); using var f2 = new Font("Segoe UI", 8.5f);
-            TextRenderer.DrawText(e.Graphics, title, f1, new Rectangle(46, 7, b.Width - 50, 20), Color.White, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
-            TextRenderer.DrawText(e.Graphics, sub, f2, new Rectangle(46, 27, b.Width - 50, 22), Color.Silver, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            e.Graphics.DrawImage(icon, (b.Width - icon.Width) / 2, 14);
+            using var f = new Font("Segoe UI Semibold", 9.5f);
+            TextRenderer.DrawText(e.Graphics, title, f, new Rectangle(4, 56, b.Width - 8, 40), Color.White,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
         };
-        _toolTip.SetToolTip(b, sub);
+        _toolTip.SetToolTip(b, title + " — " + sub);
         b.Click += (_, _) => { a(); _gl.Focus(); };
         return b;
     }
@@ -102,7 +103,7 @@ internal sealed partial class WorldView
     void LayoutTools()
     {
         var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, _ => _toolMenu };
-        int body = _tool switch { Tool.Scene => Math.Min(470, _gl.Height - 60), Tool.Paths => 140, _ => 3 * 60 + 16 };
+        int body = _tool switch { Tool.Scene => Math.Min(470, _gl.Height - 60), Tool.Paths => 140, _ => (_toolMenu.Controls.Count + 1) / 2 * 108 + 12 };   // ladrilhos 2 por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
         foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage }) p.Visible = !_toolsFolded && p == page;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);

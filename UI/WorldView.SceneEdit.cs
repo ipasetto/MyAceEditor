@@ -85,7 +85,7 @@ internal sealed partial class WorldView
         _objDeleteBtn = B("world.objDelete", "Apagar", "", DeleteSceneObject);
         bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn });
         var note = new Label { Dock = DockStyle.Top, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
-            Text = Loc.T("world.objNote3", "Efeitos, sons e bichos: só no cliente. Construções: andam no 3D e ficam pendentes até a colisão do servidor ficar pronta.") };
+            Text = Loc.T("world.objNote4", "Efeitos, sons e bichos: só no cliente. Construções: Salvar grava o cliente (litmodels.pck) e a colisão do servidor (map.bht).") };
         _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
         // o painel do objeto escolhido mora na ferramenta Editar cenário do menu flutuante (WorldView.Tools.cs)
         FormClosing += (_, e) =>
@@ -118,7 +118,7 @@ internal sealed partial class WorldView
         };
         bool critter = _sceneSel is WorldScene.Critter or BuildingSel;
         _objBinding = true;
-        _objTitle.Text = name + (_ecw is null ? "\n" + (_ecwWhy ?? "") : _sceneSel is BuildingSel ? "\n" + Loc.T("world.bldPending", "mover fica guardado aqui; gravar precisa da colisão do servidor")
+        _objTitle.Text = name + (_ecw is null ? "\n" + (_ecwWhy ?? "") : _sceneSel is BuildingSel ? "\n" + Loc.T("world.bldPending2", "mova e use Salvar cenário: grava cliente e servidor")
             : critter ? "\n" + Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto") : "");
         _objXYZ[0].Value = (decimal)Math.Clamp(x, -100000, 100000); _objXYZ[1].Value = (decimal)Math.Clamp(y, -100000, 100000); _objXYZ[2].Value = (decimal)Math.Clamp(z, -100000, 100000);
         foreach (var n in _objXYZ) n.Enabled = _sceneSel is BuildingSel || _ecw is not null && (!critter || _bsd is not null);
@@ -293,12 +293,13 @@ internal sealed partial class WorldView
     void SaveScene()
     {
         if (_ecw is null || _ecwPath is null) return;
+        // construções primeiro: gravam litmodels.pck + map.bht e mexem no ornamento do .ecbsd (gravado logo abaixo)
+        bool built = false;
+        if (_buildings.Offsets.Count > 0) { if (!SaveBuildings()) { UpdateSideState(); return; } built = true; }
         var bytes = _ecw.Write();
         bool ecwChanged = _ecwSaved is null || !bytes.AsSpan().SequenceEqual(_ecwSaved);
         bool bsdChanged = _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved);
-        if (_buildings.Offsets.Count > 0)
-            MessageBox.Show(this, string.Format(Loc.T("world.bldSaveLater", "{0} construção(ões) movida(s) ficam guardadas aqui no Mundo 3D: gravar construção muda o .bmd do litmodels.pck, o .ecbsd e a colisão do servidor, e a colisão do servidor é a próxima etapa do editor. Efeitos, sons e bichos são gravados agora."), _buildings.Offsets.Count),
-                Loc.T("world.objSave", "Salvar cenário"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        if (built && !ecwChanged && !bsdChanged) { UpdateSideState(); return; }
         if (!ecwChanged && !bsdChanged) { _status.Text = Loc.T("world.sceneNothing", "Cenário: nada a salvar."); UpdateSideState(); return; }
         try
         {

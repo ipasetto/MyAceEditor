@@ -52,6 +52,23 @@ public sealed class PckArchive : IDisposable
         return hits.Count == 1 ? hits[0] : null;
     }
 
+    /// <summary>Continuações lógicas do .pck, em ordem: .pkx, .pkx1, .pkx2… (nome-base sem o número: "litmodels-020.pck" → litmodels).</summary>
+    public static List<string> PartPaths(string pckPath)
+    {
+        var dir = System.IO.Path.GetDirectoryName(pckPath) ?? "";
+        var baseName = System.IO.Path.GetFileNameWithoutExtension(pckPath);
+        int dash = baseName.LastIndexOf('-');
+        if (dash > 0 && int.TryParse(baseName[(dash + 1)..], out _) && !File.Exists(System.IO.Path.Combine(dir, baseName + ".pkx"))) baseName = baseName[..dash];
+        var r = new List<string>();
+        for (int i = 0; i < 16; i++)
+        {
+            var part = Locate(System.IO.Path.Combine(dir, baseName + ".pkx" + (i == 0 ? "" : i.ToString())));
+            if (part is null) break;
+            r.Add(part);
+        }
+        return r;
+    }
+
     /// <summary>O pacote existe (com ou sem número no nome)?</summary>
     public static bool Exists(string pckPath) => Locate(pckPath) is not null;
 
@@ -64,17 +81,8 @@ public sealed class PckArchive : IDisposable
         _pck = new FileStream(pckPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         try
         {
-            // nome-base sem o número ("litmodels-020.pck" → litmodels) para achar .pkx, .pkx1…
-            var dir = System.IO.Path.GetDirectoryName(pckPath) ?? "";
-            var baseName = System.IO.Path.GetFileNameWithoutExtension(pckPath);
-            int dash = baseName.LastIndexOf('-');
-            if (dash > 0 && int.TryParse(baseName[(dash + 1)..], out _) && !File.Exists(System.IO.Path.Combine(dir, baseName + ".pkx"))) baseName = baseName[..dash];
-            for (int i = 0; i < 16; i++)
-            {
-                var part = Locate(System.IO.Path.Combine(dir, baseName + ".pkx" + (i == 0 ? "" : i.ToString())));
-                if (part is null) break;
+            foreach (var part in PartPaths(pckPath))
                 _parts.Add(new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
-            }
 
             var head = ReadAt(0, 4);
             if (BitConverter.ToInt32(head) != FSig1)

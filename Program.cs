@@ -48,6 +48,62 @@ internal static class Program
             File.WriteAllText("client-plan-report.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--pck-split-test")   // <pacote pequeno> <pasta de trabalho>: corta em t-001.pck + t.pkx, grava com PckWriter e confere (pck-split-test.txt)
+        {
+            var sb = new StringBuilder();
+            try
+            {
+                Directory.CreateDirectory(args[2]);
+                var src = File.ReadAllBytes(args[1]);
+                string p1 = Path.Combine(args[2], "t-001.pck"), p2 = Path.Combine(args[2], "t.pkx");
+                using (var orig = new MyAceEditor.PerfectWorld.PckArchive(args[1]))
+                {
+                    long cut = orig.Entries.Min(e => e.Offset) + (orig.Entries.Max(e => e.Offset) - orig.Entries.Min(e => e.Offset)) / 2;   // no meio dos dados
+                    File.WriteAllBytes(p1, src[..(int)cut]); File.WriteAllBytes(p2, src[(int)cut..]);
+                    var first = orig.Entries[0];
+                    var changed = orig.Read(first).Concat("MYACE"u8.ToArray()).ToArray();
+                    var files = new Dictionary<string, byte[]> { [first.Path] = changed, [@"myace\teste.txt"] = "ola"u8.ToArray() };
+                    var bak = MyAceEditor.PerfectWorld.PckWriter.Write(Path.Combine(args[2], "t.pck"), files);
+                    using var a = new MyAceEditor.PerfectWorld.PckArchive(Path.Combine(args[2], "t.pck"));
+                    int same = 0, diff = 0;
+                    foreach (var e in orig.Entries.Skip(1)) { if (a.Find(e.Path) is { } x && a.Read(x).AsSpan().SequenceEqual(orig.Read(e))) same++; else diff++; }
+                    bool head = File.ReadAllBytes(p1).AsSpan(8).SequenceEqual(src.AsSpan(8, (int)cut - 8));
+                    sb.AppendLine($"entradas {orig.Entries.Count} -> {a.Entries.Count}; mudada {(a.Read(a.Find(first.Path)!).AsSpan().SequenceEqual(changed) ? "ok" : "ERRO")}; nova {(a.Find(@"myace\teste.txt") is { } n && a.Read(n).Length == 3 ? "ok" : "ERRO")}; outras iguais {same}, diferentes {diff}; .pck igual fora do cabeçalho {head}; tamanho no cabeçalho {BitConverter.ToUInt32(File.ReadAllBytes(p1), 4)} = lógico {new FileInfo(p1).Length + new FileInfo(p2).Length}; backup {Path.GetFileName(bak)}");
+                }
+            }
+            catch (Exception ex) { sb.AppendLine("ERRO: " + ex); }
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "pck-split-test.txt"), sb.ToString());
+            return;
+        }
+        if (args.Length >= 4 && args[0] == "--bmd-hulls")   // <element> <mapa> <map.bht>: as cascas de cada .bmd batem com brushes do servidor? (bmd-hulls-report.txt)
+        {
+            var sb = new StringBuilder();
+            var bht = new MyAceEditor.PerfectWorld.BhtFile(File.ReadAllBytes(args[3]));
+            var boxes = Enumerable.Range(0, bht.Count).Select(bht.Box).ToList();
+            using var lit = new MyAceEditor.PerfectWorld.PckArchive(Path.Combine(args[1], "litmodels.pck"));
+            // os brushes do fim de cada .bmd (colisão do cliente) devem estar no map.bht com a mesma caixa
+            static string Key((float X0, float Y0, float Z0, float X1, float Y1, float Z1) b) => $"{b.X0:0.00} {b.Y0:0.00} {b.Z0:0.00} {b.X1:0.00} {b.Y1:0.00} {b.Z1:0.00}";
+            var keys = new HashSet<string>(Enumerable.Range(0, bht.Count).Select(i => Key(bht.Box(i))));
+            int files = 0, found = 0, none = 0, empty = 0, brushes = 0, hit = 0;
+            foreach (var e in lit.Entries.Where(e => e.Path.StartsWith($@"litmodels\{args[2]}\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)))
+            {
+                var d = lit.Read(e); files++;
+                var at = MyAceEditor.PerfectWorld.BmdModel.CdBrushes(d);
+                if (at is null) { none++; if (none <= 4) sb.AppendLine($"sem brushes achados: {e.Path} ({d.Length} B)"); continue; }
+                if (at.Count == 0) { empty++; continue; }
+                found++;
+                foreach (int o in at)
+                {
+                    brushes++;
+                    float F(int k) => BitConverter.ToSingle(d, o + k);
+                    if (keys.Contains(Key((F(24), F(28), F(32), F(36), F(40), F(44))))) hit++;
+                    else if (brushes - hit <= 4) sb.AppendLine($"brush do {e.Path} fora do map.bht: {F(24):0.00},{F(28):0.00},{F(32):0.00}");
+                }
+            }
+            sb.Insert(0, $"{files} .bmd: com brushes {found}, sem colisão {empty}, não achados {none} | brushes {brushes}, no map.bht {hit} (map.bht tem {bht.Count})\n");
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "bmd-hulls-report.txt"), sb.ToString());
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--bht-check")   // <pasta config do servidor>: lê todo */map.bht, confere a volta byte a byte e o deslocar de brushes
         {
             var sb = new StringBuilder();
@@ -915,7 +971,8 @@ internal static class Program
                 Application.DoEvents(); Thread.Sleep(30);
                 if (w.Loading) quiet = DateTime.MaxValue; else if (quiet == DateTime.MaxValue) quiet = DateTime.Now; else if ((DateTime.Now - quiet).TotalSeconds > 1.5) break;
             }
-            if (c.Name?.StartsWith("objsave") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SceneSaveTest() + Environment.NewLine);
+            if (c.Name?.StartsWith("bldplan") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.BuildingPlanTest() + Environment.NewLine);
+            else if (c.Name?.StartsWith("objsave") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SceneSaveTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("obj") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SceneSelfTest() + "\n");   // "obj…": teste de editar efeito (sem gravar)
             using var bmp = w.CaptureFrame();
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);

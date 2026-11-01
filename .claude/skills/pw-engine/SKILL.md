@@ -53,7 +53,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 ## 4b. Layout das telas (REGRA DO USUARIO: toda tela nova ou mexida segue isto; pecas em UI/UiKit.cs)
 - MUNDO 3D (usuario 01/11): filtros "Mostrar" ficam na barra de CIMA (como sempre); a legenda/atalhos so abre pelo botao
   Atalhos de cima (nada flutuando por padrao). Ferramentas = menu FLUTUANTE a direita (nao colado em cima nem embaixo),
-  botoes grandes com icone + nome; clicar numa ferramenta liga a visao do que ela mexe no mundo e o painel dela TOMA O
+  botoes GRANDES e QUADRADOS (ladrilho: icone em cima, nome embaixo, como paleta de editor; ex.: adicionar arvores, pedras, editar terreno); clicar numa ferramenta liga a visao do que ela mexe no mundo e o painel dela TOMA O
   LUGAR do menu, com seta "voltar" no topo. Nada de menu lateral fixo.
 - Pensado no usuario, o mais intuitivo possivel; textos simples, sempre via Loc.T (pt-BR/en/ru/zh-CN).
 - Areas de uma janela: barra lateral `NavBar` (icone + nome, dica diz para que serve), nunca abas em cima.

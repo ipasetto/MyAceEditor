@@ -43,7 +43,8 @@ internal sealed class WorldBuildings : IDisposable
         return best;
     }
 
-    readonly PckArchive? _lit, _tex;
+    PckArchive? _lit;   // trocado no Reopen (depois de gravar construções)
+    readonly PckArchive? _tex;
     readonly WorldLoader _load;
     readonly string _map;
     readonly Dictionary<int, List<PckEntry>> _byPiece = new();
@@ -69,6 +70,11 @@ internal sealed class WorldBuildings : IDisposable
             if (PckArchive.Exists(Path.Combine(elementDir, "building.pck"))) _tex = new PckArchive(Path.Combine(elementDir, "building.pck"));
         }
         catch { _lit = null; }
+        IndexPieces();
+    }
+
+    void IndexPieces()
+    {
         if (_lit is null) return;
         var prefix = $@"litmodels\{_map}\";
         foreach (var e in _lit.Entries)
@@ -82,6 +88,20 @@ internal sealed class WorldBuildings : IDisposable
                 l.Add(e);
             }
         }
+    }
+
+    /// <summary>
+    /// Depois de gravar o litmodels.pck: reabre o pacote, solta os pedaços carregados e zera os deslocamentos (as
+    /// posições novas vêm dos .bmd gravados). O próximo Update recarrega.
+    /// </summary>
+    public void Reopen(string elementDir)
+    {
+        var fresh = new PckArchive(Path.Combine(elementDir, "litmodels.pck"));
+        var old = _lit;
+        if (old is not null) lock (old) { _lit = fresh; old.Dispose(); } else _lit = fresh;
+        _byPiece.Clear(); IndexPieces();
+        foreach (var p in _loaded.Keys.ToList()) Unload(p);
+        _requested.Clear(); Offsets.Clear();
     }
 
     /// <summary>Pede os pedaços em volta da câmera e solta os outros.</summary>

@@ -149,6 +149,98 @@ public sealed class BmdModel
         }
     }
 
+    /// <summary>Vértices no mundo (coordenadas do jogo): local × (direita = cima×frente, cima, frente)·escala + posição.</summary>
+    public static List<float[]> WorldVertices(BmdModel m)
+    {
+        float[] f = m.Dir, u = m.Up;
+        if (f[0] * f[0] + f[1] * f[1] + f[2] * f[2] < 1e-6f || u[0] * u[0] + u[1] * u[1] + u[2] * u[2] < 1e-6f) { f = new[] { 0f, 0, 1 }; u = new[] { 0f, 1, 0 }; }
+        float[] r = { u[1] * f[2] - u[2] * f[1], u[2] * f[0] - u[0] * f[2], u[0] * f[1] - u[1] * f[0] };
+        float s = m.Scale is > 0 and < 1000 ? m.Scale : 1;
+        var list = new List<float[]>();
+        foreach (var mesh in m.Meshes)
+            for (int o = 0; o + 12 <= mesh.Vertices.Length; o += 24)
+            {
+                float x = BitConverter.ToSingle(mesh.Vertices, o) * s, y = BitConverter.ToSingle(mesh.Vertices, o + 4) * s, z = BitConverter.ToSingle(mesh.Vertices, o + 8) * s;
+                list.Add(new[] { r[0] * x + u[0] * y + f[0] * z + m.Pos[0], r[1] * x + u[1] * y + f[1] * z + m.Pos[1], r[2] * x + u[2] * y + f[2] * z + m.Pos[2] });
+            }
+        return list;
+    }
+
+    /// <summary>
+    /// Brushes de colisão no FIM do .bmd (CELBrushBuilding::Load, EL_BrushBuilding.cpp): depois do lit model, i32 nHulls,
+    /// nHulls listas (i32 n + n ids de malha) e nHulls CCDBrush no formato do map.bht (caixa 48 B, reservado, nLados, lados
+    /// de 17 B). Coordenadas do mundo, iguais às do servidor. Como o fim do lit model não é fixo, procura de trás para a
+    /// frente o começo que lê tudo certinho até o último byte. Devolve o início de cada brush, ou null se não achar.
+    /// </summary>
+    public static List<int>? CdBrushes(byte[] d)
+    {
+        if (d.Length >= 4 && BitConverter.ToInt32(d, d.Length - 4) == 0) return new();   // nHulls = 0 no fim
+        for (int o = d.Length - 8; o >= 0x3C; o--)
+        {
+            int n = BitConverter.ToInt32(d, o);
+            if (n <= 0 || n > 4096 || o + 4 + n * 4 > d.Length) continue;
+            if (TryBrushes(d, o, n) is { } r) return r;
+        }
+        return null;
+    }
+
+    static List<int>? TryBrushes(byte[] d, int o, int n)
+    {
+        int p = o + 4;
+        for (int i = 0; i < n; i++)   // listas de malhas
+        {
+            if (p + 4 > d.Length) return null;
+            int k = BitConverter.ToInt32(d, p);
+            if (k < 0 || k > 4096 || p + 4 + k * 4L > d.Length) return null;
+            p += 4 + k * 4;
+        }
+        var at = new List<int>(n);
+        for (int i = 0; i < n; i++)
+        {
+            if (p + 56 > d.Length) return null;
+            int sides = BitConverter.ToInt32(d, p + 52);
+            if (sides < 4 || sides > 512 || p + 56 + 17L * sides > d.Length) return null;
+            // caixa coerente: mínimo <= máximo e centro no meio
+            for (int c = 0; c < 3; c++)
+            {
+                float mn = BitConverter.ToSingle(d, p + 24 + c * 4), mx = BitConverter.ToSingle(d, p + 36 + c * 4), ce = BitConverter.ToSingle(d, p + c * 4);
+                if (!(mn <= mx) || Math.Abs((mn + mx) / 2 - ce) > 0.01f + Math.Abs(ce) * 1e-5f) return null;
+            }
+            at.Add(p);
+            p += 56 + 17 * sides;
+        }
+        return p == d.Length ? at : null;
+    }
+
+    /// <summary>
+    /// Cascas de colisão da construção (depois do lit model: i32 nHulls, listas de malhas, e cada casca CConvexHullData:
+    /// marca "V0.2======Convex_Hull_Data_Start=========" (ou V0.1 / "==========..." sem flags), i32 flags, i32 tamanho,
+    /// i32 nVértices + vértices 3f, faces...; CCHBasedCD/ConvexHullData.cpp). Achadas pela marca. Devolve, por casca, o
+    /// início dos vértices no arquivo e a quantidade (o servidor recebe cada casca como 1 brush do map.bht).
+    /// </summary>
+    public static List<(int At, int Count)> Hulls(byte[] d)
+    {
+        var r = new List<(int, int)>();
+        var tag = "Convex_Hull_Data_Start========="u8;
+        for (int i = d.AsSpan().IndexOf(tag); i >= 0;)
+        {
+            int start = i - 10;   // "V0.2======" ou "==========" antes do nome
+            if (start >= 0)
+            {
+                bool flags = d[start] == (byte)'V';
+                int o = i + tag.Length + (flags ? 4 : 0) + 4;   // flags, tamanho do buffer
+                if (o + 4 <= d.Length)
+                {
+                    int n = BitConverter.ToInt32(d, o);
+                    if (n > 0 && n < 100_000 && o + 4 + n * 12 <= d.Length) r.Add((o + 4, n));
+                }
+            }
+            int next = d.AsSpan(i + tag.Length).IndexOf(tag);
+            i = next < 0 ? -1 : i + tag.Length + next;
+        }
+        return r;
+    }
+
     // próxima malha: mesma versão, nome legível (ou vazio) e contagens plausíveis
     static int NextMesh(byte[] d, int from, uint ver)
     {
