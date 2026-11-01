@@ -466,6 +466,12 @@ public sealed class EditorForm : Form
             () => _chkServer.Text, LoadSetting, SaveSetting) { AiPolicyPath = () => _aiView?.FilePath });
         _serverView.FilesSent += ok => { if (ok) { _unsent.Clear(); _serverDiff = null; } UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
         tabs.TabPages.Add(tSrv);
+        // Plugins de evento (docs/PLUGINS.md): programa do servidor que sorteia/chama eventos (usuário 01/11)
+        var tPl = new TabPage() { BackColor = CBg };
+        _tabPlugins = tPl;
+        Bind(() => tPl.Text = Loc.T("tab.plugins", "Plugins"));
+        tPl.Controls.Add(_pluginsView = new PluginsView());
+        tabs.TabPages.Add(tPl);
         // Interfaces (janelas do jogo) fica acima do Extrator PCK, que só extrai (usuário 01/11)
         var tUi = new TabPage() { BackColor = CBg };
         _tabUi = tUi;
@@ -493,6 +499,7 @@ public sealed class EditorForm : Form
             (UiKit.Robot, "tab.aipolicy", "nav.aiTip", "Comportamento dos monstros (aipolicy.data)"),
             (UiKit.CheckList, "tab.verify", "nav.verifyTip", "Confere se cliente e servidor combinam e corrige"),
             (UiKit.Server, "tab.server", "nav.serverTip", "Servidor de teste no seu PC: ligar, enviar, administrar"),
+            (UiKit.Play, "tab.plugins", "nav.pluginsTip", "Eventos automáticos no servidor: monstro raro por sorteio, chamar pelo GM"),
             (UiKit.Layers, "tab.interfaces", "nav.uiTip", "Janelas do jogo: editar na tela, importar, trocar com outro cliente, telas de carregamento"),
             (UiKit.Box, "tab.pck", "nav.pckTip2", "Pacotes .pck: abrir, ver e extrair arquivos"),
         };
@@ -2268,7 +2275,8 @@ public sealed class EditorForm : Form
     private ErrorsWindow? _errors;
     private GShopView? _gshop;
     private NpcGenView? _npcgen;
-    private TabPage? _tabGShop, _tabPck, _tabNpcGen, _tabUi;
+    private TabPage? _tabGShop, _tabPck, _tabNpcGen, _tabUi, _tabPlugins;
+    private PluginsView? _pluginsView;
     private InterfacesView? _uiArea;
     private PckView? _pckView;
     private readonly MyAceEditor.Changes.EditHistory _edits = new();
@@ -2442,6 +2450,7 @@ public sealed class EditorForm : Form
             && ActiveControlDeep() is not TextBoxBase && !_grid.IsCurrentCellInEditMode)
         {
             bool undo = keyData == (Keys.Control | Keys.Z);
+            if (_tabs?.SelectedTab == _tabPlugins && _pluginsView is { } pv) { if (!(undo ? pv.Undo() : pv.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabUi && _uiArea?.Editor is { } ui) { if (!(undo ? ui.Undo() : ui.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabGShop && _gshop is not null) { if (!(undo ? _gshop.Undo() : _gshop.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabNpcGen && _npcgen is not null) { if (!(undo ? _npcgen.Undo() : _npcgen.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }

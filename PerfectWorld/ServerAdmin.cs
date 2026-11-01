@@ -307,6 +307,31 @@ public sealed class ServerAdmin
         return ok;
     }
 
+    // ---------- plugins de evento (docs/PLUGINS.md): programa myaceplugins ao lado do servidor ----------
+
+    /// <summary>Programa dos plugins rodando no servidor?</summary>
+    public bool PluginsRunning() => _srv.Bash("pgrep -x myaceplugins >/dev/null && echo 1 || echo 0", timeoutMs: 30_000).Output.Trim() == "1";
+
+    /// <summary>Copia o programa (publicado para Linux) para o servidor. null = deu certo; senão o erro.</summary>
+    public string? PluginsInstall(string exeWin)
+    {
+        var r = _srv.Bash($"mkdir -p {PluginFiles.Dir} && cp -f '{LocalServer.ToWslPath(exeWin)}' {PluginFiles.Exe} && chmod +x {PluginFiles.Exe} && echo ok", timeoutMs: 120_000);
+        return r.Output.Contains("ok") ? null : r.Output.Trim();
+    }
+
+    /// <summary>Liga o programa em segundo plano (setsid: não morre quando o comando do WSL termina; PW-KB §S31).</summary>
+    public void PluginsStart() => _srv.Bash($"cd {PluginFiles.Dir} && pgrep -x myaceplugins >/dev/null || (setsid {PluginFiles.Exe} > /dev/null 2>&1 &)", timeoutMs: 30_000);
+    public void PluginsStop() => _srv.Bash("pkill -x myaceplugins; true", timeoutMs: 30_000);
+
+    /// <summary>Grava as regras (o programa relê sozinho quando o arquivo muda).</summary>
+    public void PluginsSave(IEnumerable<PluginRule> rules) => _srv.Bash($"mkdir -p {PluginFiles.Dir} && cat > {PluginFiles.Config}", stdin: PluginFiles.Write(rules), timeoutMs: 30_000);
+    public List<PluginRule> PluginsLoad() => PluginFiles.Parse(_srv.Bash($"cat {PluginFiles.Config} 2>/dev/null", timeoutMs: 30_000).Output);
+
+    /// <summary>Comando ao programa: fire (chamar agora), stop (encerrar), pause, resume.</summary>
+    public void PluginsCommand(string cmd, string id) => _srv.Bash($"echo '{cmd} {id.Replace("'", "")}' >> {PluginFiles.Commands}", timeoutMs: 30_000);
+    public Dictionary<string, string> PluginsState() => PluginFiles.ParseState(_srv.Bash($"cat {PluginFiles.State} 2>/dev/null", timeoutMs: 30_000).Output);
+    public string PluginsLog(int lines = 200) => _srv.Bash($"tail -n {lines} {PluginFiles.Log} 2>/dev/null", timeoutMs: 30_000).Output;
+
     /// <summary>
     /// Trava de velocidade do gs (bônus fixo de movimento > 3 m/s vira 3, > 5 vira 0; PW-KB §S10): "on" = original,
     /// "off" = removida, "none" = este gs não tem o trecho conhecido. null = servidor não instalado.

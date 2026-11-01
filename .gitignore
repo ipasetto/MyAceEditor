@@ -40,3 +40,6 @@ forum-prints/
 /pck-extract.txt
 /server-diff.txt
 /quest-create.txt
+
+# programa dos plugins publicado (Linux)
+Plugins/out/

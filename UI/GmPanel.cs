@@ -263,7 +263,7 @@ public sealed class GmPanel : Form
             BeginInvoke(() =>
             {
                 _data = m; _icons = ic;
-                FillEvents();
+                FillEvents(); FillPlugins();
                 AddLog(m is null ? "⚠ " + Loc.T("gm.loadFail", "Não consegui ler o elements.data do cliente.") : Loc.T("gm.loaded", "Lista pronta: busque pelo nome ou ID."));
                 Fill(Kind.Item); Fill(Kind.Npc);
             });
@@ -364,6 +364,11 @@ public sealed class GmPanel : Form
                 Row(L(Loc.T("gm.trigger", "Gatilho do npcgen (ID)")), trig,
                     Btn(Loc.T("gm.eventOn", "Ligar"), () => Spawner(new[] { (int)trig.Value }, true, "#" + trig.Value)),
                     Btn(Loc.T("gm.eventOff", "Desligar"), () => Spawner(new[] { (int)trig.Value }, false, "#" + trig.Value)))),
+            Group(Loc.T("gm.gPlugins", "Plugins de evento (programa do servidor)"),
+                Row(L(Loc.T("gm.plugin", "Plugin")), _plugins,
+                    Btn(Loc.T("gm.pluginFire", "Chamar agora"), () => PluginCmd("fire"), blue: true),
+                    Btn(Loc.T("gm.pluginStop", "Encerrar"), () => PluginCmd("stop")),
+                    Btn(Loc.T("gm.pluginReload", "Atualizar lista"), FillPlugins))),
             Group(Loc.T("gm.gMobs", "Monstros"),
                 Row(Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); }))),
             Group(Loc.T("gm.gTime", "Hora do dia (só na sua tela)"),
@@ -378,6 +383,33 @@ public sealed class GmPanel : Form
     // fechar = desliga a "closelist"). O console não tem comando para isso; vai pelo gdeliveryd (ServerAdmin.Trigger).
     sealed record GmEvent(string Name, int[] Open, int[] Close) { public override string ToString() => Name; }
     readonly ComboBox _events = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
+    readonly ComboBox _plugins = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
+
+    // plugins de evento (docs/PLUGINS.md): o GM chama na hora o mesmo evento que o programa sorteia (fica no histórico)
+    sealed record GmPlugin(string Id, string Name) { public override string ToString() => $"{Name} ({Id})"; }
+    void FillPlugins()
+    {
+        Task.Run(() => { try { return LocalAdmin().PluginsLoad(); } catch (Exception) { return new List<PluginRule>(); } }).ContinueWith(t => BeginInvoke(() =>
+        {
+            _plugins.Items.Clear();
+            foreach (var r in t.Result) _plugins.Items.Add(new GmPlugin(r.Id, r.Name));
+            if (_plugins.Items.Count > 0) _plugins.SelectedIndex = 0;
+            AddLog(string.Format(Loc.T("gm.pluginsLoaded", "{0} plugin(s) no servidor."), _plugins.Items.Count));
+        }));
+    }
+
+    void PluginCmd(string cmd)
+    {
+        if (_plugins.SelectedItem is not GmPlugin p) { AddLog("⚠ " + Loc.T("gm.pluginNone", "Nenhum plugin: crie na área Plugins do editor e clique em Atualizar lista.")); return; }
+        Task.Run(() =>
+        {
+            var a = LocalAdmin();
+            if (!a.PluginsRunning()) return Loc.T("gm.pluginOff", "O programa dos plugins está desligado no servidor (área Plugins do editor → Ligar programa).");
+            a.PluginsCommand(cmd, p.Id);
+            return cmd == "fire" ? string.Format(Loc.T("gm.pluginFired", "{0}: chamado (veja o histórico na área Plugins)."), p.Name)
+                : string.Format(Loc.T("gm.pluginStopped", "{0}: encerrado."), p.Name);
+        }).ContinueWith(t => BeginInvoke(() => AddLog(t.Result)));
+    }
 
     void FillEvents()
     {

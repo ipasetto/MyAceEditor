@@ -430,6 +430,9 @@ internal static class Program
             {
                 var d = File.ReadAllBytes(args[1]); var f = NpcGenFile.Read(d);
                 rep = $"v{f.Version} · {f.Spawns.Count:N0} pontos · {f.Resources.Count:N0} recursos · regrava {(f.Write().AsSpan().SequenceEqual(d) ? "IDÊNTICO" : "DIFERENTE")}";
+                // controladores (gatilhos): ID do jogo, nome, ligado ao abrir, quantos pontos usam (para testar plugins)
+                foreach (var t in f.Triggers)
+                    rep += $"\ncontrolador {t.GmId} (id {t.Id}) '{t.Name}' auto={t.AutoStart} pontos={f.Spawns.Count(x => x.Trigger == t.Id)}";
             }
             catch (Exception ex) { rep = "FALHOU: " + ex.Message; }
             File.WriteAllText("npcgen.txt", rep, new UTF8Encoding(false));

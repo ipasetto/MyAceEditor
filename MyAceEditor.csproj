@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <Compile Remove="Tests\**\*.cs" />
+    <Compile Remove="Plugins\**\*.cs" />   <!-- programa dos plugins (Linux): projeto próprio Plugins/MyAcePlugins.csproj -->
     <!-- Logo: ícone do .exe (ApplicationIcon) e das janelas (Program.UseAppIcon) -->
     <EmbeddedResource Include="Assets\app.ico" LogicalName="MyAceEditor.app.ico" />
     <None Update="sample.data" CopyToOutputDirectory="PreserveNewest" />
@@ -38,4 +39,8 @@
     <None Update="Server\*.sh" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- programa dos plugins (Linux), publicado em Plugins/out: vai junto do editor em plugins/ -->
+  <ItemGroup Condition="Exists('Plugins\out\myaceplugins')">
+    <None Include="Plugins\out\myaceplugins" Link="plugins\myaceplugins" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
