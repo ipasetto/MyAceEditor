@@ -4409,5 +4409,10 @@
   "world.keysOpen": "查看快捷键和图例（H）",
   "world.objsOn2": "场景编辑已开启：{0} 个特效，{1} 个声音，{2} 组生物 —— 点击一个点选择",
   "world.sceneDirtyLine": "● 有未保存的修改 —— 请点保存场景。",
-  "world.sceneCleanLine": "✓ 全部已保存。"
+  "world.sceneCleanLine": "✓ 全部已保存。",
+  "world.bldInfo": "建筑：{0} · X {1:0} Z {2:0} 高度 {3:0}",
+  "world.objBuilding": "建筑",
+  "world.bldPending": "移动先保存在这里；写入需要服务器碰撞",
+  "world.bldMoved": "建筑在3D中移到 X {0:0.0} Z {1:0.0} 高度 {2:0.0}（尚未写入）",
+  "world.bldSaveLater": "{0} 个移动过的建筑先保存在3D世界里：写入建筑会修改 litmodels.pck 的 .bmd、.ecbsd 和服务器碰撞，而服务器碰撞是编辑器的下一步。特效、声音和生物现在写入。"
 }

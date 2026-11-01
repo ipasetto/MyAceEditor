@@ -17,7 +17,9 @@ internal sealed partial class WorldView
     string? _ecwPath, _bsdPath, _ecwWhy;   // arquivos; motivo de não editar
     byte[]? _ecwSaved, _bsdSaved;          // o que está gravado (sem mudança = nada a salvar)
     // estado antes (os dois arquivos) + profundidade das outras pilhas (ordem do Ctrl+Z); cada passo guarda ~3+3 MB no mundo
-    sealed record SceneStep(byte[] Ecwld, byte[]? Bsd, int Npc, int Quests);
+    sealed record SceneStep(byte[] Ecwld, byte[]? Bsd, int Npc, int Quests, Dictionary<string, Vector3>? Bld = null);
+    /// <summary>Construção escolhida: .bmd no litmodels.pck e centro original (espaço do jogo).</summary>
+    sealed record BuildingSel(string File, Vector3 Center);
     const int MaxSceneSteps = 30;
     readonly List<SceneStep> _sUndo = new(), _sRedo = new();
     readonly Panel _objPanel = new() { Width = 225, Height = 250, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(4) };
@@ -37,7 +39,7 @@ internal sealed partial class WorldView
         return sc;
     }
 
-    bool SceneDirty => _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
+    bool SceneDirty => _buildings.Offsets.Count > 0 || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
         || _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved));
 
     /// <summary>Carrega o .ecwld (e o .ecbsd) para editar (na 1ª vez que O liga).</summary>
@@ -111,13 +113,15 @@ internal sealed partial class WorldView
             WorldScene.SceneEffect fx => (Loc.T("world.objEffect", "Efeito") + ": " + fx.Gfx, fx.X, fx.Y, fx.Z),
             WorldScene.SceneSound sd => (Loc.T("world.objSound", "Som") + ": " + sd.File, sd.X, sd.Y, sd.Z),
             WorldScene.Critter cr => (Loc.T("world.objCritter", "Bichos") + ": " + cr.Model, cr.X, cr.Y, cr.Z),
+            BuildingSel b => (Loc.T("world.objBuilding", "Construção") + ": " + Path.GetFileName(b.File), b.Center.X + BldOff(b).X, b.Center.Y + BldOff(b).Y, b.Center.Z - BldOff(b).Z),
             _ => ("", 0f, 0f, 0f),
         };
-        bool critter = _sceneSel is WorldScene.Critter;
+        bool critter = _sceneSel is WorldScene.Critter or BuildingSel;
         _objBinding = true;
-        _objTitle.Text = name + (_ecw is null ? "\n" + (_ecwWhy ?? "") : critter ? "\n" + Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto") : "");
+        _objTitle.Text = name + (_ecw is null ? "\n" + (_ecwWhy ?? "") : _sceneSel is BuildingSel ? "\n" + Loc.T("world.bldPending", "mover fica guardado aqui; gravar precisa da colisão do servidor")
+            : critter ? "\n" + Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto") : "");
         _objXYZ[0].Value = (decimal)Math.Clamp(x, -100000, 100000); _objXYZ[1].Value = (decimal)Math.Clamp(y, -100000, 100000); _objXYZ[2].Value = (decimal)Math.Clamp(z, -100000, 100000);
-        foreach (var n in _objXYZ) n.Enabled = _ecw is not null && (!critter || _bsd is not null);
+        foreach (var n in _objXYZ) n.Enabled = _sceneSel is BuildingSel || _ecw is not null && (!critter || _bsd is not null);
         if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter;
         if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = !critter;
         _objBinding = false;
@@ -132,7 +136,7 @@ internal sealed partial class WorldView
     void SceneEdit(Func<EcwldFile, uint> change, string status)
     {
         if (_ecw is null) { _status.Text = _ecwWhy ?? Loc.T("world.noScene", "Este mapa não tem .ecwld no cliente."); return; }
-        var step = new SceneStep(_ecw.Write(), (byte[]?)_bsd?.Clone(), UndoDepth?.Invoke() ?? 0, _qUndo.Count);
+        var step = new SceneStep(_ecw.Write(), (byte[]?)_bsd?.Clone(), UndoDepth?.Invoke() ?? 0, _qUndo.Count, new(_buildings.Offsets, StringComparer.OrdinalIgnoreCase));
         int critterAt = (_sceneSel as WorldScene.Critter)?.Offset ?? -1;
         uint keep = change(_ecw);
         _sUndo.Add(step); if (_sUndo.Count > MaxSceneSteps) _sUndo.RemoveAt(0);
@@ -145,6 +149,7 @@ internal sealed partial class WorldView
     void Reselect(uint id, int critterAt = -1)
     {
         _objScene = ScanScene(_ecw!.Write());
+        if (_sceneSel is BuildingSel) { ShowObjPanel(); _gl.Invalidate(); return; }
         _sceneSel = critterAt >= 0 ? _objScene.Critters.FirstOrDefault(c => c.Offset == critterAt)
             : (object?)_objScene.Effects.FirstOrDefault(e => e.Id == id) ?? _objScene.Sounds.FirstOrDefault(s => s.Id == id);
         ShowObjPanel(); _gl.Invalidate();
@@ -161,11 +166,29 @@ internal sealed partial class WorldView
         }, string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), x, z, y));
     }
 
+    Vector3 BldOff(BuildingSel b) => _buildings.Offsets.GetValueOrDefault(b.File);
+
+    /// <summary>
+    /// Construção: só o desenho anda (deslocamento guardado no 3D). Gravar = .bmd no litmodels.pck + ornamento no .ecbsd +
+    /// colisão do servidor refeita, tudo no Salvar — a colisão ainda não está pronta, então o Salvar avisa e mantém aqui.
+    /// </summary>
+    void MoveBuilding(BuildingSel b, float x, float y, float z)
+    {
+        if (_ecw is null) return;
+        SceneEdit(_ =>
+        {
+            var d = new Vector3(x - b.Center.X, y - b.Center.Y, -(z - b.Center.Z));   // espaço do OpenGL (z do jogo invertido)
+            if (d.LengthSquared < 1e-6f) _buildings.Offsets.Remove(b.File); else _buildings.Offsets[b.File] = d;
+            return 0;
+        }, string.Format(Loc.T("world.bldMoved", "Construção movida no 3D para X {0:0.0} Z {1:0.0} altura {2:0.0} (ainda não gravada)"), x, z, y));
+    }
+
     void ObjMovedByNumbers()
     {
         if (_objBinding) return;
         float x = (float)_objXYZ[0].Value, y = (float)_objXYZ[1].Value, z = (float)_objXYZ[2].Value;
         if (_sceneSel is WorldScene.Critter c) { MoveCritter(c, x, y, z); return; }
+        if (_sceneSel is BuildingSel b) { MoveBuilding(b, x, y, z); return; }
         if (SelKey is not { } k) return;
         SceneEdit(f => { f.Move(k.Kind, k.Id, x, y, z); return k.Id; }, string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), x, z, y));
     }
@@ -173,6 +196,7 @@ internal sealed partial class WorldView
     void MoveSceneObjectTo(Vector3 at)
     {
         if (_sceneSel is WorldScene.Critter c) { MoveCritter(c, at.X, at.Y + 1, at.Z); return; }
+        if (_sceneSel is BuildingSel b) { MoveBuilding(b, at.X, at.Y, at.Z); return; }
         if (SelKey is not { } k) return;
         SceneEdit(f => { f.Move(k.Kind, k.Id, at.X, at.Y + (k.Kind == EcwldFile.Kind.Effect ? 0.5f : 0), at.Z); return k.Id; },
             string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), at.X, at.Z, at.Y));
@@ -198,9 +222,10 @@ internal sealed partial class WorldView
         var top = from[^1];
         if (top.Npc != (UndoDepth?.Invoke() ?? 0) || top.Quests != _qUndo.Count) return false;
         from.RemoveAt(from.Count - 1);
-        to.Add(new SceneStep(_ecw.Write(), (byte[]?)_bsd?.Clone(), top.Npc, top.Quests));
+        to.Add(new SceneStep(_ecw.Write(), (byte[]?)_bsd?.Clone(), top.Npc, top.Quests, new(_buildings.Offsets, StringComparer.OrdinalIgnoreCase)));
         _ecw = new EcwldFile(top.Ecwld);
         if (top.Bsd is not null) _bsd = top.Bsd;
+        if (top.Bld is not null) { _buildings.Offsets.Clear(); foreach (var (k, v) in top.Bld) _buildings.Offsets[k] = v; }
         uint id = SelKey?.Id ?? 0;
         Reselect(id, (_sceneSel as WorldScene.Critter)?.Offset ?? -1);
         UpdateSideState();
@@ -239,8 +264,17 @@ internal sealed partial class WorldView
             bool cSame = _bsd is not null && _bsdSaved is not null && _bsd.AsSpan().SequenceEqual(_bsdSaved);
             crit = $"bicho {cr.Model}: Z {cr.Z:0.0}→{cm?.Z:0.0}, Ctrl+Z {cu}, .ecbsd voltou ao gravado {cSame}";
         }
+        string bld = "sem construções carregadas";
+        if (_buildings.Nearest(_cam) is { } nb)
+        {
+            _sceneSel = new BuildingSel(nb.File, nb.Center); ShowObjPanel();
+            _objXYZ[0].Value += 3;
+            int pend = _buildings.Offsets.Count; bool dirty = SceneDirty;
+            bool bu = SceneUndo(false);
+            bld = $"construção {Path.GetFileName(nb.File)}: mover pendente {pend} (sujo {dirty}), Ctrl+Z {bu}, pendentes depois {_buildings.Offsets.Count}";
+        }
         _sceneSel = fx; ShowObjPanel();
-        return $"cenário: {sc.Critters.Count} grupos de bichos, {sc.Curves.Count} curvas · efeito {fx.Gfx} (ID {fx.Id}) · clonar {n0}→{n1} (ID novo {clone?.Id}) · mover X {clone?.X:0.0}→{moved?.X:0.0} · Ctrl+Z×2 {undo1 && undo2} · voltou ao gravado {same} · Ctrl+Y {redo} ({n2} efeitos) · {crit} · sujo no fim {SceneDirty}";
+        return $"cenário: {bld} · {sc.Critters.Count} grupos de bichos, {sc.Curves.Count} curvas · efeito {fx.Gfx} (ID {fx.Id}) · clonar {n0}→{n1} (ID novo {clone?.Id}) · mover X {clone?.X:0.0}→{moved?.X:0.0} · Ctrl+Z×2 {undo1 && undo2} · voltou ao gravado {same} · Ctrl+Y {redo} ({n2} efeitos) · {crit} · sujo no fim {SceneDirty}";
     }
 
     /// <summary>Teste do Salvar (foto "objsave…", só numa CÓPIA do mapa): move o 1º efeito +1 m em X, salva e relê do disco.</summary>
@@ -262,7 +296,10 @@ internal sealed partial class WorldView
         var bytes = _ecw.Write();
         bool ecwChanged = _ecwSaved is null || !bytes.AsSpan().SequenceEqual(_ecwSaved);
         bool bsdChanged = _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved);
-        if (!ecwChanged && !bsdChanged) { _status.Text = Loc.T("world.sceneNothing", "Cenário: nada a salvar."); return; }
+        if (_buildings.Offsets.Count > 0)
+            MessageBox.Show(this, string.Format(Loc.T("world.bldSaveLater", "{0} construção(ões) movida(s) ficam guardadas aqui no Mundo 3D: gravar construção muda o .bmd do litmodels.pck, o .ecbsd e a colisão do servidor, e a colisão do servidor é a próxima etapa do editor. Efeitos, sons e bichos são gravados agora."), _buildings.Offsets.Count),
+                Loc.T("world.objSave", "Salvar cenário"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        if (!ecwChanged && !bsdChanged) { _status.Text = Loc.T("world.sceneNothing", "Cenário: nada a salvar."); UpdateSideState(); return; }
         try
         {
             // regra: o que vai para o disco tem que ser relido igual (formato entendido)

@@ -882,8 +882,6 @@ internal static class Program
             if (c.Name?.StartsWith("ov") == true) w.Overview(c.Pos, false, new OpenTK.Mathematics.Vector3(c.Yaw, c.Pos.Y, c.Pitch));
             else w.SetCamera(c.Pos, c.Yaw, c.Pitch);
             if (c.Name?.StartsWith("leg") == true) w.OpenLegend();   // "leg…": foto com a legenda aberta
-            if (c.Name?.StartsWith("objsave") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SceneSaveTest() + Environment.NewLine);
-            else if (c.Name?.StartsWith("obj") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SceneSelfTest() + "\n");   // "obj…": teste de editar efeito (sem gravar)
             w.SetNight(c.Name?.StartsWith("noite") == true);   // "noite…": foto de noite
             var until = DateTime.Now.AddSeconds(90); var quiet = DateTime.MaxValue;
             while (DateTime.Now < until)
@@ -891,6 +889,8 @@ internal static class Program
                 Application.DoEvents(); Thread.Sleep(30);
                 if (w.Loading) quiet = DateTime.MaxValue; else if (quiet == DateTime.MaxValue) quiet = DateTime.Now; else if ((DateTime.Now - quiet).TotalSeconds > 1.5) break;
             }
+            if (c.Name?.StartsWith("objsave") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SceneSaveTest() + Environment.NewLine);
+            else if (c.Name?.StartsWith("obj") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SceneSelfTest() + "\n");   // "obj…": teste de editar efeito (sem gravar)
             using var bmp = w.CaptureFrame();
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }

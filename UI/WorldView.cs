@@ -714,6 +714,12 @@ internal sealed partial class WorldView : Form
         foreach (var fx in sc.Effects) Try(fx, fx.X, fx.Y, fx.Z);
         foreach (var sd in sc.Sounds) Try(sd, sd.X, sd.Y, sd.Z);
         foreach (var cr in sc.Critters) Try(cr, cr.X, cr.Y, cr.Z);
+        // nenhum ponto perto: construção sob o clique (mover fica guardado no 3D até a colisão do servidor; ver SceneEdit)
+        if (best is null && _buildings.Pick(Project, p, _cam) is { } bp)
+        {
+            _sceneSel = new BuildingSel(bp.File, bp.Center);
+            return string.Format(Loc.T("world.bldInfo", "Construção: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(bp.File), bp.Center.X, bp.Center.Z, bp.Center.Y);
+        }
         _sceneSel = best;
         string When(int v) => v switch { 0 => Loc.T("world.whenDay", "de dia"), 1 => Loc.T("world.whenNight", "de noite"), _ => Loc.T("world.whenAlways", "sempre") };
         return best switch

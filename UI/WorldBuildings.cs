@@ -14,8 +14,34 @@ internal sealed class WorldBuildings : IDisposable
     sealed record Part(int Vbo, int Ibo, int Count, string Tex, int NightVbo = 0);
     /// <summary>Cores de noite dos .bmd (A3DLitMesh: o jogo troca dia/noite pelo fator dia/noite).</summary>
     public bool Night { get; set; }
-    sealed record Placed(Matrix4 World, List<Part> Parts, Vector3 Center, float Radius);
-    sealed record Cpu(Matrix4 World, List<BmdModel.Mesh> Meshes, Vector3 Center, float Radius);
+    sealed record Placed(Matrix4 World, List<Part> Parts, Vector3 Center, float Radius, string File);
+    sealed record Cpu(Matrix4 World, List<BmdModel.Mesh> Meshes, Vector3 Center, float Radius, string File);
+
+    /// <summary>Construções movidas no Mundo 3D e ainda não gravadas (.bmd no pck → deslocamento no espaço do OpenGL).</summary>
+    public Dictionary<string, Vector3> Offsets { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Construção carregada mais perto da câmera (teste do Mundo 3D).</summary>
+    public (string File, Vector3 Center)? Nearest(Vector3 cam)
+    {
+        var pl = _loaded.Values.SelectMany(l => l).OrderBy(x => (x.Center - cam).LengthSquared).FirstOrDefault();
+        return pl is null ? null : (pl.File, new Vector3(pl.Center.X, pl.Center.Y, -pl.Center.Z));
+    }
+
+    /// <summary>Construção mais perto do clique (centro a até 30 px na tela): arquivo .bmd e centro no espaço do jogo.</summary>
+    public (string File, Vector3 Center)? Pick(Func<Vector3, PointF?> project, Point p, Vector3 cam)
+    {
+        (string, Vector3)? best = null; float bd = 30;
+        foreach (var pl in _loaded.Values.SelectMany(l => l))
+        {
+            var c = pl.Center + Offsets.GetValueOrDefault(pl.File);
+            if ((c - cam).LengthSquared > 400 * 400) continue;
+            var game = new Vector3(c.X, c.Y, -c.Z);
+            if (project(game) is not { } q) continue;
+            float d = MathF.Sqrt((q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y));
+            if (d < bd) { bd = d; best = (pl.File, game); }
+        }
+        return best;
+    }
 
     readonly PckArchive? _lit, _tex;
     readonly WorldLoader _load;
@@ -103,7 +129,7 @@ internal sealed class WorldBuildings : IDisposable
                     min = Vector3.ComponentMin(min, v); max = Vector3.ComponentMax(max, v);
                 }
             var center = Vector3.TransformPosition((min + max) / 2, world);
-            models.Add(new Cpu(world, m.Meshes, center, (max - min).Length / 2 * s));
+            models.Add(new Cpu(world, m.Meshes, center, (max - min).Length / 2 * s, e.Path));
             foreach (var mesh in m.Meshes)
             {
                 bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
@@ -149,7 +175,7 @@ internal sealed class WorldBuildings : IDisposable
                 }
                 parts.Add(new Part(vbo, ibo, mesh.Indices.Length, mesh.Texture, nvbo));
             }
-            list.Add(new Placed(c.World, parts, c.Center, c.Radius));
+            list.Add(new Placed(c.World, parts, c.Center, c.Radius, c.File));
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
     }
@@ -230,7 +256,8 @@ internal sealed class WorldBuildings : IDisposable
                 float dist = d.Length;
                 if (dist - p.Radius > 1100 || Vector3.Dot(d, forward) < -p.Radius || p.Radius / Math.Max(dist, 1) < 0.004f) continue;
                 GL.PushMatrix();
-                var w = p.World; GL.MultMatrix(ref w);
+                var w = Offsets.TryGetValue(p.File, out var off) ? p.World * Matrix4.CreateTranslation(off) : p.World;   // movida no 3D, ainda não gravada
+                GL.MultMatrix(ref w);
                 foreach (var part in p.Parts)
                 {
                     GL.BindBuffer(BufferTarget.ArrayBuffer, part.Vbo);

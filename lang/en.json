@@ -4407,5 +4407,10 @@
   "world.keysOpen": "See shortcuts and legend (H)",
   "world.objsOn2": "Scene editing on: {0} effects, {1} sounds, {2} critter groups — click a point to choose",
   "world.sceneDirtyLine": "● Unsaved changes — use Save scene.",
-  "world.sceneCleanLine": "✓ Everything saved."
+  "world.sceneCleanLine": "✓ Everything saved.",
+  "world.bldInfo": "Building: {0} · X {1:0} Z {2:0} height {3:0}",
+  "world.objBuilding": "Building",
+  "world.bldPending": "moving is kept here; writing needs the server collision",
+  "world.bldMoved": "Building moved in 3D to X {0:0.0} Z {1:0.0} height {2:0.0} (not written yet)",
+  "world.bldSaveLater": "{0} moved building(s) stay kept here in the 3D World: writing a building changes the litmodels.pck .bmd, the .ecbsd and the server collision, and the server collision is the editor's next step. Effects, sounds and critters are written now."
 }
