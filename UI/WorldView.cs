@@ -157,35 +157,10 @@ internal sealed partial class WorldView : Form
         _bar.Items.Add(_mapBox);
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", ToggleLegend));
-        _bar.Items.Add(new ToolStripSeparator());
-        _bar.Items.Add(new ToolStripLabel(Loc.T("world.show", "Mostrar:")) { ForeColor = Color.Silver });
-        foreach (var (kind, key, pt, tip) in new[]
-        {
-            (MarkKind.Monster, "world.fMonster", "Monstros", "Pontos de monstro."),
-            (MarkKind.Npc, "world.fNpc", "NPCs comuns", "NPCs sem loja."),
-            (MarkKind.Merchant, "world.fMerchant", "Comerciantes", "NPCs com serviço de venda."),
-            (MarkKind.Guard, "world.fGuard", "Guardas", "NPC em ponto de monstro (nome vermelho)."),
-            (MarkKind.Mine, "world.fMine", "Coletáveis", "Minas, plantas e outros coletáveis."),
-            (MarkKind.Event, "world.fEvent", "Eventos", "Pontos ligados por gatilho com data/hora (nome verde). Aparecem se o tipo também estiver marcado."),
-            (MarkKind.Trigger, "world.fTrigger", "Gatilhos", "Pontos ligados por gatilho sem agenda: fase de DG, GM (nome lilás). Aparecem se o tipo também estiver marcado."),
-        })
-        {
-            // botão liga/desliga com a cor do tipo de ponto (como uma legenda que também filtra)
-            var color = kind switch
-            {
-                MarkKind.Monster => Color.FromArgb(239, 83, 80), MarkKind.Npc => Color.FromArgb(100, 181, 246), MarkKind.Merchant => Color.FromArgb(255, 202, 40),
-                MarkKind.Guard => Color.FromArgb(198, 40, 40), MarkKind.Mine => Color.FromArgb(102, 187, 106), MarkKind.Event => Color.FromArgb(0, 230, 118), _ => Color.FromArgb(186, 104, 200),
-            };
-            var tb = new ToolStripButton(Loc.T(key, pt), DarkBarRenderer.Dot(color)) { CheckOnClick = true, Checked = (_show & kind) != 0, ToolTipText = Loc.T(key + ".h", tip),
-                ForeColor = Color.White, TextImageRelation = TextImageRelation.ImageBeforeText, Margin = new Padding(1, 0, 1, 0) };
-            tb.CheckedChanged += (_, _) => { _show = tb.Checked ? _show | kind : _show & ~kind; tb.Image = DarkBarRenderer.Dot(tb.Checked ? color : Color.FromArgb(70, 70, 70)); RefreshMarkers(); _gl.Focus(); };
-            if (!tb.Checked) tb.Image = DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70));
-            _bar.Items.Add(tb);
-        }
+        // filtros "Mostrar" ficam no menu lateral (WorldView.Side.cs)
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
-        InitSceneEdit();
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         _element = element;
         if (element is not null) _clientNames = MapTags.ClientMapNames(element);
@@ -329,6 +304,8 @@ internal sealed partial class WorldView : Form
         Activated += (_, _) => MarkDirty();   // mudanças feitas no editor aparecem ao voltar
         _tick.Tick += (_, _) => Step();
         _tick.Start();
+        InitSceneEdit();
+        InitSidePanel();   // menu lateral por último: usa a grama e os outros desenhos já criados
         FormClosed += (_, _) =>
         {
             _tick.Dispose(); _load.Dispose(); _gl.MakeCurrent();
@@ -370,12 +347,8 @@ internal sealed partial class WorldView : Form
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
-            case Keys.O:   // objetos do cenário: efeitos e sons (.ecwld)
-                _sceneObjs = !_sceneObjs; _gl.Invalidate();
-                if (_sceneObjs) LoadSceneForEdit(); else { _sceneSel = null; ShowObjPanel(); }
-                _status.Text = ObjScene is not { } sc ? Loc.T("world.noScene", "Este mapa não tem .ecwld no cliente.")
-                    : _sceneObjs ? string.Format(Loc.T("world.objsOn", "Objetos do cenário: {0} efeitos e {1} sons (laranja = efeito, azul = som; clique para ver) — O esconde"), sc.Effects.Count, sc.Sounds.Count)
-                    : Loc.T("world.objsOff", "Objetos do cenário escondidos — O mostra");
+            case Keys.O:   // edição do cenário (efeitos, sons e bichos) — o mesmo botão do menu lateral
+                SetSceneObjects(!_sceneObjs);
                 return;
             case Keys.P:   // caminhos de patrulha (path.sev) perto da câmera
                 _allPaths = !_allPaths; _gl.Invalidate();

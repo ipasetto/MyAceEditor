@@ -20,9 +20,9 @@ internal sealed partial class WorldView
     sealed record SceneStep(byte[] Ecwld, byte[]? Bsd, int Npc, int Quests);
     const int MaxSceneSteps = 30;
     readonly List<SceneStep> _sUndo = new(), _sRedo = new();
-    readonly Panel _objPanel = new() { Width = 390, Height = 196, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(8) };
+    readonly Panel _objPanel = new() { Width = 225, Height = 250, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(4) };
     readonly Label _objTitle = new() { AutoSize = false, Height = 40, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9.5f) };
-    readonly NumericUpDown[] _objXYZ = Enumerable.Range(0, 3).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 92, Increment = 0.5m }).ToArray();
+    readonly NumericUpDown[] _objXYZ = Enumerable.Range(0, 3).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 64, Increment = 0.5m }).ToArray();
     Button? _objCloneBtn, _objDeleteBtn;
     bool _objBinding;
 
@@ -62,7 +62,7 @@ internal sealed partial class WorldView
 
     void InitSceneEdit()
     {
-        var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 58, ColumnCount = 3, RowCount = 2, BackColor = _objPanel.BackColor };
+        var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 58, ColumnCount = 3, Width = 215, Margin = new Padding(0), RowCount = 2, BackColor = _objPanel.BackColor };
         string[] heads = { "X", Loc.T("world.objHeight", "altura"), "Z" };
         for (int i = 0; i < 3; i++)
         {
@@ -70,7 +70,7 @@ internal sealed partial class WorldView
             grid.Controls.Add(_objXYZ[i], i, 1);
             _objXYZ[i].ValueChanged += (_, _) => ObjMovedByNumbers();
         }
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 0) };
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 76, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 0) };
         // tela escura: ícones brancos desenhados (UiKit.Icon), como o painel de quests do 3D
         Button B(string key, string pt, string glyph, Action a, bool main = false)
         {
@@ -82,13 +82,10 @@ internal sealed partial class WorldView
         _objCloneBtn = B("world.objClone", "Clonar", "", CloneSceneObject);
         _objDeleteBtn = B("world.objDelete", "Apagar", "", DeleteSceneObject);
         bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, B("world.objSave", "Salvar cenário", "", SaveScene, main: true) });
-        var note = new Label { Dock = DockStyle.Top, Height = 44, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
+        var note = new Label { Dock = DockStyle.Top, Height = 58, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
             Text = Loc.T("world.objNote2", "Efeitos, sons e bichos ficam só no cliente (sem colisão no servidor). Construções, modelos e árvores: travados até o editor gerar a colisão do servidor.") };
         _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
-        Controls.Add(_objPanel);
-        _objPanel.BringToFront();
-        void Place() => _objPanel.Location = new Point(Math.Max(0, _gl.Right - _objPanel.Width - 10), _gl.Top + 10);
-        _gl.Resize += (_, _) => Place(); Place();
+        // o painel do objeto escolhido mora no menu lateral (InitSidePanel)
         FormClosing += (_, e) =>
         {
             if (!SceneDirty) return;
@@ -124,7 +121,8 @@ internal sealed partial class WorldView
         if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter;
         if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = !critter;
         _objBinding = false;
-        _objPanel.Visible = true; _objPanel.BringToFront();
+        _objPanel.Visible = true;
+        UpdateSideState();
     }
 
     /// <summary>
@@ -140,6 +138,7 @@ internal sealed partial class WorldView
         _sUndo.Add(step); if (_sUndo.Count > MaxSceneSteps) _sUndo.RemoveAt(0);
         _sRedo.Clear();
         Reselect(keep, critterAt);
+        UpdateSideState();
         _status.Text = status + Loc.T("world.sceneUnsaved", " — não salvo (Salvar cenário grava; Ctrl+Z desfaz)");
     }
 
@@ -204,6 +203,7 @@ internal sealed partial class WorldView
         if (top.Bsd is not null) _bsd = top.Bsd;
         uint id = SelKey?.Id ?? 0;
         Reselect(id, (_sceneSel as WorldScene.Critter)?.Offset ?? -1);
+        UpdateSideState();
         _status.Text = redo ? Loc.T("world.sceneRedone", "Cenário: refeito.") : Loc.T("world.sceneUndone", "Cenário: desfeito (Ctrl+Y refaz).");
         return true;
     }
@@ -275,6 +275,7 @@ internal sealed partial class WorldView
             }
             if (ecwChanged) { AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
             if (bsdChanged && _bsdPath is not null) { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
+            UpdateSideState();
             _status.Text = string.Format(Loc.T("world.sceneSaved", "Cenário salvo em {0} (backup feito). Só o cliente muda; não precisa enviar ao servidor."),
                 string.Join(" + ", new[] { ecwChanged ? Path.GetFileName(_ecwPath) : null, bsdChanged ? Path.GetFileName(_bsdPath) : null }.Where(s => s is not null)));
         }
