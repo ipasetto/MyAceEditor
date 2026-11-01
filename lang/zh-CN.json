@@ -4354,5 +4354,14 @@
   "legend.kPaths": "巡逻路径（全部/仅该点）",
   "world.noPaths": "此地图在服务器上没有 path.sev。",
   "world.pathsOn": "巡逻路径：全部（{0}）—— P 隐藏",
-  "world.pathsOff": "巡逻路径：仅所选点的 —— P 显示全部"
+  "world.pathsOff": "巡逻路径：仅所选点的 —— P 显示全部",
+  "legend.kObjs": "场景特效和声音（点击查看）",
+  "world.noScene": "此地图在客户端中没有 .ecwld。",
+  "world.objsOn": "场景对象：{0} 个特效，{1} 个声音（橙色=特效，蓝色=声音；点击查看）—— O 隐藏",
+  "world.objsOff": "场景对象已隐藏 —— O 显示",
+  "world.whenDay": "白天",
+  "world.whenNight": "夜晚",
+  "world.whenAlways": "全天",
+  "world.fxInfo": "特效：{0} · 缩放 {1:0.##} · {2} · X {3:0} Z {4:0} 高度 {5:0}",
+  "world.sndInfo": "声音：{0} · 收听距离 {1:0}~{2:0} 米 · {3} · X {4:0} Z {5:0}"
 }

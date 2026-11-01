@@ -85,7 +85,7 @@ Cada passo: ler → provar gravação **idêntica** ao original → só então e
 4. **Caminhos (`path.sev`)** — [~] leitura/gravação idêntica e desenho no 3D (o do ponto + todos com P); falta editar pontos: ver as rotas de patrulha no chão, editar pontos (formato `SevBezier`), ligar a geradores.
 5. **Áreas (`precinct` / `region`)**: ver e editar caixas/polígonos de nome de área, música, renascer, zona segura,
    portais — sempre o par `.clt` (cliente) + `.sev` (servidor).
-6. **Objetos do cenário (`.ecwld` / `.ecbsd`)**: primeiro ler tudo (luzes, sons, efeitos, criaturas, caixas de área,
+6. **Objetos do cenário (`.ecwld` / `.ecbsd`)** — [~] leitura completa do bloco provada em 331/332 mapas; efeitos e sons visíveis e clicáveis (O); falta editar e ler bichos/curvas do .ecbsd: primeiro ler tudo (luzes, sons, efeitos, criaturas, caixas de área,
    água), depois mover/girar/apagar/clonar objetos e plantar árvores/grama.
 7. **Terreno**: pincéis de altura e de textura; com isso, **gerar de novo bht/rmap/dhmap do servidor** (passo
    obrigatório antes de liberar edição de terreno ou de objetos sólidos).

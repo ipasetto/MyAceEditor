@@ -39,6 +39,7 @@ internal sealed class WorldView : Form
     /// <summary>Caminhos de patrulha do path.sev do mapa (ID → pontos da curva). O do ponto selecionado aparece sempre; P mostra todos.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Dictionary<int, List<Vec3>>? Paths { get; set; }
     bool _allPaths;
+    bool _sceneObjs;   // tecla O: efeitos (.gfx) e sons do cenário (.ecwld)
     /// <summary>Clique no vazio: nenhum ponto selecionado.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action? ClearSelection { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? UndoAction { get; set; }
@@ -251,6 +252,12 @@ internal sealed class WorldView : Form
                 done(area); _gl.Invalidate();
                 return;
             }
+            // objetos do cenário (O ligado): clique perto de um efeito/som mostra o que é
+            if (_sceneObjs && e.Button == MouseButtons.Left && _movingTag is null && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4 && PickSceneObject(e.Location) is { } info)
+            {
+                _status.Text = info; _gl.Invalidate();
+                return;
+            }
             if (_movingTag is { } tag)
             {
                 bool moved = _movePos is not null && (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4);
@@ -362,6 +369,12 @@ internal sealed class WorldView : Form
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
+            case Keys.O:   // objetos do cenário: efeitos e sons (.ecwld)
+                _sceneObjs = !_sceneObjs; _gl.Invalidate();
+                _status.Text = _trees.Scene is not { } sc ? Loc.T("world.noScene", "Este mapa não tem .ecwld no cliente.")
+                    : _sceneObjs ? string.Format(Loc.T("world.objsOn", "Objetos do cenário: {0} efeitos e {1} sons (laranja = efeito, azul = som; clique para ver) — O esconde"), sc.Effects.Count, sc.Sounds.Count)
+                    : Loc.T("world.objsOff", "Objetos do cenário escondidos — O mostra");
+                return;
             case Keys.P:   // caminhos de patrulha (path.sev) perto da câmera
                 _allPaths = !_allPaths; _gl.Invalidate();
                 _status.Text = Paths is null ? Loc.T("world.noPaths", "Este mapa não tem path.sev no servidor.")
@@ -565,6 +578,7 @@ internal sealed class WorldView : Form
         DrawAreas();
         DrawSpawnArea();
         DrawPaths();
+        DrawSceneObjects();
         DrawGizmo();
 
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
@@ -647,6 +661,66 @@ internal sealed class WorldView : Form
             GL.End();
         }
         GL.LineWidth(1); GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color3(1f, 1f, 1f);
+    }
+
+    // objeto do cenário clicado por último (destacado e com a distância do som)
+    object? _sceneSel;
+
+    /// <summary>Efeitos (.gfx, laranja) e sons (azul; o escolhido mostra o raio máximo) do .ecwld a até 300 m da câmera.</summary>
+    void DrawSceneObjects()
+    {
+        if (!_sceneObjs || _trees.Scene is not { } sc) return;
+        const float R2 = 300 * 300;
+        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Texture2D);
+        GL.PointSize(8);
+        GL.Begin(PrimitiveType.Points);
+        foreach (var fx in sc.Effects)
+        {
+            var g = Gl(fx.X, fx.Y, fx.Z);
+            if ((g - _cam).LengthSquared > R2) continue;
+            if (fx == _sceneSel) GL.Color3(1f, 1f, 0.4f); else GL.Color3(1f, 0.55f, 0.1f);
+            GL.Vertex3(g);
+        }
+        foreach (var sd in sc.Sounds)
+        {
+            var g = Gl(sd.X, sd.Y, sd.Z);
+            if ((g - _cam).LengthSquared > R2) continue;
+            if (sd == _sceneSel) GL.Color3(1f, 1f, 0.4f); else GL.Color3(0.3f, 0.7f, 1f);
+            GL.Vertex3(g);
+        }
+        GL.End();
+        GL.PointSize(1);
+        if (_sceneSel is WorldScene.SceneSound s && s.MaxDist > 0)
+        {
+            GL.Color3(0.3f, 0.7f, 1f);
+            GL.Begin(PrimitiveType.LineLoop);
+            for (int i = 0; i < 64; i++) { float t = i / 64f * MathF.Tau; GL.Vertex3(Gl(s.X + MathF.Cos(t) * s.MaxDist, s.Y, s.Z + MathF.Sin(t) * s.MaxDist)); }
+            GL.End();
+        }
+        GL.Enable(EnableCap.DepthTest); GL.Color3(1f, 1f, 1f);
+    }
+
+    /// <summary>Efeito ou som mais perto do clique (até 10 px na tela): texto para a barra de status.</summary>
+    string? PickSceneObject(Point p)
+    {
+        if (_trees.Scene is not { } sc) return null;
+        object? best = null; float bd = 10;
+        void Try(object o, float x, float y, float z)
+        {
+            if ((Gl(x, y, z) - _cam).LengthSquared > 300 * 300 || Project(new Vector3(x, y, z)) is not { } q) return;
+            float d = MathF.Sqrt((q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y));
+            if (d < bd) { bd = d; best = o; }
+        }
+        foreach (var fx in sc.Effects) Try(fx, fx.X, fx.Y, fx.Z);
+        foreach (var sd in sc.Sounds) Try(sd, sd.X, sd.Y, sd.Z);
+        _sceneSel = best;
+        string When(int v) => v switch { 0 => Loc.T("world.whenDay", "de dia"), 1 => Loc.T("world.whenNight", "de noite"), _ => Loc.T("world.whenAlways", "sempre") };
+        return best switch
+        {
+            WorldScene.SceneEffect fx => string.Format(Loc.T("world.fxInfo", "Efeito: {0} · escala {1:0.##} · {2} · X {3:0} Z {4:0} altura {5:0}"), fx.Gfx, fx.Scale, When(fx.ValidTime), fx.X, fx.Z, fx.Y),
+            WorldScene.SceneSound sd => string.Format(Loc.T("world.sndInfo", "Som: {0} · ouve de {1:0} a {2:0} m · {3} · X {4:0} Z {5:0}"), sd.File, sd.MinDist, sd.MaxDist, When(sd.ValidTime), sd.X, sd.Z),
+            _ => null,
+        };
     }
 
     /// <summary>
@@ -970,6 +1044,7 @@ internal sealed class WorldView : Form
             new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "B" }),
             new(K("legend.kGrass", "esconder a grama"), Keys: new[] { "G" }),
             new(K("legend.kPaths", "caminhos de patrulha (todos / só o do ponto)"), Keys: new[] { "P" }),
+            new(K("legend.kObjs", "efeitos e sons do cenário (clique para ver)"), Keys: new[] { "O" }),
             new(K("legend.kFog", "neblina do jogo / neblina longe"), Keys: new[] { "N" }),
             new(K("legend.kDayNight", "dia / noite"), Keys: new[] { "L" }),
             new(K("legend.kLegend", "abrir / fechar esta legenda"), Keys: new[] { "H" }),

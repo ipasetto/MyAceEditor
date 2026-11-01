@@ -4352,5 +4352,14 @@
   "legend.kPaths": "patrol paths (all / only the point's)",
   "world.noPaths": "This map has no path.sev on the server.",
   "world.pathsOn": "Patrol paths: all ({0}) — P hides",
-  "world.pathsOff": "Patrol paths: only the selected point's — P shows all"
+  "world.pathsOff": "Patrol paths: only the selected point's — P shows all",
+  "legend.kObjs": "scene effects and sounds (click to see)",
+  "world.noScene": "This map has no .ecwld in the client.",
+  "world.objsOn": "Scene objects: {0} effects and {1} sounds (orange = effect, blue = sound; click to see) — O hides",
+  "world.objsOff": "Scene objects hidden — O shows",
+  "world.whenDay": "by day",
+  "world.whenNight": "at night",
+  "world.whenAlways": "always",
+  "world.fxInfo": "Effect: {0} · scale {1:0.##} · {2} · X {3:0} Z {4:0} height {5:0}",
+  "world.sndInfo": "Sound: {0} · heard from {1:0} to {2:0} m · {3} · X {4:0} Z {5:0}"
 }

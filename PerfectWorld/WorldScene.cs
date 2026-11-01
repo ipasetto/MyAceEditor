@@ -63,7 +63,32 @@ public sealed class WorldScene
                     : new Tree(BitConverter.ToInt32(b, t), BitConverter.ToSingle(b, t + 4), 0, BitConverter.ToSingle(b, t + 8), false));
             try { ReadModels(b, o, t, counts); } catch (ArgumentOutOfRangeException) { } catch (ArgumentException) { }
         }
+        // prova: o fim lido de cada bloco é o começo do próximo; o último termina nos tipos de árvore/grama (ou no fim)
+        var starts = Enumerable.Range(0, nBlock).Select(i => (int)BitConverter.ToUInt32(b, 116 + 4 * i)).Where(x => x > 0).Distinct().OrderBy(x => x).ToList();
+        var tails = new[] { (int)treeOff, (int)BitConverter.ToUInt32(b, 40), b.Length }.Where(x => x > 0).ToList();
+        BlocksTotal = starts.Count;
+        for (int i = 0; i < starts.Count; i++)
+        {
+            int next = i + 1 < starts.Count ? starts[i + 1] : tails.Where(x => x >= starts[i]).DefaultIfEmpty(b.Length).Min();
+            if (_blockEnd.TryGetValue(starts[i], out var end) && end == next) BlocksExact++;
+        }
     }
+
+    /// <summary>
+    /// Efeito do cenário (ECWDFILEEFFECT6/8/12, EC_WorldFile.h): .gfx (fogo, brilho, fumaça…), escala, posição/direção/cima,
+    /// velocidade, quando aparece (0 dia, 1 noite, 2 sempre; v8+), alfa e atenuação (v12). Offset = início da struct no .ecwld.
+    /// </summary>
+    public sealed record SceneEffect(uint Id, string Gfx, float Scale, float X, float Y, float Z, int ValidTime, int Offset);
+    public List<SceneEffect> Effects { get; } = new();
+    /// <summary>Som ambiente do cenário (ECWDFILESOUND / SOUND10): arquivo, posição, distância mínima/máxima, grupo, quando toca (v10+).</summary>
+    public sealed record SceneSound(uint Id, string File, float X, float Y, float Z, float MinDist, float MaxDist, int Group, int ValidTime, int Offset);
+    public List<SceneSound> Sounds { get; } = new();
+    /// <summary>Grupos de bichos de enfeite e curvas do cenário: referências (ID, offset) ao .ecbsd.</summary>
+    public List<(uint Id, uint Offset)> CritterRefs { get; } = new();
+    public List<(uint Id, uint Offset)> BezierRefs { get; } = new();
+    /// <summary>Prova do leitor: blocos cujo fim lido bate exatamente com o começo do próximo (ou com os tipos de árvore/grama).</summary>
+    public int BlocksExact, BlocksTotal;
+    readonly Dictionary<int, int> _blockEnd = new();
 
     /// <summary>Modelos .ecm fixos do cenário (paredes, tetos, estátuas de algumas instâncias): CECSceneBlock::LoadECModels.</summary>
     public sealed record SceneModel(string Ecm, string Action, float X, float Y, float Z, float[] Dir, float[] Up);
@@ -159,10 +184,18 @@ public sealed class WorldScene
             int r = t + 8 * (nWater + k);
             OrnamentRefs.Add((BitConverter.ToUInt32(b, r), BitConverter.ToUInt32(b, r + 4)));
         }
-        if (nEcm <= 0 || nEcm > 100000 || nFx < 0 || nFx > 100000) return;
+        if (nEcm < 0 || nEcm > 100000 || nFx < 0 || nFx > 100000) return;
         int p = t + 8 * (nWater + nOrn + nBox + nGrass);
         int fxSize = Version < 8 ? 48 : Version < 12 ? 52 : 60;   // ECWDFILEEFFECT6/8/12 (com o alinhamento do bool)
-        for (int k = 0; k < nFx; k++) { p += fxSize; Str(b, ref p); }
+        for (int k = 0; k < nFx; k++)
+        {
+            int s0 = p;
+            float F(int x) => BitConverter.ToSingle(b, s0 + x);
+            p += fxSize;
+            var gfx = Str(b, ref p);
+            // EFFECT12: id, escala, pos, dir, cima, velocidade, validade (v8+), alfa, atenuação
+            Effects.Add(new SceneEffect(BitConverter.ToUInt32(b, s0), gfx, F(4), F(8), F(12), F(16), Version >= 8 ? BitConverter.ToInt32(b, s0 + 48) : 2, s0));
+        }
         for (int k = 0; k < nEcm; k++)
         {
             float F(int x) => BitConverter.ToSingle(b, p + x);
@@ -173,6 +206,20 @@ public sealed class WorldScene
             if (file.Length > 0 && float.IsFinite(pos.Item1) && float.IsFinite(pos.Item2) && float.IsFinite(pos.Item3))
                 Models.Add(new SceneModel(file, act, pos.Item1, pos.Item2, pos.Item3, dir, up));
         }
+        // depois dos modelos EC (CECSceneBlock::Load): grupos de bichos e curvas = refs de 8 B ao .ecbsd; sons = struct + arquivo
+        int nCrit = counts > 7 ? C(7) : 0, nBez = counts > 8 ? C(8) : 0, nSnd = counts > 9 ? C(9) : 0;
+        for (int k = 0; k < nCrit; k++, p += 8) CritterRefs.Add((BitConverter.ToUInt32(b, p), BitConverter.ToUInt32(b, p + 4)));
+        for (int k = 0; k < nBez; k++, p += 8) BezierRefs.Add((BitConverter.ToUInt32(b, p), BitConverter.ToUInt32(b, p + 4)));
+        int sndSize = Version < 10 ? 28 : 32;   // ECWDFILESOUND (id, pos, mín., máx., grupo) / SOUND10 (+ validade)
+        for (int k = 0; k < nSnd; k++)
+        {
+            int s0 = p;
+            float F(int x) => BitConverter.ToSingle(b, s0 + x);
+            p += sndSize;
+            var file = Str(b, ref p);
+            Sounds.Add(new SceneSound(BitConverter.ToUInt32(b, s0), file, F(4), F(8), F(12), F(16), F(20), BitConverter.ToInt32(b, s0 + 24), Version >= 10 ? BitConverter.ToInt32(b, s0 + 28) : 2, s0));
+        }
+        _blockEnd[o] = p;
     }
 
     /// <summary>

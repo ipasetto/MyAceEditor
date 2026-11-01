@@ -39,6 +39,8 @@ internal sealed class WorldTrees : IDisposable
 
     readonly PckArchive? _pck;
     readonly WorldScene? _scene;
+    /// <summary>Cena do .ecwld (efeitos, sons, modelos…) para o Mundo 3D mostrar os objetos do cenário.</summary>
+    internal WorldScene? Scene => _scene;
     readonly Dictionary<int, Kind?> _kinds = new();
     readonly Dictionary<(int, int), List<int>> _cells = new();   // célula de 256 m → índices em _scene.Trees
     const float Cell = 256, Range = 900;

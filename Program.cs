@@ -48,6 +48,23 @@ internal static class Program
             File.WriteAllText("client-plan-report.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--ecwld-check")   // <pasta element\maps>: lê todos os .ecwld e confere se cada bloco termina onde o próximo começa (ecwld-check-report.txt)
+        {
+            var sb = new StringBuilder(); int maps = 0, exactMaps = 0;
+            foreach (var file in Directory.GetFiles(args[1], "*.ecwld", SearchOption.AllDirectories).OrderBy(x => x))
+            {
+                try
+                {
+                    var sc = new WorldScene(file); maps++;
+                    if (sc.BlocksExact == sc.BlocksTotal) exactMaps++;
+                    sb.AppendLine($"{Path.GetFileName(Path.GetDirectoryName(file))}: v{sc.Version} blocos {sc.BlocksExact}/{sc.BlocksTotal} · árvores {sc.Trees.Count} · efeitos {sc.Effects.Count} · modelos {sc.Models.Count} · sons {sc.Sounds.Count} · bichos {sc.CritterRefs.Count} · curvas {sc.BezierRefs.Count}"
+                        + (sc.Effects.Count > 0 ? $" · ex. efeito {sc.Effects[0].Gfx}" : "") + (sc.Sounds.Count > 0 ? $" · ex. som {sc.Sounds[0].File} ({sc.Sounds[0].MinDist:0}-{sc.Sounds[0].MaxDist:0} m)" : ""));
+                }
+                catch (Exception ex) { sb.AppendLine($"{file}: ERRO {ex.Message}"); }
+            }
+            File.WriteAllText("ecwld-check-report.txt", $"# {exactMaps}/{maps} mapas com todos os blocos exatos\n" + sb, new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--pathsev")   // <pasta ou arquivo>: lê e regrava todos os path.sev (pathsev-report.txt)
         {
             var files = Directory.Exists(args[1]) ? Directory.GetFiles(args[1], "path.sev", SearchOption.AllDirectories) : new[] { args[1] };
