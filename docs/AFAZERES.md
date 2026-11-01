@@ -55,17 +55,17 @@ Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor
 [x] Painel "Administrar..." na aba Servidor (ServerAdminWindow): visao geral, contas, personagens, no jogo, mundo, mapas - leituras testadas no programa real
 [x] gs01 caia apos editar a loja: itens com preco 0 (gs recusa a loja, erro -31). Editor agora bloqueia salvar/enviar loja assim; Verificacao compara tambem com o servidor local
 [x] Painel: "Dar CASH por ID" (conta ou personagem) na aba Contas
-[ ] usuario: corrigir os 2 itens de preco 0 no gshop do 144 (posicoes 2 e 382) e reenviar
+[x] usuario: corrigir os 2 itens de preco 0 no gshop do 144 (posicoes 2 e 382) e reenviar (usuario confirmou 01/11)
 [x] CASH "nao caia": chega, mas o authd demora (~4 min; so comeca 10 min apos ligar). Painel avisa e mostra pendente
 [x] crash ao fechar o inventario pelo X: Win_Engrave fora do .dcf do interfaces.pck -> Verificacao acusa e Corrigir registra (testado em copia)
 [x] Corrigir aplicado no 144 pelo programa real (backup interfaces.pck.20261026-122856.bak = original)
 [x] editor de interface agora grava no interfaces.pck (antes so na pasta .files) + bug do texto (String/string) corrigido
-[ ] usuario: testar no jogo fechar o inventario pelo X e uma janela editada
+[x] usuario: testar no jogo fechar o inventario pelo X e uma janela editada (usuario confirmou 01/11)
 [x] (ver acima) aplicar o Corrigir no cliente 144
 [x] release v0.2.0-beta (26/10): README PT/EN com novidades e prints novos (NPCGen, 3D, Servidor, painel, Verificacao, interface); aba Verificacao e painel traduzidos para EN; 39 textos EN que faltavam
 [ ] BUG ABERTO: Mapas -> "Iniciar selecionado" na is05 nao sobe (log /home/logs/gs-is05.log vazio). Proximo: rodar "cd /home/gamed && timeout 40 ./gs is05" em primeiro plano p/ ver o erro (usuario interrompeu antes); depois corrigir pwctl gs-start
 [ ] Mapas: a lista perde a selecao ao atualizar (DataSource refeito) -> manter a linha
-[ ] testar com o usuario no jogo: aviso geral, EXP em dobro, gold (usecash), banir/expulsar/calar, GM liga/desliga, criar conta/senha pelo painel
+[x] testar com o usuario no jogo: aviso geral, EXP em dobro, gold (usecash), banir/expulsar/calar, GM liga/desliga, criar conta/senha pelo painel (usuario confirmou 01/11)
 [ ] nomes dos mapas em portugues (instance.txt e chines)
 [ ] posicao do personagem em coordenadas do jogo (hoje X/Z do servidor)
 [ ] proximas etapas do painel: editar personagem (nivel, dinheiro, teleporte; PutRole*), enviar item por correio (SysSendMail), clas, chat (world2.chat)
@@ -90,7 +90,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] Espaco sobe e Z desce a camera (como voo no jogo)
 - [~] objetos flutuando: pontos "no chao" agora desenhados na altura do terreno; se ainda houver construcoes flutuando, mandar print com a coordenada
 - [x] clonar ponto/NPC direto no 3D
-- [~] travadas perto da Cidade do Dragao (pontos perto em cache, carga limitada a ~6 ms/quadro; falta o usuario confirmar) (muitos NPCs): otimizar (instancias por modelo, limitar nomes/modelos, carregar em segundo plano)
+- [x] travadas perto da Cidade do Dragao (pontos perto em cache, carga limitada a ~6 ms/quadro; falta o usuario confirmar) (muitos NPCs): otimizar (instancias por modelo, limitar nomes/modelos, carregar em segundo plano) (usuario confirmou 01/11)
 - [x] indice/legenda no canto superior esquerdo (fundo preto translucido): verde = ligado a evento/gatilho, branco = NPC de missao/venda ou monstro normal, vermelho = guardas, etc.
 - [x] botao direito no NPC: "Editar" leva ao item no editor; mudancas no editor atualizam o 3D na hora (e vice-versa)
 - [x] DESCARTADO: animacao dos modelos
@@ -109,7 +109,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] "Ir para" aceita coordenadas (x z ou x y z); nomes das instancias no seletor de mapa
 - [x] lote de construcoes/modelos/chao nao se perde por um arquivo ruim; construcoes na fila prioritaria
 - [ ] b30: dados batem (pontos 196,8 m, chao 196,0 m); conferir no programa se o chao aparece (T esconde o terreno)
-- [ ] travadas na Cidade do Dragao: nomes novos limitados a 4/quadro; usuario confirmar
+- [x] travadas na Cidade do Dragao: nomes novos limitados a 4/quadro; usuario confirmar (usuario confirmou 01/11)
 - [x] ler o esqueleto (.bon) para malhas rigidas (BonFile; 6885/6885)
 - [x] miniaturas 3D nas listas para quem nao tem icone (ModelThumbs, segundo plano)
 - [x] assistente "Monstro/NPC novo" (barra e botao direito no 3D, ja posiciona o ponto)
