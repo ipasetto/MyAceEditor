@@ -50,19 +50,43 @@ internal static class Program
         }
         if (args.Length >= 2 && args[0] == "--ecwld-check")   // <pasta element\maps>: lê todos os .ecwld e confere se cada bloco termina onde o próximo começa (ecwld-check-report.txt)
         {
-            var sb = new StringBuilder(); int maps = 0, exactMaps = 0;
+            var sb = new StringBuilder(); int maps = 0, exactMaps = 0, sameMaps = 0, editOk = 0, editTried = 0;
             foreach (var file in Directory.GetFiles(args[1], "*.ecwld", SearchOption.AllDirectories).OrderBy(x => x))
             {
                 try
                 {
-                    var sc = new WorldScene(file); maps++;
+                    var raw = File.ReadAllBytes(file);
+                    var sc = new WorldScene(raw); maps++;
                     if (sc.BlocksExact == sc.BlocksTotal) exactMaps++;
-                    sb.AppendLine($"{Path.GetFileName(Path.GetDirectoryName(file))}: v{sc.Version} blocos {sc.BlocksExact}/{sc.BlocksTotal} · árvores {sc.Trees.Count} · efeitos {sc.Effects.Count} · modelos {sc.Models.Count} · sons {sc.Sounds.Count} · bichos {sc.CritterRefs.Count} · curvas {sc.BezierRefs.Count}"
-                        + (sc.Effects.Count > 0 ? $" · ex. efeito {sc.Effects[0].Gfx}" : "") + (sc.Sounds.Count > 0 ? $" · ex. som {sc.Sounds[0].File} ({sc.Sounds[0].MinDist:0}-{sc.Sounds[0].MaxDist:0} m)" : ""));
+                    // gravador de edição (EcwldFile): sem mudança = idêntico; mover/clonar/apagar e conferir relendo
+                    string rt;
+                    try
+                    {
+                        var ef = new EcwldFile(raw);
+                        bool same = ef.Write().AsSpan().SequenceEqual(raw);
+                        if (same) sameMaps++;
+                        rt = same ? "regrava IDÊNTICO" : "regrava DIFERENTE";
+                        if (same && sc.Effects.Count > 0)
+                        {
+                            editTried++;
+                            var fx = sc.Effects[0];
+                            uint nid = ef.Clone(EcwldFile.Kind.Effect, fx.Id, 5, 5);
+                            ef.Move(EcwldFile.Kind.Effect, nid, fx.X + 1, fx.Y, fx.Z);
+                            var back = new WorldScene(ef.Write());
+                            var moved = back.Effects.FirstOrDefault(e => e.Id == nid);
+                            bool ok1 = back.Effects.Count > sc.Effects.Count && moved is not null && Math.Abs(moved.X - (fx.X + 1)) < 1e-3 && moved.Gfx == fx.Gfx && back.BlocksExact == back.BlocksTotal;
+                            ef.Delete(EcwldFile.Kind.Effect, nid);
+                            bool ok2 = ef.Write().AsSpan().SequenceEqual(raw);
+                            if (ok1 && ok2) editOk++;
+                            rt += $" · editar efeito: clone+mover {(ok1 ? "OK" : "FALHOU")}, apagar o clone volta ao original {(ok2 ? "OK" : "FALHOU")}";
+                        }
+                    }
+                    catch (InvalidDataException ex) { rt = "sem edição: " + ex.Message; }
+                    sb.AppendLine($"{Path.GetFileName(Path.GetDirectoryName(file))}: v{sc.Version} blocos {sc.BlocksExact}/{sc.BlocksTotal} · {rt} · árvores {sc.Trees.Count} · efeitos {sc.Effects.Count} · modelos {sc.Models.Count} · sons {sc.Sounds.Count} · bichos {sc.CritterRefs.Count} · curvas {sc.BezierRefs.Count}");
                 }
                 catch (Exception ex) { sb.AppendLine($"{file}: ERRO {ex.Message}"); }
             }
-            File.WriteAllText("ecwld-check-report.txt", $"# {exactMaps}/{maps} mapas com todos os blocos exatos\n" + sb, new UTF8Encoding(false));
+            File.WriteAllText("ecwld-check-report.txt", $"# {exactMaps}/{maps} mapas com todos os blocos exatos · {sameMaps}/{maps} regravam idênticos · edição {editOk}/{editTried}\n" + sb, new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 2 && args[0] == "--pathsev")   // <pasta ou arquivo>: lê e regrava todos os path.sev (pathsev-report.txt)

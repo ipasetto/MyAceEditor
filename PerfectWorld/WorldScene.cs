@@ -91,7 +91,11 @@ public sealed class WorldScene
     readonly Dictionary<int, int> _blockEnd = new();
 
     /// <summary>Modelos .ecm fixos do cenário (paredes, tetos, estátuas de algumas instâncias): CECSceneBlock::LoadECModels.</summary>
-    public sealed record SceneModel(string Ecm, string Action, float X, float Y, float Z, float[] Dir, float[] Up);
+    public sealed record SceneModel(string Ecm, string Action, float X, float Y, float Z, float[] Dir, float[] Up)
+    {
+        /// <summary>Escala (só .ecwld v17+, float depois do "cima"; antes = 1).</summary>
+        public float Scale { get; init; } = 1;
+    }
     public List<SceneModel> Models { get; } = new();
     /// <summary>Ornamentos do bloco: (ID de exportação, offset no bsdata). No bsdata: ECBSDFILEORNAMENT (posição, direção,
     /// cima, 2 bool = 40 B) + nome do .bmd.</summary>
@@ -201,10 +205,11 @@ public sealed class WorldScene
             float F(int x) => BitConverter.ToSingle(b, p + x);
             var pos = (F(4), F(8), F(12));
             var dir = new[] { F(16), F(20), F(24) }; var up = new[] { F(28), F(32), F(36) };
-            p += 40;
+            float scale = Version >= 17 ? F(40) : 1;
+            p += Version >= 17 ? 44 : 40;   // ECWDFILEECMODEL; v17 (180 a114) + escala
             var file = Str(b, ref p); var act = Str(b, ref p);
             if (file.Length > 0 && float.IsFinite(pos.Item1) && float.IsFinite(pos.Item2) && float.IsFinite(pos.Item3))
-                Models.Add(new SceneModel(file, act, pos.Item1, pos.Item2, pos.Item3, dir, up));
+                Models.Add(new SceneModel(file, act, pos.Item1, pos.Item2, pos.Item3, dir, up) { Scale = scale });
         }
         // depois dos modelos EC (CECSceneBlock::Load): grupos de bichos e curvas = refs de 8 B ao .ecbsd; sons = struct + arquivo
         int nCrit = counts > 7 ? C(7) : 0, nBez = counts > 8 ? C(8) : 0, nSnd = counts > 9 ? C(9) : 0;
