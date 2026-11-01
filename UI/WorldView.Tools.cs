@@ -14,9 +14,9 @@ internal sealed partial class WorldView
     readonly Label _toolTitle = new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10.5f), TextAlign = ContentAlignment.MiddleLeft };
     readonly Button _toolBack = new() { Dock = DockStyle.Left, Width = 40, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Visible = false };
     readonly Button _toolFold = new() { Dock = DockStyle.Right, Width = 40, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
-    readonly FlowLayoutPanel _toolMenu = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, Padding = new Padding(10, 10, 0, 0) };
+    readonly FlowLayoutPanel _toolMenu = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(9, 10, 0, 0) };
     readonly FlowLayoutPanel _scenePage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
-    readonly FlowLayoutPanel _pathsPage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(8), Visible = false };
+    readonly FlowLayoutPanel _pathsPage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
     readonly Label _sceneState = new() { AutoSize = true, MaximumSize = new Size(240, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
     readonly ToolTip _toolTip = new();
     bool _toolsFolded;
@@ -34,20 +34,20 @@ internal sealed partial class WorldView
 
     Button ToolButton(string glyph, string title, string sub, Action a)
     {
-        // ladrilho quadrado de paleta de editor (regra do usuário): ícone grande em cima, nome embaixo; a dica diz para que serve
-        var b = new Button { Width = 121, Height = 100, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
-            Margin = new Padding(0, 0, 8, 8), Text = "" };
+        // ladrilho RETANGULAR, um por linha (regra do usuário 01/11): ícone grande à esquerda, nome e para que serve
+        var b = new Button { Width = 250, Height = 72, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
+            Margin = new Padding(0, 0, 0, 8), Text = "" };
         b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
         b.FlatAppearance.MouseOverBackColor = Color.FromArgb(52, 60, 74);
-        var icon = UiKit.Icon(glyph, Color.White, 34);
+        var icon = UiKit.Icon(glyph, Color.White, 32);
         b.Paint += (_, e) =>
         {
-            e.Graphics.DrawImage(icon, (b.Width - icon.Width) / 2, 14);
-            using var f = new Font("Segoe UI Semibold", 9.5f);
-            TextRenderer.DrawText(e.Graphics, title, f, new Rectangle(4, 56, b.Width - 8, 40), Color.White,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            e.Graphics.DrawImage(icon, 14, (b.Height - icon.Height) / 2);
+            using var f1 = new Font("Segoe UI Semibold", 10.5f); using var f2 = new Font("Segoe UI", 8.5f);
+            TextRenderer.DrawText(e.Graphics, title, f1, new Rectangle(60, 12, b.Width - 66, 22), Color.White, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(e.Graphics, sub, f2, new Rectangle(60, 34, b.Width - 66, 32), Color.Silver, TextFormatFlags.Left | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
         };
-        _toolTip.SetToolTip(b, title + " — " + sub);
+        _toolTip.SetToolTip(b, sub);
         b.Click += (_, _) => { a(); _gl.Focus(); };
         return b;
     }
@@ -61,6 +61,8 @@ internal sealed partial class WorldView
         b.Click += (_, _) => { a(); _gl.Focus(); };
         return b;
     }
+
+    static Label SectionLabel(string text) => new() { Text = text.ToUpperInvariant(), AutoSize = true, ForeColor = Color.FromArgb(140, 150, 165), Font = new Font("Segoe UI Semibold", 8f), Margin = new Padding(3, 8, 3, 3) };
 
     static Label Hint(string text) => new() { Text = text, AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Gainsboro, Margin = new Padding(3, 4, 3, 6) };
 
@@ -76,21 +78,31 @@ internal sealed partial class WorldView
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
 
         // ---- menu ----
-        _toolMenu.Controls.Add(ToolButton("", Loc.T("tools.scene", "Editar cenário"), Loc.T("tools.sceneSub", "Efeitos, sons, bichos e construções"), () => OpenTool(Tool.Scene)));
-        _toolMenu.Controls.Add(ToolButton("", Loc.T("tools.paths", "Caminhos de patrulha"), Loc.T("tools.pathsSub", "Ver por onde os monstros andam"), () => OpenTool(Tool.Paths)));
-        _toolMenu.Controls.Add(ToolButton("", Loc.T("tools.grass", "Grama"), Loc.T("tools.grassSub", "Mostrar ou esconder (G)"), () => { _grass.Visible = !_grass.Visible; _gl.Invalidate(); }));
+        _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
+        _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
 
-        // ---- Editar cenário ----
-        _scenePage.Controls.Add(Hint(Loc.T("tools.sceneSteps", "Clique num ponto laranja (efeito), azul (som), verde (bichos) ou numa construção. Mude X / altura / Z, ou use Clonar e Apagar. Botão direito no chão: mover para lá.")));
+        // ---- Objetos do mundo: só o que serve aqui ----
+        _scenePage.Controls.Add(Hint(Loc.T("tools.objSteps", "Clique num objeto para escolher: construção, efeito (laranja), som (azul) ou bichos (verde). Arraste pelos números ou botão direito no chão: mover para lá.")));
+        _scenePage.Controls.Add(SectionLabel(Loc.T("tools.objSoon", "Próximas ferramentas")));
+        foreach (var (g, k, pt) in new[] {
+            ("\uE913", "tools.trees", "Plantar e mover árvores"), ("\uE7B8", "tools.rocks", "Pôr pedras e objetos"),
+            ("\uE809", "tools.wall", "Muro e muralha"), ("\uE790", "tools.grassBrush", "Pincel de grama, flores e pedrinhas"),
+            ("\uE771", "tools.texBrush", "Pincel de textura do chão") })
+        {
+            var b = SmallButton(g, Loc.T(k, pt), () => { });
+            b.Enabled = false; b.ForeColor = Color.Gray;
+            _toolTip.SetToolTip(b, Loc.T("tools.soonTip", "Em breve: precisa da colisão e do formato desse objeto prontos."));
+            _scenePage.Controls.Add(b);
+        }
         _objPanel.Visible = false; _objPanel.Width = 250; _objPanel.Height = 210; _objPanel.Margin = new Padding(0, 4, 0, 4);
         _scenePage.Controls.Add(_objPanel);
         _scenePage.Controls.Add(_sceneState);
-        _scenePage.Controls.Add(SmallButton("", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
-        _scenePage.Controls.Add(SmallButton("", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
-        _scenePage.Controls.Add(SmallButton("", Loc.T("world.objSave", "Salvar cenário"), SaveScene, main: true));
+        _scenePage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
+        _scenePage.Controls.Add(SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
+        _scenePage.Controls.Add(SmallButton("\uE74E", Loc.T("world.objSave", "Salvar cenário"), SaveScene, main: true));
 
-        // ---- Caminhos ----
-        _pathsPage.Controls.Add(Hint(Loc.T("tools.pathsSteps", "Os caminhos perto da câmera aparecem em lilás. Escolha um ponto de monstro: o caminho dele fica laranja, com o começo marcado. (Editar os pontos do caminho: próxima etapa.)")));
+        // ---- Caminhos e áreas ----
+        InitPathPage();
 
         _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_toolHead);
         Controls.Add(_tools);
@@ -103,7 +115,7 @@ internal sealed partial class WorldView
     void LayoutTools()
     {
         var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, _ => _toolMenu };
-        int body = _tool switch { Tool.Scene => Math.Min(470, _gl.Height - 60), Tool.Paths => 140, _ => (_toolMenu.Controls.Count + 1) / 2 * 108 + 12 };   // ladrilhos 2 por linha
+        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(470, _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
         foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage }) p.Visible = !_toolsFolded && p == page;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);
@@ -117,8 +129,8 @@ internal sealed partial class WorldView
     {
         _tool = t; _toolsFolded = false;
         _toolBack.Visible = true;
-        if (t == Tool.Scene) { _toolTitle.Text = Loc.T("tools.scene", "Editar cenário"); SetSceneObjects(true); }
-        if (t == Tool.Paths) { _toolTitle.Text = Loc.T("tools.paths", "Caminhos de patrulha"); _allPaths = true; _gl.Invalidate(); }
+        if (t == Tool.Scene) { _toolTitle.Text = Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
+        if (t == Tool.Paths) { _toolTitle.Text = Loc.T("tools.paths2", "Caminhos e áreas"); _allPaths = true; UpdatePathPanel(); _gl.Invalidate(); }
         LayoutTools();
     }
 
@@ -126,7 +138,7 @@ internal sealed partial class WorldView
     void CloseTool()
     {
         if (_tool == Tool.Scene) SetSceneObjects(false);
-        if (_tool == Tool.Paths) { _allPaths = false; _gl.Invalidate(); }
+        if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _allPaths = false; _gl.Invalidate(); }
         _tool = Tool.None;
         _toolBack.Visible = false;
         _toolTitle.Text = Loc.T("tools.title", "Ferramentas");
@@ -145,7 +157,7 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Para a captura (--world-shot): abre a ferramenta Editar cenário ou volta ao menu.</summary>
-    internal void ShotTool(bool scene) { if (scene) OpenTool(Tool.Scene); else CloseTool(); }
+    internal void ShotTool(int tool) { CloseTool(); if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); }
 
     /// <summary>Aviso de mudança não salva no painel da ferramenta.</summary>
     void UpdateSideState()

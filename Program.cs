@@ -48,6 +48,11 @@ internal static class Program
             File.WriteAllText("client-plan-report.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--path-edit-test")   // <path.sev>: cria caminho e move ponto na memória (path-edit-test.txt)
+        {
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "path-edit-test.txt"), MyAceEditor.UI.WorldView.PathSelfTest(File.ReadAllBytes(args[1])));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--pck-split-test")   // <pacote pequeno> <pasta de trabalho>: corta em t-001.pck + t.pkx, grava com PckWriter e confere (pck-split-test.txt)
         {
             var sb = new StringBuilder();
@@ -978,7 +983,7 @@ internal static class Program
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
-        foreach (var (scene, png) in new[] { (false, "window.png"), (true, "window-tool.png") })
+        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png") })
         {
             w.ShotTool(scene); Application.DoEvents();
             using var full = new System.Drawing.Bitmap(w.Width, w.Height);

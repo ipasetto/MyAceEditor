@@ -99,6 +99,8 @@ internal sealed partial class WorldView : Form
     readonly WorldBuildings _buildings;
     readonly WorldTrees _trees;
     readonly WorldGrass _grass;
+    readonly ToolStripButton _grassBtn = new(Loc.T("world.grass", "Grama"), DarkBarRenderer.Dot(Color.FromArgb(124, 179, 66))) { CheckOnClick = true, Checked = true,
+        ToolTipText = Loc.T("world.grass.h", "Mostrar ou esconder a grama (G)."), ForeColor = Color.White, TextImageRelation = TextImageRelation.ImageBeforeText };
     readonly WorldSky _sky;
     bool _showBuildings = true;
     bool _gameFog = true;   // N: neblina da área (jogo) ou a longe
@@ -168,6 +170,10 @@ internal sealed partial class WorldView : Form
             if (!tb.Checked) tb.Image = DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70));
             _bar.Items.Add(tb);
         }
+        // grama: só mostrar/esconder (G); desenhar grama é pincel do Objetos do mundo
+        _bar.Items.Add(new ToolStripSeparator());
+        _grassBtn.CheckedChanged += (_, _) => { _grass.Visible = _grassBtn.Checked; _grassBtn.Image = DarkBarRenderer.Dot(_grassBtn.Checked ? Color.FromArgb(124, 179, 66) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
+        _bar.Items.Add(_grassBtn);
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
@@ -185,7 +191,7 @@ internal sealed partial class WorldView : Form
         var hide = Environment.GetEnvironmentVariable("MYACE_HIDE") ?? "";
         if (hide.Contains("terrain")) _terrain.Visible = false;
         if (hide.Contains("buildings")) _showBuildings = false;
-        if (hide.Contains("grass")) _grass.Visible = false;
+        if (hide.Contains("grass")) _grassBtn.Checked = false;
         RefreshMarkers();
         HideLidTerrain(start.Y);
         LookAt(start);
@@ -206,6 +212,7 @@ internal sealed partial class WorldView : Form
         {
             _gl.Focus(); _down = _drag = e.Location;
             if (e.Button == MouseButtons.Left && _legendOpen && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
+            if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
             // setas / anel do ponto selecionado têm preferência
             if (e.Button == MouseButtons.Left && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
@@ -220,6 +227,7 @@ internal sealed partial class WorldView : Form
         _gl.MouseUp += (_, e) =>
         {
             _dragging = false;
+            if (PathMouseUp(e)) return;
             if (_gizmoAxis > 0)
             {
                 var gt = _gizmoTag!;
@@ -292,11 +300,12 @@ internal sealed partial class WorldView : Form
         {
             if (_areaA is not null) { if (Ray(e.Location) is { } b) _areaB = b; _gl.Invalidate(); return; }
             if (_gizmoAxis > 0) { GizmoDrag(e.Location); return; }
+            if (PathMouseMove(e.Location)) return;
             if (!_dragging && GizmoHit(e.Location) is var gh && gh != _gizmoHover) { _gizmoHover = gh; _gl.Invalidate(); }
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; _gl.Invalidate(); return; }
             if (_movingTag is not null)
             {
-                if (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4) { if (Ray(e.Location) is { } mp) _movePos = mp; }
+                if (_tool != Tool.Paths && (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4)) { if (Ray(e.Location) is { } mp) _movePos = mp; }
                 _gl.Invalidate(); return;
             }
             _hover = Ray(e.Location);
@@ -328,6 +337,7 @@ internal sealed partial class WorldView : Form
     void OnKey(KeyEventArgs e)
     {
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
+        if (PathKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }
         if (e.KeyCode == Keys.Escape && _pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return; }
         if (e.KeyCode == Keys.Escape && _pickMine is not null) { _pickMine = null; _status.Text = Loc.T("qe.pickMineCancel", "Escolha de coleta cancelada."); return; }
         if (e.KeyCode == Keys.Escape && _pickMonster is not null) { _pickMonster = null; _status.Text = Loc.T("qe.pickMonsterCancel", "Escolha de monstro cancelada."); return; }
@@ -356,7 +366,7 @@ internal sealed partial class WorldView : Form
             case Keys.H or Keys.F1: ToggleLegend(); return;
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
-            case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
+            case Keys.G: _grassBtn.Checked = !_grassBtn.Checked; return;    // esconde a grama (botão Grama de cima acompanha)
             case Keys.O:   // ferramenta Editar cenário (abre/fecha, como o botão do menu de ferramentas)
                 if (_sceneObjs) CloseTool(); else OpenTool(Tool.Scene);
                 return;
@@ -563,6 +573,7 @@ internal sealed partial class WorldView : Form
         DrawAreas();
         DrawSpawnArea();
         DrawPaths();
+        DrawPathEdit();
         DrawSceneObjects();
         DrawGizmo();
 
@@ -686,7 +697,7 @@ internal sealed partial class WorldView : Form
         }
         GL.End(); GL.PointSize(1);
         GL.Color3(0.3f, 0.9f, 0.9f);
-        foreach (var cv in sc.Curves)
+        foreach (var cv in _sceneSel is WorldScene.Critter ? sc.Curves : new())
         {
             if (cv.Points.Count < 2 || !cv.Points.Any(q => (Gl(q.X, q.Y, q.Z) - _cam).LengthSquared < R2)) continue;
             GL.Begin(PrimitiveType.LineStrip);
@@ -775,7 +786,7 @@ internal sealed partial class WorldView : Form
     /// </summary>
     void DrawSpawnArea()
     {
-        if (SelectedMark() is not { } m || AreaOf(m.Tag) is not { } ar) return;
+        if (_tool != Tool.Paths || SelPath is not null || SelectedMark() is not { } m || AreaOf(m.Tag) is not { } ar) return;
         var (cx, cz, sx, sz) = ar;
         if (m.Tag == _gizmoTag && _gizmoSize is { } gs) (sx, sz) = gs;
         sx /= 2; sz /= 2;
@@ -1208,7 +1219,8 @@ internal sealed partial class WorldView : Form
     int GizmoHit(Point p)
     {
         if (SelectedMark() is not { } m) return 0;
-        if (AreaHandle(m) is { } h && Project(h) is { } hp && MathF.Abs(hp.X - p.X) < 9 && MathF.Abs(hp.Y - p.Y) < 9) return 5;
+        // ferramenta Caminhos: só a alça da área (modo área); fora dela, só setas e anel
+        if (_tool == Tool.Paths) return SelPath is null && AreaHandle(m) is { } h && Project(h) is { } hp && MathF.Abs(hp.X - p.X) < 9 && MathF.Abs(hp.Y - p.Y) < 9 ? 5 : 0;
         var c = PosOf(m); float L = GizmoSize(c);
         if (Project(c) is not { } a) return 0;
         for (int k = 0; k < 3; k++)
@@ -1278,7 +1290,7 @@ internal sealed partial class WorldView : Form
 
     void DrawGizmo()
     {
-        if (SelectedMark() is not { } m) return;
+        if (_tool == Tool.Paths || SelectedMark() is not { } m) return;   // Caminhos: sem setas/anel, só o caminho e a área
         var c = PosOf(m); float L = GizmoSize(c);
         int hot = _gizmoAxis > 0 ? _gizmoAxis : _gizmoHover;
         float yaw = MathHelper.DegreesToRadians(m.Tag == _gizmoTag && _gizmoYaw is { } gy ? gy : m.Yaw);
@@ -1647,6 +1659,7 @@ internal sealed partial class WorldView : Form
     bool UndoAny()
     {
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
+        if (PathUndo(redo: false)) return true;    // caminhos idem
         if (_qUndo.Count > 0 && _qUndo[^1] == (UndoDepth?.Invoke() ?? 0) && _host?.Undo() == true)
         {
             _qUndo.RemoveAt(_qUndo.Count - 1); _qRedo.Add(RedoDepth?.Invoke() ?? 0);
@@ -1659,6 +1672,7 @@ internal sealed partial class WorldView : Form
     bool RedoAny()
     {
         if (SceneUndo(redo: true)) return true;
+        if (PathUndo(redo: true)) return true;
         if (_qRedo.Count > 0 && _qRedo[^1] == (RedoDepth?.Invoke() ?? 0) && _host?.Redo() == true)
         {
             _qRedo.RemoveAt(_qRedo.Count - 1); _qUndo.Add(UndoDepth?.Invoke() ?? 0);

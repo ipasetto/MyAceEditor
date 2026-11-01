@@ -865,9 +865,18 @@ internal sealed class NpcGenView : UserControl
         try
         {
             var ps = Path.Combine(Path.GetDirectoryName(_paths[_cur!])!, "path.sev");
-            if (File.Exists(ps)) w.Paths = PathFile.Read(File.ReadAllBytes(ps)).Paths.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.First().Sample());
+            if (File.Exists(ps)) w.SetPathFile(ps, PathFile.Read(File.ReadAllBytes(ps)));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or EndOfStreamException) { AppLog.Info("path.sev: " + ex.Message); }
+        // ferramenta Caminhos do 3D: ligar o monstro a um caminho (0 = anda na área) e saber quem mais usa o caminho
+        w.SetCreaturePath = (o, id) =>
+        {
+            if (o is not NpcGenSpawn s) return;
+            SelectObject(o); Snapshot("path3d:" + DateTime.Now.Ticks);
+            foreach (var c in s.Creatures) c.PathId = id;
+            Touch(); ShowPoint();
+        };
+        w.PathUsers = id => Cur?.Spawns.Count(x => x.Creatures.Any(c => c.PathId == id)) ?? 0;
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
         if (overview is { } ov)
