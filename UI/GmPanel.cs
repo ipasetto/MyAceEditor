@@ -14,9 +14,10 @@ public sealed class GmPanel : Form
     static string SettingFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "gm_element.txt");
 
     readonly TextBox _dir = new() { Dock = DockStyle.Fill };
-    readonly Label _state = new() { AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(8, 0, 0, 0) };
     readonly ListBox _log = new() { Dock = DockStyle.Bottom, Height = 110, IntegralHeight = false };
-    readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
+    // páginas sem cabeçalho: a navegação lateral (NavBar) troca; o cartão de cima mostra o estado do jogo sempre
+    readonly TabControl _tabs = new() { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
+    readonly StatusCard _card = new();
     readonly System.Windows.Forms.Timer _poll = new() { Interval = 2000 };
     Module? _data;
     IconAtlas? _icons;
@@ -35,30 +36,48 @@ public sealed class GmPanel : Form
         top.Controls.Add(_dir, 1, 0);
         top.Controls.Add(Btn(Loc.T("gm.browse", "Procurar…"), PickDir), 2, 0);
         top.Controls.Add(Btn(Loc.T("gm.launch", "▶ Abrir o jogo com console"), LaunchGame, blue: true), 3, 0);
-        top.Controls.Add(_state, 4, 0);
 
-        _tabs.TabPages.Add(Page(Loc.T("gm.tabMe", "Meu personagem"), MeTab()));
-        _tabs.TabPages.Add(Page(Loc.T("gm.tabItems", "Itens"), SearchTab(Kind.Item)));
-        _tabs.TabPages.Add(Page(Loc.T("gm.tabNpcs", "NPCs e monstros"), SearchTab(Kind.Npc)));
-        _tabs.TabPages.Add(Page(Loc.T("gm.tabPlayers", "Jogadores"), PlayersTab()));
-        _tabs.TabPages.Add(Page(Loc.T("gm.tabWorld", "Mundo"), WorldTab()));
-        var mapPage = Page(Loc.T("gm.tabMap", "Mapa"), MapTab());
+        // ordem do uso: o próprio personagem, ir a algum lugar, criar coisas, cuidar de jogadores, eventos do mundo;
+        // cada aba diz no topo do que precisa (jogo aberto com console / servidor neste PC)
+        var needGame = Loc.T("gm.needGame", "Precisa do jogo aberto (▶ Abrir o jogo com console) e logado com o personagem GM. Deixe o console do jogo fechado.");
+        _tabs.TabPages.Add(Page("👤 " + Loc.T("gm.tabMe", "Meu personagem"), MeTab(), needGame));
+        var mapPage = Page("🗺 " + Loc.T("gm.tabMap2", "Mapa e teleporte"), MapTab(), needGame);
         _tabs.TabPages.Add(mapPage);
+        _tabs.TabPages.Add(Page("🎒 " + Loc.T("gm.tabItems", "Itens"), SearchTab(Kind.Item), needGame));
+        _tabs.TabPages.Add(Page("👹 " + Loc.T("gm.tabNpcs", "NPCs e monstros"), SearchTab(Kind.Npc), needGame));
+        _tabs.TabPages.Add(Page("👥 " + Loc.T("gm.tabPlayers", "Jogadores"), PlayersTab(), Loc.T("gm.needPlayers", "Ações pelo console do jogo (conta GM). Lista de quem está online e aviso geral usam o servidor quando ele roda neste PC.")));
+        _tabs.TabPages.Add(Page("🌍 " + Loc.T("gm.tabWorld2", "Mundo e eventos"), WorldTab(), Loc.T("gm.needWorld", "Eventos e aviso geral vão pelo servidor quando ele roda neste PC; sem ele, use o Ctrl+G dentro do jogo.")));
         _tabs.SelectedIndexChanged += (_, _) => { if (_tabs.SelectedTab == mapPage) LoadMap(); };
 
-        Controls.Add(_tabs); Controls.Add(_log); Controls.Add(top);
+        var nav = new NavBar(_tabs);
+        string[] glyphs = { "\uE77B", "\uE707", "\uE7B8", "\uE7EE", "\uE716", "\uE774" };   // eu, mapa, itens, monstros, jogadores, mundo
+        for (int i = 0; i < _tabs.TabPages.Count; i++)
+        {
+            var page = _tabs.TabPages[i];
+            // o texto da aba traz um emoji na frente: na barra vale o ícone desenhado
+            string Name() { var t = page.Text; int k = 0; while (k < t.Length && !char.IsLetterOrDigit(t[k])) k++; return t[k..]; }
+            nav.Add(i < glyphs.Length ? glyphs[i] : "\uE7FC", Name, Name, page);
+        }
+        Controls.Add(_tabs); Controls.Add(nav); Controls.Add(_log); Controls.Add(_card); Controls.Add(top);
         _poll.Tick += (_, _) => UpdateState(); _poll.Start();
         Shown += (_, _) => { UpdateState(); LoadData(); };
         FormClosed += (_, _) => _poll.Dispose();
     }
 
     // ---------- comum ----------
-    static TabPage Page(string text, Control c) { var p = new TabPage(text) { Padding = new Padding(8) }; c.Dock = DockStyle.Fill; p.Controls.Add(c); return p; }
+    static TabPage Page(string text, Control c, string? need = null)
+    {
+        var p = new TabPage(text) { Padding = new Padding(8) };
+        c.Dock = DockStyle.Fill; p.Controls.Add(c);
+        if (need is not null)
+            p.Controls.Add(new Label { Text = "ⓘ " + need, Dock = DockStyle.Top, Height = 26, ForeColor = Color.FromArgb(71, 85, 105), BackColor = Color.FromArgb(241, 245, 249), Padding = new Padding(6, 5, 0, 0) });
+        return p;
+    }
 
     static Button Btn(string text, Action click, bool blue = false)
     {
-        var b = new Button { Text = text, AutoSize = true, Height = 30, Margin = new Padding(0, 0, 8, 8) };
-        if (blue) { b.FlatStyle = FlatStyle.Flat; b.BackColor = Color.FromArgb(37, 99, 235); b.ForeColor = Color.White; b.FlatAppearance.BorderSize = 0; }
+        var b = new Button { Text = text, AutoSize = true, Height = 30, Margin = new Padding(0, 0, 8, 8), BackColor = Color.White };
+        UiKit.Decorate(b, text, primary: blue);
         b.Click += (_, _) => click();
         return b;
     }
@@ -123,15 +142,23 @@ public sealed class GmPanel : Form
     void UpdateState()
     {
         bool on = GameConsole.Running;
-        _state.Text = on ? Loc.T("gm.gameOn", "● Jogo aberto") : Loc.T("gm.gameOff", "○ Jogo fechado");
-        _state.ForeColor = on ? Color.FromArgb(22, 128, 61) : Color.Gray;
+        // posição lida da memória do jogo (GamePosition; builds conhecidos): mostra no cartão e marca no mapa
+        var pos = on ? GamePosition.Read() : null;
+        var title = on ? Loc.T("gm.cardOn", "Jogo aberto") : Loc.T("gm.cardOff", "Jogo fechado");
+        var detail = !on ? Loc.T("gm.cardOffDetail", "Clique em \"Abrir o jogo com console\" e entre com o personagem GM.")
+            : pos is { } q ? string.Format(Loc.T("gm.cardPos", "Você está em X {0:0}  Z {1:0}  (altura {2:0}) · os comandos vão para este jogo"), q.X, q.Z, q.Y)
+            : Loc.T("gm.cardOnDetail", "Entre no mundo com o personagem GM para usar os comandos.");
+        _card.Set(on ? StatusCard.Kind.On : StatusCard.Kind.Off, title, detail);
+        (float X, float Z)? now = pos is { } r ? (r.X, r.Z) : null;
+        if (_myPos != now) { _myPos = now; _mapPic.Invalidate(); }
     }
+    (float X, float Z)? _myPos;
 
     void PickDir()
     {
         using var d = new FolderBrowserDialog { Description = Loc.T("gm.pickFolder", "Pasta element do cliente (a que tem elementclient.exe)"), SelectedPath = _dir.Text };
         if (d.ShowDialog(this) != DialogResult.OK) return;
-        _dir.Text = d.SelectedPath; SaveDir(); _data = null; _icons = null; _map?.Dispose(); _map = null; LoadData();
+        _dir.Text = d.SelectedPath; SaveDir(); _data = null; _icons = null; foreach (var m in _maps.Values) m?.Image.Dispose(); _maps.Clear(); _map = null; _mapPic.Image = null; _mapPick.Items.Clear(); LoadData();
     }
 
     void SaveDir() { try { Directory.CreateDirectory(Path.GetDirectoryName(SettingFile)!); File.WriteAllText(SettingFile, _dir.Text.Trim()); } catch (IOException) { } }
@@ -181,7 +208,7 @@ public sealed class GmPanel : Form
                     Btn(Loc.T("gm.clearBag", "Limpar inventário"), () => { if (Ask(Loc.T("gm.clearBagAsk", "Apagar TODOS os itens do inventário deste personagem?"))) Run("d 10853"); }))),
             Group(Loc.T("gm.gTeleport", "Teleporte por coordenada (as do d_showpos)"),
                 Row(inMap, L(Loc.T("gm.mapTag", "Mapa (tag)")), tag, L("X"), x, L("Z"), z,
-                    Btn(Loc.T("gm.go", "Ir"), () => Run(inMap.Checked ? $"d_goto {x.Value} {z.Value}" : $"d 8888 {tag.Value} {x.Value} {z.Value}")),
+                    Btn(Loc.T("gm.go", "Ir"), () => Run(inMap.Checked ? $"d_goto {x.Value} {z.Value}" : $"d 8888 {tag.Value} {x.Value} {z.Value} 0")),
                     Btn(Loc.T("gm.showPos", "Mostrar minha posição"), () => Run("d_showpos")))));
     }
 
@@ -406,17 +433,23 @@ public sealed class GmPanel : Form
         });
     }
 
-    // ---------- Mapa (mundo): arrastar com o esquerdo, ir até lá com o direito ----------
+    // ---------- Mapa: mundo ou instância (o mapa da tecla M do jogo); arrastar com o esquerdo, ir até lá com o direito ----------
+    // Teleporte = d 8888 <tag> x z 0 (gs playercmd.cpp: 4 inteiros tag, x, z, ctrl_id; com 3 o gs descarta). Mesma tag = salto
+    // no mapa; outra tag = troca de mapa (LongJump/PlaneSwitch), então funciona do mundo para a instância e de volta.
     readonly PictureBox _mapPic = new() { SizeMode = PictureBoxSizeMode.AutoSize, Cursor = Cursors.Cross };
-    readonly Label _mapInfo = new() { Dock = DockStyle.Top, Height = 24 };
-    Bitmap? _map; float _mapW, _mapH, _mPerPx = 4;
+    readonly Label _mapInfo = new() { AutoSize = true, Margin = new Padding(12, 7, 0, 0) };
+    readonly ComboBox _mapPick = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
+    sealed record MapChoice(int Tag, string Path, string Text) { public override string ToString() => Text; }
+    sealed record LoadedMap(Bitmap Image, Func<Point, (float X, float Z)> ToGame, Func<float, float, PointF> ToPixel);
+    readonly Dictionary<int, LoadedMap?> _maps = new();
+    LoadedMap? _map; int _mapTag = 1;
 
     Control MapTab()
     {
         var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.FromArgb(40, 52, 64) };
         scroll.Controls.Add(_mapPic);
-        _mapInfo.Text = Loc.T("gm.mapHint", "Mapa do mundo: arraste com o botão esquerdo; botão direito leva o seu personagem até lá (você precisa estar no mundo).");
-        (float X, float Z) World(Point p) => (p.X * _mPerPx - _mapW / 2, _mapH / 2 - p.Y * _mPerPx);
+        _mapInfo.Text = Loc.T("gm.mapHint2", "Arraste com o botão esquerdo; o botão direito leva o seu personagem até o ponto, de qualquer mapa (a instância precisa estar ligada no servidor).");
+        _mapPick.SelectedIndexChanged += (_, _) => { if (_mapPick.SelectedItem is MapChoice c) ShowMapOf(c); };
         Point? grab = null; Point grabScroll = default;
         _mapPic.MouseDown += (_, e) =>
         {
@@ -434,53 +467,104 @@ public sealed class GmPanel : Form
                 scroll.AutoScrollPosition = new Point(grabScroll.X - (now.X - g.X), grabScroll.Y - (now.Y - g.Y));
                 return;
             }
-            var (x, z) = World(e.Location);
-            _mapInfo.Text = string.Format(Loc.T("gm.mapPos", "X {0:0}  Z {1:0}   (no jogo: {2} {3}) — botão direito para ir"), x, z, ((int)x + 4000) / 10, ((int)z + 5500) / 10);
+            var (x, z) = _map.ToGame(e.Location);
+            _mapInfo.Text = string.Format(Loc.T("gm.mapPos2", "X {0:0}  Z {1:0}  (no jogo: {2} {3}) — botão direito para ir"), x, z, ((int)x + 4000) / 10, ((int)z + 5500) / 10);
         };
-        _mapPic.MouseClick += (_, e) => { if (_map is not null && e.Button == MouseButtons.Right) { var (x, z) = World(e.Location); Run($"d_goto {x:0} {z:0}"); } };
+        // "você está aqui": a posição lida do jogo (vale se você estiver no mapa escolhido)
+        _mapPic.Paint += (_, e) =>
+        {
+            if (_map is null || _myPos is not { } me) return;
+            var q = _map.ToPixel(me.X, me.Z);
+            if (q.X < 0 || q.Y < 0 || q.X > _map.Image.Width || q.Y > _map.Image.Height) return;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            e.Graphics.FillEllipse(Brushes.Red, q.X - 7, q.Y - 7, 14, 14);
+            e.Graphics.DrawEllipse(new Pen(Color.White, 2), q.X - 7, q.Y - 7, 14, 14);
+        };
+        _mapPic.MouseClick += (_, e) =>
+        {
+            if (_map is null || e.Button != MouseButtons.Right) return;
+            var (x, z) = _map.ToGame(e.Location);
+            Run($"d 8888 {_mapTag} {x:0} {z:0} 0");
+        };
+        var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, WrapContents = false, Padding = new Padding(0, 2, 0, 0) };
+        top.Controls.Add(new Label { Text = Loc.T("gm.mapWhich", "Mapa"), AutoSize = true, Margin = new Padding(0, 7, 6, 0) });
+        top.Controls.Add(_mapPick); top.Controls.Add(_mapInfo);
         var p = new Panel();
-        p.Controls.Add(scroll); p.Controls.Add(_mapInfo);
+        p.Controls.Add(scroll); p.Controls.Add(top);
         return p;
     }
 
+    /// <summary>Preenche a lista de mapas (mundo + instâncias com mapa da tecla M no cliente) e mostra o mundo.</summary>
     void LoadMap()
     {
-        if (_map is not null) return;
+        if (_mapPick.Items.Count > 0) return;
         var dir = ElementDir;
         Task.Run(() =>
         {
-            Bitmap? bmp = null; float w = 0, h = 0;
+            var list = new List<MapChoice> { new(1, "world", Loc.T("gm.mapWorld", "Mundo")) };
             try
             {
-                var t = TerrainFile.Open(Path.Combine(dir, "maps", "world"));
+                var names = ServerAdmin.MapNames(dir);
                 var surf = Path.Combine(dir, "surfaces.pck");
-                if (t is not null && File.Exists(surf))
+                if (MapTags.ClientMaps(dir) is { } maps && File.Exists(surf))
                 {
-                    w = t.Width; h = t.Height;
                     using var pck = new PckArchive(surf);
-                    const int tilePx = 256; const float tileM = 1024;
-                    int rows = (int)Math.Ceiling(h / tileM), cols = (int)Math.Ceiling(w / tileM);
-                    bmp = new Bitmap((int)(w / (tileM / tilePx)), (int)(h / (tileM / tilePx)));
-                    using var g = Graphics.FromImage(bmp);
-                    g.Clear(Color.FromArgb(40, 52, 64));
-                    for (int r = 0; r < rows; r++)
-                        for (int c = 0; c < cols; c++)
-                        {
-                            if (pck.Find($@"surfaces\maps\{r:00}{c}.dds") is not { } e || DdsDecoder.Decode(pck.Read(e)) is not { } im) continue;
-                            using var tile = new Bitmap(im.Width, im.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                            var bd = tile.LockBits(new Rectangle(0, 0, im.Width, im.Height), System.Drawing.Imaging.ImageLockMode.WriteOnly, tile.PixelFormat);
-                            System.Runtime.InteropServices.Marshal.Copy(im.Pixels, 0, bd.Scan0, im.Pixels.Length);
-                            tile.UnlockBits(bd);
-                            g.DrawImage(tile, c * tilePx, r * tilePx, tilePx, tilePx);
-                        }
+                    foreach (var m in maps.Values.Where(m => m.Tag > 1).OrderBy(m => m.Tag))
+                        if (pck.Find($@"surfaces\ingame\{m.Path}.dds") is not null)
+                            list.Add(new(m.Tag, m.Path, $"{m.Path} — {(names?.GetValueOrDefault(m.Tag) is { Length: > 0 } n ? n : Loc.T("gm.mapInstance", "instância"))} ({m.Tag})"));
                 }
             }
-            catch (Exception ex) { AppLog.Error("painel do GM: mapa", ex); bmp?.Dispose(); bmp = null; }
-            BeginInvoke(() =>
-            {
-                if (bmp is null) { _mapInfo.Text = "⚠ " + Loc.T("gm.mapFail", "Não achei o mapa do mundo neste cliente (maps\\world e surfaces.pck)."); return; }
-                _map = bmp; _mapW = w; _mapH = h; _mPerPx = 1024f / 256; _mapPic.Image = bmp;
-            });
+            catch (Exception ex) { AppLog.Error("painel do GM: lista de mapas", ex); }
+            BeginInvoke(() => { _mapPick.Items.Clear(); _mapPick.Items.AddRange(list.ToArray()); _mapPick.SelectedIndex = 0; });
         });
+    }
+
+    void ShowMapOf(MapChoice c)
+    {
+        if (_maps.TryGetValue(c.Tag, out var have)) { SetMap(c.Tag, have); return; }
+        var dir = ElementDir;
+        _mapInfo.Text = Loc.T("gm.mapLoading", "Carregando o mapa…");
+        Task.Run(() =>
+        {
+            LoadedMap? lm = null;
+            try { lm = c.Tag == 1 ? WorldMapImage(dir) : InstanceMap.Load(dir, c.Tag) is { } im ? new LoadedMap(im.Image, p => im.ToGame(p.X, p.Y), im.ToPixel) : null; }
+            catch (Exception ex) { AppLog.Error("painel do GM: mapa", ex); }
+            BeginInvoke(() => { _maps[c.Tag] = lm; SetMap(c.Tag, lm); });
+        });
+    }
+
+    void SetMap(int tag, LoadedMap? m)
+    {
+        _map = m; _mapTag = tag; _mapPic.Image = m?.Image;
+        _mapInfo.Text = m is null ? "⚠ " + Loc.T("gm.mapFail", "Não achei o mapa do mundo neste cliente (maps\\world e surfaces.pck).")
+            : Loc.T("gm.mapHint2", "Arraste com o botão esquerdo; o botão direito leva o seu personagem até o ponto, de qualquer mapa (a instância precisa estar ligada no servidor).");
+    }
+
+    /// <summary>Mapa pintado do mundo (surfaces\maps\LLC.dds, peças de 1 km a 256 px).</summary>
+    static LoadedMap? WorldMapImage(string dir)
+    {
+        var t = TerrainFile.Open(Path.Combine(dir, "maps", "world"));
+        var surf = Path.Combine(dir, "surfaces.pck");
+        if (t is null || !File.Exists(surf)) return null;
+        float w = t.Width, h = t.Height;
+        using var pck = new PckArchive(surf);
+        const int tilePx = 256; const float tileM = 1024, mPerPx = tileM / tilePx;
+        int rows = (int)Math.Ceiling(h / tileM), cols = (int)Math.Ceiling(w / tileM);
+        var bmp = new Bitmap((int)(w / mPerPx), (int)(h / mPerPx));
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.Clear(Color.FromArgb(40, 52, 64));
+            for (int r = 0; r < rows; r++)
+                for (int c = 0; c < cols; c++)
+                {
+                    if (pck.Find($@"surfaces\maps\{r:00}{c}.dds") is not { } e || DdsDecoder.Decode(pck.Read(e)) is not { } im) continue;
+                    using var tile = new Bitmap(im.Width, im.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    var bd = tile.LockBits(new Rectangle(0, 0, im.Width, im.Height), System.Drawing.Imaging.ImageLockMode.WriteOnly, tile.PixelFormat);
+                    System.Runtime.InteropServices.Marshal.Copy(im.Pixels, 0, bd.Scan0, im.Pixels.Length);
+                    tile.UnlockBits(bd);
+                    g.DrawImage(tile, c * tilePx, r * tilePx, tilePx, tilePx);
+                }
+        }
+        return new LoadedMap(bmp, p => (p.X * mPerPx - w / 2, h / 2 - p.Y * mPerPx), (x, z) => new PointF((x + w / 2) / mPerPx, (h / 2 - z) / mPerPx));
     }
 }

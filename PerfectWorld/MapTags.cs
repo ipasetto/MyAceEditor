@@ -58,6 +58,30 @@ public static class MapTags
         catch { return null; }
     }
 
+    /// <summary>
+    /// Nome de cada mapa como o cliente mostra (configs\instance.txt: "nome" { tag "pasta" ... }), pela pasta do mapa.
+    /// Nomes em chinês (instance.txt dos clientes 144) ficam de fora: quem chama usa o nome conhecido.
+    /// </summary>
+    public static Dictionary<string, string> ClientMapNames(string elementDir)
+    {
+        var r = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var pckPath = Path.Combine(elementDir, "configs.pck");
+            if (!File.Exists(pckPath)) return r;
+            using var pck = new PckArchive(pckPath);
+            if (pck.Find(@"configs\instance.txt") is not { } e) return r;
+            var bytes = pck.Read(e);
+            var text = bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE ? Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2) : Encoding.Unicode.GetString(bytes);
+            text = Regex.Replace(text, @"//[^\n]*", "");
+            foreach (Match m in Regex.Matches(text, @"""([^""]*)""\s*\{\s*\d+\s*""([^""]+)"""))
+                if (m.Groups[1].Value.Trim() is { Length: > 0 } name && !name.Any(ch => ch is >= '⺀' and <= '鿿'))
+                    r.TryAdd(m.Groups[2].Value.Trim(), name);
+        }
+        catch { }
+        return r;
+    }
+
     /// <summary>Mapa do cliente para a pasta do servidor: a mesma pasta, se existir; senão pela tag (gs.conf → instance.txt).</summary>
     public static string ClientMapFor(string? configDir, string elementDir, string serverMap)
     {

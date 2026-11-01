@@ -20,6 +20,8 @@ public sealed class QuestDraft
     /// </summary>
     public List<QuestStep> Steps = new();
     public QuestStepOrder Order;
+    /// <summary>ID da quest principal que este rascunho substitui (editar quest); 0 = quest nova.</summary>
+    public int Editing;
 }
 
 public enum QuestStepKind { Talk, Reach }
@@ -178,7 +180,7 @@ public static class QuestBuilder
         var e = new List<string>();
         if (!t.CanWrite) e.Add(T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason);
         if (d.Id <= 0) e.Add(T("qb.idPositive", "O ID precisa ser maior que zero."));
-        else if (t.Index.Find(d.Id) is not null) e.Add(string.Format(T("qb.idUsed", "O ID {0} já é de outra quest."), d.Id));
+        else if (Taken(t, d, d.Id)) e.Add(string.Format(T("qb.idUsed", "O ID {0} já é de outra quest."), d.Id));
         if (d.Name.Trim().Length == 0) e.Add(T("qb.noName", "Falta o nome da quest."));
         else if (d.Name.Length > TasksFile.MaxNameLength) e.Add(string.Format(T("qb.nameLong", "O nome passa de {0} caracteres."), TasksFile.MaxNameLength));
         Normalize(d);
@@ -226,6 +228,10 @@ public static class QuestBuilder
         return e;
     }
 
+    /// <summary>O ID já é de outra quest (ao editar, os IDs da própria quest e das subquests dela ficam livres).</summary>
+    static bool Taken(TasksFile t, QuestDraft d, int id) => t.Index.Find(id) is { } row
+        && !(d.Editing > 0 && t.Index.Find(d.Editing) is QuestNode old && row is QuestNode n && (n == old || old.Descendants().Contains(n)));
+
     /// <summary>Etapas: IDs seguidos livres, cada etapa completa e coerente com a versão, modelos reais no arquivo.</summary>
     static void ValidateSteps(TasksFile t, QuestDraft d, Func<int, bool> isNpc, List<string> e)
     {
@@ -237,7 +243,7 @@ public static class QuestBuilder
             var s = d.Steps[i];
             string at = string.Format(T("qb.stepN", "Etapa {0}"), i + 1) + ": ";
             int id = d.Id + 1 + i;
-            if (d.Id > 0 && t.Index.Find(id) is not null) e.Add(at + string.Format(T("qb.stepIdUsed", "o ID {0} (usado pela etapa) já é de outra quest; troque o ID da quest."), id));
+            if (d.Id > 0 && Taken(t, d, id)) e.Add(at + string.Format(T("qb.stepIdUsed", "o ID {0} (usado pela etapa) já é de outra quest; troque o ID da quest."), id));
             if (s.Name.Trim().Length == 0) e.Add(at + T("qb.stepNoName", "falta o nome (aparece no diário)."));
             else if (s.Name.Length > TasksFile.MaxNameLength) e.Add(at + string.Format(T("qb.nameLong", "O nome passa de {0} caracteres."), TasksFile.MaxNameLength));
             switch (s.Kind)
@@ -290,27 +296,22 @@ public static class QuestBuilder
     /// prêmio e fala ao dar) + uma subquest por etapa, com os vínculos pai/irmãos/primeiro filho. Em ordem = m_bExeChildInOrder;
     /// basta uma = m_bParentAlsoSucc nas filhas (a primeira concluída conclui a principal).
     /// </summary>
-    static QuestNode BuildSteps(TasksFile t, QuestDraft d)
+    static QuestNode BuildSteps(TasksFile t, QuestDraft d, QuestNode? old = null)
     {
         var tpl = Templates(t);
-        if (tpl.Parent is null) throw new InvalidOperationException("sem modelo de quest com etapas");
-        var q = t.CloneRoot(tpl.Parent, d.Id, append: true);
+        if ((old ?? tpl.Parent) is not { } parentProto) throw new InvalidOperationException("sem modelo de quest com etapas");
+        var q = t.CloneRoot(parentProto, d.Id, append: true);
         q.Children.Clear();
         var kids = new List<QuestNode>();
         for (int i = 0; i < d.Steps.Count; i++)
         {
-            var proto = d.Steps[i].Kind == QuestStepKind.Reach ? tpl.Reach : tpl.Talk;
+            var proto = old is not null && i < old.Children.Count && StepKind(t, old.Children[i]) == d.Steps[i].Kind ? old.Children[i]
+                : d.Steps[i].Kind == QuestStepKind.Reach ? tpl.Reach : tpl.Talk;
             kids.Add(t.AddChild(q, proto ?? throw new InvalidOperationException("sem modelo de etapa"), d.Id + 1 + i));
         }
-        void S(TaskRec r, string k, long v) => r.V[k] = v;
         var rec = ReadRec(q, t.Version);
         Clean(rec, t.Version);
-        S(rec, "m_ID", d.Id);
-        S(rec, "m_enumMethod", MethodNone); S(rec, "m_enumFinishType", FinishDirect); S(rec, "m_ulAwardType_S", 0);
-        S(rec, "m_ulDelvNPC", d.Giver); S(rec, "m_ulAwardNPC", 0); S(rec, "m_ulReachSiteId", 0);
-        S(rec, "m_ulParent", 0); S(rec, "m_ulPrevSibling", 0); S(rec, "m_ulNextSibling", 0); S(rec, "m_ulFirstChild", kids[0].Id);
-        foreach (var (k, on) in new[] { ("m_bExeChildInOrder", d.Order == QuestStepOrder.InOrder), ("m_bChooseOne", false), ("m_bRandOne", false), ("m_bParentAlsoFail", false), ("m_bParentAlsoSucc", false) })
-            QuestOptions.SetFlag(rec, t.Version, k, on);
+        SetParent(rec, t.Version, d, kids[0].Id);
         ApplyCommon(rec, t.Version, d);
         WriteRec(q, rec, t.Version);
         q.Name = d.Name;
@@ -322,28 +323,7 @@ public static class QuestBuilder
             var s = d.Steps[i]; var k = kids[i];
             var r = ReadRec(k, t.Version);
             Clean(r, t.Version);
-            S(r, "m_ID", k.Id);
-            S(r, "m_ulParent", q.Id); S(r, "m_ulPrevSibling", i > 0 ? kids[i - 1].Id : 0); S(r, "m_ulNextSibling", i + 1 < kids.Count ? kids[i + 1].Id : 0); S(r, "m_ulFirstChild", 0);
-            S(r, "m_ulDelvNPC", 0); S(r, "m_ulAwardType_S", 0); S(r, "m_ulPremise_Lev_Min", 0); S(r, "m_ulPremise_Lev_Max", 0);
-            foreach (var (key, on) in new[] { ("m_bExeChildInOrder", false), ("m_bChooseOne", false), ("m_bRandOne", false), ("m_bParentAlsoFail", false), ("m_bParentAlsoSucc", d.Order == QuestStepOrder.AnyOne) })
-                QuestOptions.SetFlag(r, t.Version, key, on);
-            if (s.Kind == QuestStepKind.Talk)
-            {
-                S(r, "m_enumMethod", MethodTalkToNpc); S(r, "m_enumFinishType", FinishByTalk); S(r, "m_ulAwardNPC", s.Npc); S(r, "m_ulReachSiteId", 0);
-            }
-            else
-            {
-                S(r, "m_enumMethod", MethodReachSite); S(r, "m_enumFinishType", FinishDirect); S(r, "m_ulAwardNPC", 0);
-                S(r, "m_ulReachSiteCnt", s.Areas.Count); S(r, "m_ulReachSiteId", s.MapTag);
-                for (int a = 0; a < s.Areas.Count; a++)
-                {
-                    var z = s.Areas[a]; var b = $"m_pReachSite[{a}].";
-                    r.V[b + "zvMin.v[0]"] = z.X0; r.V[b + "zvMin.v[1]"] = z.Y0; r.V[b + "zvMin.v[2]"] = z.Z0;
-                    r.V[b + "zvMax.v[0]"] = z.X1; r.V[b + "zvMax.v[1]"] = z.Y1; r.V[b + "zvMax.v[2]"] = z.Z1;
-                    if (t.Version >= 157) S(r, b + "MapID", s.MapTag);
-                    if (t.Version >= 191) S(r, b + "RegionID", 0);
-                }
-            }
+            SetStep(r, t.Version, d, i, k.Id, q.Id, i > 0 ? kids[i - 1].Id : 0, i + 1 < kids.Count ? kids[i + 1].Id : 0);
             WriteRec(k, r, t.Version);
             k.Name = s.Name;
             k.Texts[0] = s.Description; k.Texts[1] = k.Texts[2] = k.Texts[3] = "";
@@ -355,18 +335,21 @@ public static class QuestBuilder
     }
 
     /// <summary>Cria a quest (no fim da lista de quests principais). Chame <see cref="Validate"/> antes.</summary>
-    public static QuestNode Build(TasksFile t, QuestDraft d)
+    public static QuestNode Build(TasksFile t, QuestDraft d) => Build(t, d, null);
+
+    /// <summary>
+    /// <paramref name="old"/> (editar quest): a quest antiga serve de modelo de si mesma quando o formato bate (recado continua
+    /// recado, etapa do mesmo tipo na mesma posição), assim campos que o assistente não mostra ficam como estavam.
+    /// </summary>
+    static QuestNode Build(TasksFile t, QuestDraft d, QuestNode? old)
     {
         Normalize(d);
-        if (!IsRecado(d)) return BuildSteps(t, d);
-        var template = FindRecadoTemplate(t) ?? throw new InvalidOperationException("sem modelo de recado");
+        if (!IsRecado(d)) return BuildSteps(t, d, old is { Children.Count: > 0 } ? old : null);
+        var template = (old is { Children.Count: 0 } ? old : null) ?? FindRecadoTemplate(t) ?? throw new InvalidOperationException("sem modelo de recado");
         var q = t.CloneRoot(template, d.Id, append: true);
         var rec = ReadRec(q, t.Version);
         Clean(rec, t.Version);
-        void S(string k, long v) => rec.V[k] = v;
-        S("m_ID", d.Id);
-        S("m_enumMethod", MethodTalkToNpc); S("m_enumFinishType", FinishByTalk); S("m_ulAwardType_S", 0);
-        S("m_ulDelvNPC", d.Giver); S("m_ulAwardNPC", d.Receiver);
+        SetRecado(rec, d);
         ApplyCommon(rec, t.Version, d);
         WriteRec(q, rec, t.Version);
         q.Name = d.Name;
@@ -376,6 +359,168 @@ public static class QuestBuilder
         q.TextsChanged = true;
         t.InvalidateNpcIndex();
         return q;
+    }
+
+    /// <summary>Tipo da subquest (falar com NPC / ir até um lugar) como o assistente grava; null se não é nenhum dos dois.</summary>
+    static QuestStepKind? StepKind(TasksFile t, QuestNode k)
+    {
+        if (k.Children.Count > 0 || k.Talks.Length < 5) return null;
+        var r = ReadRec(k, t.Version);
+        if (r.Int("m_enumMethod") == MethodReachSite && r.Int("m_enumFinishType") == FinishDirect && NoTalks(k, 0, 4)) return QuestStepKind.Reach;
+        if (r.Int("m_enumMethod") == MethodTalkToNpc && r.Int("m_enumFinishType") == FinishByTalk && NoTalks(k, 0, 3) && k.Talks[4].Windows.Count == 1
+            && OwnOptions(k, 4, TasksFile.NpcCompleteTask)) return QuestStepKind.Talk;
+        return null;
+    }
+
+    static bool SameValue(object a, object b) => a is byte[] x && b is byte[] y ? x.AsSpan().SequenceEqual(y)
+        : a is not byte[] && b is not byte[] && Convert.ToDouble(a) == Convert.ToDouble(b);
+
+    /// <summary>
+    /// Rascunho a partir de uma quest que já existe (editar pelo Mundo 3D). Só quests no formato que o assistente grava
+    /// (recado, ou etapas "falar com NPC" / "ir até um lugar" com IDs seguidos) e sem nada que ele não mostre: a prova é
+    /// regravar o bloco a partir do rascunho e comparar campo a campo com o original. Null + motivo se não dá.
+    /// </summary>
+    public static QuestDraft? FromQuest(TasksFile t, QuestNode q, out string? why)
+    {
+        string T(string k, string pt) => FieldKinds.Translate(k, pt);
+        why = null;
+        if (q.Parent is not null) { why = T("qb.editNotRoot", "Esta é uma subquest: edite a quest principal."); return null; }
+        var rec = ReadRec(q, t.Version);
+        var d = new QuestDraft
+        {
+            Id = q.Id, Editing = q.Id, Name = q.Name, Giver = (int)rec.Int("m_ulDelvNPC"),
+            MinLevel = (int)rec.Int("m_ulPremise_Lev_Min"), MaxLevel = (int)rec.Int("m_ulPremise_Lev_Max"),
+            Gold = rec.Int("m_Award_S.m_ulGoldNum"), Exp = rec.Int("m_Award_S.m_ulExp"), Sp = rec.Int("m_Award_S.m_ulSP"), Reputation = rec.Int("m_Award_S.m_lReputation"),
+            Description = q.Texts[0] ?? "", OfferText = q.Talks.Length > 0 && q.Talks[0].Windows.Count == 1 ? q.Talks[0].Windows[0].Text : "",
+        };
+        if (rec.Int("m_Award_S.m_ulCandItems") > 0)
+        {
+            const string g = "m_Award_S.m_CandItems[0].";
+            d.RandomItem = rec.Int(g + "m_bRandChoose") != 0;
+            for (int i = 0; i < rec.Int(g + "m_ulAwardItems"); i++)
+                d.Items.Add(((int)rec.Int(g + $"m_AwardItems[{i}].m_ulItemTemplId"), (int)rec.Int(g + $"m_AwardItems[{i}].m_ulItemNum")));
+        }
+        d.Choices = QuestOptions.Read(rec, t.Version);
+        bool shape = q.Talks.Length >= 5 && q.Talks[0].Windows.Count == 1 && OwnOptions(q, 0, TasksFile.NpcGiveTask) && q.Texts.Skip(1).All(string.IsNullOrEmpty);
+        if (shape && q.Children.Count == 0)
+        {
+            shape = q.Talks[4].Windows.Count == 1 && OwnOptions(q, 4, TasksFile.NpcCompleteTask) && NoTalks(q, 1, 3)
+                && rec.Int("m_enumMethod") == MethodTalkToNpc && rec.Int("m_enumFinishType") == FinishByTalk;
+            d.Receiver = (int)rec.Int("m_ulAwardNPC");
+            if (shape) d.RewardText = q.Talks[4].Windows[0].Text;
+        }
+        else if (shape)
+        {
+            shape = NoTalks(q, 1, 4) && rec.Int("m_enumMethod") == MethodNone && rec.Int("m_enumFinishType") == FinishDirect;
+            d.Order = QuestOptions.GetFlag(rec, t.Version, "m_bExeChildInOrder") ? QuestStepOrder.InOrder
+                : QuestOptions.GetFlag(ReadRec(q.Children[0], t.Version), t.Version, "m_bParentAlsoSucc") ? QuestStepOrder.AnyOne : QuestStepOrder.AnyOrder;
+            for (int i = 0; shape && i < q.Children.Count; i++)
+            {
+                var k = q.Children[i];
+                if (k.Id != q.Id + 1 + i || StepKind(t, k) is not { } kind || k.Texts.Skip(1).Any(x => !string.IsNullOrEmpty(x))) { shape = false; break; }
+                var r = ReadRec(k, t.Version);
+                var s = new QuestStep { Kind = kind, Name = k.Name, Description = k.Texts[0] ?? "" };
+                if (kind == QuestStepKind.Talk) { s.Npc = (int)r.Int("m_ulAwardNPC"); s.Text = k.Talks[4].Windows[0].Text; }
+                else
+                {
+                    s.MapTag = (int)r.Int("m_ulReachSiteId");
+                    for (int a = 0; a < r.Int("m_ulReachSiteCnt"); a++)
+                    {
+                        var b = $"m_pReachSite[{a}].";
+                        float F(string key) => r.V.TryGetValue(b + key, out var o) ? Convert.ToSingle(o) : 0f;
+                        s.Areas.Add(new QuestArea { X0 = F("zvMin.v[0]"), Y0 = F("zvMin.v[1]"), Z0 = F("zvMin.v[2]"), X1 = F("zvMax.v[0]"), Y1 = F("zvMax.v[1]"), Z1 = F("zvMax.v[2]") });
+                    }
+                }
+                d.Steps.Add(s);
+            }
+        }
+        if (!shape) { why = T("qb.editShape", "Esta quest tem partes que o assistente do Mundo 3D ainda não sabe mostrar (outro tipo de objetivo, mais diálogos ou textos). Edite na aba Quests."); return null; }
+        // prova: regravar o bloco a partir do rascunho tem que dar o mesmo bloco (nada some ao gravar)
+        bool Same(QuestNode node, Action<TaskRec> set)
+        {
+            var orig = ReadRec(node, t.Version); var redo = ReadRec(node, t.Version);
+            Clean(redo, t.Version); set(redo);
+            return orig.V.Count == redo.V.Count && orig.V.All(kv => redo.V.TryGetValue(kv.Key, out var v) && SameValue(kv.Value, v));
+        }
+        bool ok = q.Children.Count == 0
+            ? Same(q, r => { SetRecado(r, d); ApplyCommon(r, t.Version, d); })
+            : Same(q, r => { SetParent(r, t.Version, d, q.Children[0].Id); ApplyCommon(r, t.Version, d); })
+              && q.Children.Select((k, i) => Same(k, r => SetStep(r, t.Version, d, i, k.Id, q.Id, i > 0 ? q.Children[i - 1].Id : 0, i + 1 < q.Children.Count ? q.Children[i + 1].Id : 0))).All(x => x);
+        if (!ok) { why = T("qb.editExtra", "Esta quest usa campos que o assistente do Mundo 3D não mostra; gravar por aqui apagaria esses campos. Edite na aba Quests."); return null; }
+        return d;
+    }
+
+    static readonly System.Text.RegularExpressions.Regex QuestRefKey = new(@"^(m_ulPremise_Tasks|m_ulMutexTasks|m_ulNeededTasks)\[\d+\]$|^m_ulPremise_Cotask$|^m_Award_S\.m_ulNewTask$");
+
+    /// <summary>Quests (fora de <paramref name="ids"/>) que apontam para algum desses IDs: anterior, exclusiva, necessária, conjunta ou nova ao concluir.</summary>
+    public static List<int> ReferencedBy(TasksFile t, IReadOnlySet<int> ids)
+    {
+        var res = new List<int>();
+        foreach (var n in t.AllNodes())
+        {
+            if (ids.Contains(n.Id)) continue;
+            var rec = ReadRec(n, t.Version);
+            if (rec.V.Any(kv => QuestRefKey.IsMatch(kv.Key) && kv.Value is not byte[] && ids.Contains((int)Convert.ToInt64(kv.Value)))) res.Add(n.Id);
+        }
+        return res;
+    }
+
+    /// <summary>
+    /// Troca a quest <paramref name="old"/> pela do rascunho na mesma posição da lista (editar quest); a antiga sai do arquivo.
+    /// Quem chama guarda a antiga e a posição para o desfazer. Chame <see cref="Validate"/> antes.
+    /// </summary>
+    public static QuestNode Replace(TasksFile t, QuestNode old, QuestDraft d)
+    {
+        int at = t.Roots!.IndexOf(old);
+        t.DeleteRoot(old);
+        var made = Build(t, d, old);
+        t.MoveRoot(made, at);
+        return made;
+    }
+
+    static void SetRecado(TaskRec rec, QuestDraft d)
+    {
+        void S(string k, long v) => rec.V[k] = v;
+        S("m_ID", d.Id);
+        S("m_enumMethod", MethodTalkToNpc); S("m_enumFinishType", FinishByTalk); S("m_ulAwardType_S", 0);
+        S("m_ulDelvNPC", d.Giver); S("m_ulAwardNPC", d.Receiver);
+    }
+
+    static void SetParent(TaskRec rec, int version, QuestDraft d, int firstChild)
+    {
+        void S(string k, long v) => rec.V[k] = v;
+        S("m_ID", d.Id);
+        S("m_enumMethod", MethodNone); S("m_enumFinishType", FinishDirect); S("m_ulAwardType_S", 0);
+        S("m_ulDelvNPC", d.Giver); S("m_ulAwardNPC", 0); S("m_ulReachSiteId", 0);
+        S("m_ulParent", 0); S("m_ulPrevSibling", 0); S("m_ulNextSibling", 0); S("m_ulFirstChild", firstChild);
+        foreach (var (k, on) in new[] { ("m_bExeChildInOrder", d.Order == QuestStepOrder.InOrder), ("m_bChooseOne", false), ("m_bRandOne", false), ("m_bParentAlsoFail", false), ("m_bParentAlsoSucc", false) })
+            QuestOptions.SetFlag(rec, version, k, on);
+    }
+
+    static void SetStep(TaskRec r, int version, QuestDraft d, int i, int id, int parent, int prev, int next)
+    {
+        var s = d.Steps[i];
+        void S(string k, long v) => r.V[k] = v;
+        S("m_ID", id);
+        S("m_ulParent", parent); S("m_ulPrevSibling", prev); S("m_ulNextSibling", next); S("m_ulFirstChild", 0);
+        S("m_ulDelvNPC", 0); S("m_ulAwardType_S", 0); S("m_ulPremise_Lev_Min", 0); S("m_ulPremise_Lev_Max", 0);
+        foreach (var (key, on) in new[] { ("m_bExeChildInOrder", false), ("m_bChooseOne", false), ("m_bRandOne", false), ("m_bParentAlsoFail", false), ("m_bParentAlsoSucc", d.Order == QuestStepOrder.AnyOne) })
+            QuestOptions.SetFlag(r, version, key, on);
+        if (s.Kind == QuestStepKind.Talk)
+        {
+            S("m_enumMethod", MethodTalkToNpc); S("m_enumFinishType", FinishByTalk); S("m_ulAwardNPC", s.Npc); S("m_ulReachSiteId", 0);
+            return;
+        }
+        S("m_enumMethod", MethodReachSite); S("m_enumFinishType", FinishDirect); S("m_ulAwardNPC", 0);
+        S("m_ulReachSiteCnt", s.Areas.Count); S("m_ulReachSiteId", s.MapTag);
+        for (int a = 0; a < s.Areas.Count; a++)
+        {
+            var z = s.Areas[a]; var b = $"m_pReachSite[{a}].";
+            r.V[b + "zvMin.v[0]"] = z.X0; r.V[b + "zvMin.v[1]"] = z.Y0; r.V[b + "zvMin.v[2]"] = z.Z0;
+            r.V[b + "zvMax.v[0]"] = z.X1; r.V[b + "zvMax.v[1]"] = z.Y1; r.V[b + "zvMax.v[2]"] = z.Z1;
+            if (version >= 157) S(b + "MapID", s.MapTag);
+            if (version >= 191) S(b + "RegionID", 0);
+        }
     }
 
     /// <summary>Nível, prêmio e opções escolhidas (requisitos e prêmios a mais) — vão na quest principal.</summary>
@@ -396,6 +541,9 @@ public static class QuestBuilder
                 rec.V[it + "m_fProb"] = 1f; S(it + "m_lPeriod", 0);
             }
         }
+        // liga/desliga que o modelo trouxe ligado (ex.: "pode refazer" não é zerado no Clean): desligado, a não ser que escolhido
+        foreach (var o in QuestOptions.All.Where(o => o.Type == QOType.Flag && (rec.V.ContainsKey(o.Keys[0]) || QuestOptions.SwitchIndex(version, o.Keys[0]) >= 0)))
+            QuestOptions.SetFlag(rec, version, o.Keys[0], false);
         foreach (var c in d.Choices) QuestOptions.Apply(rec, version, c);
     }
 

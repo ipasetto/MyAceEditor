@@ -177,6 +177,58 @@ public static class ClientTranslator
             });
         }
 
+        ctx?.Report(0.9, Loc.T("ct.stCombat", "Imagens de batalha"), force: true);
+        // ---- imagens com texto da batalha (surfaces\ingame, PW-KB §S20e): só elas, em qualquer versão; o resto do surfaces fica ----
+        var sT = Path.Combine(target, "surfaces.pck"); var sS = Path.Combine(source, "surfaces.pck");
+        if (File.Exists(sT) && File.Exists(sS) && !SameFile(sT, sS))
+        {
+            try
+            {
+                var diff = CombatImages(sT, sS);
+                if (diff.Count > 0)
+                    steps.Add(new Step
+                    {
+                        Title = string.Format(Loc.T("ct.combatTitle", "Textos da batalha (surfaces.pck): {0} imagens"), diff.Count),
+                        Detail = Loc.T("ct.combatDetail", "as imagens com palavra que sobem na tela: crítico, alma, roubo de vida, imune, errou, sem efeito, refletir, esquiva, subiu de nível, duelo, guerra territorial…; o resto das imagens daqui fica"),
+                        Default = true, Enabled = !File.Exists(Path.ChangeExtension(sT, ".pkx")),
+                        Apply = log =>
+                        {
+                            var files = CombatImages(sT, sS);
+                            if (files.Count > 0) PckWriter.Write(sT, files);
+                            log(string.Format(Loc.T("ct.pckTextsLog", "{0}: {1:N0} textos em {2} arquivo(s)"), "surfaces.pck", files.Count, files.Count));
+                            return sT;
+                        },
+                    });
+            }
+            catch (Exception ex) { steps.Add(new Step { Title = "surfaces.pck", Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
+        }
+
+        // ---- mapas da tecla M (os nomes de cidades e regiões vêm desenhados na imagem): mundo em surfaces\maps\, instâncias em
+        // surfaces\ingame\<pasta>.dds; marcado sozinho só se o mapa do mundo tem os mesmos pedaços nos dois clientes ----
+        if (File.Exists(sT) && File.Exists(sS) && !SameFile(sT, sS))
+        {
+            try
+            {
+                var (maps, sameWorld) = MapImages(target, sT, sS);
+                if (maps.Count > 0)
+                    steps.Add(new Step
+                    {
+                        Title = string.Format(Loc.T("ct.mapsTitle", "Mapas do jogo, tecla M (surfaces.pck): {0} imagens"), maps.Count),
+                        Detail = Loc.T("ct.mapsDetail", "o mapa do mundo e os das instâncias, com os nomes de cidades e regiões no idioma do outro cliente")
+                            + (sameWorld ? "" : Loc.T("ct.mapsOtherWorld", " — o mapa do mundo do outro cliente tem outro tamanho (outra versão): confira antes")),
+                        Default = sameWorld, Enabled = !File.Exists(Path.ChangeExtension(sT, ".pkx")),
+                        Apply = log =>
+                        {
+                            var files = MapImages(target, sT, sS).Files;
+                            if (files.Count > 0) PckWriter.Write(sT, files);
+                            log(string.Format(Loc.T("ct.pckTextsLog", "{0}: {1:N0} textos em {2} arquivo(s)"), "surfaces.pck", files.Count, files.Count));
+                            return sT;
+                        },
+                    });
+            }
+            catch (Exception ex) { steps.Add(new Step { Title = "surfaces.pck", Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
+        }
+
         ctx?.Report(0.95, Loc.T("ct.stFiles", "Imagens e ajuda"), force: true);
         // ---- imagens e ajuda (arquivo inteiro) ----
         foreach (var p in Packages)
@@ -195,8 +247,7 @@ public static class ClientTranslator
                 Default = same, Enabled = true,
                 Apply = log =>
                 {
-                    var bk = $"{dst}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
-                    File.Copy(dst, bk);
+                    var bk = BackupStore.Save(dst)!;
                     File.Copy(src, dst, overwrite: true);
                     log(string.Format(Loc.T("ct.copied", "{0}: copiado (backup {1})"), p, Path.GetFileName(bk)));
                     return dst;
@@ -219,10 +270,9 @@ public static class ClientTranslator
                     Default = true, Enabled = true,
                     Apply = log =>
                     {
-                        var bkDir = Path.Combine(fT, $"_backup_{DateTime.Now:yyyyMMdd-HHmmss}");
-                        Directory.CreateDirectory(bkDir);
-                        foreach (var f in fonts) { File.Copy(Path.Combine(fT, f!), Path.Combine(bkDir, f!)); File.Copy(Path.Combine(fS, f!), Path.Combine(fT, f!), true); }
-                        log(string.Format(Loc.T("ct.fontsLog", "font\\: {0} arquivos (backup em {1})"), fonts.Count, Path.GetFileName(bkDir)));
+                        // backup fora do cliente (BackupStore); o jogo aberto prende as fontes
+                        foreach (var f in fonts) { BackupStore.Save(Path.Combine(fT, f!)); CopyOver(Path.Combine(fS, f!), Path.Combine(fT, f!)); }
+                        log(string.Format(Loc.T("ct.fontsLog", "font\\: {0} arquivos (backup em {1})"), fonts.Count, BackupStore.Root));
                         return fT;
                     },
                 });
@@ -241,15 +291,70 @@ public static class ClientTranslator
                     Default = same, Enabled = true,
                     Apply = log =>
                     {
-                        var bkDir = Path.Combine(iT, $"_backup_{DateTime.Now:yyyyMMdd-HHmmss}");
-                        Directory.CreateDirectory(bkDir);
-                        foreach (var f in files) { File.Copy(Path.Combine(iT, f!), Path.Combine(bkDir, f!)); File.Copy(Path.Combine(iS, f!), Path.Combine(iT, f!), true); }
-                        log(string.Format(Loc.T("ct.infoLog", "info: {0} arquivos (backup em {1})"), files.Count, Path.GetFileName(bkDir)));
+                        foreach (var f in files) { BackupStore.Save(Path.Combine(iT, f!)); CopyOver(Path.Combine(iS, f!), Path.Combine(iT, f!)); }
+                        log(string.Format(Loc.T("ct.infoLog", "info: {0} arquivos (backup em {1})"), files.Count, BackupStore.Root));
                         return iT;
                     },
                 });
         }
         return steps;
+    }
+
+    // imagens com palavra escrita que o elementclient carrega de surfaces\ingame (CECImageRes + strings do exe 1.5.5)
+    static readonly string[] CombatNames =
+    {
+        "爆击", "元神", "吸血", "免疫", "未命中", "无效", "反震", "状态闪避", "复仇惩戒", "复仇镜像", "升级了", "经验", "金钱",
+        "失败", "成功", "决斗一", "决斗二", "决斗三", "决斗开始", "决斗胜利", "决斗失败", "中立", "中立偏守方", "中立偏攻方",
+        "守方占领", "攻方占领", "有矿提示",
+    };
+
+    /// <summary>Imagens de texto da batalha que existem nos dois surfaces.pck e são diferentes (caminho no pacote → conteúdo do outro).</summary>
+    static Dictionary<string, byte[]> CombatImages(string targetPck, string sourcePck)
+    {
+        var r = new Dictionary<string, byte[]>();
+        using var a = new PckArchive(targetPck); using var b = new PckArchive(sourcePck);
+        foreach (var n in CombatNames)
+            foreach (var ext in new[] { ".tga", ".dds" })
+            {
+                var rel = $@"surfaces\ingame\{n}{ext}";
+                if (a.Find(rel) is not { } ea || b.Find(rel) is not { } eb) continue;
+                var nb = b.Read(eb);
+                if (!a.Read(ea).AsSpan().SequenceEqual(nb)) r[ea.Path] = nb;
+            }
+        return r;
+    }
+
+    static void CopyOver(string src, string dst)
+    {
+        try { File.Copy(src, dst, true); }
+        catch (IOException ex) when (ex.HResult == unchecked((int)0x80070020))   // arquivo em uso
+        { throw new IOException(string.Format(Loc.T("ct.inUse", "{0} está aberto em outro programa (o jogo?). Feche o jogo e tente de novo."), Path.GetFileName(dst)), ex); }
+    }
+
+    /// <summary>Imagens de mapa diferentes nos dois surfaces.pck (caminho → conteúdo do outro) e se o mundo tem os mesmos pedaços.</summary>
+    static (Dictionary<string, byte[]> Files, bool SameWorld) MapImages(string targetElement, string targetPck, string sourcePck)
+    {
+        var r = new Dictionary<string, byte[]>();
+        var paths = (MapTags.ClientMaps(targetElement)?.Values.Select(m => m.Path) ?? Enumerable.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        using var a = new PckArchive(targetPck); using var b = new PckArchive(sourcePck);
+        bool IsMap(string p)
+        {
+            if (!p.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)) return false;
+            if (p.StartsWith(@"surfaces\maps\", StringComparison.OrdinalIgnoreCase)) return true;
+            if (!p.StartsWith(@"surfaces\ingame\", StringComparison.OrdinalIgnoreCase) || p.Count(c => c == '\\') != 2) return false;
+            var n = Path.GetFileNameWithoutExtension(p);
+            var dash = n.LastIndexOf('-');
+            return paths.Contains(n) || dash > 0 && int.TryParse(n[(dash + 1)..], out _) && paths.Contains(n[..dash]);   // a05.dds, a05-1.dds
+        }
+        int tilesA = a.Entries.Count(e => e.Path.StartsWith(@"surfaces\maps\", StringComparison.OrdinalIgnoreCase));
+        int tilesB = b.Entries.Count(e => e.Path.StartsWith(@"surfaces\maps\", StringComparison.OrdinalIgnoreCase));
+        foreach (var ea in a.Entries)
+        {
+            if (!IsMap(ea.Path) || b.Find(ea.Path) is not { } eb) continue;
+            var nb = b.Read(eb);
+            if (!a.Read(ea).AsSpan().SequenceEqual(nb)) r[ea.Path] = nb;
+        }
+        return (r, tilesA == tilesB);
     }
 
     static bool SameFile(string a, string b)

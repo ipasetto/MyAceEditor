@@ -18,6 +18,12 @@ internal interface IQuestHost
     string Summary(QuestDraft d);
     /// <summary>Cria a quest e os vínculos (serviço de dar/receber dos NPCs) num passo do desfazer. Null = deu certo.</summary>
     string? Commit(QuestDraft d);
+    /// <summary>Rascunho com a quest que já existe (editar); Commit troca a quest no lugar. Null + motivo se o assistente não cobre essa quest.</summary>
+    QuestDraft? EditDraft(int questId, out string? why);
+    /// <summary>Texto da pergunta antes de excluir (quest, subquests, NPCs e quests que apontam para ela); null se a quest não existe.</summary>
+    string? DeleteAsk(int questId);
+    /// <summary>Exclui a quest (com as subquests) e tira o ID dos serviços dos NPCs, num passo do desfazer. Null = deu certo.</summary>
+    string? Delete(int questId);
     /// <summary>Nome de NPC, monstro ou item do elements; null se o ID não existe.</summary>
     string? NameOf(int id);
     bool IsNpc(int id);
@@ -29,4 +35,7 @@ internal interface IQuestHost
     /// <summary>Campos para "Outro campo (avançado)": chave, rótulo e dica.</summary>
     IReadOnlyList<(string Key, string Label, string Tip)> FreeFields(bool reward);
     string? QuestName(int id);
+    /// <summary>Desfaz / refaz o último passo do editor (criar ou ligar quest é um passo só). false = nada a fazer.</summary>
+    bool Undo();
+    bool Redo();
 }

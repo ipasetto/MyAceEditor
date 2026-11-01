@@ -32,9 +32,7 @@ public static class PckPatch
         // aberto em outro programa (jogo, outro editor): falha aqui, antes de deixar um backup à toa
         try { using (new FileStream(pckPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read)) { } }
         catch (IOException) { throw new IOException(string.Format(UI.Loc.T("pck.locked", "{0} está aberto em outro programa (o jogo ou outro editor). Feche-o e tente de novo."), Path.GetFileName(pckPath))); }
-        // duas trocas no mesmo segundo: o backup da primeira já guarda o original
-        var bak = pckPath + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".bak";
-        if (!File.Exists(bak)) File.Copy(pckPath, bak, false);
+        BackupStore.Save(pckPath);
         using (var fs = new FileStream(pckPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
             fs.Position = e.Offset;
@@ -42,6 +40,6 @@ public static class PckPatch
         }
         using var check = new PckArchive(pckPath);
         if (!check.Read(check.Find(entryPath)!).AsSpan().SequenceEqual(content))
-            throw new InvalidDataException(UI.Loc.T("pck.rereadRestore", "Releitura não confere; restaure o .bak ao lado do .pck."));
+            throw new InvalidDataException(UI.Loc.T("pck.rereadRestore", "Releitura não confere; restaure o backup do .pck (Ferramentas → Backups)."));
     }
 }

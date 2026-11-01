@@ -226,7 +226,7 @@ public sealed class ServerAdmin
 
     // ---------- mapas (um gs por mapa) ----------
     public sealed record MapDef(string Tag, int WorldTag, string Name, bool Instance);
-    public sealed record MapProc(string Tag, int RamMb);
+    public sealed record MapProc(string Tag, int RamMb, bool Ready = true);   // Ready = terminou de carregar (pwctl maps)
 
     /// <summary>Mapas que o gs.conf declara (world_servers + instance_servers), com o nome do configs\instance.txt do cliente.</summary>
     public static List<MapDef> MapList(string gsConf, string? clientElement) =>
@@ -250,7 +250,7 @@ public sealed class ServerAdmin
         return list;
     }
 
-    static Dictionary<int, string>? MapNames(string elementDir)
+    internal static Dictionary<int, string>? MapNames(string elementDir)
     {
         try
         {
@@ -279,7 +279,7 @@ public sealed class ServerAdmin
         {
             var p = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (p.Length == 3 && p[0] == "##RAM") { int.TryParse(p[1], out total); int.TryParse(p[2], out free); }
-            else if (p.Length == 2 && int.TryParse(p[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb)) running.Add(new(p[0], mb));
+            else if (p.Length >= 2 && int.TryParse(p[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb)) running.Add(new(p[0], mb, p.Length < 3 || p[2] == "1"));
         }
         return (running, total, free);
     }
@@ -307,6 +307,37 @@ public sealed class ServerAdmin
         return ok;
     }
 
+    /// <summary>
+    /// Trava de velocidade do gs (bônus fixo de movimento > 3 m/s vira 3, > 5 vira 0; PW-KB §S10): "on" = original,
+    /// "off" = removida, "none" = este gs não tem o trecho conhecido. null = servidor não instalado.
+    /// </summary>
+    public string? SpeedCap()
+    {
+        if (!LocalServer.DistroExists()) return null;
+        _srv.EnsureTools();
+        return _srv.Bash("pwctl speedcap", timeoutMs: 120_000).Output.Trim();
+    }
+
+    /// <summary>Liga (true) ou tira (false) a trava: para os mapas, troca 2 bytes do gs (backup do original) e sobe de novo.</summary>
+    public LocalServer.RunResult SetSpeedCap(bool on) { _srv.EnsureTools(); return _srv.Bash($"pwctl speedcap-set {(on ? "on" : "off")}", timeoutMs: 300_000); }
+
     public LocalServer.RunResult StartMap(string tag) { _srv.EnsureTools(); return _srv.Bash($"pwctl gs-start {tag}", timeoutMs: 120_000); }
     public LocalServer.RunResult StopMap(string tag) => _srv.Bash($"pwctl gs-stop {tag}", timeoutMs: 60_000);
+
+    /// <summary>Mapas do gs.conf instalado no Linux (o painel do GM não tem a pasta do servidor).</summary>
+    public List<MapDef> LiveMapList(string? clientElement) =>
+        ParseMapList(_srv.Bash("cat /home/gamed/gs.conf", timeoutMs: 60_000).Output, clientElement);
+
+    /// <summary>Mapas que sobem junto com o servidor além do gs01 (pwctl defaults; sem lista = só o gs01).</summary>
+    public HashSet<string> DefaultMaps()
+    {
+        _srv.EnsureTools();
+        return _srv.Bash("pwctl defaults", timeoutMs: 60_000).Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+    }
+
+    public LocalServer.RunResult SetDefaultMaps(IEnumerable<string> tags)
+    {
+        _srv.EnsureTools();
+        return _srv.Bash("pwctl defaults-set " + string.Join(' ', tags.Where(t => Regex.IsMatch(t, "^[a-z0-9_]+$"))), timeoutMs: 60_000);
+    }
 }

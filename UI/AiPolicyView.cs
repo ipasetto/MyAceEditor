@@ -83,6 +83,9 @@ public sealed class AiPolicyView : UserControl
         var top2 = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(8, 2, 8, 0), BackColor = bg, WrapContents = false };
         // busca na 2ª linha: na 1ª, no tamanho normal da janela, o "Próximo" ficava cortado
         top2.Controls.AddRange(new Control[] { _find, _findNext, new Label { Width = 12 }, _trSel, _trAll, _lblTarget, _tgt, _orig, _lblLang });
+        // botões no estilo das outras áreas: plano, ícone da função (UiKit)
+        foreach (var (b, hint) in new[] { (_open, "open"), (_save, "save"), (_add, "add"), (_del, "delete"), (_clone, "clone"), (_findNext, "next"), (_trSel, "translate"), (_trAll, "translate") })
+        { b.Height = 30; b.BackColor = Color.White; b.ForeColor = UiKit.Fg; UiKit.Decorate(b, hint, primary: b == _save); }
 
         foreach (var tv in new[] { _policies, _detail }) { tv.BackColor = treeBg; tv.ForeColor = treeFg; tv.Font = new Font("Segoe UI", 10); tv.BorderStyle = BorderStyle.None; }
         _meaning.BackColor = treeBg; _meaning.ForeColor = treeFg;

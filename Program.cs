@@ -30,6 +30,16 @@ internal static class Program
             File.WriteAllText("pck-extract.txt", $"{done - failed} extraídos, {failed} falhas");
             return;
         }
+        if (args.Length >= 4 && args[0] == "--icon-add")   // --icon-add <cópia do surfaces.pck> <imagem> <nome>: grava e recorta de volta em <imagem>.out.png
+        {
+            try { using var img = new System.Drawing.Bitmap(args[2]); MyAceEditor.PerfectWorld.IconAtlas.AddIcon(args[1], args[3], img); }
+            catch (Exception ex) { File.WriteAllText("pck-extract.txt", ex.ToString()); return; }
+            var at = MyAceEditor.PerfectWorld.IconAtlas.Load(args[1])!;
+            using var back = at.Get(args[3] + ".dds");
+            back?.Save(args[2] + ".out.png");
+            File.WriteAllText("pck-extract.txt", $"ícones: {at.Count}, achou o novo: {at.Has(args[3] + ".dds")}");
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--icons") { TestIcons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--roundtrip") { RoundTrip(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--check") { CheckPair(args[1], args[2]); return; }
@@ -44,6 +54,101 @@ internal static class Program
             var (n, files) = PackTextTranslator.Plan(args[3], args[2], dryRun: false);
             if (files.Count > 0) PckWriter.Write(args[3], files);
             File.WriteAllText("pck-texts.txt", $"{n:N0} textos em {files.Count} arquivo(s)\n" + string.Join("\n", files.Keys.Order().Take(40)), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--icon-check")   // <surfaces.pck>: ícones do atlas comprimido = recorte do atlas inteiro (icon-check.txt)
+        {
+            var at = MyAceEditor.PerfectWorld.IconAtlas.Load(args[1])!;
+            var (n, bad) = at.VerifyAgainstFullDecode();
+            File.WriteAllText("icon-check.txt", $"{n:N0} icones conferidos · {bad:N0} diferentes", new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--decode-check")   // <elements.data>: valores lidos = os do decodificador antigo, campo a campo (decode-check.txt)
+        {
+            var m = CfgCatalog.Load(args[1]).Module;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            var gbk = System.Text.Encoding.GetEncoding(936);
+            string Old(CfgField f, byte[] raw, int p)   // cópia do decodificador de antes da otimização
+            {
+                string t = f.Type.ToLowerInvariant();
+                if (t.StartsWith("wstring:") || t.StartsWith("string:"))
+                {
+                    string text = t.StartsWith("wstring:") ? System.Text.Encoding.Unicode.GetString(raw, p, f.Size) : gbk.GetString(raw, p, f.Size);
+                    int nul = text.IndexOf('\0'); return nul < 0 ? text : text[..nul];
+                }
+                if (t.StartsWith("byte:") || t.StartsWith("bytes:")) return Convert.ToHexString(raw.AsSpan(p, f.Size));
+                return t switch
+                {
+                    "float" => BitConverter.ToSingle(raw, p).ToString("R", inv), "double" => BitConverter.ToDouble(raw, p).ToString("R", inv),
+                    "int64" or "long" => BitConverter.ToInt64(raw, p).ToString(inv), "uint64" or "ulong" => BitConverter.ToUInt64(raw, p).ToString(inv),
+                    "int16" or "short" => BitConverter.ToInt16(raw, p).ToString(inv), "uint16" or "word" or "ushort" => BitConverter.ToUInt16(raw, p).ToString(inv),
+                    "int8" or "sbyte" => unchecked((sbyte)raw[p]).ToString(inv), "uint8" or "byte" or "char" or "bool" => raw[p].ToString(inv),
+                    "uint32" or "uint" or "dword" => BitConverter.ToUInt32(raw, p).ToString(inv), "int32" or "int" => BitConverter.ToInt32(raw, p).ToString(inv),
+                    _ => "?",
+                };
+            }
+            long n = 0, bad = 0; var first = new StringBuilder();
+            if (m.Source is ElementsLayout lay)
+                foreach (var span in lay.Blocks)
+                {
+                    var l = span.List; var blk = span.Block;
+                    foreach (var it in l.Items)
+                    {
+                        if (it.Raw is not { } raw) continue;
+                        int p = 0;
+                        foreach (var f in blk.Fields)
+                        {
+                            n++;
+                            if (it.Fields.TryGetValue(f.Name, out var fv) && fv.Value != Old(f, raw, p) && bad++ < 10) first.AppendLine($"{l.Name} {it.Id} {f.Name}: novo '{fv.Value}' antigo '{Old(f, raw, p)}'");
+                            p += f.Size;
+                        }
+                    }
+                }
+            File.WriteAllText("decode-check.txt", $"{n:N0} campos conferidos · {bad:N0} diferentes\n{first}", new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--load-bench")   // <elements.data>: abre como o programa, sem janela; tempo por etapa e memória (load-bench.txt)
+        {
+            MyAceEditor.UI.ElementsLoadBundle.MemTrace = args.Length >= 3 && args[2] == "mem";
+            var total = System.Diagnostics.Stopwatch.StartNew();
+            var b = MyAceEditor.UI.ElementsLoadBundle.Read(args[1], null, new LoadContext(), null, null, null, null, null);
+            total.Stop();
+            long managed = GC.GetTotalMemory(forceFullCollection: true);
+            var proc = System.Diagnostics.Process.GetCurrentProcess();
+            File.WriteAllText("load-bench.txt", $"total {total.ElapsedMilliseconds} ms\n{MyAceEditor.UI.ElementsLoadBundle.LastTimes}\n"
+                + $"memoria gerenciada {managed / 1048576} MB · privada {proc.PrivateMemorySize64 / 1048576} MB · pico {proc.PeakWorkingSet64 / 1048576} MB\n"
+                + $"registros {b.Owners.Count:N0} · quests {b.TaskCount:N0} · icones {b.Atlas?.Count ?? 0:N0}" + $"\ntasks: {b.Tasks?.LoadTimes} · regravacao identica: {b.Tasks?.RoundTripVerified} · {b.Tasks?.ReadOnlyReason ?? b.Tasks?.SchemaError ?? "ok"}", new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--prefs-shot")   // <png>: tela de Preferências com 2 opções de exemplo
+        {
+            var w = new MyAceEditor.UI.PreferencesWindow(new MyAceEditor.UI.PreferencesWindow.Pref[]
+            {
+                new("Servidor local", "", () => "Velocidade de movimento sem a trava de 3 / 5 m/s", () => "Ligado: os bônus fixos de movimento somam sem limite (até 15 m/s). Desligado: regra original. Reinicia os mapas.", () => (false, null), _ => null),
+                new("Servidor local", "", () => "Exemplo indisponível", () => "Uma opção que depende de algo que não está pronto.", () => (null, "Servidor local ainda não instalado."), _ => null),
+            }) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
+            w.Show();
+            var until = DateTime.Now.AddSeconds(3);
+            while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(20); }
+            using var bmp = new System.Drawing.Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, w.Width, w.Height));
+            bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--wq-shot") { MyAceEditor.UI.QuestShotTest.Run(args[1], args.Length >= 3 ? int.Parse(args[2]) : 0); return; }   // <png>: painel e editor de quest do 3D com dados de exemplo
+        if (args.Length >= 3 && args[0] is "--gm-shot" or "--adm-shot")   // <png> <pasta element | pasta do servidor local>: print da janela fora da tela
+        {
+            Form w = args[0] == "--gm-shot" ? new MyAceEditor.UI.GmPanel(args[2])
+                : new MyAceEditor.UI.ServerAdminWindow(new LocalServer(args.Length >= 5 ? args[4] : ""), args[2], args.Length >= 4 ? args[3] : "", System.Drawing.Color.FromArgb(231, 236, 242), System.Drawing.Color.FromArgb(30, 39, 51), System.Drawing.Color.FromArgb(37, 99, 235));
+            w.StartPosition = FormStartPosition.Manual; w.Location = new System.Drawing.Point(-20000, -20000); w.ShowInTaskbar = false;
+            w.Show();
+            var until = DateTime.Now.AddSeconds(8);
+            while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
+            using var bmp = new System.Drawing.Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, w.Width, w.Height));
+            bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            w.Close();
             return;
         }
         if (args.Length >= 4 && args[0] == "--adm")   // <pasta do servidor local> deleterole|deleteaccount <id>: o mesmo do painel (adm.txt)
@@ -141,7 +246,7 @@ internal static class Program
         if (args.Length >= 4 && args[0] == "--field")   // <elements.data> <bloco> <campo>: valor nos 8 primeiros itens (field.txt)
         {
             var list = CfgCatalog.Load(args[1]).Module.FindListByName(args[2]);
-            File.WriteAllText("field.txt", string.Join("\n", (list?.Items ?? new()).Take(8).Select(i => $"{i.Id}\t{i.Name}\t{(i.Fields.TryGetValue(args[3], out var f) ? $"{f.Type}: {f.Value}" : "(sem o campo)")}")), new UTF8Encoding(false));
+            File.WriteAllText("field.txt", string.Join("\n", (list?.Items ?? new()).Where(i => args.Length < 5 || i.Id == args[4]).Take(8).Select(i => $"{i.Id}\t{i.Name}\t{(i.Fields.TryGetValue(args[3], out var f) ? $"{f.Type}: {f.Value}" : "(sem o campo)")}")), new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 2 && args[0] == "--drops")   // <elements.data> [elements antigo]: drop dos monstros novos/mudados (ou com item a 100%) (drops.txt)
@@ -159,6 +264,19 @@ internal static class Program
                 sb.AppendLine("\titens: " + string.Join(", ", drops.Select(d => $"{d.Id} ({d.P})")));
             }
             File.WriteAllText("drops.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--new-items")   // <elements novo> <elements antigo>: registros que só existem no novo (new-items.txt)
+        {
+            var a = CfgCatalog.Load(args[1]).Module; var b = CfgCatalog.Load(args[2]).Module;
+            var sb = new StringBuilder();
+            foreach (var l in a.Lists)
+            {
+                var old = b.FindListByName(l.Name)?.Items.Select(i => i.Id).ToHashSet() ?? new();
+                foreach (var it in l.Items.Where(i => !old.Contains(i.Id)))
+                    sb.AppendLine($"{l.Name}\t{it.Id}\t{it.Name}\t" + string.Join(" ", it.Fields.Where(f => f.Key is "proc_type" or "id_major_type" or "id_sub_type" or "pile_num_max" or "file_matter" or "level").Select(f => $"{f.Key}={f.Value.Value}")));
+            }
+            File.WriteAllText("new-items.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 4 && args[0] == "--item-diff")   // <elements.data> <id> <id>: campos que diferem entre os dois itens (item-diff.txt)
@@ -253,6 +371,34 @@ internal static class Program
             }
             var probs = ItemRules.Check(mod);
             File.WriteAllText("item-rules.txt", string.Join("\n", probs.GroupBy(p => p.Rule).Select(g => $"{g.Key}: {g.Count()}  ex.: {g.First()}")) + "\n", new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 5 && args[0] == "--instmap")   // <pasta element> <tag> <npcgen.data do servidor> <saída.png>: pergaminho da tecla M + pontos do npcgen (confere a conversão)
+        {
+            using var im = InstanceMap.Load(args[1], int.Parse(args[2]));
+            if (im is null) { File.WriteAllText("instmap.txt", "sem mapa"); return; }
+            using var bmp = new System.Drawing.Bitmap(im.Image);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+                foreach (var sp in NpcGenFile.Read(File.ReadAllBytes(args[3])).Spawns)
+                {
+                    var q = im.ToPixel(sp.Position.X, sp.Position.Z);
+                    g.FillEllipse(sp.Type == 0 ? System.Drawing.Brushes.Red : System.Drawing.Brushes.Blue, q.X - 4, q.Y - 4, 8, 8);
+                }
+            bmp.Save(args[4], System.Drawing.Imaging.ImageFormat.Png);
+            File.WriteAllText("instmap.txt", $"{im.Image.Width}x{im.Image.Height}");
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--backup-test")   // <pasta vazia>: cliente falso, 7 gravações + .bak antigo recolhido; armazém fora do cliente (backup-test.txt)
+        {
+            var el = Path.Combine(args[1], "element", "data"); Directory.CreateDirectory(el);
+            var f = Path.Combine(el, "elements.data");
+            for (int i = 0; i < 7; i++) AtomicFileSave.Write(f, Encoding.ASCII.GetBytes(new string((char)('a' + i), 100_000)));
+            File.WriteAllText(f + ".20260101-120000.bak", "antigo");
+            var mig = BackupStore.Migrate(args[1]);
+            var left = Directory.EnumerateFiles(args[1], "*", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(args[1], p));
+            var store = Directory.EnumerateFiles(BackupStore.Root, "elements.data.*", SearchOption.AllDirectories).Where(p => p.Contains(Path.GetFileName(args[1].TrimEnd('\\'))))
+                .Select(p => $"{Path.GetRelativePath(BackupStore.Root, p)} {new FileInfo(p).Length} B");
+            File.WriteAllText("backup-test.txt", $"recolhidos {mig.Files}\nno cliente:\n{string.Join("\n", left)}\nno armazém:\n{string.Join("\n", store)}\n", new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 3 && args[0] == "--next-id")   // <elements.data> <bloco>: ID que Clonar/Novo item daria e itens de loja acima do limite (next-id.txt)
@@ -644,6 +790,8 @@ internal static class Program
             using var bmp = w.CaptureFrame();
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
+        // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
+        using (var full = new System.Drawing.Bitmap(w.Width, w.Height)) { w.DrawToBitmap(full, new System.Drawing.Rectangle(0, 0, w.Width, w.Height)); full.Save(Path.Combine(outDir, "window.png"), System.Drawing.Imaging.ImageFormat.Png); }
         var miss = MyAceEditor.UI.WorldBuildings.MissingTextures.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (miss.Count > 0) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), $"texturas de construção não achadas ({miss.Count}):\n" + string.Join("\n", miss.Take(40)) + "\n");
         w.Close();
@@ -651,6 +799,7 @@ internal static class Program
 
     private static void Snapshot(string outPng, string? tab, (string Block, string Id)? item, string? group = null)
     {
+        MyAceEditor.UI.ReadProgressDialog.Offscreen = true;
         using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
         f.Show();
         if (tab is not null && f.Controls.OfType<TabControl>().FirstOrDefault() is { } tc)
@@ -1149,8 +1298,47 @@ internal static class Program
                     + (x.Talks[0].Windows.Count > 0 ? $" ao dar \"{x.Talks[0].Windows[0].Text}\"" : "") + (x.Talks[4].Windows.Count > 0 ? $" prêmio \"{x.Talks[4].Windows[0].Text}\"" : "")
                     + " · opções " + string.Join(" ", x.Talks.SelectMany((tp, ti) => tp.Windows.SelectMany(w => w.Options.Select(o => $"t{ti}:{o.Param}/{o.Id}")))));
             }
-            back2.DeleteRoot(p2);
-            sb.AppendLine($"sem a quest nova, regravação: {(back2.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
+            // editar (Mundo 3D): ler de volta para o rascunho, mudar e trocar no lugar
+            var e2 = QuestBuilder.FromQuest(back2, p2, out var why2);
+            sb.AppendLine($"ler para editar: {(e2 is null ? "NÃO — " + why2 : $"OK · {e2.Steps.Count} etapas, ordem {e2.Order}, exp {e2.Exp}, áreas {string.Join("/", e2.Steps.Select(s => s.Areas.Count))}")}");
+            if (e2 is not null)
+            {
+                e2.Steps[0].Name = "Primeiro lugar (editado)"; e2.Exp = 999;
+                var errE = QuestBuilder.Validate(back2, e2, _ => true, _ => true);
+                sb.AppendLine("  validação da edição: " + (errE.Count == 0 ? "OK" : string.Join("; ", errE)));
+                int at2 = back2.Roots!.IndexOf(p2);
+                var made = QuestBuilder.Replace(back2, p2, e2);
+                var back3 = new TasksFile(back2.Build());
+                var n3 = back3.Index.Find(d2.Id) as QuestNode;
+                sb.AppendLine($"  editada: posição {back3.Roots!.IndexOf(n3!)} (antes {at2}) · exp {V(n3!, "m_Award_S.m_ulExp")} · etapa 1 \"{n3!.Children[0].Name}\" · ordem {Flag(n3, "m_bExeChildInOrder")}");
+                back3.DeleteRoot(n3);
+                sb.AppendLine($"  sem a quest editada, regravação: {(back3.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
+            }
+        }
+
+        // editar recado (com opções) e quantas quests reais o assistente consegue abrir para editar
+        {
+            var t4 = new TasksFile(original);
+            d.Id = t4.NextFreeId();
+            var q4 = QuestBuilder.Build(t4, d);
+            var e4 = QuestBuilder.FromQuest(t4, q4, out var why4);
+            sb.AppendLine($"\n[editar recado] ler: {(e4 is null ? "NÃO — " + why4 : $"OK · opções {string.Join(",", e4.Choices.Select(c => c.Option.Id))} · itens {e4.Items.Count} sorteio {e4.RandomItem} · receptor {e4.Receiver}")}");
+            if (e4 is not null)
+            {
+                e4.Name = "Recado editado"; e4.Gold = 4321; e4.Choices.RemoveAll(c => c.Option.Id == "redo");
+                var made4 = QuestBuilder.Replace(t4, q4, e4);
+                var back4 = new TasksFile(t4.Build());
+                var n4 = (QuestNode)back4.Index.Find(d.Id)!;
+                var r4 = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(n4.Fixed)), back4.Version);
+                sb.AppendLine($"  editado: \"{n4.Name}\" ouro {V(n4, "m_Award_S.m_ulGoldNum")} · pode refazer {QuestOptions.GetFlag(r4, back4.Version, "m_bCanRedo")} · prêmio \"{n4.Talks[4].Windows[0].Text}\"");
+                back4.DeleteRoot(n4);
+                sb.AppendLine($"  sem o recado editado, regravação: {(back4.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
+            }
+            int ok = 0, n = 0;
+            foreach (var r in t4.Roots!.Take(3000)) { n++; if (QuestBuilder.FromQuest(t4, r, out _) is not null) ok++; }
+            sb.AppendLine($"  quests reais que abrem no assistente (primeiras {n}): {ok}");
+            var refs = QuestBuilder.ReferencedBy(t4, new HashSet<int> { tpl.Id });
+            sb.AppendLine($"  quests que apontam para {tpl.Id}: {refs.Count} ({string.Join(",", refs.Take(5))})");
         }
         File.WriteAllText("quest-create.txt", sb.ToString(), new UTF8Encoding(false));
     }

@@ -14,20 +14,20 @@ internal sealed class PckView : Panel
         Muted = Color.FromArgb(100, 112, 128), Accent = Color.FromArgb(37, 99, 235);
 
     readonly Func<string?> _elementDir;
-    readonly ComboBox _known = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
-    readonly TextBox _filter = new() { Width = 260, PlaceholderText = "" };
-    readonly Label _info = new() { AutoSize = true, ForeColor = Muted, Padding = new Padding(0, 6, 0, 0) };
+    readonly ComboBox _known = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280, Font = new Font("Segoe UI", 10f) };
+    readonly TextBox _filter = new() { Dock = DockStyle.Fill, PlaceholderText = "", BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f) };
+    readonly Label _info = new() { AutoSize = false, Height = 24, ForeColor = Muted, Padding = new Padding(2, 5, 0, 0) };
+    readonly Label _empty = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(150, 160, 175), Font = new Font("Segoe UI", 11f), BackColor = Color.FromArgb(40, 44, 52) };
     readonly ListView _lv = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, VirtualMode = true, HideSelection = false, BorderStyle = BorderStyle.None };
     readonly PictureBox _pic = new() { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(40, 44, 52) };
     readonly TextBox _text = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Font = new Font("Consolas", 9.5f), Visible = false };
-    readonly Button _extractSel = new(), _extractAll = new(), _open = new(), _cancel = new();
+    ToolStripButton _extractSel = null!, _extractAll = null!, _cancel = null!, _destChange = null!, _editUi = null!;
+    ToolStripDropDownButton _uiMenu = null!;
     readonly ProgressBar _bar = new() { Dock = DockStyle.Bottom, Height = 6, Visible = false };
 
     PckArchive? _pck;
     string? _dest;   // pasta de destino; padrão = <pacote>.files ao lado do .pck (como o sPCK)
-    readonly Label _destLabel = new() { AutoSize = true, ForeColor = Muted, Padding = new Padding(10, 7, 0, 0), MaximumSize = new Size(420, 0) };
-    readonly Button _destChange = new();
-    readonly Button _editUi = new(), _uiMenu = new();
+    readonly Label _destLabel = new() { Dock = DockStyle.Right, AutoSize = false, Width = 420, ForeColor = Muted, TextAlign = ContentAlignment.MiddleRight, AutoEllipsis = true };
     InterfaceView? _editor;
 
     // o pacote aberto foi regravado: o leitor antigo aponta para o backup
@@ -45,30 +45,35 @@ internal sealed class PckView : Panel
     public PckView(Func<string?> elementDir)
     {
         _elementDir = elementDir;
-        Dock = DockStyle.Fill; BackColor = Bg; Padding = new Padding(10);
+        Dock = DockStyle.Fill; BackColor = Bg; Padding = new Padding(0);
 
-        var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, WrapContents = false, BackColor = Bg };
-        Button B(Button b, Action a, int w = 150) { b.Width = w; b.Height = 28; b.FlatStyle = FlatStyle.Flat; b.BackColor = Surface; b.ForeColor = Fg; b.Click += (_, _) => a(); return b; }
-        top.Controls.Add(_known);
-        top.Controls.Add(B(_open, OpenOther, 130));
-        top.Controls.Add(new Label { Width = 14 });
-        top.Controls.Add(_filter);
-        top.Controls.Add(B(_extractSel, () => Extract(selectedOnly: true), 190));
-        top.Controls.Add(B(_extractAll, () => Extract(selectedOnly: false), 150));
-        top.Controls.Add(B(_cancel, () => _work?.Cancel(), 90));
-        top.Controls.Add(B(_editUi, OpenEditor, 170));
-        _editUi.BackColor = Color.FromArgb(255, 244, 214);
+        // barra de comandos estilo Word: escolher o pacote, extrair, interface, destino
+        var top = UiKit.Ribbon();
+        var pick = new ToolStripControlHost(_known) { Margin = new Padding(2, 12, 6, 0), AutoSize = false, Width = 280 };
+        top.Items.Add(pick);
+        UiKit.Cmd(top, UiKit.OpenFile, "pck.rOpen", "Abrir outro", OpenOther, "pck.open", "Abrir outro .pck…");
+        UiKit.Sep(top);
+        _extractSel = UiKit.Cmd(top, UiKit.Export, "pck.rExtractSel", "Extrair selecionados", () => Extract(selectedOnly: true), "pck.rExtractSelTip", "Extrai os arquivos marcados na lista para a pasta de destino.", primary: true);
+        _extractAll = UiKit.Cmd(top, UiKit.Box, "pck.rExtractAll", "Extrair tudo", () => Extract(selectedOnly: false), "pck.rExtractAllTip", "Extrai todos os arquivos da lista (respeita o filtro).");
+        _cancel = UiKit.Cmd(top, UiKit.Cancel, "dlg.cancel", "Cancelar", () => _work?.Cancel());
+        UiKit.Sep(top);
+        _editUi = UiKit.Cmd(top, UiKit.Edit, "pck.rEditUi", "Editar interfaces", OpenEditor, "pck.rEditUiTip", "Abre as janelas do jogo deste pacote para editar na tela.");
         // importar (conferido) / trocar com outro cliente / telas de carregamento, para qualquer pacote (UiTools)
-        var menu = new ContextMenuStrip();
-        void M(string key, string pt, Action a) { var i = new ToolStripMenuItem(Loc.T(key, pt)); i.Click += (_, _) => a(); AppLang.Changed += () => i.Text = Loc.T(key, pt); menu.Items.Add(i); }
-        M("ui.mImport", "Importar pasta (confere antes de gravar)…", () => { if (_pck is { } p) Reopen(UiTools.Import(this, p.FilePath)); });
-        M("ui.mSwap", "Trocar com a interface de outro cliente…", () => { if (_pck is { } p) Reopen(UiTools.Swap(this, p.FilePath)); });
-        M("ui.mLoading", "Telas de carregamento…", () => Reopen(UiTools.LoadingScreens(this, _elementDir())));
-        top.Controls.Add(B(_uiMenu, () => menu.Show(_uiMenu, new Point(0, _uiMenu.Height)), 120));
-        top.Controls.Add(_destLabel);
-        top.Controls.Add(B(_destChange, ChangeDest, 110));
+        _uiMenu = UiKit.Menu(top, UiKit.Swap, "pck.rUiMenu", "Interface");
+        UiKit.Item(_uiMenu, UiKit.Download, "ui.mImport", "Importar pasta (confere antes de gravar)…", () => { if (_pck is { } p) Reopen(UiTools.Import(this, p.FilePath)); });
+        UiKit.Item(_uiMenu, UiKit.Swap, "ui.mSwap", "Trocar com a interface de outro cliente…", () => { if (_pck is { } p) Reopen(UiTools.Swap(this, p.FilePath)); });
+        UiKit.Item(_uiMenu, UiKit.Picture, "ui.mLoading", "Telas de carregamento…", () => Reopen(UiTools.LoadingScreens(this, _elementDir())));
+        UiKit.Sep(top);
+        _destChange = UiKit.Cmd(top, UiKit.Folder, "pck.rDest", "Pasta de destino", ChangeDest, "pck.dest", "Pasta de destino (as subpastas do pacote são mantidas)");
+        UiKit.Cmd(top, UiKit.Folder, "pck.rOpenDest", "Abrir destino", () => { if (_dest is not null) { Directory.CreateDirectory(_dest); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_dest) { UseShellExecute = true }); } }, "pck.rOpenDestTip", "Abre a pasta de destino no Explorer.");
         _cancel.Visible = false;
-        _extractSel.BackColor = Accent; _extractSel.ForeColor = Color.White;
+
+        // busca com lupa, como nos programas do Windows; o destino fica à direita
+        var searchRow = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(0, 8, 0, 4), BackColor = Bg };
+        var box = new Panel { Dock = DockStyle.Left, Width = 380, BackColor = Bg, Padding = new Padding(28, 0, 0, 0) };
+        var lupa = new PictureBox { Image = UiKit.Icon(UiKit.Search, Muted, 18), Size = new Size(18, 18), Location = new Point(5, 5) };
+        box.Controls.Add(_filter); box.Controls.Add(lupa);
+        searchRow.Controls.Add(box); searchRow.Controls.Add(_destLabel);
 
         _lv.Columns.Add("", 520); _lv.Columns.Add("", 100, HorizontalAlignment.Right); _lv.Columns.Add("", 100, HorizontalAlignment.Right);
         _lv.RetrieveVirtualItem += (_, e) =>
@@ -83,10 +88,13 @@ internal sealed class PckView : Panel
 
         var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 760, BackColor = Bg };
         split.Panel1.Controls.Add(_lv);
-        split.Panel2.Controls.Add(_pic); split.Panel2.Controls.Add(_text);
-        Controls.Add(split); Controls.Add(_bar); Controls.Add(_info); Controls.Add(top);
-        _listMode = new Control[] { split, _bar, _info, top };
+        split.Panel2.Controls.Add(_pic); split.Panel2.Controls.Add(_text); split.Panel2.Controls.Add(_empty);
+        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 0, 10, 6), BackColor = Bg };
+        body.Controls.Add(split); body.Controls.Add(searchRow); body.Controls.Add(_bar); body.Controls.Add(_info);
+        Controls.Add(body); Controls.Add(top);
+        _listMode = new Control[] { body, top };
         _info.Dock = DockStyle.Bottom;
+        _filter.Parent!.BringToFront();
 
         _known.SelectedIndexChanged += (_, _) => { if (_known.SelectedItem is string f && f.Contains(':')) Open(Path.Combine(_elementDir() ?? "", f.Split(':')[0].Trim())); };
         _filter.TextChanged += (_, _) => ApplyFilter();
@@ -97,12 +105,7 @@ internal sealed class PckView : Panel
 
     void Texts()
     {
-        _open.Text = Loc.T("pck.open", "Abrir outro .pck…");
         _filter.PlaceholderText = Loc.T("pck.filter", "Filtrar (ex.: .dds, configs\\, skillstr)");
-        _extractAll.Text = Loc.T("pck.extractAll", "Extrair tudo");
-        _destChange.Text = Loc.T("pck.changeDest", "Mudar pasta…");
-        _uiMenu.Text = Loc.T("pck.uiMenu", "Interface ▾");
-        _cancel.Text = Loc.T("dlg.cancel", "Cancelar");
         _lv.Columns[0].Text = Loc.T("pck.colPath", "Arquivo"); _lv.Columns[1].Text = Loc.T("pck.colSize", "Tamanho"); _lv.Columns[2].Text = Loc.T("pck.colPacked", "Compactado");
         UpdateButtons(); UpdateInfo();
     }
@@ -223,10 +226,12 @@ internal sealed class PckView : Panel
     {
         int n = _lv.SelectedIndices.Count;
         _destLabel.Text = _dest is null ? "" : Loc.T("pck.to", "Destino: ") + _dest;
-        _destChange.Visible = _pck is not null;
-        _editUi.Visible = _dialogCount > 0;
-        _editUi.Text = string.Format(Loc.T("pck.editUi", "✎ Editar interfaces ({0})"), _dialogCount);
-        _extractSel.Text = string.Format(Loc.T("pck.extractSel", "Extrair selecionados ({0})"), n);
+        _destChange.Enabled = _pck is not null;
+        _editUi.Enabled = _dialogCount > 0;
+        _editUi.Text = _dialogCount > 0 ? string.Format(Loc.T("pck.rEditUiN", "Editar interfaces ({0})"), _dialogCount) : Loc.T("pck.rEditUi", "Editar interfaces");
+        _extractSel.Text = n > 0 ? string.Format(Loc.T("pck.rExtractSelN", "Extrair {0} selecionado(s)"), n) : Loc.T("pck.rExtractSel", "Extrair selecionados");
+        _empty.Text = _pck is null ? Loc.T("pck.emptyNoPck", "Escolha um pacote na barra acima") : Loc.T("pck.emptyPick", "Clique num arquivo para ver a prévia\n(imagens e textos)");
+        _empty.Visible = _pck is null || n != 1;
         _extractSel.Enabled = n > 0 && _work is null;
         _extractAll.Enabled = _view.Count > 0 && _work is null;
     }
@@ -253,6 +258,7 @@ internal sealed class PckView : Panel
             else if (ext is ".png" or ".bmp" or ".jpg" or ".jpeg" or ".gif")
                 img = Image.FromStream(new MemoryStream(data));
             _pic.Image?.Dispose(); _pic.Image = img;
+            _empty.Visible = false;
             bool text = img is null && ext is ".txt" or ".ini" or ".cfg" or ".xml" or ".stf" or ".htm" or ".conf" or ".sdr" or ".gfx" or ".ecm" or ".smd";
             _text.Visible = text; _pic.Visible = !text;
             if (text) _text.Text = DecodeText(data);

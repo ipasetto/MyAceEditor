@@ -135,7 +135,9 @@ public sealed class EditorForm : Form
         Font = new Font("Segoe UI", 9.5f);
 
         Loc.Changed += () => { if (IsHandleCreated) BeginInvoke(ApplyLanguage); else ApplyLanguage(); };
-        Controls.Add(BuildTabs());
+        var tabs = BuildTabs();
+        Controls.Add(tabs);
+        Controls.Add(BuildNav(tabs));
         Controls.Add(BuildToolbar());
         Controls.Add(BuildMenu());
         Controls.Add(BuildStatus());
@@ -243,9 +245,41 @@ public sealed class EditorForm : Form
         var exportLog = new ToolStripMenuItem { ForeColor = CAccent, Font = new Font("Segoe UI Semibold", 9f), Alignment = ToolStripItemAlignment.Right, Margin = new Padding(0, 0, 8, 0) };
         exportLog.Click += (_, _) => ExportLog();
         Bind(() => { exportLog.Text = Loc.T("menu.exportLog", "Exportar log"); exportLog.ToolTipText = Loc.T("menu.exportLogTip", "Junta o log de erros do programa num .zip para enviar a quem desenvolve"); });
-        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, tools, aj, lg, exportLog });
+        // Preferências: abre a tela de preferências (uma linha com interruptor por opção; PreferencesWindow)
+        var prefs = M();
+        prefs.Click += (_, _) => OpenPreferences();
+        Bind(() => prefs.Text = Loc.T("menu.prefs", "&Preferências"));
+        menu.Items.AddRange(new ToolStripItem[] { arq, ed, view, tools, prefs, aj, exportLog });   // idioma: botão grande na barra de cima (BuildToolbar)
         MainMenuStrip = menu;
         return menu;
+    }
+
+    // Preferências → trava de velocidade do gs (pwctl speedcap / speedcap-set): o estado vem do próprio gs instalado
+    private ServerAdmin? PrefsAdmin() => _serverView is null || !LocalServer.DistroExists() ? null : new ServerAdmin(_serverView.CreateServer());
+
+    /// <summary>Tela de Preferências. Preferência nova = mais um Pref na lista (seção, ícone, nome, explicação, ler, aplicar).</summary>
+    private void OpenPreferences()
+    {
+        var server = Loc.T("prefs.secServer", "Servidor local");
+        var list = new List<PreferencesWindow.Pref>
+        {
+            // ligado = trava REMOVIDA (o que o usuário liga é "velocidade sem limite"); o gs instalado diz o estado real
+            new(server, "\uE945",
+                () => Loc.T("prefs.speedCapTitle", "Velocidade de movimento sem a trava de 3 / 5 m/s"),
+                () => Loc.T("prefs.speedCapDetail", "Ligado: os bônus fixos de movimento dos equipamentos somam sem limite (até os 15 m/s do jogo). Desligado: regra original (acima de 3 vira 3; acima de 5 vira 0). Reinicia os mapas."),
+                () => PrefsAdmin()?.SpeedCap() switch
+                {
+                    "off" => (true, null), "on" => (false, null),
+                    "none" => (null, Loc.T("prefs.speedCapNone", "O gs deste servidor é de uma versão em que o trecho da trava não foi encontrado: nada é alterado.")),
+                    _ => (null, Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado.")),
+                },
+                on => PrefsAdmin()?.SetSpeedCap(on: !on) is { } r ? (r.Output.Contains("##OK") ? null : Loc.T("prefs.speedCapFail", "Não consegui alterar a trava: ") + r.Output.Trim())
+                    : Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado."),
+                on => on ? Loc.T("prefs.speedCapAskOff", "Remover a trava de velocidade do servidor local?\n\nO gs é alterado (2 bytes; o original fica guardado) e os mapas reiniciam: quem estiver no jogo cai.")
+                         : Loc.T("prefs.speedCapAskOn", "Voltar a trava original de velocidade?\n\nOs mapas reiniciam: quem estiver no jogo cai.")),
+        };
+        using var w = new PreferencesWindow(list);
+        w.ShowDialog(this);
     }
 
     // Ferramentas → Salvar cópia do servidor local: pasta no formato "server files" (backup ou base para outro servidor)
@@ -288,38 +322,53 @@ public sealed class EditorForm : Form
 
     private ToolStrip BuildToolbar()
     {
-        var tb = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, BackColor = CSurface2, ForeColor = CFg, Renderer = new LightRenderer(), Padding = new Padding(6, 3, 6, 3) };
-        ToolStripButton B(Action a, Action<ToolStripButton> text) { var b = new ToolStripButton { ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) }; b.Click += (_, _) => a(); Bind(() => text(b)); return b; }
-        tb.Items.Add(B(() => Navigate(-1), b => { b.Text = "◀"; b.ToolTipText = Loc.T("tb.back", "Voltar (item anterior)"); }));
-        tb.Items.Add(B(() => Navigate(+1), b => { b.Text = "▶"; b.ToolTipText = Loc.T("tb.forward", "Avançar"); }));
-        tb.Items.Add(new ToolStripSeparator());
-        tb.Items.Add(B(OpenPwFolder, b => b.Text = Loc.T("tb.openPw", "Abrir pasta do PW")));
-        tb.Items.Add(B(OpenElements, b => b.Text = Loc.T("tb.openElements", "Abrir elements.data")));
-        tb.Items.Add(B(SaveCurrent, b => b.Text = Loc.T("tb.save", "Salvar")));
-        tb.Items.Add(_sendBtn = B(SaveAndSend, b => { b.Text = Loc.T("tb.saveSend", "💾 Salvar e enviar ao servidor"); UpdateSendGlow(); }));
+        var tb = UiKit.Ribbon();
+        UiKit.Cmd(tb, UiKit.Back, "tb.rBack", "Voltar", () => Navigate(-1), "tb.back", "Voltar (item anterior)");
+        UiKit.Cmd(tb, UiKit.Forward, "tb.rForward", "Avançar", () => Navigate(+1), "tb.forward", "Avançar");
+        UiKit.Sep(tb);
+        UiKit.Cmd(tb, UiKit.Folder, "tb.rOpenPw", "Abrir pasta do PW", OpenPwFolder, "tb.rOpenPwTip", "Abre a pasta do jogo: todas as áreas passam a usar ela.");
+        UiKit.Cmd(tb, UiKit.OpenFile, "tb.rOpenEl", "Abrir elements", OpenElements, "tb.openElements", "Abrir elements.data");
+        UiKit.Cmd(tb, UiKit.Save, "tb.rSave", "Salvar", SaveCurrent, "tb.rSaveTip", "Grava tudo o que mudou (Ctrl+S), com backup fora do cliente.");
+        _sendBtn = UiKit.Cmd(tb, UiKit.Upload, "tb.rSaveSend", "Salvar e enviar", SaveAndSend, "tb.saveSendTip", "Grava tudo o que mudou e leva para o servidor local (aba Servidor), reiniciando-o", primary: true);
+        Bind(UpdateSendGlow);
         _glowTimer.Tick += (_, _) => UpdateSendGlow();
         _glowTimer.Start();
-        tb.Items.Add(new ToolStripSeparator());
-        tb.Items.Add(B(AddItem, b => b.Text = Loc.T("tb.add", "＋ Adicionar")));
-        tb.Items.Add(B(RemoveItem, b => b.Text = Loc.T("tb.delete", "🗑 Excluir")));
-        tb.Items.Add(B(() => { if (_tabs is not null) _tabs.SelectedIndex = 0; CreateCreatureWizard(this, NpcGenView.Kind.Monster); },
-            b => b.Text = Loc.T("tb.newCreature", "✚ Monstro/NPC novo")));
-        tb.Items.Add(B(() => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); },
-            b => b.Text = Loc.T("tb.world", "🌐 Mundo 3D")));
+        UiKit.Sep(tb);
+        UiKit.Cmd(tb, UiKit.Add, "tb.rAdd", "Adicionar", AddItem, "tb.rAddTip", "Novo registro no bloco aberto.");
+        UiKit.Cmd(tb, UiKit.Delete, "tb.rDelete", "Excluir", RemoveItem, "tb.rDeleteTip", "Exclui o registro escolhido (Ctrl+Z desfaz).");
+        UiKit.Cmd(tb, UiKit.People, "tb.rCreature", "Monstro/NPC novo", () => { if (_tabs is not null) _tabs.SelectedIndex = 0; CreateCreatureWizard(this, NpcGenView.Kind.Monster); }, "tb.rCreatureTip", "Cria um monstro ou NPC a partir de um modelo, com ID livre.");
+        // idioma do programa: bandeira grande à direita, com o nome do idioma; a lista mostra cada um com a sua bandeira
+        var lang = new ToolStripDropDownButton { Alignment = ToolStripItemAlignment.Right, TextImageRelation = TextImageRelation.ImageAboveText, Padding = new Padding(6, 2, 6, 2), ForeColor = CFg };
+        static Image Big(Image? small)
+        {
+            var b = new Bitmap(30, 20);
+            if (small is null) return b;
+            using var g = Graphics.FromImage(b); g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.DrawImage(small, new Rectangle(0, 0, 30, 20)); using var p = new Pen(Color.FromArgb(60, 0, 0, 0)); g.DrawRectangle(p, 0, 0, 29, 19);
+            return b;
+        }
+        foreach (var (code, name) in AppLang.All)
+        {
+            var mi = new ToolStripMenuItem(name) { Image = FlagIcons.Get(code), Tag = code };
+            mi.Click += (_, _) => AppLang.Current = code;
+            lang.DropDownItems.Add(mi);
+        }
+        Bind(() =>
+        {
+            lang.Image = Big(FlagIcons.Get(AppLang.Current));
+            lang.Text = AppLang.All.FirstOrDefault(x => x.Item1 == AppLang.Current).Item2 ?? AppLang.Current;
+            lang.ToolTipText = Loc.T("tb.langTip", "Idioma do programa (traduzir a tela)");
+            foreach (ToolStripMenuItem x in lang.DropDownItems) x.Checked = (string?)x.Tag == AppLang.Current;
+        });
+        tb.Items.Add(lang);
+        UiKit.Cmd(tb, UiKit.Globe, "tb.rWorld", "Mundo 3D", () => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); }, "tb.rWorldTip", "Abre o mapa do jogo em 3D com os pontos do NPCGen.");
         return tb;
     }
 
     private TabControl BuildTabs()
     {
-        var tabs = new TabControl { Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(130, 30) };
-        tabs.DrawItem += (s, e) =>
-        {
-            var tp = tabs.TabPages[e.Index]; bool sel = e.Index == tabs.SelectedIndex;
-            e.Graphics.FillRectangle(new SolidBrush(sel ? CBg : CSurface2), e.Bounds);
-            if (sel) e.Graphics.FillRectangle(new SolidBrush(CAccent), new Rectangle(e.Bounds.X, e.Bounds.Bottom - 3, e.Bounds.Width, 3));
-            TextRenderer.DrawText(e.Graphics, tp.Text, new Font("Segoe UI", 10, sel ? FontStyle.Bold : FontStyle.Regular),
-                e.Bounds, sel ? CAccent : CMuted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        };
+        // as páginas continuam num TabControl, mas sem cabeçalhos: quem troca de página é a navegação lateral (BuildNav)
+        var tabs = new TabControl { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
         var tEl = new TabPage() { BackColor = CBg };
         Bind(() => tEl.Text = Loc.T("tab.elements", "Elements"));
         tEl.Controls.Add(BuildElements());
@@ -393,6 +442,30 @@ public sealed class EditorForm : Form
         return tabs;
     }
 
+    /// <summary>Barra lateral com ícone e nome de cada área do programa; a dica diz o que se faz ali.</summary>
+    private NavBar BuildNav(TabControl tabs)
+    {
+        var nav = new NavBar(tabs);
+        (string Glyph, string Key, string Tip, string TipPt)[] pages =
+        {
+            (UiKit.Library, "tab.elements", "nav.elementsTip", "Itens, monstros, NPCs, habilidades: o elements.data"),
+            (UiKit.Flag, "tab.quests", "nav.questsTip", "Missões (tasks.data)"),
+            (UiKit.Cart, "tab.gshop", "nav.gshopTip", "Loja de cash, na mesma tela do jogo"),
+            (UiKit.MapPin, "tab.npcgen", "nav.npcgenTip", "Onde nascem monstros, NPCs e recursos; Mundo 3D"),
+            (UiKit.Robot, "tab.aipolicy", "nav.aiTip", "Comportamento dos monstros (aipolicy.data)"),
+            (UiKit.CheckList, "tab.verify", "nav.verifyTip", "Confere se cliente e servidor combinam e corrige"),
+            (UiKit.Server, "tab.server", "nav.serverTip", "Servidor de teste no seu PC: ligar, enviar, administrar"),
+            (UiKit.Box, "tab.pck", "nav.pckTip", "Pacotes .pck: extrair, interfaces, telas de carregamento"),
+        };
+        for (int i = 0; i < pages.Length && i < tabs.TabPages.Count; i++)
+        {
+            var (g, key, tip, tipPt) = pages[i];
+            var page = tabs.TabPages[i];
+            nav.Add(g, () => page.Text, () => Loc.T(tip, tipPt), page);
+        }
+        return nav;
+    }
+
     private Control BuildElements()
     {
         _split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, SplitterWidth = 6, BackColor = CLine, Panel1MinSize = 300, SplitterDistance = 430 };
@@ -426,7 +499,8 @@ public sealed class EditorForm : Form
             if (had && !_search.Focused) { _search.Focus(); _search.SelectionStart = _search.TextLength; }
         };
         _search.TextChanged += (_, _) => { searchDelay.Stop(); searchDelay.Start(); };
-        _searchAll.ForeColor = CTreeFg; _searchAll.BackColor = CTreeBg;
+        _searchAll.ForeColor = CTreeFg; _searchAll.BackColor = CTreeBg; _searchAll.AutoSize = true; _searchAll.Dock = DockStyle.Right; _searchAll.Padding = new Padding(6, 3, 0, 0);
+        Bind(() => _searchAll.Text = Loc.T("list.searchAllShort", "em todos os blocos"));
         _searchAll.CheckedChanged += (_, _) => RefreshView();
         Bind(() => _tip.SetToolTip(_searchAll, Loc.T("list.searchAll", "Buscar em todos os blocos")));
         searchRow.Controls.Add(_search);
@@ -481,12 +555,39 @@ public sealed class EditorForm : Form
         Bind(() => footDel.Text = Loc.T("footer.delete", "✕ Excluir"));
 
         var listHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0), BackColor = CTreeBg };
-        listHost.Controls.Add(_list);
+        listHost.Controls.Add(_list); listHost.Controls.Add(_recentList);
+        BuildRecentList();
+        // "Todos os itens" (bloco + busca) ou "Recentes" (o que você abriu por último, de qualquer bloco)
+        var mode = new TableLayoutPanel { Dock = DockStyle.Top, Height = 38, ColumnCount = 3, BackColor = CTreeBg, Padding = new Padding(0, 0, 0, 6) };
+        mode.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36)); mode.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32)); mode.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
+        RadioButton Mode(string glyph, Func<string> t)
+        {
+            var r = new RadioButton { Appearance = Appearance.Button, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, ForeColor = CTreeFg, BackColor = CTreeInput, Margin = new Padding(0, 0, 4, 0),
+                TextAlign = ContentAlignment.MiddleCenter, Image = UiKit.Icon(glyph, CTreeFg, 16), TextImageRelation = TextImageRelation.ImageBeforeText, Cursor = Cursors.Hand };
+            r.FlatAppearance.BorderColor = CTreeInput; r.FlatAppearance.CheckedBackColor = CAccent;
+            Bind(() => r.Text = t());
+            return r;
+        }
+        var all = Mode("\uE8FD", () => Loc.T("list.modeAll", "Todos os itens"));
+        _favModeBtn = Mode("\uE734", FavModeText);
+        _recentMode = Mode("\uE81C", () => _recentKeys.Count > 0 ? string.Format(Loc.T("list.modeRecentN", "Recentes ({0})"), _recentKeys.Count) : Loc.T("list.modeRecent", "Recentes"));
+        all.Checked = true;
+        mode.Controls.Add(all, 0, 0); mode.Controls.Add(_favModeBtn, 1, 0); mode.Controls.Add(_recentMode, 2, 0);
+        void ApplyMode()
+        {
+            bool rec = _recentMode.Checked;
+            _favMode = _favModeBtn.Checked;
+            _list.Visible = !rec; _recentList.Visible = rec;
+            searchRow.Visible = !rec; _blockCombo.Visible = !rec && !_favMode; _typeCombo.Visible = !rec && !_favMode && _typeCombo.Tag is true;
+            if (rec) FillRecent(); else RefreshView();
+        }
+        foreach (var r in new[] { all, _favModeBtn, _recentMode }) r.CheckedChanged += (_, _) => { if (r.Checked) ApplyMode(); };
         left.Controls.Add(listHost);
         left.Controls.Add(foot);
         left.Controls.Add(searchRow);
         left.Controls.Add(_typeCombo);
         left.Controls.Add(_blockCombo);
+        left.Controls.Add(mode);
         _favorites.Clear();
         foreach (var k in LoadFavorites()) _favorites.Add(k);
         _split.Panel1.Controls.Add(left);
@@ -523,7 +624,15 @@ public sealed class EditorForm : Form
             _tip.SetToolTip(_btnDropEd, Loc.T("tip.dropEditor", "Chance de cair 0–3 itens e a lista de drops com ícones e barras (também no clique direito da grade)"));
         });
         tVal.Controls.Add(_editorBar);
-        tVal.Controls.Add(_groupTabs);
+        // seções do item (Básico, Requisitos, Ataque…) numa coluna à esquerda: cabem todas, com ícone e contagem
+        _sections.GlyphOf = o => o is SectionItem si ? SectionGlyph(si.Page.Tag as string ?? "") : null;
+        tVal.Controls.Add(_sections);
+        _sections.SelectedIndexChanged += (_, _) =>
+        {
+            if (_syncSections || _sections.SelectedItem is not SectionItem si) return;
+            _groupTabs.SelectedTab = si.Page;
+            if (_current is not null) FillGrid(_current);
+        };
         _groupTabs.SelectedIndexChanged += (_, _) => { if (_current is not null) FillGrid(_current); };
         // Buscar por campo (no bloco atual)
         var tFind = new TabPage() { BackColor = CSurface };
@@ -597,6 +706,9 @@ public sealed class EditorForm : Form
         Bind(() => _tabMake.Text = Loc.T("detail.make", "Fabricação (como no jogo)"));
         _detailTabs.SelectedIndexChanged += (_, _) => { if (_detailTabs.SelectedTab == _tabLinks && _current is not null) FillLinks(_current); };
         right.Controls.Add(_detailTabs);
+        // Valores / Vínculos / Buscar / Descrição viram botões em pílula com ícone
+        right.Controls.Add(new SegmentBar(_detailTabs, pg => pg == tVal ? "\uE9D9" : pg == _tabLinks ? "\uE71B" : pg == tFind ? "\uE721" : pg == tDesc ? "\uE70F"
+            : pg == _tabShop ? "\uE719" : pg == _tabMake ? "\uE90F" : null));
         right.Controls.Add(headPanel);
         _split.Panel2.Controls.Add(right);
         return _split;
@@ -638,7 +750,15 @@ public sealed class EditorForm : Form
         _grid.CellEndEdit += (_, e) => OnFieldEdited(e.RowIndex);
         // caixa de seleção: confirma o clique na hora (senão só grava ao sair da célula)
         _grid.CurrentCellDirtyStateChanged += (_, _) => { if (_grid.IsCurrentCellDirty) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
+        _grid.CellPainting += PaintSection;
         _grid.CellPainting += PaintExtras;
+        _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(249, 250, 252);
+        _grid.RowTemplate.Height = 28;
+        _grid.Columns[2].DefaultCellStyle.Font = new Font("Segoe UI", 9f);
+        // colunas proporcionais: nome do campo | valor | o que significa (antes as duas primeiras eram fixas e a 3ª sumia)
+        _grid.Columns[0].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; _grid.Columns[0].FillWeight = 32; _grid.Columns[0].MinimumWidth = 150;
+        _grid.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; _grid.Columns[1].FillWeight = 28; _grid.Columns[1].MinimumWidth = 110;
+        _grid.Columns[2].FillWeight = 40; _grid.Columns[2].MinimumWidth = 120;
         _grid.MouseDown += ProbMouseDown; _grid.MouseMove += ProbMouseMove; _grid.MouseUp += ProbMouseUp;
         // clique direito: seleciona a linha antes de abrir o menu
         _grid.CellMouseDown += (_, e) => { if (e.Button == MouseButtons.Right && e.RowIndex >= 0) _grid.CurrentCell = _grid.Rows[e.RowIndex].Cells[0]; };
@@ -1002,6 +1122,9 @@ public sealed class EditorForm : Form
         BuildTree();
         SaveLast(path);
         _dataPath = path;
+        LoadRecent(path);
+        // volta ao último item em que você estava neste elements.data
+        if (_recentKeys.Count > 0 && ResolveRecent(_recentKeys[0]) is { } lastItem) BeginInvoke(() => GoToItem(lastItem));
         // o cliente aberto passa a ser o da aba Verificação (e o que o "Salvar e enviar" leva ao servidor)
         var element = Path.GetDirectoryName(Path.GetDirectoryName(path));
         if (element is not null)
@@ -1152,8 +1275,8 @@ public sealed class EditorForm : Form
     {
         if (_sendBtn is null) return;
         var pending = PendingForServer();
-        _sendBtn.BackColor = pending.Count > 0 ? Color.FromArgb(214, 240, 214) : SystemColors.Control;
-        _sendBtn.ForeColor = pending.Count > 0 ? Color.FromArgb(20, 90, 30) : CFg;
+        _sendBtn.BackColor = pending.Count > 0 ? Color.FromArgb(214, 240, 214) : Color.White;
+        _sendBtn.ForeColor = pending.Count > 0 ? Color.FromArgb(20, 90, 30) : CAccent;
         _sendBtn.ToolTipText = Loc.T("tb.saveSendTip", "Grava tudo o que mudou e leva para o servidor local (aba Servidor), reiniciando-o")
             + (pending.Count == 0 ? "\n\n" + Loc.T("glow.none", "O servidor já tem tudo.") : "\n\n" + Loc.T("glow.pending", "Falta enviar ao servidor:") + "\n• " + string.Join("\n• ", pending));
     }
@@ -1337,11 +1460,6 @@ public sealed class EditorForm : Form
         {
             var lists = _store.Current.Lists;
             foreach (var l in lists) foreach (var it in l.Items) _owner[it] = l;
-            _blockCombo.Items.Add(new BlockEntry(null, $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})",
-                Dyn: () => $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})"));
-            // "Todos": itens de todos os blocos numa lista só (pedido do usuário, logo abaixo dos favoritos)
-            _blockCombo.Items.Add(new BlockEntry(null, "", All: true,
-                Dyn: () => $"{Loc.T("block.all", "◆ Todos os blocos")} ({_store.Current?.Lists.Sum(l => l.Items.Count) ?? 0:N0})"));
             var entries = lists.Select((b, i) => (b, i)).Where(x => x.b.Items.Count > 0).ToList();
             foreach (var cat in CategoryOrder)
             {
@@ -1354,10 +1472,10 @@ public sealed class EditorForm : Form
             // como o Angelica (RAE): ao abrir o programa, a 1ª lista do elements ([000]); depois, a lista em que se está
             // (reabrir ou trocar de PW mantém). Antes lembrava a última de outra sessão, o que parecia aleatório.
             var last = _curBlock?.Name ?? entries.MinBy(x => x.i).b.Name;
-            int sel = 1;
+            int sel = -1;
             for (int i = 0; i < _blockCombo.Items.Count; i++)
-                if (_blockCombo.Items[i] is BlockEntry { Block: { } bb } && bb.Name == last) sel = i;
-            _blockCombo.SelectedIndex = Math.Min(sel, _blockCombo.Items.Count - 1);
+                if (_blockCombo.Items[i] is BlockEntry { Block: { } bb } && (sel < 0 || bb.Name == last)) sel = i;
+            _blockCombo.SelectedIndex = Math.Clamp(sel, 0, _blockCombo.Items.Count - 1);
         }
         _blockCombo.EndUpdate();
         Text = _store.Current is null ? "MyAceEditor" : $"MyAceEditor — {_store.Current.Name}";
@@ -1402,7 +1520,8 @@ public sealed class EditorForm : Form
             }
             _typeCombo.SelectedIndex = 0;
         }
-        _typeCombo.Visible = has;
+        _typeCombo.Tag = has;
+        _typeCombo.Visible = has && _recentMode?.Checked != true && !_favMode;   // em Recentes a coluna mostra só a lista de recentes
         _typeCombo.EndUpdate();
     }
 
@@ -1498,9 +1617,9 @@ public sealed class EditorForm : Form
         if (_store.Current is null) return;
         string q = _search.Text.Trim();
         IEnumerable<Item> src;
-        if ((q.Length > 0 && _searchAll.Checked) || (_curBlock is null && _allBlocks))
+        if ((q.Length > 0 && _searchAll.Checked && !_favMode) || (_curBlock is null && _allBlocks))
             src = _store.Current.Lists.SelectMany(l => l.Items);
-        else if (_curBlock is null)
+        else if (_favMode || _curBlock is null)
             src = _store.Current.Lists.SelectMany(l => l.Items.Where(it => _favorites.Contains(FavKey(l, it))));
         else
         {
@@ -1670,7 +1789,7 @@ public sealed class EditorForm : Form
         foreach (var src in sel)
         {
             if (!_owner.TryGetValue(src, out var block)) continue;
-            var ni = new Item { Id = NextCode(block).ToString(), Name = src.Name, Fields = src.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)), Raw = src.Raw?.ToArray() };
+            var ni = new Item { Id = NextCode(block).ToString(), Name = src.Name, Fields = src.Fields.Clone(), Raw = src.Raw?.ToArray() };
             SetIdName(ni);
             _edits.AddItem(block, ni, ""); _owner[ni] = block; last = ni;
         }
@@ -1927,7 +2046,7 @@ public sealed class EditorForm : Form
         // pelo nome da pasta do cliente (a que contém "element"); o caminho inteiro fica na dica
         static string ClientName(string element) => Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(element).TrimEnd('\\')) ?? element);
         var info = new Label { Dock = DockStyle.Top, Height = 84, Padding = new Padding(10), ForeColor = running ? Color.Firebrick : CMuted, AutoEllipsis = true,
-            Text = string.Format(Loc.T("trc.info", "De: {0}\nPara: {1} (o cliente aberto)\nSó entra o que este cliente tem. Cada arquivo ganha cópia de segurança (.bak)."), ClientName(source), ClientName(target))
+            Text = string.Format(Loc.T("trc.info", "De: {0}\nPara: {1} (o cliente aberto)\nSó entra o que este cliente tem. Cada arquivo ganha cópia de segurança, guardada fora do cliente."), ClientName(source), ClientName(target))
                 + (running ? "\n" + Loc.T("trc.running", "Feche o jogo deste cliente antes de aplicar.") : "") };
         new ToolTip().SetToolTip(info, source + "\n→ " + target);
         var list = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None, BackColor = CSurface, ForeColor = CFg, IntegralHeight = false };
@@ -1967,6 +2086,8 @@ public sealed class EditorForm : Form
         // o editor passa a mostrar o que foi gravado
         if (_tasksPath is not null && touched.Any(t => string.Equals(t, _tasksPath, StringComparison.OrdinalIgnoreCase))) LoadTasks(_tasksPath);
         if (touched.FirstOrDefault(t => t.EndsWith("aipolicy.data", StringComparison.OrdinalIgnoreCase)) is { } ai) _aiView?.LoadFile(ai);
+        // pacotes regravados (interfaces, configs, surfaces): o extrator e o editor de interface releem sem fechar o programa
+        if (touched.Any(t => t.EndsWith(".pck", StringComparison.OrdinalIgnoreCase))) _pckView?.GameFolderChanged();
         if (log.Count > 0)
             MessageBox.Show(this, string.Join("\n", log), Loc.T("trc.title", "Traduzir a partir de outro cliente"));
         if (chosen.Contains(elementsRow)) TranslateFromOther(srcEl);
@@ -2251,6 +2372,7 @@ public sealed class EditorForm : Form
         FillDescription(item);
         FillFindFields(item);
 
+        RememberRecent(item);
         if (!_navigating)
         {
             if (_histPos >= 0 && _histPos < _history.Count - 1) _history.RemoveRange(_histPos + 1, _history.Count - _histPos - 1);
@@ -2289,6 +2411,55 @@ public sealed class EditorForm : Form
         }
         foreach (TabPage t in _groupTabs.TabPages)
             if (t.Tag is string id && FieldLabels.GroupName(id) + SlotCount(item, id) is var txt && t.Text != txt) t.Text = txt;
+        SyncSections();
+    }
+
+    private readonly SectionList _sections = new();
+    private bool _syncSections;
+    private sealed record SectionItem(TabPage Page) { public override string ToString() => Page.Text; }
+
+    private void SyncSections()
+    {
+        _syncSections = true;
+        try
+        {
+            _sections.BeginUpdate();
+            _sections.Items.Clear();
+            foreach (TabPage t in _groupTabs.TabPages) _sections.Items.Add(new SectionItem(t));
+            _sections.SelectedIndex = Math.Max(0, _groupTabs.SelectedIndex);
+            _sections.EndUpdate();
+        }
+        finally { _syncSections = false; }
+    }
+
+    // ícone de cada seção (desenhado com a fonte de ícones do Windows)
+    private static string SectionGlyph(string group) => group switch
+    {
+        "Todos" => "\uE8FD", "Básico" => "\uE946", "Requisitos" => "\uE72E", "Ataque" => "\uECAD", "Defesa" => "\uEA18",
+        "Durabilidade" => "\uE90F", "Economia" => "\uE8EC", "Atributos / Addons" => "\uE734", "Habilidades" => "\uE945",
+        "Queda" => "\uE7B8", "Modelo" or "Modelo / Arquivos" => "\uE81E", "Outros" => "\uF0E2", _ => "\uE7C1",
+    };
+
+    /// <summary>Linha de título de seção na grade (não é campo: Tag deste tipo, nunca string).</summary>
+    private sealed record SectionTag(string Group, string Text);
+
+    private void PaintSection(object? s, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.Graphics is null || s is not DataGridView dgv || dgv.Rows[e.RowIndex].Tag is not SectionTag st) return;
+        var g = e.Graphics; var r = e.CellBounds;
+        using (var b = new SolidBrush(Color.FromArgb(238, 243, 250))) g.FillRectangle(b, r);
+        using (var pen = new Pen(Color.FromArgb(203, 213, 225))) g.DrawLine(pen, r.Left, r.Bottom - 1, r.Right, r.Bottom - 1);
+        if (e.ColumnIndex == 0)
+        {
+            using (var b = new SolidBrush(CAccent)) g.FillRectangle(b, r.Left, r.Top + 6, 4, r.Height - 12);
+            g.DrawImage(UiKit.Icon(SectionGlyph(st.Group), CAccent, 18), r.Left + 12, r.Top + (r.Height - 18) / 2);
+            using var f = new Font("Segoe UI Semibold", 10.5f);
+            // o título pode passar da 1ª coluna: as outras só pintam o fundo
+            var clip = g.Clip; g.ResetClip();
+            TextRenderer.DrawText(g, st.Text, f, new Rectangle(r.Left + 38, r.Top, 600, r.Height), CAccent, TextFormatFlags.VerticalCenter | TextFormatFlags.NoClipping);
+            g.Clip = clip;
+        }
+        e.Handled = true;
     }
 
     // " (7/32)": slots preenchidos nas abas de addons, queda e habilidades (ocupação, como nos editores da comunidade).
@@ -2351,12 +2522,11 @@ public sealed class EditorForm : Form
             var vis = fields.Where(f => f.Key != "realname" && !unused.Contains(f.Key)
                 && ((gname != "Atributos / Addons" && gname != "Queda" && gname != "Habilidades") || !IsEmpty(f.Value.Value) || sel == gname)).ToList();
             if (vis.Count == 0) continue;
-            if (sel == "Todos")
             {
-                int hr = _grid.Rows.Add("  " + FieldLabels.GroupName(gname).ToUpperInvariant(), "", "");
-                var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
-                hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
-                hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                // título da seção (também com uma só seção escolhida: a tela diz onde você está)
+                int hr = _grid.Rows.Add("", "", "");
+                var hrow = _grid.Rows[hr]; hrow.ReadOnly = true; hrow.Height = 36;
+                hrow.Tag = new SectionTag(gname, FieldLabels.GroupName(gname) + SlotCount(item, gname) + "   ·   " + string.Format(Loc.T("grid.fieldsN", "{0} campos"), vis.Count));
             }
             foreach (var (k, f) in vis)
             {
@@ -2389,10 +2559,9 @@ public sealed class EditorForm : Form
                 .Where(u => u.Field.Contains("drop", StringComparison.OrdinalIgnoreCase) && u.Block.Name == "MONSTER_ESSENCE").ToList();
             if (drops.Count > 0)
             {
-                int hr = _grid.Rows.Add("  " + string.Format(Loc.T("grid.droppedBy", "DROPADO POR ({0} monstros)"), drops.Count), "", "");
-                var hrow = _grid.Rows[hr]; hrow.ReadOnly = true;
-                hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
-                hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                int hr = _grid.Rows.Add("", "", "");
+                var hrow = _grid.Rows[hr]; hrow.ReadOnly = true; hrow.Height = 36;
+                hrow.Tag = new SectionTag("Queda", string.Format(Loc.T("grid.droppedBy", "DROPADO POR ({0} monstros)"), drops.Count));
                 foreach (var d in drops.OrderByDescending(d => ParsePct(d.Probability)).Take(300))
                 {
                     int r = _grid.Rows.Add("", ParsePct(d.Probability) is var p && p > 0 ? $"{p * 100:0.###}%" : "", "");
@@ -2527,6 +2696,36 @@ public sealed class EditorForm : Form
         return null;
     }
 
+    /// <summary>
+    /// Imagem do PC (png/jpg/bmp) vira ícone novo nos dois atlas de itens do surfaces.pck (IconAtlas.AddIcon). Ícone é só do
+    /// cliente: o servidor não usa. Devolve o nome do arquivo do ícone ou null.
+    /// </summary>
+    private string? AddNewIcon()
+    {
+        if (_atlasPck is null) return null;
+        using var ofd = new OpenFileDialog { Filter = Loc.T("icon.filter", "Imagens|*.png;*.jpg;*.jpeg;*.bmp;*.gif|Todos|*.*"), Title = Loc.T("icon.add", "➕ Adicionar ícone novo…") };
+        if (ofd.ShowDialog(this) != DialogResult.OK) return null;
+        var suggested = new string(Path.GetFileNameWithoutExtension(ofd.FileName).Select(ch => ch < 128 && (char.IsLetterOrDigit(ch) || ch is '_' or '-') ? ch : '_').ToArray());
+        if (ServerAdminWindow.Ask(this, Loc.T("icon.add", "➕ Adicionar ícone novo…"), Loc.T("icon.name", "Nome do ícone no jogo (sem acentos; vira <nome>.dds):"), suggested) is not { Length: > 0 } name) return null;
+        if (GameRunningFrom(Path.GetDirectoryName(_atlasPck)!))
+        { MessageBox.Show(this, Loc.T("trc.running", "Feche o jogo deste cliente antes de aplicar."), Loc.T("icon.add", "➕ Adicionar ícone novo…"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return null; }
+        try
+        {
+            using var img = new Bitmap(ofd.FileName);
+            var pck = _atlasPck;
+            var done = ReadProgressDialog.Run(this, Loc.T("icon.adding", "Gravando o ícone no surfaces.pck"), ctx =>
+            {
+                ctx.Report(0, Path.GetFileName(pck), indeterminate: true, force: true);
+                var n = IconAtlas.AddIcon(pck, name, img);
+                return Tuple.Create(n, IconAtlas.Load(pck));
+            }, allowCancel: false);
+            _atlas = done.Item2;
+            Status(string.Format(Loc.T("icon.added", "Ícone {0} gravado nos atlas de itens do surfaces.pck (backup fora do cliente)."), done.Item1));
+            return done.Item1;
+        }
+        catch (Exception ex) { Error(Loc.T("icon.addFail", "Não consegui adicionar o ícone"), ex); return null; }
+    }
+
     private bool EditFieldSpecial(Item item, string key)
     {
         var kind = KindOf(item, key);
@@ -2534,7 +2733,7 @@ public sealed class EditorForm : Form
         if (key.Equals("file_icon", StringComparison.OrdinalIgnoreCase) && _atlas is not null)
         {
             // mantém a pasta do caminho atual (Surfaces\图标\物品\...) e troca só o arquivo
-            if (FieldEditors.IconPicker(this, _atlas, cur) is { } name)
+            if (FieldEditors.IconPicker(this, _atlas, cur, _atlasPck is null ? null : AddNewIcon) is { } name)
             {
                 var dir = Path.GetDirectoryName(cur.Replace('/', '\\'));
                 SetField(item, key, string.IsNullOrEmpty(dir) ? name : dir + "\\" + name);
@@ -2702,6 +2901,17 @@ public sealed class EditorForm : Form
         }
         public string Summary(QuestDraft d) => f.QuestSummary(d);
         public string? Commit(QuestDraft d) => f.CommitQuestDraft(d);
+        public QuestDraft? EditDraft(int questId, out string? why)
+        {
+            why = null;
+            if (f._tasks is not { FullSchema: true } t) { why = Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data."); return null; }
+            if (!t.CanWrite) { why = Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason; return null; }
+            if (t.Index.Find(questId) is not QuestNode q) { why = Loc.T("qb.noQuest", "Quest não encontrada no tasks.data."); return null; }
+            while (q.Parent is { } p) q = p;   // subquest (etapa): edita a principal
+            return QuestBuilder.FromQuest(t, q, out why);
+        }
+        public string? DeleteAsk(int questId) => f.DeleteQuestAsk(questId);
+        public string? Delete(int questId) => f.DeleteQuestById(questId);
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
         public bool IsNpc(int id) => f.CreatureItem(id) is { Block.Name: "NPC_ESSENCE" };
@@ -2724,6 +2934,8 @@ public sealed class EditorForm : Form
         public IReadOnlyList<(string Key, string Label, string Tip)> FreeFields(bool reward) => f._tasks is { } t && QuestBuilder.ModelRec(t) is { } m
             ? QuestOptions.FreeFields(m, reward).Select(k => (k, QuestLabels.Show(k), QuestLabels.Tip(k))).OrderBy(x => x.Item2).ToList() : Array.Empty<(string, string, string)>();
         public string? QuestName(int id) => f._tasks?.Index.Find(id) is { } row ? TasksFile.SplitColor(TaskIndex.NameOf(row)).Text : null;
+        public bool Undo() => f._edits.CanUndo && f._edits.Undo() is not null;
+        public bool Redo() => f._edits.CanRedo && f._edits.Redo() is not null;
     }
 
     private QuestDraft? NewQuestDraft(int giverNpc, out string? why)
@@ -2801,16 +3013,23 @@ public sealed class EditorForm : Form
         if (errors.Count > 0) return string.Join("\n", errors);
         var links = QuestHostImpl.QuestLinks(d);
         if (links.Any(l => CreatureItem(l.Npc) is null)) return Loc.T("qb.noNpc", "NPC não encontrado no elements.data.");
-        var label = string.Format(Loc.T("qb.histCreate", "Criar quest {0}"), d.Id);
+        // editar: a quest antiga sai (no mesmo lugar entra a nova) e os NPCs que não fazem mais parte dela perdem o ID no serviço
+        var old = d.Editing > 0 ? t.Index.Find(d.Editing) as QuestNode : null;
+        if (d.Editing > 0 && old is null) return Loc.T("qb.noQuest", "Quest não encontrada no tasks.data.");
+        var oldLinks = old is not null && QuestBuilder.FromQuest(t, old, out _) is { } before ? QuestHostImpl.QuestLinks(before) : new();
+        int oldAt = old is null ? -1 : t.Roots!.IndexOf(old);
+        var label = old is null ? string.Format(Loc.T("qb.histCreate", "Criar quest {0}"), d.Id) : string.Format(Loc.T("qb.histEdit", "Editar quest {0}"), d.Editing);
         string? err = null;
         try
         {
         using (_edits.Batch(label))
         {
+            foreach (var (npc, quest, give) in oldLinks.Except(links))
+                if (CreatureItem(npc) is { } c) RemoveQuestFromServices(new HashSet<int> { quest }, c.Item, give);
             QuestNode? made = null;
             _edits.Custom(label,
-                () => { made = QuestBuilder.Build(t, d); MarkTasksDirty(label); },
-                () => { if (made is not null) t.DeleteRoot(made); MarkTasksDirty(label); });
+                () => { made = old is null ? QuestBuilder.Build(t, d) : QuestBuilder.Replace(t, old, d); MarkTasksDirty(label); },
+                () => { if (made is not null) t.DeleteRoot(made); if (old is not null) t.MoveRoot(old, oldAt); MarkTasksDirty(label); });
             foreach (var (npc, quest, give) in links)
                 if ((err = AddQuestToService(CreatureItem(npc)!.Value.Item, quest, give)) is not null) break;
         }
@@ -2819,6 +3038,61 @@ public sealed class EditorForm : Form
         return err;
         }
         catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException) { return ex.Message; }
+    }
+
+    /// <summary>
+    /// Tira os IDs das vagas dos serviços de dar/receber quests (NPC_TASK_OUT/IN_SERVICE). Com <paramref name="npc"/>, só
+    /// o serviço desse NPC (do lado <paramref name="give"/>); sem, de todos os serviços. Cada vaga é um passo do desfazer.
+    /// </summary>
+    private void RemoveQuestFromServices(IReadOnlySet<int> ids, Item? npc = null, bool give = true)
+    {
+        if (_store.Current is not { } m) return;
+        foreach (var (field, blockName) in new[] { ("id_task_out_service", "NPC_TASK_OUT_SERVICE"), ("id_task_in_service", "NPC_TASK_IN_SERVICE") })
+        {
+            if (npc is not null && field != (give ? "id_task_out_service" : "id_task_in_service")) continue;
+            if (m.FindListByName(blockName) is not { } block) continue;
+            var svcs = npc is null ? block.Items
+                : block.Items.Where(i => npc.Fields.TryGetValue(field, out var sf) && sf.Value != "0" && i.Id == sf.Value).ToList();
+            foreach (var svc in svcs)
+                foreach (var k in svc.Fields.Keys.Where(k => k.Contains("id_tasks") && !k.Contains("space") && int.TryParse(svc.Fields[k].Value, out var v) && ids.Contains(v)).ToList())
+                    _edits.SetField(svc, k, Field.Of(svc.Fields[k].Type, "0"), "");
+        }
+        _refs = new RefIndex(m);
+    }
+
+    private string? DeleteQuestAsk(int questId)
+    {
+        if (_tasks is not { FullSchema: true } t || t.Index.Find(questId) is not QuestNode q) return null;
+        while (q.Parent is { } p) q = p;
+        var ids = q.Descendants().Select(n => n.Id).Append(q.Id).ToHashSet();
+        var sb = new System.Text.StringBuilder(string.Format(Loc.T("quest.askDelete2", "Excluir a quest {0} \"{1}\" e as {2} subquests dela?"), q.Id, TasksFile.SplitColor(q.Name).Text, ids.Count - 1));
+        sb.AppendLine().AppendLine().Append(Loc.T("quest.askDeleteSvc", "Os NPCs deixam de oferecer e de receber esta quest (o ID sai dos serviços deles)."));
+        var refs = QuestBuilder.ReferencedBy(t, ids);
+        if (refs.Count > 0)
+            sb.AppendLine().AppendLine().Append(string.Format(Loc.T("quest.askDeleteRefs", "Atenção: {0} outra(s) quest(s) apontam para ela (quest anterior, exclusiva ou nova ao concluir) e vão esperar uma quest que não existe: {1}"),
+                refs.Count, string.Join(", ", refs.Take(12)) + (refs.Count > 12 ? "…" : "")));
+        sb.AppendLine().AppendLine().Append(Loc.T("quest.askDeleteUndo", "Ctrl+Z desfaz."));
+        return sb.ToString();
+    }
+
+    /// <summary>Exclui a quest principal (de qualquer ID da árvore) e tira os IDs dos serviços dos NPCs, num passo do desfazer.</summary>
+    private string? DeleteQuestById(int questId)
+    {
+        if (_tasks is not { FullSchema: true } t || t.Index.Find(questId) is not QuestNode q) return Loc.T("qb.noQuest", "Quest não encontrada no tasks.data.");
+        if (!t.CanWrite) return Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason;
+        while (q.Parent is { } p) q = p;
+        var ids = q.Descendants().Select(n => n.Id).Append(q.Id).ToHashSet();
+        int at = t.Roots!.IndexOf(q);
+        var label = string.Format(Loc.T("quest.deleted", "Quest {0} excluída"), q.Id);
+        using (_edits.Batch(label))
+        {
+            RemoveQuestFromServices(ids);
+            _edits.Custom(label,
+                () => { t.DeleteRoot(q); MarkTasksDirty(label); },
+                () => { t.MoveRoot(q, at); MarkTasksDirty(label); });
+        }
+        RefreshQuests();
+        return null;
     }
 
     private string? LinkQuestToNpc(int npcId, int questId)
@@ -2861,7 +3135,7 @@ public sealed class EditorForm : Form
         if (svc is null || shared)
         {
             var src = svc ?? block.Items[0];
-            var ni = new Item { Id = IdRefactor.NextFreeId(m, block).ToString(), Name = TasksFile.SplitColor(npc.Name).Text, Fields = src.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)), Raw = src.Raw?.ToArray() };
+            var ni = new Item { Id = IdRefactor.NextFreeId(m, block).ToString(), Name = TasksFile.SplitColor(npc.Name).Text, Fields = src.Fields.Clone(), Raw = src.Raw?.ToArray() };
             if (svc is null) foreach (var k in ni.Fields.Keys.Where(Slot).ToList()) ni.Fields[k] = Field.Of(ni.Fields[k].Type, "0");
             SetIdName(ni);
             _edits.AddItem(block, ni, "");
@@ -2985,7 +3259,7 @@ public sealed class EditorForm : Form
         var ni = new Item
         {
             Id = newId, Name = nameBox.Text.Trim().Length > 0 ? nameBox.Text.Trim() : baseItem.Name,
-            Fields = baseItem.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)),
+            Fields = baseItem.Fields.Clone(),
             Raw = baseItem.Raw?.ToArray(),
         };
         if (block.Name == "NPC_ESSENCE") ClearNpc(ni);
@@ -3083,7 +3357,7 @@ public sealed class EditorForm : Form
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 35)); grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 65));
         Label L(Func<string> t) { var l = new Label { AutoSize = true, ForeColor = CTreeFg, Margin = new Padding(0, 6, 8, 0) }; Bind(() => l.Text = t()); return l; }
-        Button B(Func<string> t, Action a) { var b = new Button { AutoSize = true, Height = 28, Margin = new Padding(0, 2, 6, 2), BackColor = CSurface, ForeColor = CFg, FlatStyle = FlatStyle.Flat }; Bind(() => b.Text = t()); b.Click += (_, _) => a(); return b; }
+        Button B(Func<string> t, Action a) { var b = new Button { AutoSize = true, Height = 28, Margin = new Padding(0, 2, 6, 2), BackColor = CSurface, ForeColor = CFg, FlatStyle = FlatStyle.Flat }; UiKit.Decorate(b, t()); Bind(() => b.Text = t()); b.Click += (_, _) => a(); return b; }
 
         // cor do nome (índice do item_color.txt)
         _nameColor.Items.Add(-1); for (int i = 0; i < 9; i++) _nameColor.Items.Add(i);
@@ -3499,7 +3773,24 @@ public sealed class EditorForm : Form
         if (_current is null || row < 0 || _grid.Rows[row].Tag is not string key || !_current.Fields.ContainsKey(key)) return;
         var cell = _grid.Rows[row].Cells[1];
         var val = cell is DataGridViewCheckBoxCell ? (cell.Value is true ? "1" : "0") : cell.Value?.ToString() ?? "";
-        _edits.SetField(_current, key, Field.Of(_current.Fields[key].Type, val), string.Format(Loc.T("hist.field", "{0} em {1}"), FieldLabels.Label(key), _current.Id));
+        // várias células de valor selecionadas: o mesmo valor vai para todas do mesmo tipo de campo, num passo só do desfazer
+        var type = _current.Fields[key].Type;
+        var also = _grid.SelectedCells.Cast<DataGridViewCell>()
+            .Where(c => c.ColumnIndex == 1 && c.RowIndex != row && !c.ReadOnly && c.GetType() == cell.GetType()
+                        && _grid.Rows[c.RowIndex].Tag is string k && _current.Fields.TryGetValue(k, out var f) && f.Type == type)
+            .Select(c => c.RowIndex).Distinct().ToList();
+        using (_edits.Batch(also.Count > 0 ? string.Format(Loc.T("hist.fieldMany", "{0} campos em {1}"), also.Count + 1, _current.Id)
+                   : string.Format(Loc.T("hist.field", "{0} em {1}"), FieldLabels.Label(key), _current.Id)))
+        {
+            _edits.SetField(_current, key, Field.Of(type, val), string.Format(Loc.T("hist.field", "{0} em {1}"), FieldLabels.Label(key), _current.Id));
+            foreach (var r in also)
+            {
+                var k = (string)_grid.Rows[r].Tag!;
+                _edits.SetField(_current, k, Field.Of(type, val), string.Format(Loc.T("hist.field", "{0} em {1}"), FieldLabels.Label(k), _current.Id));
+                _grid.Rows[r].Cells[1].Value = cell is DataGridViewCheckBoxCell ? val == "1" : val;
+            }
+        }
+        if (also.Count > 0) { Status(string.Format(Loc.T("status.fieldsUpdated", "{0} campos atualizados para {1}"), also.Count + 1, val)); if (_owner.TryGetValue(_current, out var o2)) _unusedCache.Remove(o2); return; }
         if (_owner.TryGetValue(_current, out var ob)) _unusedCache.Remove(ob);
         if (key.Equals("Name", StringComparison.OrdinalIgnoreCase))
         {
@@ -3623,7 +3914,7 @@ public sealed class EditorForm : Form
         {
             Id = code.ToString(),
             Name = _current.Name + " (cópia)",
-            Fields = _current.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)),
+            Fields = _current.Fields.Clone(),
             Raw = _current.Raw?.ToArray()
         };
         SetIdName(ni);
@@ -3654,8 +3945,7 @@ public sealed class EditorForm : Form
         var key = FavKey(block, _current);
         if (!_favorites.Remove(key)) _favorites.Add(key);
         SaveFavorites();
-        if (_blockCombo.Items.Count > 0 && _blockCombo.Items[0] is BlockEntry fav)
-            _blockCombo.Items[0] = fav with { Label = $"{Loc.T("block.favorites", "★ Favoritos")} ({_favorites.Count})" };
+        if (_favModeBtn is not null) _favModeBtn.Text = FavModeText();
         RefreshView();
         Status(_favorites.Contains(key) ? Loc.T("status.favAdded", "Adicionado aos favoritos") : Loc.T("status.favRemoved", "Removido dos favoritos"));
     }
@@ -3804,6 +4094,82 @@ public sealed class EditorForm : Form
         }
     }
 
+    // ---------- recentes: itens abertos, por elements.data (mais novo primeiro) ----------
+    private readonly List<(string Block, string Id)> _recentKeys = new();
+    private readonly ListView _recentList = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, BorderStyle = BorderStyle.None, Visible = false, HeaderStyle = ColumnHeaderStyle.Nonclickable };
+    private readonly ImageList _recentIcons = new() { ImageSize = new Size(24, 24), ColorDepth = ColorDepth.Depth32Bit };
+    private RadioButton? _recentMode, _favModeBtn;
+    private bool _favMode;   // lista mostra os favoritos de todos os blocos
+    private string FavModeText() => string.Format(Loc.T("list.modeFav", "Favoritos ({0})"), _favorites.Count);
+    private string? _recentKey;
+    private const int RecentMax = 40;
+
+    private void BuildRecentList()
+    {
+        _recentList.BackColor = CTreeBg; _recentList.ForeColor = CTreeFg; _recentList.Font = new Font("Segoe UI", 10);
+        _recentList.SmallImageList = _recentIcons;
+        _recentList.Columns.Add("", 220); _recentList.Columns.Add("", 140);
+        Bind(() => { _recentList.Columns[0].Text = Loc.T("list.name", "Nome"); _recentList.Columns[1].Text = Loc.T("list.recentBlock", "Bloco · ID"); });
+        _recentList.Resize += (_, _) => _recentList.Columns[0].Width = Math.Max(120, _recentList.ClientSize.Width - _recentList.Columns[1].Width - 2);
+        _recentList.HandleCreated += (_, _) => SetWindowTheme(_recentList.Handle, "DarkMode_Explorer", null);
+        _recentList.ItemActivate += (_, _) => OpenRecentSelected();
+        _recentList.MouseClick += (_, _) => OpenRecentSelected();
+    }
+
+    private void OpenRecentSelected()
+    {
+        if (_recentList.SelectedItems.Count == 1 && _recentList.SelectedItems[0].Tag is Item it) GoToItem(it);
+    }
+
+    private Item? ResolveRecent((string Block, string Id) k) => _store.Current?.FindListByName(k.Block)?.FindById(k.Id);
+
+    private void LoadRecent(string elementsPath)
+    {
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(elementsPath).ToLowerInvariant())))[..10];
+        _recentKey = "recent-" + hash;
+        _recentKeys.Clear();
+        foreach (var line in (LoadSetting(_recentKey) ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            if (line.Split('\t') is [var b, var id]) _recentKeys.Add((b.Trim(), id.Trim()));
+        if (_recentMode is not null) _recentMode.Text = _recentKeys.Count > 0 ? string.Format(Loc.T("list.modeRecentN", "Recentes ({0})"), _recentKeys.Count) : Loc.T("list.modeRecent", "Recentes");
+        if (_recentList.Visible) FillRecent();
+    }
+
+    private void RememberRecent(Item item)
+    {
+        if (_recentKey is null || !_owner.TryGetValue(item, out var b)) return;
+        var k = (b.Name, item.Id);
+        int at = _recentKeys.IndexOf(k);
+        if (at == 0) return;
+        if (at > 0) _recentKeys.RemoveAt(at);
+        _recentKeys.Insert(0, k);
+        if (_recentKeys.Count > RecentMax) _recentKeys.RemoveRange(RecentMax, _recentKeys.Count - RecentMax);
+        SaveSetting(_recentKey, string.Join("\n", _recentKeys.Select(x => x.Block + "\t" + x.Id)));
+        if (_recentMode is not null) _recentMode.Text = string.Format(Loc.T("list.modeRecentN", "Recentes ({0})"), _recentKeys.Count);
+        if (_recentList.Visible) FillRecent();
+    }
+
+    private void FillRecent()
+    {
+        _recentList.BeginUpdate();
+        try
+        {
+            _recentList.Items.Clear(); _recentIcons.Images.Clear();
+            foreach (var k in _recentKeys)
+            {
+                if (ResolveRecent(k) is not { } it) continue;
+                int img = -1;
+                if (IconFor(it) is { } ic) { _recentIcons.Images.Add(ic); img = _recentIcons.Images.Count - 1; }
+                var name = string.IsNullOrEmpty(it.Name) ? Loc.T("block.noName", "(sem nome)") : TasksFile.SplitColor(it.Name).Text;
+                var lvi = new ListViewItem(new[] { name, $"{Pretty(k.Block)} · {it.Id}" }, img) { Tag = it, ForeColor = NameColor(it) };
+                if (it == _current) lvi.Selected = true;
+                _recentList.Items.Add(lvi);
+            }
+            if (_recentList.Items.Count == 0)
+                _recentList.Items.Add(new ListViewItem(Loc.T("list.recentEmpty", "Os itens que você abrir aparecem aqui.")) { ForeColor = CMuted });
+        }
+        finally { _recentList.EndUpdate(); }
+    }
+
     // ---------- memória da última pasta ----------
     private static string SettingsFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "last.txt");
@@ -3868,43 +4234,52 @@ public sealed class EditorForm : Form
         var right = new Panel { Dock = DockStyle.Fill, BackColor = CSurface };
         _qInfo.BackColor = CSurface2; _qInfo.ForeColor = CFg;
         _qStatus.ForeColor = CMuted; _qStatus.BackColor = CSurface2;
-        var editRow = new TableLayoutPanel { Dock = DockStyle.Top, Height = 44, ColumnCount = 6, Padding = new Padding(10, 6, 10, 6), BackColor = CSurface };
+        // comandos da quest numa barra com ícones (como as outras áreas); o nome fica numa linha própria
+        var qbar = UiKit.Ribbon();
+        UiKit.Cmd(qbar, UiKit.Save, "quest.rSave", "Salvar tasks.data", SaveTasks, "quest.rSaveTip", "Grava as quests (com backup fora do cliente).", primary: true);
+        UiKit.Sep(qbar);
+        UiKit.Cmd(qbar, UiKit.Copy, "quest.rClone", "Clonar quest", CloneQuest, "quest.rCloneTip", "Copia a quest escolhida com um ID livre.");
+        UiKit.Cmd(qbar, UiKit.Delete, "quest.rDelete", "Excluir quest", DeleteQuest, "quest.rDeleteTip", "Tira a quest do tasks.data (Ctrl+Z desfaz).");
+        var editRow = new TableLayoutPanel { Dock = DockStyle.Top, Height = 44, ColumnCount = 3, Padding = new Padding(10, 6, 10, 6), BackColor = CSurface };
         editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
         editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
-        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        editRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         Button Btn(string t, Action a, bool accent = false)
         {
             var b = new Button { Text = t, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = accent ? CAccent : CSurface2, ForeColor = accent ? Color.White : CFg, Margin = new Padding(4, 0, 0, 0) };
+            UiKit.Decorate(b, t, primary: accent);
             b.Click += (_, _) => a(); return b;
         }
         _qName.MaxLength = TasksFile.MaxNameLength;
         _qName.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; ApplyQuestName(); } };
         var nameLbl = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CMuted };
         var applyName = Btn("", ApplyQuestName, accent: true);
-        var save = Btn("", SaveTasks);
-        var clone = Btn("", CloneQuest);
-        var delete = Btn("", DeleteQuest);
-        Bind(() =>
-        {
-            nameLbl.Text = Loc.T("quest.nameLbl", "Nome"); applyName.Text = Loc.T("quest.applyName", "Aplicar nome");
-            save.Text = Loc.T("quest.save", "💾 Salvar tasks.data");
-            clone.Text = Loc.T("quest.clone", "Clonar quest"); delete.Text = Loc.T("quest.delete", "Excluir quest");
-        });
+        Bind(() => { nameLbl.Text = Loc.T("quest.nameLbl", "Nome"); applyName.Text = Loc.T("quest.applyName", "Aplicar nome"); });
         editRow.Controls.Add(nameLbl, 0, 0);
         editRow.Controls.Add(_qName, 1, 0);
         editRow.Controls.Add(applyName, 2, 0);
-        editRow.Controls.Add(save, 3, 0);
-        editRow.Controls.Add(clone, 4, 0);
-        editRow.Controls.Add(delete, 5, 0);
 
         var tabs = new TabControl { Dock = DockStyle.Fill };
-        // Dados
+        // Dados: seções numa coluna à esquerda (clique leva até a seção), títulos desenhados na grade
         var tData = new TabPage { BackColor = CSurface };
         StyleQuestGrid();
         tData.Controls.Add(_qGrid);
+        // \u00EDcone pela palavra do grupo (o ID do grupo \u00E9 em portugu\u00EAs e n\u00E3o muda com o idioma)
+        _qSections.GlyphOf = o => o is not QSection qs ? null : qs.Group.ToLowerInvariant() switch
+        {
+            var g when g.Contains("b\u00E1sico") => "\uE946", var g when g.Contains("tempo") => "\uE823", var g when g.Contains("subquest") => "\uE8FD",
+            var g when g.Contains("npc") => "\uE77B", var g when g.Contains("regi") => "\uE707", var g when g.Contains("requisit") => "\uE72E",
+            var g when g.Contains("equipe") => "\uE716", var g when g.Contains("objetivo") => "\uE7C1", var g when g.Contains("pr\u00EAmio") || g.Contains("premio") => "\uE734",
+            var g when g.Contains("chave") => "\uE8D7", var g when g.Contains("aceitar") => "\uE73E", var g when g.Contains("torre") || g.Contains("casa") => "\uE80F",
+            _ => "\uE8A5",
+        };
+        tData.Controls.Add(_qSections);
+        _qSections.SelectedIndexChanged += (_, _) =>
+        {
+            if (_qSections.SelectedItem is not QSection qs) return;
+            for (int i = 0; i < _qGrid.Rows.Count; i++)
+                if (_qGrid.Rows[i].Tag is SectionTag st && st.Group == qs.Group) { _qGrid.FirstDisplayedScrollingRowIndex = i; break; }
+        };
         // Textos
         var tText = new TabPage { BackColor = CSurface, Padding = new Padding(8) };
         var textLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 9, BackColor = CSurface };
@@ -3942,13 +4317,18 @@ public sealed class EditorForm : Form
         tabs.TabPages.Add(tData); tabs.TabPages.Add(tText); tabs.TabPages.Add(tTalk);
 
         right.Controls.Add(tabs);
+        right.Controls.Add(new SegmentBar(tabs, pg => pg == tData ? "\uE9D9" : pg == tText ? "\uE70F" : "\uE8BD"));
         right.Controls.Add(editRow);
         right.Controls.Add(_qInfo);
+        right.Controls.Add(qbar);
         right.Controls.Add(_qStatus);
         split.Panel2.Controls.Add(right);
         split.SizeChanged += (_, _) => { if (split.Width > 700 && split.Tag is null) { split.SplitterDistance = 430; split.Tag = true; } };
         return split;
     }
+
+    private readonly SectionList _qSections = new() { Width = 210 };
+    private sealed record QSection(string Group, string Text) { public override string ToString() => Text; }
 
     private void StyleQuestGrid()
     {
@@ -3960,6 +4340,12 @@ public sealed class EditorForm : Form
         _qGrid.Columns[0].ReadOnly = true; _qGrid.Columns[0].Width = 300; _qGrid.Columns[0].DefaultCellStyle.ForeColor = CMuted;
         _qGrid.Columns[1].Width = 180; _qGrid.Columns[1].DefaultCellStyle.Font = new Font("Segoe UI Semibold", 9.5f);
         _qGrid.Columns[2].ReadOnly = true; _qGrid.Columns[2].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; _qGrid.Columns[2].DefaultCellStyle.ForeColor = CAccent;
+        _qGrid.Columns[0].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; _qGrid.Columns[0].FillWeight = 36; _qGrid.Columns[0].MinimumWidth = 160;
+        _qGrid.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; _qGrid.Columns[1].FillWeight = 24; _qGrid.Columns[1].MinimumWidth = 100;
+        _qGrid.Columns[2].FillWeight = 40;
+        _qGrid.RowTemplate.Height = 28;
+        _qGrid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(249, 250, 252);
+        _qGrid.CellPainting += PaintSection;
         _qGrid.CellEndEdit += (_, e) =>
         {
             if (_qCur is null || e.RowIndex < 0 || _qGrid.Rows[e.RowIndex].Tag is not TaskField f) return;
@@ -4028,10 +4414,9 @@ public sealed class EditorForm : Form
 
     private void DeleteQuest()
     {
-        if (_tasks is not { FullSchema: true } || RootOfSelected() is not { } q) return;
-        if (MessageBox.Show(this, string.Format(Loc.T("quest.confirmDelete", "Excluir a quest {0} \"{1}\" e as {2} subquests dela?\n\nNPCs que oferecem essa quest continuam apontando para o ID (confira na aba Elements)."),
-                q.Id, TasksFile.SplitColor(q.Name).Text, q.Descendants().Count()), Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-        if (_tasks.DeleteRoot(q)) { RefreshQuests(); MarkTasksDirty(string.Format(Loc.T("quest.deleted", "Quest {0} excluída"), q.Id)); }
+        if (_tasks is not { FullSchema: true } || RootOfSelected() is not { } q || DeleteQuestAsk(q.Id) is not { } ask) return;
+        if (MessageBox.Show(this, ask, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (DeleteQuestById(q.Id) is { } err) MessageBox.Show(this, err, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
     private void MarkTasksDirty(string msg) { _tasksDirty = true; _qStatus.Text = msg + Loc.T("quest.dirty", " — clique em Salvar tasks.data para gravar."); }
@@ -4042,6 +4427,9 @@ public sealed class EditorForm : Form
         {
             _tasks = new TasksFile(path);
             _tasksPath = path; _tasksDirty = false;
+            // tasks novo (outro arquivo, tradutor, recarga): a base das regras é a deste tasks. Antes ficava a do tasks
+            // anterior e quests já quebradas no arquivo original (ex.: 36354 pede o item 51636, que não existe) travavam o Salvar
+            if (_store.Current is { } module && _tasks is { } tk) _questBase = Task.Run(() => QuestRules.Check(tk, module).Select(QKey).ToHashSet());
             RefreshQuests();
             _qStatus.Text = TasksStatus(path);
         }
@@ -4137,15 +4525,18 @@ public sealed class EditorForm : Form
 
         // Dados: campos agrupados (como na tela de itens)
         string? group = null;
+        var counts = _qCur.Fields.GroupBy(f => f.Group).ToDictionary(g => g.Key ?? "", g => g.Count());
+        _qSections.BeginUpdate(); _qSections.Items.Clear();
         foreach (var f in _qCur.Fields)
         {
             if (f.Group != group)
             {
                 group = f.Group;
-                int hr = _qGrid.Rows.Add("  " + QuestLabels.Show(group).ToUpperInvariant(), "", "");
-                var hrow = _qGrid.Rows[hr]; hrow.ReadOnly = true;
-                hrow.DefaultCellStyle.BackColor = CSurface2; hrow.DefaultCellStyle.ForeColor = CAccent;
-                hrow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                var title = QuestLabels.Show(group ?? "");
+                int hr = _qGrid.Rows.Add("", "", "");
+                var hrow = _qGrid.Rows[hr]; hrow.ReadOnly = true; hrow.Height = 36;
+                hrow.Tag = new SectionTag(group ?? "", title + "   ·   " + string.Format(Loc.T("grid.fieldsN", "{0} campos"), counts.GetValueOrDefault(group ?? "")));
+                _qSections.Items.Add(new QSection(group ?? "", $"{title} ({counts.GetValueOrDefault(group ?? "")})"));
             }
             var v = _qCur.Get(f);
             int r = _qGrid.Rows.Add("  " + QuestLabels.Row(f.Name), v, QuestFieldHint(f, v));
@@ -4153,6 +4544,7 @@ public sealed class EditorForm : Form
             _qGrid.Rows[r].Cells[0].ToolTipText = QuestLabels.Tip(f.Name) + (f.Editable ? "" : "\n" + Loc.T("quest.structural", "Contagem ou condição: muda pelas telas de lista (mudar só o número desalinharia o arquivo)."));
             if (!f.Editable) { _qGrid.Rows[r].ReadOnly = true; _qGrid.Rows[r].Cells[1].Style.ForeColor = CMuted; }
         }
+        _qSections.EndUpdate();
         // Textos
         for (int i = 0; i < 4; i++) _qTexts[i].Text = _qCur.Texts[i].Replace("\r", "\r\n");
         // Diálogos
@@ -4278,7 +4670,7 @@ public sealed class EditorForm : Form
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         // textos ligados ao idioma (Bind): trocar o idioma refaz rótulos, botões, colunas e o resultado já mostrado
         Label L(Func<string> t) { var l = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CFg }; Bind(() => l.Text = t()); return l; }
-        Button B(Func<string> t, Action a) { var b = new Button { Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; b.Click += (_, _) => a(); Bind(() => b.Text = t()); return b; }
+        Button B(Func<string> t, Action a) { var b = new Button { Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; UiKit.Decorate(b, t()); b.Click += (_, _) => a(); Bind(() => b.Text = t()); return b; }
         _chkClient.Dock = DockStyle.Fill; _chkServer.Dock = DockStyle.Fill;
         _chkClient.Text = LoadSetting("check_client") ?? "";
         _chkServer.Text = LoadSetting("check_server") ?? "";
@@ -4286,7 +4678,7 @@ public sealed class EditorForm : Form
         form.Controls.Add(B(() => Loc.T("chk.browse", "Procurar…"), () => PickFolder(_chkClient, Loc.T("chk.clientElementFolder2", "Pasta element do cliente"))), 2, 0);
         form.Controls.Add(L(() => Loc.T("chk.serverHomeFolder", "Servidor (pasta home)")), 0, 1); form.Controls.Add(_chkServer, 1, 1);
         form.Controls.Add(B(() => Loc.T("chk.browse", "Procurar…"), () => { if (PickFolder(_chkServer, Loc.T("chk.serverHomeFolderContainsGamed", "Pasta home do servidor (contém gamed, glinkd…)"))) SetServerFolder(_chkServer.Text); }), 2, 1);
-        var run = B(() => Loc.T("chk.check", "✔ Verificar"), RunCheck); run.BackColor = CAccent; run.ForeColor = Color.White; run.Font = new Font("Segoe UI Semibold", 10);
+        var run = B(() => Loc.T("chk.check", "✔ Verificar"), RunCheck); UiKit.Decorate(run, "check", primary: true); run.Font = new Font("Segoe UI Semibold", 10);
         var runInfo = L(() => Loc.T("chk.comparesTheVersionsAndTimestamps", "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).")); runInfo.ForeColor = CMuted;
         form.Controls.Add(runInfo, 0, 2);
         form.SetColumnSpan(runInfo, 2);

@@ -49,7 +49,8 @@ public sealed class ServerAdminWindow : Form
         Width = 1100; Height = 720; StartPosition = FormStartPosition.CenterParent; BackColor = bg; ForeColor = fg; Font = new Font("Segoe UI", 9.5f);
         MinimumSize = new Size(800, 500);
 
-        var tabs = new TabControl { Dock = DockStyle.Fill };
+        // páginas sem cabeçalho, trocadas pela barra lateral com ícones (mesmo padrão da janela principal e do GM)
+        var tabs = new TabControl { Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1) };
         tabs.TabPages.Add(Page(Loc.T("adm.overview", "Visão geral"), BuildOverview()));
         tabs.TabPages.Add(Page(Loc.T("adm.accounts", "Contas"), BuildAccounts()));
         tabs.TabPages.Add(Page(Loc.T("adm.characters", "Personagens"), BuildRoles()));
@@ -57,7 +58,10 @@ public sealed class ServerAdminWindow : Form
         tabs.TabPages.Add(Page(Loc.T("adm.world", "Mundo"), BuildWorld()));
         tabs.TabPages.Add(Page(Loc.T("adm.mapsAndInstances", "Mapas e instâncias"), BuildMaps()));
         tabs.SelectedIndexChanged += (_, _) => RefreshTab(tabs.SelectedIndex);
-        Controls.Add(tabs); Controls.Add(_bar); Controls.Add(_status);
+        var nav = new NavBar(tabs);
+        string[] glyphs = { "", "", "", "", "", "" };   // visão geral, contas, personagens, no jogo, mundo, mapas
+        for (int i = 0; i < tabs.TabPages.Count; i++) { var page = tabs.TabPages[i]; nav.Add(glyphs[i], () => page.Text, () => page.Text, page); }
+        Controls.Add(tabs); Controls.Add(nav); Controls.Add(_bar); Controls.Add(_status);
         Shown += (_, _) => Work(Loc.T("adm.preparing", "Preparando…"), () => _srv.EnsureTools(), () => RefreshTab(0));
     }
 
@@ -78,15 +82,16 @@ public sealed class ServerAdminWindow : Form
 
     FlowLayoutPanel Bar(params Control[] items)
     {
-        var f = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, WrapContents = false, AutoScroll = true };
+        // quebra linha quando não cabe (antes o último botão ficava cortado atrás da barra de rolagem)
+        var f = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Padding = new Padding(0, 0, 0, 4) };
         f.Controls.AddRange(items);
         return f;
     }
 
     Button Btn(string text, Action click, bool main = false)
     {
-        var b = new Button { Text = text, AutoSize = true, Height = 30, Margin = new Padding(0, 4, 8, 0) };
-        if (main) { b.FlatStyle = FlatStyle.Flat; b.BackColor = _accent; b.ForeColor = Color.White; }
+        var b = new Button { Text = text, AutoSize = true, Height = 30, Margin = new Padding(0, 4, 8, 0), BackColor = Color.White, ForeColor = UiKit.Fg };
+        UiKit.Decorate(b, text, primary: main);
         b.Click += (_, _) => click();
         return b;
     }
@@ -134,7 +139,7 @@ public sealed class ServerAdminWindow : Form
         }
     }
 
-    static string? Ask(IWin32Window owner, string title, string label, string value = "", bool password = false)
+    internal static string? Ask(IWin32Window owner, string title, string label, string value = "", bool password = false)
     {
         using var f = new Form { Text = title, Width = 420, Height = 160, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false };
         var lb = new Label { Text = label, Dock = DockStyle.Top, Height = 28, Padding = new Padding(8, 8, 8, 0) };
@@ -485,38 +490,100 @@ public sealed class ServerAdminWindow : Form
     // ---------- mapas ----------
     Control BuildMaps()
     {
+        // grade própria: só a coluna "sobe com o servidor" é editável; seleção de vários mapas para ligar/desligar juntos
+        _maps.ReadOnly = false; _maps.MultiSelect = true;
+        _maps.Columns.Add(new DataGridViewCheckBoxColumn { Name = "def", HeaderText = Loc.T("adm.mapDefault", "Sobe com o servidor"), FillWeight = 20 });
+        foreach (var (name, key, pt, w) in new[] { ("tag", "adm.map2", "Mapa", 14), ("name", "adm.name", "Nome", 40), ("kind", "adm.type", "Tipo", 14),
+                     ("run", "adm.mapState", "Estado", 18), ("ram", "adm.ramMb", "RAM (MB)", 12) })
+            _maps.Columns.Add(new DataGridViewTextBoxColumn { Name = name, HeaderText = Loc.T(key, pt), FillWeight = w, ReadOnly = true });
+        _maps.CurrentCellDirtyStateChanged += (_, _) => { if (_maps.IsCurrentCellDirty) _maps.CommitEdit(DataGridViewDataErrorContexts.Commit); };
         var p = new Panel { Dock = DockStyle.Fill };
         var bar = Bar(Btn(Loc.T("adm.startSelected", "▶ Iniciar selecionado"), () => MapAction(true), true),
-            Btn(Loc.T("adm.stopSelected", "■ Parar selecionado"), () => MapAction(false)), Btn(Loc.T("adm.refresh", "Atualizar"), RefreshMaps), _ram);
-        var hint = new Label { Dock = DockStyle.Bottom, Height = 40, ForeColor = Color.DimGray, Padding = new Padding(4),
-            Text = Loc.T("adm.eachMapInstanceIsA", "Cada mapa/instância é um programa gs separado e usa RAM. O mundo principal é gs01; as instâncias só abrem para os jogadores se o gs delas estiver rodando.") };
+            Btn(Loc.T("adm.stopSelected", "■ Parar selecionado"), () => MapAction(false)),
+            Btn(Loc.T("adm.saveDefaultMaps", "✔ Salvar padrões"), SaveDefaultMaps), Btn(Loc.T("adm.refresh", "Atualizar"), RefreshMaps), _ram);
+        var hint = new Label { Dock = DockStyle.Bottom, Height = 56, ForeColor = Color.DimGray, Padding = new Padding(4),
+            Text = Loc.T("adm.eachMapInstanceIsA", "Cada mapa/instância é um programa gs separado e usa RAM. O mundo principal é gs01; as instâncias só abrem para os jogadores se o gs delas estiver rodando.")
+                + " " + Loc.T("adm.defaultMapsHint", "Marque em \"Sobe com o servidor\" as que o Iniciar deve ligar e clique em Salvar padrões. O gs01 sobe sempre; no 1.5.x os personagens novos nascem no is61.") };
         p.Controls.Add(_maps); p.Controls.Add(hint); p.Controls.Add(bar);
+        // enquanto algum mapa carrega, a lista se atualiza sozinha (sem a barra de progresso)
+        _mapPoll.Tick += (_, _) => { if (_mapPollBusy || IsDisposed || !_maps.Visible) return; _mapPollBusy = true; LoadMaps(true); };
+        FormClosed += (_, _) => _mapPoll.Dispose();
         return p;
     }
 
-    void RefreshMaps()
+    readonly System.Windows.Forms.Timer _mapPoll = new() { Interval = 3000 };
+    bool _mapPollBusy;
+    readonly HashSet<string> _mapWanted = new();   // ligados por aqui: se o gs some, a linha mostra "falhou"
+
+    void RefreshMaps() => LoadMaps(false);
+
+    void LoadMaps(bool quiet)
     {
         if (_mapDefs.Count == 0) _mapDefs = ServerAdmin.MapList(_gsConf, _client);
         (List<ServerAdmin.MapProc> Running, int Total, int Free) st = (new(), 0, 0);
-        Work(Loc.T("adm.readingMaps", "Lendo mapas…"), () => st = _adm.Maps(), () =>
+        HashSet<string> auto = new();
+        void Show()
         {
-            var run = st.Running.ToDictionary(m => m.Tag, m => m.RamMb);
-            _maps.DataSource = _mapDefs.Select(m => new
+            _mapPollBusy = false;
+            var run = st.Running.ToDictionary(m => m.Tag);
+            bool rebuild = !quiet || _maps.Rows.Count != _mapDefs.Count, loading = false;
+            if (rebuild) _maps.Rows.Clear();
+            for (int k = 0; k < _mapDefs.Count; k++)
             {
-                Mapa = m.Tag, Nome = m.Name, Tipo = m.Instance ? Loc.T("adm.instance", "instância") : Loc.T("adm.world2", "mundo"),
-                Rodando = run.ContainsKey(m.Tag) ? "●" : "", RAM_MB = run.TryGetValue(m.Tag, out var mb) ? mb.ToString("N0") : "",
-            }).ToList();
-            Headers(_maps, ("adm.map2", "Mapa"), ("adm.name", "Nome"), ("adm.type", "Tipo"), ("adm.running", "Rodando"), ("adm.ramMb", "RAM (MB)"));
+                var m = _mapDefs[k];
+                run.TryGetValue(m.Tag, out var r);
+                if (r is { Ready: false }) loading = true;
+                string state = r is { Ready: true } ? "● " + Loc.T("adm.mapReady", "carregado")
+                    : r is not null ? "◌ " + Loc.T("adm.mapLoading", "carregando…")
+                    : _mapWanted.Contains(m.Tag) ? "✖ " + Loc.T("adm.mapFailed", "falhou") : "";
+                string ram = r is not null ? r.RamMb.ToString("N0") : "";
+                if (rebuild)
+                {
+                    int i = _maps.Rows.Add(m.Tag == "gs01" || auto.Contains(m.Tag), m.Tag, m.Name,
+                        m.Instance ? Loc.T("adm.instance", "instância") : Loc.T("adm.world2", "mundo"), state, ram);
+                    if (m.Tag == "gs01") _maps.Rows[i].Cells["def"].ReadOnly = true;
+                }
+                else { _maps.Rows[k].Cells["run"].Value = state; _maps.Rows[k].Cells["ram"].Value = ram; }   // mantém seleção e checkboxes
+                _maps.Rows[k].Cells["run"].Style.ForeColor = state.StartsWith('●') ? Color.FromArgb(22, 128, 61) : state.StartsWith('✖') ? Color.Firebrick : Color.DarkGoldenrod;
+            }
             _ram.Text = string.Format(Loc.T("adm.linuxRam0N0Mb", "RAM do Linux: {0:N0} MB livres de {1:N0} MB"), st.Free, st.Total);
-        });
+            _mapPoll.Enabled = loading;
+        }
+        if (quiet)
+            Task.Run(() =>
+            {
+                try { st = _adm.Maps(); } catch { }
+                if (!IsDisposed) BeginInvoke(Show);
+            });
+        else Work(Loc.T("adm.readingMaps", "Lendo mapas…"), () => { st = _adm.Maps(); auto = _adm.DefaultMaps(); }, Show);
     }
 
     void MapAction(bool start)
     {
-        if (_maps.CurrentRow?.Index is not int i || i < 0 || i >= _mapDefs.Count) { _status.Text = Loc.T("adm.pickAMapInThe", "Escolha um mapa na lista."); return; }
-        var m = _mapDefs[i];
-        if (!start && m.Tag == "gs01" && !Confirm(Loc.T("adm.stoppingTheMainWorldDisconnects", "Parar o mundo principal derruba todos os jogadores. Continuar?"))) return;
-        Work(start ? Loc.T("adm.starting2", "Iniciando ") + m.Tag + "…" : Loc.T("adm.stopping2", "Parando ") + m.Tag + "…",
-            () => { if (start) _adm.StartMap(m.Tag); else _adm.StopMap(m.Tag); }, RefreshMaps);
+        var tags = _maps.SelectedRows.Cast<DataGridViewRow>().OrderBy(r => r.Index).Select(r => (string)r.Cells["tag"].Value).ToList();
+        if (tags.Count == 0) { _status.Text = Loc.T("adm.pickAMapInThe", "Escolha um mapa na lista."); return; }
+        if (!start && tags.Contains("gs01") && !Confirm(Loc.T("adm.stoppingTheMainWorldDisconnects", "Parar o mundo principal derruba todos os jogadores. Continuar?"))) return;
+        var failed = new List<string>();
+        Work((start ? Loc.T("adm.starting2", "Iniciando ") : Loc.T("adm.stopping2", "Parando ")) + string.Join(", ", tags) + "…", () =>
+        {
+            foreach (var t in tags)
+            {
+                lock (_mapWanted) { if (start) _mapWanted.Add(t); else _mapWanted.Remove(t); }
+                if (start && _adm.StartMap(t).Output.Contains("##ERRO")) failed.Add(t);
+                else if (!start) _adm.StopMap(t);
+            }
+        }, () =>
+        {
+            RefreshMaps();
+            if (failed.Count > 0) _status.Text = string.Format(Loc.T("adm.mapsFailed", "Não subiram: {0} (veja /home/logs/gs-<mapa>.log)."), string.Join(", ", failed));
+        });
+    }
+
+    void SaveDefaultMaps()
+    {
+        if (_maps.Rows.Count == 0) return;
+        var tags = _maps.Rows.Cast<DataGridViewRow>().Where(r => r.Cells["def"].Value is true).Select(r => (string)r.Cells["tag"].Value).Where(t => t != "gs01").ToList();
+        Work(Loc.T("adm.savingDefaultMaps", "Salvando padrões…"), () => _adm.SetDefaultMaps(tags),
+            () => _status.Text = string.Format(Loc.T("adm.defaultMapsSaved", "Padrões salvos: o servidor sobe com {0}."), string.Join(", ", tags.Prepend("gs01"))));
     }
 }

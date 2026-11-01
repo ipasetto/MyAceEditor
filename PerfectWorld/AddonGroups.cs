@@ -88,6 +88,6 @@ public static class AddonGroups
     public static Item Clone(Item item) => new()
     {
         Id = item.Id, Name = item.Name,
-        Fields = item.Fields.ToDictionary(kv => kv.Key, kv => Field.Of(kv.Value.Type, kv.Value.Value)),
+        Fields = item.Fields.Clone(),
     };
 }

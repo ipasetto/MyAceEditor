@@ -16,9 +16,11 @@ internal sealed class WorldQuestEditor : Panel
     readonly QuestWorld _world;
     QuestDraft _d;
     readonly Label _title = new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI", 10.5f, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0) };
-    readonly FlowLayoutPanel _steps = new() { Dock = DockStyle.Top, AutoSize = true, BackColor = Bg2, Padding = new Padding(4, 4, 4, 4) };
+    readonly StepperBar _stepper = new();
+    readonly Label _sub = new() { Dock = DockStyle.Bottom, Height = 18, ForeColor = Color.Silver, Font = new Font("Segoe UI", 8.5f), Padding = new Padding(36, 0, 0, 0) };
     readonly Panel _page = new() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10, 6, 14, 6) };
-    readonly List<(Button Step, Control Page, Action? OnShow)> _pages = new();
+    readonly List<(Control Page, Action? OnShow)> _pages = new();
+    Button _next = null!, _back = null!;
     readonly ToolTip _tip = new() { AutoPopDelay = 15000 };
     int _at;
 
@@ -59,26 +61,37 @@ internal sealed class WorldQuestEditor : Panel
         _host = host; _d = draft; _world = world;
         if (_d.Steps.Count == 0) _d.Steps.Add(new QuestStep { Kind = QuestStepKind.Talk, Npc = _d.Receiver, Text = _d.RewardText });   // começa como recado
         Dock = DockStyle.Right; Width = 380; BackColor = Bg; ForeColor = Fg;
-        var head = new Panel { Dock = DockStyle.Top, Height = 34, BackColor = Bg2 };
-        var close = new Button { Dock = DockStyle.Right, Width = 34, Text = "✕", FlatStyle = FlatStyle.Flat, ForeColor = Color.White };
+        // cabeçalho: ícone + "Nova quest" e, embaixo, de quem é; X fecha (pergunta antes)
+        var head = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Bg2 };
+        var close = new Button { Dock = DockStyle.Right, Width = 40, FlatStyle = FlatStyle.Flat, Image = UiKit.Icon("\uE711", Color.White, 16), Cursor = Cursors.Hand };
         close.FlatAppearance.BorderSize = 0;
         close.Click += (_, _) => Cancel();
-        head.Controls.Add(_title); head.Controls.Add(close);
-        var foot = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 40, FlowDirection = FlowDirection.RightToLeft, BackColor = Bg2, Padding = new Padding(4, 6, 4, 4) };
-        var finish = _finish = Btn(Loc.T("qe.finish", "Concluir"), Finish, Color.FromArgb(40, 110, 60));
+        _tip.SetToolTip(close, Loc.T("qe.cancel", "Cancelar"));
+        var icon = new PictureBox { Dock = DockStyle.Left, Width = 34, Image = UiKit.Icon("\uE7C1", Accent, 22), SizeMode = PictureBoxSizeMode.CenterImage };
+        head.Controls.Add(_title); head.Controls.Add(_sub); head.Controls.Add(icon); head.Controls.Add(close);
+        _title.Padding = new Padding(2, 4, 0, 0); _title.TextAlign = ContentAlignment.BottomLeft;
+        // passos: círculos numerados (o atual em azul, os já vistos com ✓); clique pula
+        _stepper.Picked += i => Show(i);
+        // rodapé: pendências numa linha; Voltar / Avançar / Concluir na outra (Concluir só sem pendências)
+        var foot = new Panel { Dock = DockStyle.Bottom, Height = 78, BackColor = Bg2, Padding = new Padding(8, 6, 8, 8) };
+        var row = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 34, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
+        var finish = _finish = Btn(Loc.T("qe.finish", "Concluir"), Finish, Color.FromArgb(34, 140, 70));
+        _next = Btn(Loc.T("qe.next", "Avançar ▶"), () => Show(Math.Min(_pages.Count - 1, _at + 1)), UiKit.Accent);
+        _back = Btn(Loc.T("qe.back", "◀ Voltar"), () => Show(Math.Max(0, _at - 1)));
         var cancel = Btn(Loc.T("qe.cancel", "Cancelar"), Cancel);
-        var next = Btn(Loc.T("qe.next", "Avançar ▶"), () => Show(Math.Min(_pages.Count - 1, _at + 1)));
-        var back = Btn(Loc.T("qe.back", "◀ Voltar"), () => Show(Math.Max(0, _at - 1)));
-        foot.Height = 64; foot.WrapContents = true;
-        foot.Controls.AddRange(new Control[] { finish, cancel, next, back, _pending });
-        foot.SetFlowBreak(back, true);
+        row.Controls.AddRange(new Control[] { finish, _next, _back, cancel });
+        _pending.Dock = DockStyle.Top; _pending.AutoSize = false; _pending.Height = 24; _pending.TextAlign = ContentAlignment.MiddleLeft;
+        foot.Controls.Add(_pending); foot.Controls.Add(row);
         _tip.SetToolTip(finish, Loc.T("qe.finishTip", "Cria a quest e liga aos NPCs (só na memória: grava no Salvar)."));
         _pending.Click += (_, _) => Show(_pages.Count - 1);
-        Controls.Add(_page); Controls.Add(_steps); Controls.Add(foot); Controls.Add(head);
+        Controls.Add(_page); Controls.Add(_stepper); Controls.Add(foot); Controls.Add(head);
 
         BuildPages();
         Load();
-        _title.Text = Loc.T("qe.titleNew", "Nova quest");
+        _title.Text = Title();
+        if (Editing) _tip.SetToolTip(finish, Loc.T("qe.finishEditTip", "Grava as mudanças na quest e nos NPCs (só na memória: grava no Salvar)."));
+        _tip.SetToolTip(_stepper, Loc.T("qe.undoTip", "Ctrl+Z desfaz etapas, áreas e itens; Ctrl+Y refaz."));
+        _sub.Text = _d.Giver > 0 && _host.NameOf(_d.Giver) is { } gn ? string.Format(Loc.T("qe.givenBy2", "dada por {0}"), gn) : "";
         Show(0);
         // validação contínua: Concluir só ativo quando não falta nada (a quest criada tem que funcionar no jogo)
         _check.Tick += (_, _) => { if (Visible && !IsDisposed) CheckNow(); };
@@ -107,17 +120,18 @@ internal sealed class WorldQuestEditor : Panel
     {
         var b = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = bg ?? Bg, Height = 28, Margin = new Padding(3, 0, 3, 0) };
         b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 90);
+        UiKit.Decorate(b, text, dark: true);
+        if (bg is { } c) { b.BackColor = c; b.FlatAppearance.BorderColor = c; }
         b.Click += (_, _) => a();
         return b;
     }
 
     FlowLayoutPanel NewPage(string key, string pt, Action? onShow = null)
     {
-        var page = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-        int index = _pages.Count;
-        var step = Btn($"{index + 1}. {Loc.T(key, pt)}", () => Show(index));
-        _steps.Controls.Add(step);
-        _pages.Add((step, page, onShow));
+        // folga no fim: rolando até o final, o último campo não fica colado na borda
+        var page = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0, 0, 0, 28) };
+        _stepper.Add(() => Loc.T(key, pt));
+        _pages.Add((page, onShow));
         return page;
     }
 
@@ -136,7 +150,7 @@ internal sealed class WorldQuestEditor : Panel
         row.Controls.Add(Btn(Loc.T("qe.pick", "🎯 Escolher no mundo"), () =>
         {
             _title.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)");
-            _world.PickNpc(id => { num.Value = id; _title.Text = Loc.T("qe.titleNew", "Nova quest"); });
+            _world.PickNpc(id => { num.Value = id; _title.Text = Title(); });
         }));
         p.Controls.Add(row);
         p.Controls.Add(name);
@@ -179,7 +193,7 @@ internal sealed class WorldQuestEditor : Panel
         _itemId.Width = 96; _itemN.Width = 58;   // cabe na largura do painel com os dois botões
         addRow.Controls.Add(_itemId); addRow.Controls.Add(_itemN);
         addRow.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), AddItem));
-        addRow.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), () => { foreach (ListViewItem it in _items.SelectedItems) _items.Items.Remove(it); }));
+        addRow.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), () => { if (_items.SelectedItems.Count == 0) return; Remember(); foreach (ListViewItem it in _items.SelectedItems) _items.Items.Remove(it); }));
         award.Controls.Add(addRow);
         award.Controls.Add(_itemName);
         _howItems.Items.AddRange(new object[] { Loc.T("qe.allItems", "O jogador ganha todos os itens"), Loc.T("qe.oneItem", "O jogador ganha um item sorteado da lista") });
@@ -254,7 +268,7 @@ internal sealed class WorldQuestEditor : Panel
         var ar = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(340, 0), Margin = new Padding(0, 4, 0, 0) };
         ar.Controls.Add(Btn(Loc.T("qe.markArea", "🎯 Marcar no mundo"), MarkArea));
         ar.Controls.Add(Btn(Loc.T("qe.removeArea", "Remover área"), RemoveArea));
-        ar.Controls.Add(Btn(Loc.T("qe.anyHeight", "Qualquer altura"), () => { if (CurArea is { } a) { a.Y0 = -9999; a.Y1 = 9999; LoadArea(); RefreshAreas(); } }));
+        ar.Controls.Add(Btn(Loc.T("qe.anyHeight", "Qualquer altura"), () => { if (CurArea is { } a) { Remember(); a.Y0 = -9999; a.Y1 = 9999; LoadArea(); RefreshAreas(); } }));
         _reachBox.Controls.Add(ar);
         var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Margin = new Padding(0, 4, 0, 0) };
         string[] rows = { Loc.T("qe.axisX", "X (mín. / máx.)"), Loc.T("qe.axisY", "Altura (mín. / máx.)"), Loc.T("qe.axisZ", "Z (mín. / máx.)") };
@@ -345,6 +359,7 @@ internal sealed class WorldQuestEditor : Panel
 
     void AddStep(QuestStepKind kind)
     {
+        Remember();
         _d.Steps.Add(new QuestStep { Kind = kind });
         RefreshStepList(_d.Steps.Count - 1);
         if (kind == QuestStepKind.Reach) ShowAreas();
@@ -354,6 +369,7 @@ internal sealed class WorldQuestEditor : Panel
     {
         int i = _stepList.SelectedIndex, j = i + by;
         if (i < 0 || j < 0 || j >= _d.Steps.Count) return;
+        Remember();
         (_d.Steps[i], _d.Steps[j]) = (_d.Steps[j], _d.Steps[i]);
         RefreshStepList(j);
     }
@@ -363,6 +379,7 @@ internal sealed class WorldQuestEditor : Panel
         if (CurStep is null) return;
         if (_d.Steps.Count == 1) { MessageBox.Show(FindForm(), Loc.T("qe.lastStep", "A quest precisa de pelo menos uma etapa."), Loc.T("qe.stepSteps", "Etapas")); return; }
         int i = _stepList.SelectedIndex;
+        Remember();
         _d.Steps.RemoveAt(i);
         RefreshStepList(i);
     }
@@ -379,8 +396,9 @@ internal sealed class WorldQuestEditor : Panel
         _title.Text = Loc.T("qe.areaPicking", "Arraste no chão para marcar a área (clique sem arrastar = 10 × 10 m; Esc cancela)…");
         _world.PickArea(a =>
         {
-            _title.Text = Loc.T("qe.titleNew", "Nova quest");
+            _title.Text = Title();
             if (CurStep != s) return;
+            Remember();
             s.MapTag = tag; s.Areas.Add(a);
             RefreshAreas(); RefreshStepText();
             _areaList.Items[^1].Selected = true;
@@ -390,6 +408,7 @@ internal sealed class WorldQuestEditor : Panel
     void RemoveArea()
     {
         if (CurStep is not { Kind: QuestStepKind.Reach } s || CurArea is not { } a) return;
+        Remember();
         s.Areas.Remove(a);
         RefreshAreas(); RefreshStepText();
     }
@@ -448,36 +467,105 @@ internal sealed class WorldQuestEditor : Panel
         Caption(page, reward ? "qe.moreAward" : "qe.moreReq", reward ? "Mais prêmios" : "Mais requisitos",
             reward ? "qe.moreAwardHint" : "qe.moreReqHint", reward ? "Escolha o tipo e clique em Adicionar; pode pôr vários." : "Escolha o tipo e clique em Adicionar; pode pôr vários ao mesmo tempo.");
         var opts = _host.Options(reward);
+        // 1ª linha da lista = "escolha um tipo": nada vem pré-escolhido (antes "Classes" parecia já ser um requisito)
         var box = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 230, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, DropDownWidth = 300 };
+        box.Items.Add(reward ? Loc.T("qe.pickAward", "— escolha um tipo de prêmio —") : Loc.T("qe.pickReq", "— escolha um tipo de requisito —"));
         foreach (var o in opts) box.Items.Add(o.Text);
-        if (box.Items.Count > 0) box.SelectedIndex = 0;
+        box.SelectedIndex = 0;
         var holder = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
-        // nada escolhido = sem requisitos / sem prêmios a mais (dito na tela)
-        var none = new Label { AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Good, Margin = new Padding(3, 6, 3, 3),
-            Text = reward ? Loc.T("qe.noMoreAward", "Nenhum prêmio a mais: só o que está acima.") : Loc.T("qe.noReq", "Sem requisitos: qualquer jogador a partir do nível mínimo pode aceitar.") };
-        holder.Controls.Add(none);
-        void Sync() => none.Visible = !holder.Controls.OfType<QuestChoiceBlock>().Any();
+        // o estado vem primeiro, num quadro: sem nada escolhido = sem requisitos / sem prêmios a mais
+        var none = new Label { AutoSize = true, MaximumSize = new Size(330, 0), MinimumSize = new Size(330, 0), ForeColor = Color.White, BackColor = Color.FromArgb(30, 90, 50),
+            Padding = new Padding(8, 6, 8, 6), Margin = new Padding(3, 6, 3, 6), Font = new Font("Segoe UI Semibold", 9.5f),
+            Text = reward ? Loc.T("qe.noMoreAward2", "✓ Nenhum prêmio a mais — só o que está acima. Para dar mais, escolha um tipo abaixo e clique em Adicionar.")
+                          : Loc.T("qe.noReq2", "✓ Sem requisitos — qualquer jogador a partir do nível mínimo pode aceitar. Para exigir algo, escolha um tipo abaixo e clique em Adicionar.") };
+        var count = new Label { AutoSize = true, ForeColor = Accent, Margin = new Padding(3, 6, 3, 3), Font = new Font("Segoe UI Semibold", 9.5f) };
+        page.Controls.Add(none); page.Controls.Add(count);
+        void Sync()
+        {
+            int n = holder.Controls.OfType<QuestChoiceBlock>().Count();
+            none.Visible = n == 0; count.Visible = n > 0;
+            count.Text = reward ? string.Format(Loc.T("qe.awardsN", "{0} prêmio(s) a mais:"), n) : string.Format(Loc.T("qe.reqsN", "{0} requisito(s):"), n);
+        }
+        Sync();
         var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
         row.Controls.Add(box);
-        row.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), () =>
+        void AddBlock(QuestOption o, object? initial)
         {
-            if (box.SelectedIndex < 0) return;
-            var o = opts[box.SelectedIndex];
-            if (o.Type != QOType.Field && _choices.Any(c => c.Option == o)) return;   // cada opção uma vez (menos "outro campo")
-            var b = new QuestChoiceBlock(o, _host, _tip);
+            var b = new QuestChoiceBlock(o, _host, _tip, initial);
             b.Removed += x => { _choices.Remove(x); holder.Controls.Remove(x); x.Dispose(); Sync(); };
             _choices.Add(b); holder.Controls.Add(b); Sync();
-        }));
-        box.SelectedIndexChanged += (_, _) => { if (box.SelectedIndex >= 0) _tip.SetToolTip(box, opts[box.SelectedIndex].Tip); };
-        page.Controls.Add(row);
+        }
+        // editar quest: as opções que ela já tem entram preenchidas
+        foreach (var c in _d.Choices.Where(c => c.Option.Reward == reward)) AddBlock(c.Option, c.Value);
+        var addBtn = Btn(Loc.T("qe.add", "Adicionar"), () =>
+        {
+            if (box.SelectedIndex <= 0) return;
+            var o = opts[box.SelectedIndex - 1];
+            if (o.Type != QOType.Field && _choices.Any(c => c.Option == o)) return;   // cada opção uma vez (menos "outro campo")
+            AddBlock(o, null);
+            box.SelectedIndex = 0;
+        });
+        row.Controls.Add(addBtn);
+        addBtn.Enabled = false;
+        box.SelectedIndexChanged += (_, _) => { addBtn.Enabled = box.SelectedIndex > 0; _tip.SetToolTip(box, box.SelectedIndex > 0 ? opts[box.SelectedIndex - 1].Tip : ""); };
         page.Controls.Add(holder);
+        page.Controls.Add(row);
     }
 
     void AddItem()
     {
         int id = (int)_itemId.Value;
         if (id <= 0 || _host.NameOf(id) is not { } name) { _itemName.Text = Loc.T("qe.unknown", "(não existe no elements.data)"); return; }
+        Remember();
         _items.Items.Add(new ListViewItem(new[] { id.ToString(), name, ((int)_itemN.Value).ToString() }) { Tag = (id, (int)_itemN.Value) });
+    }
+
+    // ---------- desfazer do rascunho ----------
+    // cada mudança de estrutura (etapa, área, item do prêmio) guarda o estado antes; texto digitado usa o desfazer da caixa
+    sealed record Snap(List<QuestStep> Steps, List<(int Id, int N)> Items, int Step);
+    readonly List<Snap> _dUndo = new(), _dRedo = new();
+
+    static QuestStep CloneStep(QuestStep x) => new()
+    {
+        Kind = x.Kind, Name = x.Name, Description = x.Description, Npc = x.Npc, Text = x.Text, MapTag = x.MapTag,
+        Areas = x.Areas.Select(a => new QuestArea { X0 = a.X0, Y0 = a.Y0, Z0 = a.Z0, X1 = a.X1, Y1 = a.Y1, Z1 = a.Z1 }).ToList(),
+    };
+    Snap Take() => new(_d.Steps.Select(CloneStep).ToList(), _items.Items.Cast<ListViewItem>().Select(i => ((int, int))i.Tag!).ToList(), _stepList.SelectedIndex);
+    void Remember() { _dUndo.Add(Take()); if (_dUndo.Count > 100) _dUndo.RemoveAt(0); _dRedo.Clear(); }
+
+    void Restore(Snap s)
+    {
+        _d.Steps.Clear(); _d.Steps.AddRange(s.Steps.Select(CloneStep));
+        _items.Items.Clear();
+        foreach (var (id, n) in s.Items) _items.Items.Add(new ListViewItem(new[] { id.ToString(), _host.NameOf(id) ?? "?", n.ToString() }) { Tag = (id, n) });
+        RefreshStepList(Math.Max(0, s.Step));
+    }
+
+    bool UndoDraft(bool redo)
+    {
+        var from = redo ? _dRedo : _dUndo; var to = redo ? _dUndo : _dRedo;
+        if (from.Count == 0) return false;
+        to.Add(Take()); var s = from[^1]; from.RemoveAt(from.Count - 1);
+        Restore(s);
+        return true;
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        // nas caixas de texto vale o desfazer da própria caixa
+        if ((keyData == (Keys.Control | Keys.Z) || keyData == (Keys.Control | Keys.Y)) && ActiveControlDeep() is not TextBoxBase)
+        {
+            if (!UndoDraft(redo: keyData.HasFlag(Keys.Y))) System.Media.SystemSounds.Beep.Play();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    Control? ActiveControlDeep()
+    {
+        Control? c = FindForm()?.ActiveControl;
+        while (c is ContainerControl cc && cc.ActiveControl is { } inner) c = inner;
+        return c;
     }
 
     // ---------- rascunho ----------
@@ -488,6 +576,13 @@ internal sealed class WorldQuestEditor : Panel
         _order.SelectedIndex = (int)_d.Order;
         RefreshStepList(0);
         _minLv.Value = _d.MinLevel; _maxLv.Value = _d.MaxLevel;
+        // editar quest: prêmio, itens e textos vêm da quest (na criação estão vazios)
+        _gold.Value = Math.Clamp(_d.Gold, (long)_gold.Minimum, (long)_gold.Maximum); _exp.Value = Math.Clamp(_d.Exp, (long)_exp.Minimum, (long)_exp.Maximum);
+        _sp.Value = Math.Clamp(_d.Sp, (long)_sp.Minimum, (long)_sp.Maximum); _rep.Value = Math.Clamp(_d.Reputation, (long)_rep.Minimum, (long)_rep.Maximum);
+        _items.Items.Clear();
+        foreach (var (id, n) in _d.Items) _items.Items.Add(new ListViewItem(new[] { id.ToString(), _host.NameOf(id) ?? "?", n.ToString() }) { Tag = (id, n) });
+        _howItems.SelectedIndex = _d.RandomItem ? 1 : 0;
+        _desc.Text = _d.Description; _offer.Text = _d.OfferText;
         _giverName.Text = _d.Giver > 0 ? _host.NameOf(_d.Giver) ?? "" : "";
     }
 
@@ -517,23 +612,27 @@ internal sealed class WorldQuestEditor : Panel
     {
         _at = index;
         _page.Controls.Clear();
-        for (int i = 0; i < _pages.Count; i++) _pages[i].Step.BackColor = i == index ? Color.FromArgb(50, 90, 140) : Bg;
+        _stepper.Current = index;
+        _back.Enabled = index > 0; _next.Visible = index < _pages.Count - 1;
         _pages[index].OnShow?.Invoke();
         _page.Controls.Add(_pages[index].Page);
     }
+
+    bool Editing => _d.Editing > 0;
+    string Title() => Editing ? string.Format(Loc.T("qe.titleEdit", "Editar quest {0}"), _d.Editing) : Loc.T("qe.titleNew", "Nova quest");
 
     void Finish()
     {
         var errors = _host.Validate(Collect());
         if (errors.Count > 0) { Show(_pages.Count - 1); return; }
-        if (MessageBox.Show(FindForm(), _host.Summary(_d), Loc.T("qe.confirm", "Criar esta quest?"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
-        if (_host.Commit(_d) is { } err) { MessageBox.Show(FindForm(), err, Loc.T("qe.failed", "Não foi possível criar a quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        if (MessageBox.Show(FindForm(), _host.Summary(_d), Editing ? Loc.T("qe.confirmEdit", "Gravar as mudanças nesta quest?") : Loc.T("qe.confirm", "Criar esta quest?"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        if (_host.Commit(_d) is { } err) { MessageBox.Show(FindForm(), err, Editing ? Loc.T("qe.failedEdit", "Não foi possível mudar a quest") : Loc.T("qe.failed", "Não foi possível criar a quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         Created?.Invoke(_d.Id);
     }
 
     void Cancel()
     {
-        if (MessageBox.Show(FindForm(), Loc.T("qe.cancelAsk", "Descartar esta quest? Nada foi criado ainda."), Loc.T("qe.cancel", "Cancelar"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+        if (MessageBox.Show(FindForm(), Editing ? Loc.T("qe.cancelEditAsk", "Descartar as mudanças? A quest fica como estava.") : Loc.T("qe.cancelAsk", "Descartar esta quest? Nada foi criado ainda."), Loc.T("qe.cancel", "Cancelar"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             Cancelled?.Invoke();
     }
 }

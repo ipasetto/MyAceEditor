@@ -85,6 +85,49 @@ public static class QuestOptions
         rec.V[key] = on ? 1L : 0L;
     }
 
+    /// <summary>Lê um campo booleano: bit de CombinedSwitches na v135+ ou o próprio campo.</summary>
+    public static bool GetFlag(TaskRec rec, int version, string key)
+    {
+        int idx = SwitchIndex(version, key);
+        if (idx >= 0 && rec.V.TryGetValue("CombinedSwitches", out var o) && o is byte[] b && idx / 8 < b.Length) return (b[idx / 8] & 1 << idx % 8) != 0;
+        return rec.Int(key) != 0;
+    }
+
+    /// <summary>
+    /// Escolhas que a quest já tem (editar quest), o inverso de <see cref="Apply"/>: só opções da lista com valor diferente de
+    /// zero. "Outro campo" não é lido; um campo assim faz a quest não bater na prova de <see cref="QuestBuilder.FromQuest"/>.
+    /// </summary>
+    public static List<QuestChoice> Read(TaskRec rec, int version)
+    {
+        var res = new List<QuestChoice>();
+        foreach (var o in All.Where(o => o.Type != QOType.Field && Available(o, version, rec)))
+        {
+            object? v = null;
+            switch (o.Type)
+            {
+                case QOType.Number or QOType.Gender: if (rec.Int(o.Keys[0]) is var n and not 0) v = n; break;
+                case QOType.Range: if ((rec.Int(o.Keys[0]), rec.Int(o.Keys[1])) is var r && (r.Item1 != 0 || r.Item2 != 0)) v = r; break;
+                case QOType.Flag: if (GetFlag(rec, version, o.Keys[0])) v = true; break;
+                case QOType.Classes or QOType.Quests:
+                {
+                    if (o.Keys.Length == 1) { if (rec.Int(o.Keys[0]) is var one and not 0) v = new List<int> { (int)one }; break; }
+                    var ids = Enumerable.Range(0, (int)Math.Max(0, rec.Int(o.Keys[0]))).Select(i => (int)rec.Int($"{o.Keys[1]}[{i}]")).ToList();
+                    if (ids.Count > 0) v = ids;
+                    break;
+                }
+                case QOType.Items:
+                {
+                    var items = Enumerable.Range(0, (int)Math.Max(0, rec.Int(o.Keys[0])))
+                        .Select(i => ((int)rec.Int($"{o.Keys[1]}[{i}].m_ulItemTemplId"), (int)rec.Int($"{o.Keys[1]}[{i}].m_ulItemNum"))).ToList();
+                    if (items.Count > 0) v = items;
+                    break;
+                }
+            }
+            if (v is not null) res.Add(new QuestChoice(o, v));
+        }
+        return res;
+    }
+
     /// <summary>Tamanho máximo das listas fixas por versão (0 = sem limite fixo).</summary>
     public static int MaxCount(QuestOption o, int version) => o.Id switch
     {

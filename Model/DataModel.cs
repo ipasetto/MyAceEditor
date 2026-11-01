@@ -38,9 +38,12 @@ public sealed class ItemList
 /// <summary>Um item é só um id + um conjunto de campos tipados.</summary>
 public sealed class Item
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    // Id aleatório só quando ninguém deu um (antes era gerado para todo registro lido e descartado em seguida)
+    string? _id;
+    public string Id { get => _id ??= Guid.NewGuid().ToString("N")[..8]; set => _id = value; }
     public string Name { get; set; } = "";
-    public Dictionary<string, Field> Fields { get; set; } = new();
+    /// <summary>Campos do registro (comporta-se como Dictionary&lt;string, Field&gt;; nomes compartilhados por bloco, <see cref="FieldMap"/>).</summary>
+    public FieldMap Fields { get; set; } = new();
 
     /// <summary>
     /// Bytes originais do registro (formatos binários). Ao gravar, partimos deles e só recodificamos

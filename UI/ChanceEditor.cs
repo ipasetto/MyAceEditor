@@ -23,6 +23,10 @@ internal sealed class ChanceEditor : Form
     readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(100, 112, 128), Padding = new Padding(8, 0, 0, 0) };
     readonly List<ProbListView> _views = new();
     readonly List<Action> _titles = new();
+    readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
+    // abas com lista de IDs (addons/drops): o que o Ctrl+C / Ctrl+V usa
+    readonly Dictionary<TabPage, (ProbListView View, ProbSection Section)> _lists = new();
+    readonly string _clipTag;   // "#myace:addons" ou "#myace:drops": addon não cola em lista de drop e vice-versa
     // desfazer/refazer dentro da janela: fotos dos valores antes de cada ação
     readonly Stack<Dictionary<string, string>> _undo = new(), _redo = new();
     readonly List<string> _keys;
@@ -50,6 +54,7 @@ internal sealed class ChanceEditor : Form
     /// <param name="icon">ícone do ID referenciado (drops), opcional</param>
     public ChanceEditor(Item item, bool drops, Func<string, string> label, Func<string, string> addonText, Func<IWin32Window, string, List<string>?> pick, Func<string, Image?>? icon = null)
     {
+        _clipTag = drops ? "#myace:drops" : "#myace:addons";
         _orig = item; _work = AddonGroups.Clone(item); _label = label; _addonText = addonText; _pick = pick; _icon = icon;
         Text = string.Format(drops ? Loc.T("dropEd.title", "Editor de drops — {0} {1}") : Loc.T("addonEd.title", "Editor de addons — {0} {1}"),
             item.Id, TasksFile.SplitColor(item.Name).Text);
@@ -63,8 +68,10 @@ internal sealed class ChanceEditor : Form
         {
             if (e.Control && e.KeyCode == Keys.Z) { e.SuppressKeyPress = true; Undo(); }
             else if (e.Control && e.KeyCode == Keys.Y) { e.SuppressKeyPress = true; Redo(); }
+            else if (e.Control && e.KeyCode == Keys.C && _tabs.SelectedTab is { } pc && _lists.ContainsKey(pc)) { e.SuppressKeyPress = true; Copy(); }
+            else if (e.Control && e.KeyCode == Keys.V && _tabs.SelectedTab is { } pv && _lists.ContainsKey(pv)) { e.SuppressKeyPress = true; Paste(); }
         };
-        var tabs = new TabControl { Dock = DockStyle.Fill };
+        var tabs = _tabs;
         var chances = sections.Where(s => !s.HasRefs).ToList();
         if (chances.Count > 0) tabs.TabPages.Add(Page(Loc.T("addonEd.chances", "Chances"), chances, null));
         foreach (var s in sections.Where(s => s.HasRefs))
@@ -84,7 +91,7 @@ internal sealed class ChanceEditor : Form
         };
         bottom.Controls.Add(_status, 0, 0); bottom.Controls.Add(ok, 1, 0); bottom.Controls.Add(cancel, 2, 0);
         Info(drops ? Loc.T("dropEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o item. Shift/Ctrl+clique marca várias; Delete remove. Ctrl+Z desfaz.")
-            : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon. Shift/Ctrl+clique marca várias; Delete remove. Ctrl+Z desfaz."));
+            : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon. Shift/Ctrl+clique marca várias; Delete remove. Ctrl+C/Ctrl+V copia linhas entre listas e itens. Ctrl+Z desfaz."));
         CancelButton = cancel;
         Controls.Add(tabs); Controls.Add(bottom);
     }
@@ -162,8 +169,44 @@ internal sealed class ChanceEditor : Form
             AddonGroups.Normalize(_work, listSection, _locks);
             view.Rebuild();
         });
+        B(Loc.T("addonEd.copy", "Copiar (Ctrl+C)"), Copy);
+        B(Loc.T("addonEd.paste", "Colar (Ctrl+V)"), Paste);
+        _lists[page] = (view, listSection);
         page.Controls.Add(tools);
         return page;
+    }
+
+    // ---------- copiar / colar linhas (ID + chance) entre listas e entre itens: texto "#myace:addons" + "id<TAB>chance" ----------
+    void Copy()
+    {
+        if (_tabs.SelectedTab is not { } page || !_lists.TryGetValue(page, out var l)) return;
+        var rows = l.View.SelectedRows.Count > 0 ? l.Section.Rows.Where(l.View.SelectedRows.Contains).ToList()
+            : l.View.Selected is { } one ? new List<ProbRow> { one } : AddonGroups.Filled(_work, l.Section).ToList();
+        rows = rows.Where(r => r.Ref is not null && !AddonGroups.Empty(_work.Fields[r.Ref].Value)).ToList();
+        if (rows.Count == 0) { Warn(Loc.T("addonEd.pickRow", "Selecione uma linha.")); return; }
+        var text = _clipTag + Environment.NewLine + string.Join(Environment.NewLine, rows.Select(r => _work.Fields[r.Ref!].Value + "\t" + _work.Fields[r.Prob].Value));
+        try { Clipboard.SetText(text); } catch (System.Runtime.InteropServices.ExternalException) { Warn(Loc.T("addonEd.clipBusy", "A área de transferência está ocupada; tente de novo.")); return; }
+        Info(string.Format(Loc.T("addonEd.copied", "{0} linha(s) copiada(s). Abra outra aba (ou outro item) e use Ctrl+V."), rows.Count));
+    }
+
+    void Paste()
+    {
+        if (_tabs.SelectedTab is not { } page || !_lists.TryGetValue(page, out var l)) return;
+        string text;
+        try { text = Clipboard.GetText(); } catch (System.Runtime.InteropServices.ExternalException) { return; }
+        var lines = text.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length < 2 || lines[0].Trim() != _clipTag) { Warn(Loc.T("addonEd.clipNone", "Nada para colar: copie linhas com Ctrl+C numa lista do mesmo tipo.")); return; }
+        var data = lines.Skip(1).Select(x => x.Split('\t')).Where(x => x.Length == 2 && !AddonGroups.Empty(x[0].Trim())).Select(x => (Id: x[0].Trim(), Prob: x[1].Trim())).ToList();
+        var empty = l.Section.Rows.Where(r => r.Ref is not null && AddonGroups.Empty(_work.Fields[r.Ref].Value) && ProbabilityGroups.Num(_work.Fields[r.Prob].Value) == 0).ToList();
+        if (empty.Count == 0) { Warn(string.Format(Loc.T("addonEd.full", "Lista cheia ({0} slots, limite do arquivo). Selecione uma linha e clique em Adicionar para trocar o item dela, ou use ✕ Remover para liberar um slot."), l.Section.Rows.Count)); return; }
+        Snapshot();
+        int n = 0;
+        foreach (var (row, d) in empty.Zip(data)) { Put(row.Ref!, d.Id); Put(row.Prob, d.Prob); n++; }
+        l.View.Rebuild();
+        foreach (var t in _titles) t();
+        var msg = string.Format(Loc.T("addonEd.pasted", "{0} linha(s) colada(s) com a chance de origem; confira o total (Ajustar para 100%)."), n)
+            + (data.Count > n ? " " + string.Format(Loc.T("addonEd.noRoom", "{0} não couberam."), data.Count - n) : "");
+        if (data.Count > n) Warn(msg); else Info(msg);
     }
 
     void Put(string key, string v) => _work.Fields[key] = Field.Of(_work.Fields[key].Type, v);

@@ -472,6 +472,23 @@ public sealed class LocalServer
             diff.Add(new SendFile(kv.Key, kv.Value));
         });
         SaveHashCache(cache);
+        // a lista do Linux sai de 4 md5sum escrevendo no mesmo arquivo: às vezes um registro embaralha e um arquivo igual
+        // parecia diferente (aviso "servidor desatualizado: a22/map/1.hmap" ao abrir, toda vez). Confere de novo um a um.
+        if (diff.Count is > 0 and <= 200)
+        {
+            var again = Path.Combine(BaseDir, "servidor-reconferir.md5");
+            var list = Path.Combine(BaseDir, "servidor-reconferir.txt");
+            File.Delete(again);
+            File.WriteAllText(list, string.Join("\0", diff.Select(d => d.Rel)) + "\0");
+            Bash($"cd /home/gamed/config && xargs -0 -r md5sum -z < '{ToWslPath(list)}' > '{ToWslPath(again)}' 2>/dev/null", Log, timeoutMs: 120_000);
+            if (File.Exists(again))
+            {
+                var ok = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var rec in Encoding.UTF8.GetString(File.ReadAllBytes(again)).Split('\0', StringSplitOptions.RemoveEmptyEntries))
+                    if (rec.Length > 34 && rec[32] == ' ' && rec[34..] is var rel && diff.FirstOrDefault(d => d.Rel == rel) is { } d && rec[..32] == Md5(d.Src, cache)) ok.Add(rel);
+                if (ok.Count > 0) return diff.Where(d => !ok.Contains(d.Rel)).OrderBy(d => d.Rel, StringComparer.Ordinal).ToList();
+            }
+        }
         return diff.OrderBy(d => d.Rel, StringComparer.Ordinal).ToList();
     }
 
@@ -485,14 +502,23 @@ public sealed class LocalServer
         {
             if (File.Exists(HashCacheFile))
                 foreach (var l in File.ReadLines(HashCacheFile))
-                    if (l.Split('\t') is [var f, var sz, var tk, var h] && long.TryParse(sz, out var a) && long.TryParse(tk, out var b)) d[f] = (a, b, h);
+                    // só MD5 inteiro (32 hex): uma linha cortada (arquivo gravado pela metade) fazia um arquivo igual parecer
+                    // diferente para sempre ("servidor desatualizado: a22/map/1.hmap" a cada abertura)
+                    if (l.Split('\t') is [var f, var sz, var tk, var h] && long.TryParse(sz, out var a) && long.TryParse(tk, out var b)
+                        && h.Length == 32 && h.All(Uri.IsHexDigit)) d[f] = (a, b, h);
         }
         catch (IOException) { }
         return d;
     }
     void SaveHashCache(System.Collections.Concurrent.ConcurrentDictionary<string, (long Size, long Ticks, string Md5)> c)
     {
-        try { File.WriteAllLines(HashCacheFile, c.Where(kv => File.Exists(kv.Key)).Select(kv => $"{kv.Key}\t{kv.Value.Size}\t{kv.Value.Ticks}\t{kv.Value.Md5}")); }
+        // grava num temporário e troca: fechar o programa no meio não deixa mais o cache cortado
+        var tmp = HashCacheFile + ".tmp";
+        try
+        {
+            File.WriteAllLines(tmp, c.Where(kv => File.Exists(kv.Key)).Select(kv => $"{kv.Key}\t{kv.Value.Size}\t{kv.Value.Ticks}\t{kv.Value.Md5}"));
+            File.Move(tmp, HashCacheFile, overwrite: true);
+        }
         catch (IOException) { }
     }
 

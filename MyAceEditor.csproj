@@ -11,6 +11,11 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- desempenho (ENGINE-KB §E7, teste load-bench): abrir um elements/tasks cria milhões de objetos pequenos; sem a coleta
+         concorrente o coletor não disputa com a leitura (PWI 1.5.5: 6,5 s -> 4,9 s e menos memória). Mesmo efeito de
+         DOTNET_gcConcurrent=0; GCSettings.LatencyMode = Batch só durante a abertura não deu o mesmo ganho. -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredCompilationQuickJitForLoops>false</TieredCompilationQuickJitForLoops>
   </PropertyGroup>
 
   <ItemGroup>

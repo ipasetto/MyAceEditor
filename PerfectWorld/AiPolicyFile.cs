@@ -555,7 +555,7 @@ public sealed class AiPolicyFile
         if (!Ok) throw new InvalidOperationException(UI.Loc.T("aif.incomplete", "Arquivo não foi lido por inteiro; salvar poderia corromper o aipolicy.data."));
         var bytes = Build();
         string? backup = null;
-        if (File.Exists(path)) { backup = $"{path}.{DateTime.Now:yyyyMMdd-HHmmss}.bak"; File.Copy(path, backup, overwrite: false); }
+        if (File.Exists(path)) backup = BackupStore.Save(path);
         var tmp = path + ".tmp";
         File.WriteAllBytes(tmp, bytes);
         if (File.Exists(path)) File.Replace(tmp, path, null); else File.Move(tmp, path);

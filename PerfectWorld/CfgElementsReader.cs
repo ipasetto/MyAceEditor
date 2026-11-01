@@ -353,15 +353,16 @@ public sealed class CfgElementsReader
 
     internal static Item ReadRecord(CfgBlock block, byte[] raw, LoadContext? context = null)
     {
-        var item = new Item { Raw = raw, Id = "", Fields = new Dictionary<string, Field>(block.Fields.Count) };
+        // nomes dos campos: um FieldSchema por bloco, compartilhado por todos os registros dele
+        var item = new Item { Raw = raw, Id = "", Fields = new FieldMap(block.Schema ??= new FieldSchema(block.Fields.Select(f => f.Name))) };
         int p = 0, ordinal = 0; bool gotName = false;
         foreach (var field in block.Fields)
         {
             if ((ordinal++ & 255) == 0) context?.Check();
             var (type, value) = Decode(field, raw, p); p += field.Size;
             item.Fields.Add(field.Name, Field.Of(type, value));
-            if (item.Id.Length == 0 && field.SourceName.Equals("ID", StringComparison.OrdinalIgnoreCase)) item.Id = value;
-            if (!gotName && field.SourceName.Equals("Name", StringComparison.OrdinalIgnoreCase)) { item.Name = value; gotName = true; }
+            if (item.Id.Length == 0 && field.IsId) item.Id = value;
+            if (!gotName && field.IsName) { item.Name = value; gotName = true; }
         }
         return item;
     }
@@ -369,30 +370,41 @@ public sealed class CfgElementsReader
     private static (FieldType Type, string Value) Decode(CfgField field, byte[] raw, int p)
     {
         if (p < 0 || field.Size > raw.Length - p) throw new InvalidDataException("Campo ultrapassa o limite do registro.");
-        string t = field.Type.ToLowerInvariant();
-        if (t.StartsWith("wstring:") || t.StartsWith("string:"))
+        switch (field.TypeKind)
         {
-            string text = t.StartsWith("wstring:") ? Encoding.Unicode.GetString(raw, p, field.Size) : Gbk.GetString(raw, p, field.Size);
-            int nul = text.IndexOf('\0');
-            return (FieldType.String, nul < 0 ? text : text[..nul]);
+            case CfgField.Kind.WString or CfgField.Kind.String:
+                // texto: corta no 1º \0 antes de decodificar (mesmo resultado, sem criar o texto inteiro com o lixo depois)
+                var span = raw.AsSpan(p, field.Size);
+                if (field.TypeKind == CfgField.Kind.WString)
+                {
+                    int n = 0; while (n + 1 < span.Length && (span[n] | span[n + 1]) != 0) n += 2;
+                    return (FieldType.String, n == 0 ? "" : Encoding.Unicode.GetString(span[..n]));
+                }
+                int z = span.IndexOf((byte)0);
+                var text = Gbk.GetString(z < 0 ? span : span[..z]);
+                int nul = text.IndexOf('\0');
+                return (FieldType.String, nul < 0 ? text : text[..nul]);
+            case CfgField.Kind.Bytes: return (FieldType.String, Convert.ToHexString(raw.AsSpan(p, field.Size)));
+            case CfgField.Kind.Float:
+                var f = BitConverter.ToSingle(raw, p);
+                return (FieldType.Float, BitConverter.SingleToInt32Bits(f) == 0 ? "0" : f.ToString("R", CultureInfo.InvariantCulture));
+            case CfgField.Kind.Double: return (FieldType.Float, BitConverter.ToDouble(raw, p).ToString("R", CultureInfo.InvariantCulture));
+            case CfgField.Kind.I64: return (FieldType.Int, Num(BitConverter.ToInt64(raw, p)));
+            case CfgField.Kind.U64: return (FieldType.Int, BitConverter.ToUInt64(raw, p).ToString(CultureInfo.InvariantCulture));
+            case CfgField.Kind.I16: return (FieldType.Int, Num(BitConverter.ToInt16(raw, p)));
+            case CfgField.Kind.U16: return (FieldType.Int, Num(BitConverter.ToUInt16(raw, p)));
+            case CfgField.Kind.I8: return (FieldType.Int, Num(unchecked((sbyte)raw[p])));
+            case CfgField.Kind.U8: return (FieldType.Int, Num(raw[p]));
+            case CfgField.Kind.U32: return (FieldType.Int, Num(BitConverter.ToUInt32(raw, p)));
+            case CfgField.Kind.I32: return (FieldType.Int, Num(BitConverter.ToInt32(raw, p)));
+            default: throw new InvalidDataException($"Tipo de campo não suportado: {field.Type}");
         }
-        if (t.StartsWith("byte:") || t.StartsWith("bytes:")) return (FieldType.String, Convert.ToHexString(raw.AsSpan(p, field.Size)));
-        var inv = CultureInfo.InvariantCulture;
-        return t switch
-        {
-            "float" => (FieldType.Float, BitConverter.ToSingle(raw, p).ToString("R", inv)),
-            "double" => (FieldType.Float, BitConverter.ToDouble(raw, p).ToString("R", inv)),
-            "int64" or "long" => (FieldType.Int, BitConverter.ToInt64(raw, p).ToString(inv)),
-            "uint64" or "ulong" => (FieldType.Int, BitConverter.ToUInt64(raw, p).ToString(inv)),
-            "int16" or "short" => (FieldType.Int, BitConverter.ToInt16(raw, p).ToString(inv)),
-            "uint16" or "word" or "ushort" => (FieldType.Int, BitConverter.ToUInt16(raw, p).ToString(inv)),
-            "int8" or "sbyte" => (FieldType.Int, unchecked((sbyte)raw[p]).ToString(inv)),
-            "uint8" or "byte" or "char" or "bool" => (FieldType.Int, raw[p].ToString(inv)),
-            "uint32" or "uint" or "dword" => (FieldType.Int, BitConverter.ToUInt32(raw, p).ToString(inv)),
-            "int32" or "int" => (FieldType.Int, BitConverter.ToInt32(raw, p).ToString(inv)),
-            _ => throw new InvalidDataException($"Tipo de campo não suportado: {t}"),
-        };
     }
+
+    // números pequenos (a grande maioria dos campos: 0, 1, -1, níveis, contagens) reaproveitam o mesmo texto
+    const int NumMin = -64, NumMax = 4096;
+    static readonly string[] NumCache = Enumerable.Range(NumMin, NumMax - NumMin).Select(i => i.ToString(CultureInfo.InvariantCulture)).ToArray();
+    static string Num(long v) => v >= NumMin && v < NumMax ? NumCache[v - NumMin] : v.ToString(CultureInfo.InvariantCulture);
     private static readonly Encoding Gbk = CreateGbk();
     private static Encoding CreateGbk() { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); return Encoding.GetEncoding(936); }
     private static string GroupOf(string n) => n.Contains("NPC") ? "NPC" : n.Contains("FACE") ? "Aparência" : n.Contains("RECIPE") ? "Receitas" :

@@ -16,11 +16,15 @@ public sealed class ServerView : UserControl
     readonly TextBox _pkg = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
     readonly TextBox _base = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
     readonly RichTextBox _log = new() { Dock = DockStyle.Fill, ReadOnly = true, ScrollBars = RichTextBoxScrollBars.Vertical, Font = new Font("Consolas", 9.5f), WordWrap = true, BorderStyle = BorderStyle.None };
-    readonly Label _step = new() { Dock = DockStyle.Top, Height = 28, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 10.5f, FontStyle.Bold) };
-    readonly ProgressBar _bar = new() { Dock = DockStyle.Top, Height = 8, Style = ProgressBarStyle.Marquee, Visible = false };
-    readonly FlowLayoutPanel _lights = new() { Dock = DockStyle.Top, Height = 34, WrapContents = false, AutoScroll = true };
-    readonly List<Button> _buttons = new();
-    bool _busy;
+    readonly Label _step = new() { Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9.5f), ForeColor = UiKit.Muted, Padding = new Padding(4, 0, 0, 0) };
+    readonly ProgressBar _bar = new() { Dock = DockStyle.Top, Height = 6, Style = ProgressBarStyle.Marquee, Visible = false };
+    readonly FlowLayoutPanel _lights = new() { Dock = DockStyle.Top, Height = 34, WrapContents = false, AutoScroll = true, Padding = new Padding(0, 4, 0, 0) };
+    readonly StatusCard _card = new();
+    readonly Panel _setup = new() { Dock = DockStyle.Top, Height = 118, Visible = false, Padding = new Padding(0, 6, 0, 6) };
+    readonly System.Windows.Forms.Timer _poll = new() { Interval = 15000 };
+    readonly List<ToolStripItem> _buttons = new();
+    ToolStripButton? _startBtn, _stopBtn, _sendBtn, _setupBtn;
+    bool _busy, _online, _anyUp, _installed;
     readonly Color _accent;
     /// <summary>aipolicy.data aberto na aba AI Policy (é o que vai para o servidor ao enviar).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -29,40 +33,69 @@ public sealed class ServerView : UserControl
     public ServerView(Color bg, Color fg, Color accent, Func<string> client, Func<string> serverHome, Func<string, string?> load, Action<string, string> save)
     {
         _client = client; _serverHome = serverHome; _load = load; _save = save;
-        BackColor = bg; ForeColor = fg; Dock = DockStyle.Fill; Padding = new Padding(10); _accent = accent;
-        var intro = new Label { Dock = DockStyle.Top, Height = 46, ForeColor = fg };
+        BackColor = bg; ForeColor = fg; Dock = DockStyle.Fill; Padding = new Padding(0); _accent = accent;
+
+        // barra de comandos: o que se faz no dia a dia primeiro, instalar e pastas no fim
+        var rb = UiKit.Ribbon();
+        _startBtn = Cmd(rb, UiKit.Play, "srv.rStart", "Iniciar", () => Run(Loc.T("srv.starting", "Iniciando…"), s => s.Start()), "srv.rStartTip", "Liga o servidor local (todos os serviços e os mapas padrão).", primary: true);
+        _stopBtn = Cmd(rb, UiKit.Stop, "srv.rStop", "Parar", () => Run(Loc.T("srv.stopping", "Parando…"), s => s.Stop()), "srv.rStopTip", "Desliga o servidor local.");
+        _sendBtn = Cmd(rb, UiKit.Upload, "srv.rSend", "Enviar e reiniciar", SendFiles, "srv.rSendTip", "Leva para o servidor o que você mudou no editor (itens, quests, loja, IA) e reinicia.");
+        Cmd(rb, UiKit.Refresh, "srv.rRefresh", "Atualizar", RefreshStatus, "srv.rRefreshTip", "Confere agora se o servidor está no ar.");
+        UiKit.Sep(rb);
+        Cmd(rb, UiKit.People, "srv.rAdmin", "Administrar", OpenAdmin, "srv.rAdminTip", "Contas, personagens, quem está no jogo, mapas e instâncias.");
+        Cmd(rb, UiKit.Game, "srv.rGm", "Painel do GM", OpenGmPanel, "srv.rGmTip", "Comandos de GM no jogo aberto (programa à parte).");
+        UiKit.Sep(rb);
+        Cmd(rb, UiKit.Download, "srv.rInstall", "Instalar", Install, "srv.rInstallTip", "Instala ou completa o servidor local no Linux do Windows (WSL). Só precisa uma vez.");
+        _setupBtn = Cmd(rb, UiKit.Settings, "srv.rSetup", "Pastas", () => { _setup.Visible = !_setup.Visible; _setupBtn!.Checked = _setup.Visible; }, "srv.rSetupTip", "Onde estão o pacote do servidor e a cópia local.");
+
+        // pastas (recolhidas: só aparecem quando faltam ou quando o usuário pede)
+        var intro = new Label { Dock = DockStyle.Top, Height = 34, ForeColor = UiKit.Muted };
         Bind(() => intro.Text = Loc.T("srv.testServerOnYourPc", "Servidor de teste no seu PC (Linux do Windows, WSL). Clique em Instalar uma vez; depois é só Iniciar e entrar no jogo pelo servidor \"Local\". Seus arquivos originais do servidor não são alterados: o programa trabalha numa cópia."));
         var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 70, ColumnCount = 3, RowCount = 2 };
         for (int i = 0; i < 2; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         Label Lb(Func<string> t) { var l = new Label { AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = fg }; Bind(() => l.Text = t()); return l; }
-        form.Controls.Add(Lb(() => Loc.T("srv.serverPackageServerFiles", "Pacote do servidor (\"server files\")")), 0, 0); form.Controls.Add(_pkg, 1, 0);
-        form.Controls.Add(Btn(() => Loc.T("srv.browse", "Procurar…"), () => Pick(_pkg)), 2, 0);
-        form.Controls.Add(Lb(() => Loc.T("srv.localServerFolder", "Pasta do servidor local")), 0, 1); form.Controls.Add(_base, 1, 1);
-        form.Controls.Add(Btn(() => Loc.T("srv.browse", "Procurar…"), () => Pick(_base)), 2, 1);
-        // contas (criar, senha, GM) ficam no Administrar
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, WrapContents = false };
-        bar.Controls.Add(Btn(() => Loc.T("srv.installComplete", "⬇ Instalar / completar"), Install, accent));
-        bar.Controls.Add(Btn(() => Loc.T("srv.start", "▶ Iniciar"), () => Run(Loc.T("srv.starting", "Iniciando…"), s => s.Start()), accent));
-        bar.Controls.Add(Btn(() => Loc.T("srv.stop", "■ Parar"), () => Run(Loc.T("srv.stopping", "Parando…"), s => s.Stop())));
-        bar.Controls.Add(Btn(() => Loc.T("srv.sendMyFilesAndRestart", "⟳ Enviar meus arquivos e reiniciar"), SendFiles));
-        bar.Controls.Add(Btn(() => Loc.T("srv.status", "Estado"), RefreshStatus));
-        bar.Controls.Add(Btn(() => Loc.T("srv.admin", "🛠 Administrar…"), OpenAdmin, accent));
-        bar.Controls.Add(Btn(() => Loc.T("srv.gmPanel", "🎮 Painel do GM…"), OpenGmPanel, accent));
-        // tudo numa tabela de linhas automáticas (o log ocupa o resto): nada depende da ordem de encaixe
-        var root = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 1, RowCount = 6, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        intro.AutoSize = false; intro.Height = 46; form.Height = 70; bar.Height = 40; _step.Height = 30; _lights.Height = 34; _bar.Height = 8;
-        foreach (var c in new Control[] { intro, form, bar, _step, _lights, _bar })
-        {
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, c.Height));
-            c.Dock = DockStyle.Fill; root.Controls.Add(c);
-        }
-        Controls.Add(_log); Controls.Add(root);   // o log ocupa o resto
-        _log.BackColor = Color.FromArgb(Math.Max(0, bg.R - 12), Math.Max(0, bg.G - 12), Math.Max(0, bg.B - 12)); _log.ForeColor = fg;
+        Button Browse(TextBox box) { var b = new Button { AutoSize = true, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.White, Image = UiKit.Icon(UiKit.Folder, UiKit.Fg, 16), TextImageRelation = TextImageRelation.ImageBeforeText }; Bind(() => b.Text = Loc.T("srv.browse", "Procurar…")); b.Click += (_, _) => { if (!_busy) Pick(box); }; return b; }
+        form.Controls.Add(Lb(() => Loc.T("srv.serverPackageServerFiles", "Pacote do servidor (\"server files\")")), 0, 0); form.Controls.Add(_pkg, 1, 0); form.Controls.Add(Browse(_pkg), 2, 0);
+        form.Controls.Add(Lb(() => Loc.T("srv.localServerFolder", "Pasta do servidor local")), 0, 1); form.Controls.Add(_base, 1, 1); form.Controls.Add(Browse(_base), 2, 1);
+        _setup.Controls.Add(form); _setup.Controls.Add(intro);
 
-        VisibleChanged += (_, _) => { if (Visible) Fill(); };
+        // registro (log) com título e "limpar"
+        var logHead = new Panel { Dock = DockStyle.Top, Height = 28 };
+        var logTitle = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI Semibold", 9.5f), ForeColor = UiKit.Fg, Image = UiKit.Icon(UiKit.Log, UiKit.Muted, 16), ImageAlign = ContentAlignment.MiddleLeft };
+        Bind(() => logTitle.Text = "      " + Loc.T("srv.logTitle", "Registro do que o servidor fez"));
+        var clear = new LinkLabel { Dock = DockStyle.Right, Width = 80, TextAlign = ContentAlignment.MiddleRight };
+        Bind(() => clear.Text = Loc.T("srv.logClear", "Limpar"));
+        clear.LinkClicked += (_, _) => _log.Clear();
+        logHead.Controls.Add(logTitle); logHead.Controls.Add(clear);
+
+        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 6, 12, 10) };
+        var logBox = new Panel { Dock = DockStyle.Fill, BorderStyle = BorderStyle.FixedSingle };
+        logBox.Controls.Add(_log);
+        body.Controls.Add(logBox); body.Controls.Add(logHead); body.Controls.Add(_bar); body.Controls.Add(_step); body.Controls.Add(_lights); body.Controls.Add(_setup);
+        Controls.Add(body); Controls.Add(rb); Controls.Add(_card);
+        _log.BackColor = Color.FromArgb(Math.Max(0, bg.R - 12), Math.Max(0, bg.G - 12), Math.Max(0, bg.B - 12)); _log.ForeColor = fg;
+        _card.Set(StatusCard.Kind.Busy, Loc.T("srv.checking", "Consultando…"));
+
+        // o estado se mantém sozinho enquanto a aba está aberta
+        _poll.Tick += (_, _) => { if (!_busy && Visible) RefreshStatus(quiet: true); };
+        VisibleChanged += (_, _) =>
+        {
+            _poll.Enabled = Visible;
+            if (!Visible) return;
+            Fill();
+            _setup.Visible = !Directory.Exists(Path.Combine(_pkg.Text.Trim(), "home"));
+            _setupBtn.Checked = _setup.Visible;
+            RefreshStatus(quiet: true);
+        };
         Loc.Changed += ApplyTexts;
+    }
+
+    ToolStripButton Cmd(ToolStrip bar, string glyph, string key, string pt, Action click, string tipKey, string tipPt, bool primary = false)
+    {
+        var b = UiKit.Cmd(bar, glyph, key, pt, () => { if (!_busy) click(); }, tipKey, tipPt, primary);
+        _buttons.Add(b);
+        return b;
     }
 
     // textos fixos da tela: refeitos quando o idioma muda
@@ -72,18 +105,8 @@ public sealed class ServerView : UserControl
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) Loc.Changed -= ApplyTexts;
+        if (disposing) { Loc.Changed -= ApplyTexts; _poll.Dispose(); }
         base.Dispose(disposing);
-    }
-
-    Button Btn(Func<string> text, Action click, Color? back = null)
-    {
-        var b = new Button { AutoSize = true, Height = 32, Margin = new Padding(0, 0, 8, 0), FlatStyle = back is null ? FlatStyle.Standard : FlatStyle.Flat };
-        if (back is { } c) { b.BackColor = c; b.ForeColor = Color.White; }
-        b.Click += (_, _) => { if (!_busy) click(); };
-        Bind(() => b.Text = text());
-        _buttons.Add(b);
-        return b;
     }
 
     void Pick(TextBox box)
@@ -149,6 +172,17 @@ public sealed class ServerView : UserControl
         _busy = on; _bar.Visible = on; _step.Text = text;
         if (on) { _bar.Style = ProgressBarStyle.Marquee; _bar.Value = 0; }   // até a 1ª etapa com %
         foreach (var b in _buttons) b.Enabled = !on;
+        if (on) _card.Set(StatusCard.Kind.Busy, text.Length > 0 ? text : Loc.T("srv.working", "Trabalhando…"), Loc.T("srv.workingDetail", "Acompanhe abaixo o que está sendo feito."));
+        else UpdateButtons();
+    }
+
+    // só oferece o que faz sentido agora: Iniciar com o servidor parado, Parar com algo ligado
+    void UpdateButtons()
+    {
+        if (_busy) return;
+        if (_startBtn is not null) _startBtn.Enabled = _installed && !_online;
+        if (_stopBtn is not null) _stopBtn.Enabled = _installed && _anyUp;
+        if (_sendBtn is not null) _sendBtn.Enabled = _installed;
     }
 
     string? SqlDir()
@@ -277,32 +311,53 @@ public sealed class ServerView : UserControl
         return true;
     }
 
-    void RefreshStatus()
+    void RefreshStatus() => RefreshStatus(quiet: false);
+
+    void RefreshStatus(bool quiet)
     {
-        _step.Text = Loc.T("srv.checking", "Consultando…");
+        if (!quiet) _step.Text = Loc.T("srv.checking", "Consultando…");
         Task.Run(() =>
         {
-            if (LocalServer.WslProblem() is { } p) { BeginInvoke(() => { _step.Text = p; AppendLog(p); }); return; }
+            if (LocalServer.WslProblem() is { } p)
+            {
+                BeginInvoke(() => { _installed = false; _card.Set(StatusCard.Kind.Warn, Loc.T("srv.cardNoWsl", "Linux do Windows (WSL) indisponível"), p); UpdateButtons(); if (!quiet) AppendLog(p); });
+                return;
+            }
             Dictionary<string, bool> st;
-            try { st = LocalServer.DistroExists() ? NewServer().Status() : new(); } catch { st = new(); }
+            bool exists = false;
+            try { exists = LocalServer.DistroExists(); st = exists ? NewServer().Status() : new(); } catch { st = new(); }
             BeginInvoke(() =>
             {
+                if (_busy) return;
                 _lights.Controls.Clear();
-                if (st.Count == 0) { _step.Text = Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado."); return; }
+                _installed = exists && st.Count > 0;
+                if (!_installed)
+                {
+                    _online = _anyUp = false;
+                    _card.Set(StatusCard.Kind.Off, Loc.T("srv.cardNotInstalled", "Servidor local não instalado"), Loc.T("srv.cardNotInstalledDetail", "Escolha as pastas em \"Pastas\" e clique em Instalar (só uma vez)."));
+                    _step.Text = "";
+                    UpdateButtons();
+                    return;
+                }
                 foreach (var (name, on) in st)
                     _lights.Controls.Add(new Label
                     {
-                        AutoSize = true, Padding = new Padding(6, 6, 6, 6), Margin = new Padding(0, 0, 6, 0),
-                        Text = (on ? "● " : "○ ") + name, ForeColor = on ? Color.LimeGreen : Color.IndianRed,
+                        AutoSize = true, Padding = new Padding(8, 4, 8, 4), Margin = new Padding(0, 0, 6, 0), BackColor = on ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226),
+                        Text = (on ? "● " : "○ ") + name, ForeColor = on ? Color.FromArgb(21, 128, 61) : Color.FromArgb(185, 28, 28),
                     });
-                bool online = st.TryGetValue("porta29000", out var up) && up;
-                _step.Text = online
-                    ? Loc.T("srv.serverIsUpJoinThe", "Servidor no ar: entre no jogo pelo servidor \"Local\".")
-                    : Loc.T("srv.serverStoppedOrStarting", "Servidor parado ou subindo.");
+                _online = st.TryGetValue("porta29000", out var up) && up;
+                _anyUp = st.Any(x => x.Value && x.Key != "mariadb");   // o banco sozinho ligado não é servidor subindo
+                int n = st.Count(x => x.Value);
+                var when = DateTime.Now.ToString("HH:mm:ss");
+                if (_online) _card.Set(StatusCard.Kind.On, Loc.T("srv.cardOnline", "Servidor online"), string.Format(Loc.T("srv.cardOnlineDetail", "Entre no jogo pelo servidor \"Local\" · {0} de {1} serviços no ar · conferido às {2}"), n, st.Count, when));
+                else if (_anyUp) _card.Set(StatusCard.Kind.Warn, Loc.T("srv.cardPartial", "Servidor subindo ou incompleto"), string.Format(Loc.T("srv.cardPartialDetail", "{0} de {1} serviços no ar; o login (porta 29000) ainda não · conferido às {2}"), n, st.Count, when));
+                else _card.Set(StatusCard.Kind.Off, Loc.T("srv.cardOffline", "Servidor offline"), string.Format(Loc.T("srv.cardOfflineDetail", "Clique em Iniciar para ligar · conferido às {0}"), when));
+                _step.Text = "";
+                UpdateButtons();
                 if (_announce)   // depois de iniciar/enviar: o resultado em uma linha, verde ou vermelha
                 {
                     _announce = false;
-                    AppendLog(online ? Loc.T("srv.online", "● Servidor online") : Loc.T("srv.offline", "● Servidor offline"), online ? Color.LimeGreen : Color.IndianRed);
+                    AppendLog(_online ? Loc.T("srv.online", "● Servidor online") : Loc.T("srv.offline", "● Servidor offline"), _online ? Color.LimeGreen : Color.IndianRed);
                 }
             });
         });

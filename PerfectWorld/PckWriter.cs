@@ -116,7 +116,7 @@ public static class PckWriter
             var stamp = pckPath + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss");
             var bak = stamp + ".bak";
             for (int n = 2; File.Exists(bak); n++) bak = $"{stamp}-{n}.bak";   // duas gravações no mesmo segundo
-            try { File.Replace(tmp, pckPath, bak); }
+            try { File.Replace(tmp, pckPath, bak); bak = BackupStore.Adopt(bak, pckPath); }   // leitor aberto no antigo: fica ao lado até o próximo recolhimento
             catch (IOException ex) { throw new IOException(string.Format(UI.Loc.T("pck.replaceLocked", "Não consegui trocar o {0}: está aberto em outro programa (o jogo?). Feche-o e tente de novo."), Path.GetFileName(pckPath)) + "\n\n" + ex.Message, ex); }
             return bak;
         }

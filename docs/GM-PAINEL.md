@@ -70,3 +70,15 @@
   Vai pelo gdeliveryd (GMControlGame "active_npc_generator id"), para cada mapa rodando: precisa do servidor neste PC.
   Sem servidor (GM contratado): Ctrl+G dentro do jogo (o console de texto não tem comando para eventos).
 - Tudo sobre GM fica também na PW-KB §S31.
+
+## Pedido de 31/10 — instâncias ficam no ADMINISTRAR (não no GM) + mapa/teleporte de instância no GM
+- Ligar/desligar instâncias e escolher as que sobem com o servidor: só no painel Administrar (aba "Mapas e instâncias"),
+  porque o GM contratado não tem o servidor. Coluna "Sobe com o servidor" + "✔ Salvar padrões" (pwctl defaults-set,
+  /etc/pwctl-default-maps). Padrão: gs01 + is61 (no 1.5.x os personagens novos nascem no is61). Coluna Estado:
+  ◌ carregando… / ● carregado (o gs se anunciou: announceproviderid no log) / ✖ falhou; a lista se atualiza sozinha.
+- Bug corrigido: pwctl gs-start voltava antes do gs nascer e o WSL matava o processo (log nem era criado).
+- Aba "🗺 Mapa e teleporte": seletor Mundo + cada instância com o mapa da tecla M (surfaces\ingame\<pasta>.dds, PW-KB §S31);
+  botão direito = d 8888 <tag> x z 0 (vale do mundo para a instância e de volta; a instância precisa estar ligada).
+- Bug corrigido: d 8888 ia com 3 números; o gs exige 4 (tag x z ctrl_id) e descartava em silêncio.
+- Organização: abas com ícone, na ordem Meu personagem → Mapa e teleporte → Itens → NPCs → Jogadores → Mundo e eventos;
+  cada aba diz no topo do que precisa (jogo com console / servidor neste PC).

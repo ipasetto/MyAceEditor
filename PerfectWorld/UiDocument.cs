@@ -71,6 +71,27 @@ public sealed class UiDocument
     /// <summary>Dica do controle (String="..." do &lt;Hint&gt;). Só troca uma dica que já existe.</summary>
     public bool SetHint(string control, string text) => SetChildString(control, "Hint", text, create: false);
 
+    /// <summary>
+    /// Atributo de fonte do &lt;Text&gt; do controle (FontSize, Bold, FontName, Shadow, Outline...; PW-KB §S20c). Só em
+    /// controle que já tem &lt;Text&gt;: cria o atributo se faltar.
+    /// </summary>
+    public bool SetTextAttr(string control, string attr, string value)
+    {
+        var m = StartTag(control).Match(Xml);
+        if (!m.Success) return false;
+        var next = Regex.Match(Xml[(m.Index + m.Length)..], @"<[A-Z]+\s+Name=""");
+        int end = next.Success ? m.Index + m.Length + next.Index : Xml.Length;
+        var body = Xml[(m.Index + m.Length)..end];
+        var tm = Regex.Match(body, @"<Text\b(?:[^>""]|""[^""]*"")*/?>", RegexOptions.IgnoreCase);
+        if (!tm.Success) return false;
+        var a = new Regex(@"\b" + Regex.Escape(attr) + @"=""[^""]*""", RegexOptions.IgnoreCase);
+        var esc = value.Replace("&", "&amp;").Replace("\"", "&quot;");
+        var tag = a.IsMatch(tm.Value) ? a.Replace(tm.Value, $"{attr}=\"{esc}\"", 1) : tm.Value.Insert(5, $" {attr}=\"{esc}\"");
+        Xml = Xml[..(m.Index + m.Length)] + body[..tm.Index] + tag + body[(tm.Index + tm.Length)..] + Xml[end..];
+        Dialog = GameDialog.Parse(Xml);
+        return true;
+    }
+
     bool SetChildString(string control, string child, string text, bool create)
     {
         var m = StartTag(control).Match(Xml);

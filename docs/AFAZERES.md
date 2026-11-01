@@ -36,7 +36,7 @@
 ## QUESTS NO MUNDO 3D (spec docs/QUESTS-3D.md)
 [x] etapa 1: tasks.data completo em todas as versoes (TaskLayout) | [>] etapa 2: telas no Mundo 3D
 [x] aba Quests: todas as versoes, rotulos/dicas PT+en/ru/zh | [x] Mundo 3D: filtro por tipo, barra do NPC, ver quests do NPC
-[~] criar quest tipo 1 (recado) pelo Mundo 3D + dar quest existente (falta testar no app e no jogo) | [x] requisitos/premios por lista de opcoes + "outro campo" | [x] brilho do "Salvar e enviar ao servidor" (tudo, sessao) | [~] tipo 2 ir ate um lugar com etapas (em ordem/qualquer ordem/basta uma, varias areas; testado no arquivo nas 4 versoes, falta testar no app e no jogo) | [ ] tipos 3-10 (matar monstros entra como etapa) | [ ] editar quest existente pelo painel
+[~] criar quest tipo 1 (recado) pelo Mundo 3D + dar quest existente (falta testar no app e no jogo) | [x] requisitos/premios por lista de opcoes + "outro campo" | [x] brilho do "Salvar e enviar ao servidor" (tudo, sessao) | [~] tipo 2 ir ate um lugar com etapas (em ordem/qualquer ordem/basta uma, varias areas; testado no arquivo nas 4 versoes, falta testar no app e no jogo) | [ ] tipos 3-10 (matar monstros entra como etapa) | [x] editar e excluir quest pelo painel do NPC (so quests no formato do assistente; Ctrl+Z; testado no arquivo nas 4 versoes, falta testar no app e no jogo)
 [!] recados do tipo 1 criados ANTES de 29/10 tinham a opcao aceitar/concluir apontando para a quest modelo: recriar
 [ ] depois da 1a etapa das quests: arvores, grama e objetos no Mundo 3D (.ecwld/.spt) em todas as versoes (usuario 29/10)
 [ ] futuro (usuario 29/10, "nao agora"): editor de mapa que cria o cenario (arvores, grama, objetos no .ecwld)
@@ -196,3 +196,11 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [ ] NÃO LIDOS do .ecwld: efeitos .gfx (3.519 no world), bichos/critters (1.347), curvas bezier (42.790), sons (1.044), scenelights.dat (lâmpadas de noite)
 - [ ] usuário testar no app (lista em TESTES-PENDENTES "Mundo 3D — rodada de 30/10")
 
+## Ideias dos utilitarios estudados em 31/10 (PW-KB §S15)
+- [ ] editor da guerra territorial (domain.data + domain.sev, formato em PW-KB; editar os dois juntos)
+- [ ] tradutor de cliente: nomes dos mapas da guerra territorial nao sao traduzidos (vem do domain.data UTF-16; PW-KB §S32/§S6) — pedido do usuario 31/10
+- [ ] ler as notas do porte 1.8.9 (Estudo PW\pw-189-port) e levar para a PW-KB o que valer para o editor (elements v531, tasks v198, aipolicy 1.8.0)
+- [ ] ItemRules: avisar quando os addons fixos de movimento de um item somam > 3 m/s (o gs limita a 3 e zera acima de 5; REGRAS-DO-JOGO §2)
+- [ ] adicionar icone novo ao iconlist (ivtrm + ivtrf juntos) para itens novos, como o Glue do IconListEditor
+- [ ] botao "inserir minha posicao" no NPCGen e nas quests (GamePosition ja le a posicao)
+- [ ] gerador XML de skills (UPX): desempacotar e estudar se fizer falta

@@ -36,6 +36,11 @@
 | Pedra (`STONE_ESSENCE.level`) de 1 a 20 | o gs cai quando a pedra é usada | `player.cpp` |
 | Configs buscadas por ID fixo continuam com o mesmo ID: 696, 701, 801, 854, 1022–1027, 1038, 1064, 1290, 1424 (renascer), 1425, 1444, 1637, 1735, 1740, 2013 | a função cai ou para (renascer faz ASSERT sem a 1424) | `get_data_ptr(<ID>, ID_SPACE_CONFIG)` |
 
+**Limite que o gs aplica no jogo (não derruba nada, mas o efeito some):** a soma dos bônus FIXOS de velocidade de
+movimento de todo o equipamento (addon `enhance_speed_addon_point`, "Movimento +X m/seg") passa por uma trava contra
+trapaça: acima de 3 m/s vira 3; **acima de 5 m/s vira 0** (o personagem fica sem bônus nenhum). Velocidade final
+limitada a 15 m/s (`MAX_RUN_SPEED`). Fonte: `playertemplate.h` (gs 1.5.3). Bônus em porcentagem não tem essa trava.
+
 **Não são regras** (o gs corrige sozinho ao carregar, `elementdataman::NormalizeRandom`): chances que não somam 1
 em atributos do tipo de monstro, ódio, habilidades, quantidade de drop, drops (32) e minas; `drop_times` fica entre
 0 e 10. Receitas sem par só geram aviso no log.
@@ -53,6 +58,10 @@ até 65534. Nunca use "maior ID + 1" da lista sozinha.
 
 Criar quest: seguir `docs/QUESTS-3D.md` e `QuestBuilder` (NPC que entrega e recebe com a quest no serviço, IDs dos
 filhos livres, até 29 caracteres no nome da etapa, regiões dentro do limite da versão).
+Excluir quest: o ID sai também dos serviços de dar/receber dos NPCs (senão o NPC oferece uma quest que não existe) e o
+usuário é avisado das quests que apontam para ela (anterior, exclusiva, necessária, conjunta, nova ao concluir), que ficariam
+esperando uma quest inexistente (`EditorForm.DeleteQuestById`, `QuestBuilder.ReferencedBy`). Editar quest pelo Mundo 3D só
+quando regravar o bloco a partir do rascunho dá o mesmo bloco (`QuestBuilder.FromQuest`): nada que o assistente não mostra é apagado.
 
 ## 4. Outros arquivos
 

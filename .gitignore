@@ -32,3 +32,11 @@ npcgen.data
 .claude/launch.json
 
 forum-prints/
+
+# Saídas de diagnóstico soltas na raiz
+/field.txt
+/model.txt
+/new-items.txt
+/pck-extract.txt
+/server-diff.txt
+/quest-create.txt

@@ -32,8 +32,9 @@ internal sealed class GShopView : UserControl
 
     readonly GamePanel _game;
     readonly Label _info = new() { Dock = DockStyle.Top, Height = 22, ForeColor = Muted, Padding = new Padding(4, 4, 0, 0) };
-    readonly FlowLayoutPanel _bar = new() { Dock = DockStyle.Top, Height = 38, BackColor = Bg, WrapContents = false, Padding = new Padding(2, 4, 0, 0) };
-    readonly Panel _edit = new() { Dock = DockStyle.Right, Width = 410, BackColor = Color.White, Padding = new Padding(10), AutoScroll = true };
+    readonly ToolStrip _bar = UiKit.Ribbon();
+    readonly Panel _edit = new() { Dock = DockStyle.Right, Width = 410, BackColor = Color.White, Padding = new Padding(12, 4, 16, 24), AutoScroll = true };
+    readonly ToolTip _tipEd = new();
     TextBox? _inline;
     bool _binding;
 
@@ -58,29 +59,21 @@ internal sealed class GShopView : UserControl
     }
 
     // ---------- arquivos ----------
+    // barra estilo Word: arquivo | item | posição | desfazer
     void BuildBar()
     {
-        Button B(string key, string pt, Action a, int w = 120)
-        {
-            var b = new Button { Width = w, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Fg };
-            b.Click += (_, _) => a();
-            AppLang.Changed += () => b.Text = Loc.T(key, pt);
-            b.Text = Loc.T(key, pt);
-            _bar.Controls.Add(b);
-            return b;
-        }
-        B("gshop.open", "Abrir pasta…", OpenFolder);
-        var save = B("gshop.save", "Salvar loja", Save);
-        save.BackColor = Accent; save.ForeColor = Color.White;
-        _bar.Controls.Add(new Label { Width = 14 });
-        B("gshop.new", "＋ Novo item", NewItem);
-        B("gshop.clone", "Clonar", CloneItem, 90);
-        B("gshop.delete", "Excluir", DeleteItem, 90);
-        B("gshop.up", "◀ Antes", () => MoveItem(-1), 90);
-        B("gshop.down", "Depois ▶", () => MoveItem(+1), 90);
-        _bar.Controls.Add(new Label { Width = 14 });
-        B("gshop.undo", "↶ Desfazer", () => Undo(), 100);
-        B("gshop.redo", "↷ Refazer", () => Redo(), 100);
+        UiKit.Cmd(_bar, UiKit.Folder, "gshop.rOpen", "Abrir", OpenFolder, "gshop.open", "Abrir pasta…");
+        UiKit.Cmd(_bar, UiKit.Save, "gshop.rSave", "Salvar loja", Save, "gshop.rSaveTip", "Grava a loja do cliente (gshop) e a do servidor (gshopsev) juntas, com o mesmo horário.", primary: true);
+        UiKit.Sep(_bar);
+        UiKit.Cmd(_bar, UiKit.Add, "gshop.rNew", "Novo item", NewItem, "gshop.rNewTip", "Põe um item novo na categoria aberta.");
+        UiKit.Cmd(_bar, UiKit.Copy, "gshop.rClone", "Clonar", CloneItem, "gshop.rCloneTip", "Copia o item escolhido logo depois dele.");
+        UiKit.Cmd(_bar, UiKit.Delete, "gshop.rDelete", "Excluir", DeleteItem, "gshop.rDeleteTip", "Tira o item escolhido da loja.");
+        UiKit.Sep(_bar);
+        UiKit.Cmd(_bar, UiKit.Left, "gshop.rUp", "Antes", () => MoveItem(-1), "gshop.rUpTip", "Leva o item uma casa para trás na vitrine.");
+        UiKit.Cmd(_bar, UiKit.Right, "gshop.rDown", "Depois", () => MoveItem(+1), "gshop.rDownTip", "Leva o item uma casa para a frente na vitrine.");
+        UiKit.Sep(_bar);
+        UiKit.Cmd(_bar, UiKit.Undo, "gshop.rUndo", "Desfazer", () => Undo(), "gshop.rUndoTip", "Desfaz a última mudança (Ctrl+Z).");
+        UiKit.Cmd(_bar, UiKit.Redo, "gshop.rRedo", "Refazer", () => Redo(), "gshop.rRedoTip", "Refaz o que foi desfeito (Ctrl+Y).");
     }
 
     /// <summary>A pasta do jogo mudou (elements.data aberto): abre a loja dela se não houver mudança pendente.</summary>
@@ -135,6 +128,7 @@ internal sealed class GShopView : UserControl
                 if (diffs.Count > 0)
                     MessageBox.Show(this, string.Format(Loc.T("gshop.pairDiff", "{0} e {1} não estão iguais:\n{2}\n\nAo salvar, o servidor é refeito a partir do cliente."), Path.GetFileName(c), Path.GetFileName(sv), string.Join("\n", diffs.Take(8))), "GShop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _dirty[i] = false;
+                _saved[i] = _shops[i]?.WriteClient();
             }
             // tela do jogo: interfaces.pck (qshop.xml) + texturas do surfaces.pck
             _interfacesPck?.Dispose(); _surfacesPck?.Dispose(); _tex?.Dispose();
@@ -228,6 +222,7 @@ internal sealed class GShopView : UserControl
             var sv = f.WriteServer();
             if (!same || !File.Exists(sp) || !File.ReadAllBytes(sp).AsSpan().SequenceEqual(sv)) AtomicFileSave.Write(sp, sv);
             _dirty[_which] = false;
+            _saved[_which] = f.WriteClient();
             UpdateInfo();
             if (quiet) return true;
             MessageBox.Show(this, string.Format(Loc.T("gshop.saved", "Loja salva:\n{0}\n{1}\n\nCliente e servidor com o mesmo timestamp. Envie o gshopsev ao servidor e o gshop aos jogadores."), cp, _serverPath[_which]), "GShop");
@@ -242,6 +237,7 @@ internal sealed class GShopView : UserControl
 
     // ---------- desfazer / refazer (foto da loja antes de cada mudança) ----------
     readonly List<(int Which, byte[] Data, int Sel)> _undo = new(), _redo = new();
+    readonly byte[]?[] _saved = new byte[]?[2];   // loja como está no disco (aberta ou salva por último)
     string? _lastKey; DateTime _lastPush;
 
     /// <summary>Guarda o estado antes de mudar. Digitação seguida no mesmo campo vira um passo só.</summary>
@@ -264,7 +260,8 @@ internal sealed class GShopView : UserControl
         var (w, data, sel) = from[^1]; from.RemoveAt(from.Count - 1);
         to.Add((w, cur.WriteClient(), _sel?.ShopId ?? -1));
         var back = GShopFile.ReadClient(data);
-        _shops[w] = back; _which = w; _dirty[w] = true; _lastKey = null;
+        _shops[w] = back; _which = w; _lastKey = null;
+        _dirty[w] = _saved[w] is not { } disk || !back.WriteClient().AsSpan().SequenceEqual(disk);   // voltou ao salvo = nada pendente
         SelectItem(back.Items.FirstOrDefault(i => i.ShopId == sel) ?? VisibleItems().FirstOrDefault());
         UpdateInfo(); _game.Invalidate();
         return true;
@@ -396,15 +393,21 @@ internal sealed class GShopView : UserControl
             c.Dock = DockStyle.Fill;
             tl.Controls.Add(l); tl.Controls.Add(c);
         }
-        void Head(string key, string pt)
+        // título de seção: faixa azul à esquerda, ícone e nome (mesmo visual das seções do Elements)
+        void Head(string key, string pt, string glyph = "\uE8A5")
         {
-            var l = new Label { AutoSize = true, Font = new Font("Segoe UI Semibold", 10), ForeColor = Fg, Padding = new Padding(0, 10, 0, 2) };
-            l.Text = Loc.T(key, pt); AppLang.Changed += () => l.Text = Loc.T(key, pt);
+            var l = new Label { AutoSize = false, Height = 34, Dock = DockStyle.Fill, Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = Accent, BackColor = Color.FromArgb(238, 243, 250),
+                Image = UiKit.Icon(glyph, Accent, 18), ImageAlign = ContentAlignment.MiddleLeft, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(0, 12, 0, 6), Padding = new Padding(6, 0, 0, 0) };
+            void T() => l.Text = "       " + Loc.T(key, pt);
+            T(); AppLang.Changed += T;
+            l.Paint += (_, e) => { using var b = new SolidBrush(Accent); e.Graphics.FillRectangle(b, 0, 6, 4, l.Height - 12); };
             tl.Controls.Add(l); tl.SetColumnSpan(l, 2);
         }
-        Head("gshop.hItem", "Item da loja");
+        Head("gshop.hItem", "Item da loja", "\uE7B8");
         Row("gshop.name", "Nome", _name);
-        var pick = new Button { Text = "…", Width = 30, FlatStyle = FlatStyle.Flat };
+        var pick = new Button { Width = 34, Height = 26, FlatStyle = FlatStyle.Flat, Image = UiKit.Icon(UiKit.Search, Fg, 16), Cursor = Cursors.Hand };
+        pick.FlatAppearance.BorderColor = UiKit.Line;
+        _tipEd.SetToolTip(pick, Loc.T("gshop.pickTip", "Procurar o item na lista do elements"));
         var idRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
         idRow.Controls.Add(_itemId); idRow.Controls.Add(pick);
         Row("gshop.itemId", "Item (ID)", idRow);
@@ -413,7 +416,7 @@ internal sealed class GShopView : UserControl
         Row("gshop.cat", "Categoria", _cat);
         Row("gshop.sub", "Subcategoria", _subCb);
         Row("gshop.surface", "Figura", _surface);
-        Head("gshop.hDesc", "Descrição (^RRGGBB muda a cor)");
+        Head("gshop.hDesc", "Descrição (^RRGGBB muda a cor)", "\uE70F");
         var colors = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = Padding.Empty };
         foreach (var (hex, c) in new[] { ("ffffff", Color.White), ("ffcb4a", Gold), ("00ff00", Color.LimeGreen), ("00b4ff", Color.DeepSkyBlue), ("ff7800", Color.DarkOrange), ("ff0000", Color.Red), ("c800ff", Color.MediumOrchid), ("969696", Color.Gray) })
         {
@@ -423,7 +426,17 @@ internal sealed class GShopView : UserControl
         }
         tl.Controls.Add(colors); tl.SetColumnSpan(colors, 2);
         tl.Controls.Add(_desc); tl.SetColumnSpan(_desc, 2); _desc.Dock = DockStyle.Fill;
-        Head("gshop.hOptions", "Opções de venda (preço em ouro, duração, selo)");
+        Head("gshop.hOptions", "Opções de venda", "\uE8EC");
+        // cabeçalho das colunas das opções (antes só "1. 2. 3. 4." sem dizer o que era cada caixa)
+        var optHead = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        foreach (var (key, pt, w) in new[] { ("gshop.colPrice", "Preço (ouro)", 102), ("gshop.colDur", "Duração", 102), ("gshop.colBadge", "Selo", 52) })
+        {
+            var h = new Label { AutoSize = false, Width = w, Height = 18, ForeColor = Muted, Font = new Font("Segoe UI", 8.5f) };
+            void T() => h.Text = Loc.T(key, pt);
+            T(); AppLang.Changed += T;
+            optHead.Controls.Add(h);
+        }
+        tl.Controls.Add(new Label { AutoSize = true }); tl.Controls.Add(optHead);
         for (int k = 0; k < 4; k++)
         {
             _price[k] = Num(0, 21474836, 2); _price[k].Width = 96;
@@ -438,7 +451,7 @@ internal sealed class GShopView : UserControl
             _dur[k].TextChanged += (_, _) => EditOption(kk);
             _status[k].ValueChanged += (_, _) => EditOption(kk);
         }
-        Head("gshop.hGift", "Presente junto");
+        Head("gshop.hGift", "Presente junto", "\uE88C");
         Row("gshop.giftId", "Item (ID)", _giftId);
         Row("gshop.giftAmount", "Quantidade", _giftAmount);
         Row("gshop.giftDur", "Duração (s)", _giftDur);
@@ -532,7 +545,7 @@ internal sealed class GShopView : UserControl
 
         protected override void OnResize(EventArgs e) { base.OnResize(e); Invalidate(); }
 
-        Image? Img(string? path, int frames = 1) => _v._tex?.Get(path, frames);
+        Image? Img(string? path, int frames = 1, Size? cell = null) => _v._tex?.Get(path, frames, cell);
         string? ImgOf(string ctl, int k = 0) => D?[ctl]?.Images is { } l && l.Count > k ? l[k] : null;
 
         // Texto em coordenadas do jogo. Graphics.DrawString respeita a escala da tela (o TextRenderer não).
@@ -615,12 +628,31 @@ internal sealed class GShopView : UserControl
             if (_v._sel is { } s)
             {
                 if (Img(s.Surface) is { } big) g.DrawImage(big, R("Img_Item", new Rectangle(89, 162, 128, 128)));
-                Text(g, s.Name, new Rectangle(R("Img_Item", new Rectangle(89, 162, 128, 128)).X - 40, R("Txt_ItemName", new Rectangle(150, 144, 0, 0)).Y - 8, 208, 18), Gold, 12, true);
+                Text(g, s.Name, new Rectangle(R("Img_Item", new Rectangle(89, 162, 128, 128)).X - 40, R("Txt_ItemName", new Rectangle(150, 144, 0, 0)).Y + 1, 208, 18), Gold, 12, true);
                 var dr = R("Txt_ItemDesc", new Rectangle(71, 315, 160, 180));
-                DrawRich(g, s.Description, dr);
+                DrawRich(g, s.Description, new Rectangle(dr.X, dr.Y + 14, dr.Width, Math.Max(20, dr.Height - 14)));   // abaixo do nome e da figura, como no jogo
             }
-            Text(g, D?["cash"]?.Text ?? Loc.T("gshop.pvTotal", "Total:"), R("cash", new Rectangle(68, 507, 42, 16)), Gold, 10, true, ContentAlignment.MiddleLeft);
-            Text(g, string.Format(Loc.T("gshop.count", "{0} itens"), vis.Count), R("Txt_Cash", new Rectangle(113, 507, 120, 15)), Color.White, 10, true, ContentAlignment.MiddleLeft);
+            // rodapé: o rótulo do jogo ("Número de…") no tamanho dele e a contagem logo depois, sem cortar nem sobrepor
+            var cashR = R("cash", new Rectangle(68, 507, 42, 16));
+            var cashT = D?["cash"]?.Text ?? Loc.T("gshop.pvTotal", "Total:");
+            int cw = (int)Math.Ceiling(MeasureGame(g, cashT, 10, true)) + 6;
+            // os dois com a mesma fonte e a mesma linha de base (antes o rótulo com acento caía noutra fonte e ficava mais baixo)
+            using (var ff = GameFont(10, true))
+            using (var sf = (StringFormat)StringFormat.GenericTypographic.Clone())
+            using (var gold = new SolidBrush(Gold))
+            {
+                float ty = cashR.Y + 5 + (Math.Max(16, cashR.Height) - ff.GetHeight(g)) / 2;   // no meio da moldura de baixo
+                g.DrawString(cashT, ff, gold, cashR.X, ty, sf);
+                float lw = g.MeasureString(cashT + " ", ff, PointF.Empty, new StringFormat(sf) { FormatFlags = StringFormatFlags.MeasureTrailingSpaces }).Width;
+                g.DrawString(string.Format(Loc.T("gshop.count", "{0} itens"), vis.Count), ff, Brushes.White, cashR.X + lw + 4, ty, sf);
+            }
+        }
+
+        static float MeasureGame(Graphics g, string t, float size, bool bold)
+        {
+            using var f = GameFont(size, bold);
+            using var sf = (StringFormat)StringFormat.GenericTypographic.Clone();
+            return g.MeasureString(t, f, PointF.Empty, sf).Width;
         }
 
         void DrawCell(Graphics g, Rectangle r, GShopItem it, bool selected)
@@ -638,12 +670,19 @@ internal sealed class GShopView : UserControl
             Text(g, it.Name, new Rectangle(r.X + 50, nr.Y - 2, r.Width - 56, 18), Gold, 12, false);
             var o = it.GetOption(0);
             var tr = C("Txt_Time", new Rectangle(66, 38, 0, 0));
-            Text(g, DurationText(o.Duration), new Rectangle(tr.X, tr.Y, 80, 16), Color.White, 10, true, ContentAlignment.MiddleLeft);
             var pr = C("Txt_Price", new Rectangle(216, 38, 0, 0));
-            Text(g, string.Format(Loc.T("gshop.price", "Preço: {0}"), (o.Price / 100m).ToString("#,0.##", CultureInfo.CurrentCulture)), new Rectangle(pr.X - 110, pr.Y, 110, 16), Color.White, 10, true, ContentAlignment.MiddleRight);
+            // Txt_Time ancora à esquerda e Txt_Price (Align 2) à direita, na mesma linha: o tempo vai até onde o preço começa
+            var price = string.Format(Loc.T("gshop.price", "Preço: {0}"), (o.Price / 100m).ToString("#,0.##", CultureInfo.CurrentCulture));
+            int pw = Math.Min(110, (int)Math.Ceiling(MeasureGame(g, price, 10, true)) + 4);
+            Text(g, price, new Rectangle(pr.X - pw, pr.Y, pw, 16), Color.White, 10, true, ContentAlignment.MiddleRight);
+            Text(g, DurationText(o.Duration), new Rectangle(tr.X, tr.Y, Math.Max(30, pr.X - pw - tr.X - 4), 16), Color.White, 10, true, ContentAlignment.MiddleLeft);
             // selos: novo / quente / desconto (status) e presente
             string? badge = o.Status switch { 1 => "img_new", 3 => "img_hot", _ => null };
-            if (badge is not null && Img(c?[badge]?.Images.FirstOrDefault(), 3) is { } bi) g.DrawImage(bi, C(badge, new Rectangle(15, 14, 27, 8)));
+            if (badge is not null)
+            {
+                var bc = C(badge, new Rectangle(15, 14, 27, 8));
+                if (Img(c?[badge]?.Images.FirstOrDefault(), Math.Max(1, c?[badge]?.Frames ?? 3), bc.Size) is { } bi) g.DrawImage(bi, bc);
+            }
             if (it.GiftId != 0 && Img(c?["Img_Bg03"]?.Images.FirstOrDefault()) is { } gi) g.DrawImage(gi, C("Img_Bg03", new Rectangle(55, 59, 50, 24)));
             if (Img(c?["Btn_Buy"]?.Images.FirstOrDefault()) is { } buy)
             {
@@ -661,7 +700,7 @@ internal sealed class GShopView : UserControl
         {
             using var f = GameFont(11, false);
             using var sf = StringFormat.GenericTypographic;
-            float x = area.X, y = area.Y, lineH = f.GetHeight(g) + 2, space = g.MeasureString(" ", f, PointF.Empty, sf).Width + 2;
+            float x = area.X, y = area.Y, lineH = f.GetHeight(g) + 2, space = g.MeasureString("a a", f, PointF.Empty, sf).Width - g.MeasureString("aa", f, PointF.Empty, sf).Width + 1;   // o tipográfico não mede espaço sozinho
             // o jogo grava a quebra de linha como as letras \r
             var text = desc.Replace("\\r", "\r").Replace("\r\n", "\r").Replace('\n', '\r');
             foreach (var (run, color) in GameConfigs.Runs(text, Color.White))

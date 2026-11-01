@@ -9,6 +9,29 @@ namespace MyAceEditor.PerfectWorld;
 public sealed record CfgField(string Name, string Type, int Size, string? OriginalName = null)
 {
     public string SourceName => OriginalName ?? Name;
+
+    // tipo já resolvido (antes: ToLowerInvariant + StartsWith a CADA campo lido, milhões de vezes por elements.data).
+    // Fica num dicionário por texto do tipo, fora do record: campo novo no record mudaria a igualdade dele.
+    internal enum Kind : byte { WString, String, Bytes, Float, Double, I64, U64, I16, U16, I8, U8, U32, I32, Unknown }
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Kind> Kinds = new();
+    internal Kind TypeKind => Kinds.GetOrAdd(Type, Classify);
+    internal bool IsId => SourceName.Equals("ID", StringComparison.OrdinalIgnoreCase);
+    internal bool IsName => SourceName.Equals("Name", StringComparison.OrdinalIgnoreCase);
+
+    static Kind Classify(string type)
+    {
+        var t = type.ToLowerInvariant();
+        if (t.StartsWith("wstring:")) return Kind.WString;
+        if (t.StartsWith("string:")) return Kind.String;
+        if (t.StartsWith("byte:") || t.StartsWith("bytes:")) return Kind.Bytes;
+        return t switch
+        {
+            "float" => Kind.Float, "double" => Kind.Double, "int64" or "long" => Kind.I64, "uint64" or "ulong" => Kind.U64,
+            "int16" or "short" => Kind.I16, "uint16" or "word" or "ushort" => Kind.U16, "int8" or "sbyte" => Kind.I8,
+            "uint8" or "byte" or "char" or "bool" => Kind.U8, "uint32" or "uint" or "dword" => Kind.U32, "int32" or "int" => Kind.I32,
+            _ => Kind.Unknown,
+        };
+    }
 }
 
 public sealed class CfgBlock
@@ -19,6 +42,8 @@ public sealed class CfgBlock
     public string Offset = "0";
     public bool Raw;
     public List<CfgField> Fields = new();
+    /// <summary>Nomes dos campos compartilhados pelos registros lidos deste bloco (CfgElementsReader.ReadRecord).</summary>
+    internal MyAceEditor.Model.FieldSchema? Schema;
     public int RecordSize => checked(Fields.Sum(f => f.Size));
 }
 

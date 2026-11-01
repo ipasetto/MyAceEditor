@@ -12,13 +12,13 @@ public sealed record NpcQuestInfo(int NpcId, string NpcName, IReadOnlyList<NpcQu
 /// </summary>
 internal sealed class WorldQuestPanel : Panel
 {
-    const int Full = 240, Header = 32;
+    const int Full = 260, Header = 44;
     static readonly Color Bg = Color.FromArgb(28, 32, 38), Bg2 = Color.FromArgb(36, 41, 49), Fg = Color.Gainsboro, Muted = Color.Silver,
         Warn = Color.FromArgb(240, 190, 90);
 
     readonly Label _title = new() { AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.White, Font = new Font("Segoe UI", 10f, FontStyle.Bold), Padding = new Padding(8, 0, 0, 0) };
     readonly FlowLayoutPanel _buttons = new() { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(0, 3, 4, 0) };
-    readonly Button _create, _link, _min, _close;
+    readonly Button _create, _link, _edit, _delete, _min, _close;
     readonly Label _givesTitle = Caption(), _takesTitle = Caption();
     readonly ListView _gives = List(), _takes = List();
     readonly ToolTip _tip = new();
@@ -34,24 +34,45 @@ internal sealed class WorldQuestPanel : Panel
     /// <summary>Dar uma quest existente ao NPC (ID do NPC). Null = botão desligado.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? LinkQuest { get => _linkQuest; set { _linkQuest = value; ApplyText(); } }
     Action<int>? _linkQuest;
+    /// <summary>Editar a quest escolhida na lista (ID da quest). Null = botão desligado.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? EditQuest { get => _editQuest; set { _editQuest = value; ApplyText(); } }
+    Action<int>? _editQuest;
+    /// <summary>Excluir a quest escolhida na lista (ID da quest). Null = botão desligado.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? DeleteQuest { get => _deleteQuest; set { _deleteQuest = value; ApplyText(); } }
+    Action<int>? _deleteQuest;
+    int SelectedQuest => new[] { _gives, _takes }.SelectMany(lv => lv.SelectedItems.Cast<ListViewItem>()).Select(i => i.Tag).OfType<NpcQuestRef>()
+        .FirstOrDefault(q => q.Name.Length > 0)?.Id ?? 0;
 
     public WorldQuestPanel()
     {
         Dock = DockStyle.Bottom; Height = 0; Visible = false; BackColor = Bg; ForeColor = Fg;
-        Button Btn(Action a) { var b = new Button { AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Bg2, Margin = new Padding(3, 0, 0, 0), Height = 26 }; b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 90); b.Click += (_, _) => a(); return b; }
-        _create = Btn(() => { if (_info is not null) _createQuest?.Invoke(_info.NpcId); });
-        _link = Btn(() => { if (_info is not null) _linkQuest?.Invoke(_info.NpcId); });
-        _min = Btn(() => SetMinimized(!_minimized));
-        _close = Btn(HidePanel);
-        _buttons.Controls.AddRange(new Control[] { _create, _link, _min, _close });
+        // botões com ícone desenhado; "Criar quest" é a ação principal (azul)
+        Button Btn(Action a, string glyph, Color? back = null)
+        {
+            var b = new Button { AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = back ?? Bg2, Margin = new Padding(4, 0, 0, 0), Height = 32,
+                Image = UiKit.Icon(glyph, Color.White, 16), TextImageRelation = TextImageRelation.ImageBeforeText, Padding = new Padding(6, 0, 6, 0), Cursor = Cursors.Hand, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(34, 32) };
+            b.FlatAppearance.BorderColor = back ?? Color.FromArgb(70, 78, 90);
+            b.Click += (_, _) => a(); return b;
+        }
+        _create = Btn(() => { if (_info is not null) _createQuest?.Invoke(_info.NpcId); }, "\uE710", UiKit.Accent);
+        _link = Btn(() => { if (_info is not null) _linkQuest?.Invoke(_info.NpcId); }, "\uE71B");
+        // editar / excluir agem na quest escolhida nas listas (abrem a lista se estiver fechada)
+        _edit = Btn(() => { if (SelectedQuest is var id and > 0) _editQuest?.Invoke(id); else if (_minimized) SetMinimized(false); }, "\uE70F");
+        _delete = Btn(() => { if (SelectedQuest is var id and > 0) _deleteQuest?.Invoke(id); else if (_minimized) SetMinimized(false); }, "\uE74D");
+        _min = Btn(() => SetMinimized(!_minimized), "\uE8FD");
+        _close = Btn(HidePanel, "\uE711");
+        _buttons.Controls.AddRange(new Control[] { _create, _link, _edit, _delete, _min, _close });
+        _buttons.Padding = new Padding(0, 6, 6, 0);
         var head = new Panel { Dock = DockStyle.Top, Height = Header, BackColor = Bg2 };
-        head.Controls.Add(_title); head.Controls.Add(_buttons);
+        var npcIcon = new PictureBox { Dock = DockStyle.Left, Width = 40, Image = UiKit.Icon("\uE77B", Color.FromArgb(120, 190, 255), 22), SizeMode = PictureBoxSizeMode.CenterImage };
+        head.Controls.Add(_title); head.Controls.Add(npcIcon); head.Controls.Add(_buttons);
+        _title.Font = new Font("Segoe UI Semibold", 11f); _title.Padding = new Padding(0); _title.AutoEllipsis = true;
         head.DoubleClick += (_, _) => SetMinimized(!_minimized);
         _title.DoubleClick += (_, _) => SetMinimized(!_minimized);
 
         var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(6, 4, 6, 6) };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 22)); body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 28)); body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         body.Controls.Add(_givesTitle, 0, 0); body.Controls.Add(_takesTitle, 1, 0);
         body.Controls.Add(_gives, 0, 1); body.Controls.Add(_takes, 1, 1);
         Controls.Add(body); Controls.Add(head);
@@ -59,6 +80,8 @@ internal sealed class WorldQuestPanel : Panel
         foreach (var lv in new[] { _gives, _takes })
         {
             lv.ItemActivate += (_, _) => { if (lv.SelectedItems.Count > 0 && lv.SelectedItems[0].Tag is NpcQuestRef q) OpenQuest?.Invoke(q.Id); };
+            // escolher numa lista tira a escolha da outra: Editar/Excluir valem para uma quest só
+            lv.SelectedIndexChanged += (_, _) => { if (lv.SelectedItems.Count > 0) (lv == _gives ? _takes : _gives).SelectedItems.Clear(); UpdateActions(); };
             lv.Resize += (_, _) => { if (lv.Columns.Count == 3) lv.Columns[1].Width = Math.Max(120, lv.ClientSize.Width - lv.Columns[0].Width - lv.Columns[2].Width - 4); };
         }
         _anim.Tick += (_, _) =>
@@ -71,7 +94,7 @@ internal sealed class WorldQuestPanel : Panel
         ApplyText();
     }
 
-    static Label Caption() => new() { Dock = DockStyle.Fill, ForeColor = Muted, Font = new Font("Segoe UI", 9f, FontStyle.Bold), TextAlign = ContentAlignment.BottomLeft };
+    static Label Caption() => new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9.5f), TextAlign = ContentAlignment.BottomLeft, ImageAlign = ContentAlignment.BottomLeft };
 
     static ListView List()
     {
@@ -83,14 +106,17 @@ internal sealed class WorldQuestPanel : Panel
 
     void ApplyText()
     {
-        _create.Text = Loc.T("wq.create", "+ Criar quest com este NPC");
+        _create.Text = Loc.T("wq.create2", "Criar quest");
         _link.Text = Loc.T("wq.link", "Dar quest existente");
         _create.Enabled = _createQuest is not null; _link.Enabled = _linkQuest is not null;
         var soon = Loc.T("wq.soon", "Em construção: próximo passo.");
         _tip.SetToolTip(_create, _createQuest is null ? soon : Loc.T("wq.createTip", "Nova quest com este NPC como o NPC que dá a quest."));
         _tip.SetToolTip(_link, _linkQuest is null ? soon : Loc.T("wq.linkTip", "Escolher uma quest que já existe para este NPC dar (aplicado no Salvar)."));
+        _edit.Text = Loc.T("wq.edit", "Editar quest");
+        _delete.Text = Loc.T("wq.delete", "Excluir quest");
+        UpdateActions();
         _min.Text = _info is null ? "" : ListText();
-        _close.Text = "✕";
+        _close.Text = "";
         _tip.SetToolTip(_min, Loc.T("wq.listTip", "Mostra ou esconde as quests que este NPC já dá e recebe."));
         _tip.SetToolTip(_close, Loc.T("wq.close", "Fechar"));
         foreach (var lv in new[] { _gives, _takes })
@@ -99,13 +125,24 @@ internal sealed class WorldQuestPanel : Panel
         }
     }
 
+    void UpdateActions()
+    {
+        bool pick = SelectedQuest > 0;
+        _edit.Enabled = _editQuest is not null; _delete.Enabled = _deleteQuest is not null;
+        _tip.SetToolTip(_edit, _editQuest is null ? Loc.T("wq.soon", "Em construção: próximo passo.")
+            : pick ? Loc.T("wq.editTip", "Abre a quest escolhida no assistente, com tudo preenchido, para mudar.") : Loc.T("wq.pickFirst", "Escolha uma quest na lista primeiro (Ver quests)."));
+        _tip.SetToolTip(_delete, _deleteQuest is null ? Loc.T("wq.soon", "Em construção: próximo passo.")
+            : pick ? Loc.T("wq.deleteTip", "Exclui a quest escolhida e tira ela dos NPCs (Ctrl+Z desfaz).") : Loc.T("wq.pickFirst", "Escolha uma quest na lista primeiro (Ver quests)."));
+    }
+
     public void ShowNpc(NpcQuestInfo info)
     {
         _info = info;
         ApplyText();
-        _title.Text = string.Format(Loc.T("wq.title", "Quests de {0}  (NPC {1})"), info.NpcName, info.NpcId);
-        _givesTitle.Text = string.Format(Loc.T("wq.gives", "Dá a quest ({0})"), info.Gives.Count);
-        _takesTitle.Text = string.Format(Loc.T("wq.takes", "Recebe a quest ({0})"), info.Takes.Count);
+        _title.Text = string.Format(Loc.T("wq.title2", "{0}   ·   NPC {1}"), info.NpcName, info.NpcId);
+        _givesTitle.Image = UiKit.Icon("\uE7C1", Color.FromArgb(120, 190, 255), 16); _takesTitle.Image = UiKit.Icon("\uE73E", Color.FromArgb(140, 220, 140), 16);
+        _givesTitle.Text = "      " + string.Format(Loc.T("wq.gives", "Dá a quest ({0})"), info.Gives.Count);
+        _takesTitle.Text = "      " + string.Format(Loc.T("wq.takes", "Recebe a quest ({0})"), info.Takes.Count);
         Fill(_gives, info.Gives, gives: true);
         Fill(_takes, info.Takes, gives: false);
         _tip.SetToolTip(_title, Loc.T("wq.hint", "Clique duas vezes numa quest para abrir. Clique duas vezes aqui para minimizar."));
@@ -139,8 +176,8 @@ internal sealed class WorldQuestPanel : Panel
     }
 
     string ListText() => _minimized
-        ? string.Format(Loc.T("wq.showList", "Ver quests ({0} dá / {1} recebe) ▴"), _info!.Gives.Count, _info.Takes.Count)
-        : Loc.T("wq.hideList", "Esconder quests ▾");
+        ? string.Format(Loc.T("wq.showList2", "Ver quests ({0} dá · {1} recebe)"), _info!.Gives.Count, _info.Takes.Count)
+        : Loc.T("wq.hideList2", "Esconder quests");
 
     void SetMinimized(bool min)
     {

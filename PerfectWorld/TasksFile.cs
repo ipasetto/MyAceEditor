@@ -78,28 +78,45 @@ public sealed class TasksFile
             Quests.Add(new QuestEntry { Offset = off, Id = id, Name = name, OriginalName = name });
         }
 
+        var swT = System.Diagnostics.Stopwatch.StartNew();
         if (TaskSchema93.Supports(Version))
         {
             try
             {
+                // cada quest principal é analisada à parte (só lê os dados): em paralelo nos núcleos (4,5 s -> ~1 s no PWI 1.5.5).
+                // A conferência de onde cada uma termina e a mensagem de erro continuam iguais, na ordem do arquivo.
+                var parsed = new QuestNode?[n]; var ends = new int[n]; var errs = new Exception?[n];
+                int doneCount = 0;
+                Parallel.For(0, n, new ParallelOptions { CancellationToken = context?.Token ?? default }, i =>
+                {
+                    try
+                    {
+                        var schema = new TaskSchema93(data, context?.Token ?? default, Version);
+                        parsed[i] = schema.Read(offsets[i]); ends[i] = schema.Position;
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex) { errs[i] = ex; }
+                    int d = Interlocked.Increment(ref doneCount);
+                    if ((d & 255) == 0) context?.Report(.1 + .82 * d / Math.Max(1, n), FieldKinds.Translate("tasks.parsing", "Analisando quests"), string.Format(FieldKinds.Translate("tasks.mainCount", "{0:N0}/{1:N0} quests principais"), d, n));
+                });
                 var roots = new List<QuestNode>(n);
                 for (int i = 0; i < n; i++)
                 {
-                    context?.Report(.1 + .82 * i / Math.Max(1, n), FieldKinds.Translate("tasks.parsing", "Analisando quests"), string.Format(FieldKinds.Translate("tasks.mainCount", "{0:N0}/{1:N0} quests principais"), i, n));
-                    var schema = new TaskSchema93(data, context?.Token ?? default, Version);
-                    var q = schema.Read(offsets[i]);
-                    int end = schema.Position, expected = i + 1 < n ? offsets[i + 1] : data.Length;
-                    if (end != expected)
-                        throw new InvalidDataException($"quest {q.Id} terminou em {end:N0}, esperado {expected:N0}");
-                    roots.Add(q);
+                    if (errs[i] is { } e) throw e;
+                    int expected = i + 1 < n ? offsets[i + 1] : data.Length;
+                    if (ends[i] != expected)
+                        throw new InvalidDataException($"quest {parsed[i]!.Id} terminou em {ends[i]:N0}, esperado {expected:N0}");
+                    roots.Add(parsed[i]!);
                 }
                 Roots = roots;
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex) { SchemaError = ex.Message; }
         }
+        long tParse = swT.ElapsedMilliseconds; swT.Restart();
         context?.Check();
         Index = new TaskIndex(Roots, Quests, context?.Slice(.92, .95));
+        long tIndex = swT.ElapsedMilliseconds; swT.Restart();
         if (ReadOnlyReason is null)
         {
             try
@@ -110,9 +127,13 @@ public sealed class TasksFile
             catch (Exception ex) when (ex is InvalidDataException or ArgumentException or OverflowException)
             { ReadOnlyReason = FieldKinds.Translate("tasks.verifyFailed", "A verificação de regravação das quests falhou: ") + ex.Message; }
         }
+        LoadTimes = $"analise {tParse} ms, indice {tIndex} ms, conferencia {swT.ElapsedMilliseconds} ms";
         context?.Check();
         context?.Report(1, FieldKinds.Translate("tasks.read", "Quests lidas"), string.Format(FieldKinds.Translate("tasks.mainTotal", "{0:N0} quests principais"), Quests.Count), force: true);
     }
+
+    /// <summary>Tempo das partes da leitura (log de desempenho).</summary>
+    public string LoadTimes { get; private set; } = "";
 
     public IEnumerable<QuestNode> AllNodes() => Index.Nodes;
 
@@ -261,6 +282,16 @@ public sealed class TasksFile
         Index = new TaskIndex(Roots, Quests);
         InvalidateNpcIndex();
         return true;
+    }
+
+    /// <summary>Põe a quest principal na posição <paramref name="at"/> da lista (tira de onde estiver; entra se não estava). Desfazer excluir/editar.</summary>
+    public void MoveRoot(QuestNode q, int at)
+    {
+        if (Roots is null) return;
+        Roots.Remove(q);
+        Roots.Insert(Math.Clamp(at, 0, Roots.Count), q);
+        Index = new TaskIndex(Roots, Quests);
+        InvalidateNpcIndex();
     }
 
     static QuestNode CloneNode(QuestNode s, QuestNode? parent, Dictionary<int, int> map)

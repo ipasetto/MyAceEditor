@@ -14,7 +14,7 @@ namespace MyAceEditor.PerfectWorld;
 public sealed class GameDialog
 {
     public sealed record Control(string Tag, string Name, Rectangle Rect, string? Text, float FontSize, Color? Color, int Align, IReadOnlyList<string> Images,
-        string? FontName = null, bool Bold = false, Point TextOffset = default, int Frames = 1, string? Hint = null);
+        string? FontName = null, bool Bold = false, Point TextOffset = default, int Frames = 1, string? Hint = null, int Outline = 0);
 
     public string Name { get; init; } = "";
     public Size Size { get; init; }
@@ -72,7 +72,8 @@ public sealed class GameDialog
                 ta.GetValueOrDefault("FontName"), ta.TryGetValue("Bold", out var bo) && bo.Equals("true", StringComparison.OrdinalIgnoreCase),
                 new Point(N("TextOffsetX"), N("TextOffsetY")),
                 Regex.Match(body, @"FileName=""[^""]*""\s+Frames=""(\d+)""") is { Success: true } fr ? int.Parse(fr.Groups[1].Value) : 1,
-                Regex.Match(body, @"<Hint\b(?:[^>""]|""[^""]*"")*?\bString=""([^""]*)""", RegexOptions.IgnoreCase) is { Success: true } hn ? System.Net.WebUtility.HtmlDecode(hn.Groups[1].Value) : null);
+                Regex.Match(body, @"<Hint\b(?:[^>""]|""[^""]*"")*?\bString=""([^""]*)""", RegexOptions.IgnoreCase) is { Success: true } hn ? System.Net.WebUtility.HtmlDecode(hn.Groups[1].Value) : null,
+                ta.TryGetValue("Outline", out var ol) && int.TryParse(ol, out var o) ? o : 0);
         }
         return dlg;
     }
@@ -102,8 +103,13 @@ public static class GameFonts
                 if (ByFile.ContainsKey(key)) continue;
                 try
                 {
+                    // AddFontFile deixa o arquivo preso até o programa fechar: carrega uma cópia, para o cliente poder trocar
+                    // as fontes (tradutor, patch) com o editor aberto
+                    var copy = Path.Combine(Path.GetTempPath(), "MyAceEditor", "fonts",
+                        $"{key}-{(uint)f.ToLowerInvariant().GetHashCode():x8}-{File.GetLastWriteTimeUtc(f).Ticks:x}.ttf");
+                    if (!File.Exists(copy)) { Directory.CreateDirectory(Path.GetDirectoryName(copy)!); File.Copy(f, copy, true); }
                     int before = Pfc.Families.Length;
-                    Pfc.AddFontFile(f);
+                    Pfc.AddFontFile(copy);
                     if (Pfc.Families.Length > before) ByFile[key] = Pfc.Families[^1];
                 }
                 catch { }
@@ -134,10 +140,10 @@ public sealed class GameTextures : IDisposable
     public GameTextures(PckArchive surfaces) => _pck = surfaces;
 
     /// <summary>"Version01\商城\x.tga" ou "Surfaces\百宝阁\x.dds"; <paramref name="frames"/> &gt; 1 pega o 1º quadro da tira.</summary>
-    public Image? Get(string? path, int frames = 1)
+    public Image? Get(string? path, int frames = 1, Size? cell = null)
     {
         if (string.IsNullOrWhiteSpace(path)) return null;
-        var key = path + "|" + frames;
+        var key = path + "|" + frames + "|" + cell;
         if (_cache.TryGetValue(key, out var img)) return img;
         img = null;
         try
@@ -159,7 +165,10 @@ public sealed class GameTextures : IDisposable
                 if (img is not null && frames > 1)
                 {
                     // tiras animadas: quadros empilhados na vertical (new/hot/gift) ou na horizontal
-                    bool vertical = img.Height >= img.Width;
+                    // com o tamanho do controle (cell) vale a direção cujo quadro tem a proporção dele (new.bmp 27x24 = 3 quadros 27x8)
+                    bool vertical = cell is { Width: > 0, Height: > 0 } c
+                        ? Math.Abs(Math.Log((double)img.Width * frames / img.Height / ((double)c.Width / c.Height))) <= Math.Abs(Math.Log((double)img.Width / frames / img.Height / ((double)c.Width / c.Height)))
+                        : img.Height >= img.Width;
                     var r = vertical ? new Rectangle(0, 0, img.Width, img.Height / frames) : new Rectangle(0, 0, img.Width / frames, img.Height);
                     var first = new Bitmap(r.Width, r.Height);
                     using (var g = Graphics.FromImage(first)) g.DrawImage(img, new Rectangle(Point.Empty, r.Size), r, GraphicsUnit.Pixel);

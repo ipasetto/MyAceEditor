@@ -20,6 +20,9 @@ public static class DdsDecoder
         }
         int n = zero + full + mid;
         // folhagem com borda suave (árvores feitas de cartões nos .bmd): muito fundo transparente e meios-tons só na borda
+        // recorte de verdade tem parte opaca: alfa quase todo 0 e nada opaco é máscara (brilho/reflexo), não transparência
+        // (guarda 2557: corpo r_男npc3.dds DXT3 com 87% alfa 0 e 0,1% opaco sumia no Mundo 3D)
+        if (full < n / 10) return false;
         return n > 0 && (zero > n / 100 && mid < n / 8 || zero > n / 4 && mid < n / 3);
     }
 
@@ -81,6 +84,33 @@ public static class DdsDecoder
             px[i] = (int)((hasAlpha ? Chan(v, aM) : 255u) << 24 | Chan(v, rM) << 16 | Chan(v, gM) << 8 | Chan(v, bM));
         }
         return (px, w, h);
+    }
+
+    /// <summary>Formato de bloco do DDS (DXT1/3/5): (bytes por bloco, modo de alfa); null se não for comprimido em blocos.</summary>
+    public static (int BlockSize, int AlphaMode)? BlockFormat(byte[] d)
+    {
+        if (d.Length < 128 || BitConverter.ToUInt32(d, 0) != 0x20534444 || (BitConverter.ToUInt32(d, 80) & 0x4) == 0) return null;
+        return BitConverter.ToUInt32(d, 84) switch { 0x31545844 => (8, 0), 0x33545844 => (16, 3), 0x35545844 => (16, 5), _ => null };
+    }
+
+    /// <summary>
+    /// Só um retângulo de um DDS DXT (x, y, w, h múltiplos de 4): decodifica apenas os blocos dele. Usado pelo atlas de
+    /// ícones, que fica comprimido na memória (4096×4096 DXT1 = 8 MB em vez de 64 MB descomprimido).
+    /// </summary>
+    public static int[]? DecodeRegion(byte[] d, int x, int y, int w, int h)
+    {
+        if (BlockFormat(d) is not var (bs, alpha) || (x | y | w | h) % 4 != 0) return null;
+        int width = BitConverter.ToInt32(d, 16), rowBytes = (width + 3) / 4 * bs, bw = w / 4, bh = h / 4;
+        var part = new byte[bw * bh * bs];
+        for (int by = 0; by < bh; by++)
+        {
+            int src = 128 + (y / 4 + by) * rowBytes + x / 4 * bs;
+            if (src + bw * bs > d.Length) return null;
+            Buffer.BlockCopy(d, src, part, by * bw * bs, bw * bs);
+        }
+        var px = new int[w * h];
+        Blocks(part, 0, w, h, px, bs, alpha, default);
+        return px;
     }
 
     static uint Chan(uint v, uint mask)

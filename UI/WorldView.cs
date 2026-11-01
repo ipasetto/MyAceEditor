@@ -37,6 +37,11 @@ internal sealed class WorldView : Form
     /// <summary>Clique no vazio: nenhum ponto selecionado.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action? ClearSelection { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? UndoAction { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<int>? UndoDepth { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<int>? RedoDepth { get; set; }
+    // quests criadas/ligadas aqui: cada uma guarda quantos passos de pontos havia antes, para o Ctrl+Z seguir a ordem real
+    readonly List<int> _qUndo = new(), _qRedo = new();
+    int _questNpc;
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? RedoAction { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public IReadOnlyList<string> Maps { get; set; } = Array.Empty<string>();
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<string>? SwitchMap { get; set; }
@@ -59,7 +64,12 @@ internal sealed class WorldView : Form
     internal IQuestHost? QuestHost
     {
         get => _host;
-        set { _host = value; _quests.CreateQuest = value is null ? null : OpenCreator; _quests.LinkQuest = value is null ? null : LinkExisting; }
+        set
+        {
+            _host = value;
+            _quests.CreateQuest = value is null ? null : OpenCreator; _quests.LinkQuest = value is null ? null : LinkExisting;
+            _quests.EditQuest = value is null ? null : OpenQuestEditor; _quests.DeleteQuest = value is null ? null : DeleteQuest;
+        }
     }
 
     const float Speed = 40;           // m/s andando; Shift = ×4
@@ -72,7 +82,7 @@ internal sealed class WorldView : Form
     readonly Action<object> _select;
     readonly GLControl _gl;
     readonly StatusLine _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.Gainsboro };
-    readonly ToolStrip _bar = new() { GripStyle = ToolStripGripStyle.Hidden, RenderMode = ToolStripRenderMode.System, BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Padding = new Padding(4, 3, 4, 3) };
+    readonly ToolStrip _bar = new() { GripStyle = ToolStripGripStyle.Hidden, Renderer = new DarkBarRenderer(), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Padding = new Padding(6, 4, 6, 4) };
     readonly ToolStripTextBox _find = new() { Width = 220, BackColor = Color.Black, ForeColor = Color.White };
     readonly ToolStripComboBox _mapBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, BackColor = Color.Black, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
     readonly WorldLoader _load = new();
@@ -102,6 +112,8 @@ internal sealed class WorldView : Form
     bool _busy;
     int _findAt = -1, _piece = -1;
     Bitmap? _worldMap; float _mapMPerPx = 2;
+    InstanceMap? _instMap;   // instância com o mapa grande do jogo (surfaces\ingame\<pasta>.dds): conversão própria
+    string? _element;
     object? _movingTag; Vector3? _movePos;   // arrastando um ponto com o botão esquerdo
     // setas do ponto selecionado: 1 = X, 2 = Y (altura), 3 = Z, 4 = anel de giro; 0 = nenhuma
     int _gizmoAxis, _gizmoHover; object? _gizmoTag; Vector3 _gizmoStart; Point _gizmoDown; Vector3? _gizmoPos; float? _gizmoYaw;
@@ -118,8 +130,15 @@ internal sealed class WorldView : Form
         var wa = Screen.FromPoint(Cursor.Position).WorkingArea;
         Size = new Size(Math.Min(1280, wa.Width - 40), Math.Min(860, wa.Height - 40)); StartPosition = FormStartPosition.CenterScreen; KeyPreview = true;
         _gl = new GLControl(new GLControlSettings { Profile = OpenTK.Windowing.Common.ContextProfile.Compatability, APIVersion = new Version(3, 3) }) { Dock = DockStyle.Fill };
-        ToolStripButton Btn(string key, string pt, Action a) => new(Loc.T(key, pt), null, (_, _) => a()) { ForeColor = Color.White, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
-        _bar.Items.Add(new ToolStripLabel(Loc.T("world.goto", "Ir para:")) { ForeColor = Color.Silver });
+        ToolStripButton Btn(string key, string pt, Action a)
+        {
+            // com ícone desenhado, o símbolo do começo do texto ("🗺 Mapa", "❔ Atalhos") sai
+            var gl = UiKit.GlyphFor(key + " " + pt);
+            var t = Loc.T(key, pt); int k = 0;
+            while (gl is not null && k < t.Length && !char.IsLetterOrDigit(t[k])) k++;
+            return new(t[k..], gl is null ? null : UiKit.Icon(gl, Color.White, 16), (_, _) => a()) { ForeColor = Color.White, Font = new Font("Segoe UI", 9f, FontStyle.Bold), TextImageRelation = TextImageRelation.ImageBeforeText };
+        }
+        _bar.Items.Add(new ToolStripLabel(UiKit.Icon(UiKit.Search, Color.Silver, 16)) { ToolTipText = Loc.T("world.goto", "Ir para:") });
         _bar.Items.Add(_find);
         _bar.Items.Add(Btn("world.next", "Próximo ▶", FindNext));
         _bar.Items.Add(new ToolStripSeparator());
@@ -142,15 +161,24 @@ internal sealed class WorldView : Form
             (MarkKind.Trigger, "world.fTrigger", "Gatilhos", "Pontos ligados por gatilho sem agenda: fase de DG, GM (nome lilás). Aparecem se o tipo também estiver marcado."),
         })
         {
-            var cb = new CheckBox { Text = Loc.T(key, pt), Checked = (_show & kind) != 0, ForeColor = Color.White, BackColor = Color.Transparent, AutoSize = true, Padding = new Padding(2, 2, 0, 0) };
-            var host = new ToolStripControlHost(cb) { ToolTipText = Loc.T(key + ".h", tip), Margin = new Padding(2, 0, 2, 0) };
-            cb.CheckedChanged += (_, _) => { _show = cb.Checked ? _show | kind : _show & ~kind; RefreshMarkers(); _gl.Focus(); };
-            _bar.Items.Add(host);
+            // botão liga/desliga com a cor do tipo de ponto (como uma legenda que também filtra)
+            var color = kind switch
+            {
+                MarkKind.Monster => Color.FromArgb(239, 83, 80), MarkKind.Npc => Color.FromArgb(100, 181, 246), MarkKind.Merchant => Color.FromArgb(255, 202, 40),
+                MarkKind.Guard => Color.FromArgb(198, 40, 40), MarkKind.Mine => Color.FromArgb(102, 187, 106), MarkKind.Event => Color.FromArgb(0, 230, 118), _ => Color.FromArgb(186, 104, 200),
+            };
+            var tb = new ToolStripButton(Loc.T(key, pt), DarkBarRenderer.Dot(color)) { CheckOnClick = true, Checked = (_show & kind) != 0, ToolTipText = Loc.T(key + ".h", tip),
+                ForeColor = Color.White, TextImageRelation = TextImageRelation.ImageBeforeText, Margin = new Padding(1, 0, 1, 0) };
+            tb.CheckedChanged += (_, _) => { _show = tb.Checked ? _show | kind : _show & ~kind; tb.Image = DarkBarRenderer.Dot(tb.Checked ? color : Color.FromArgb(70, 70, 70)); RefreshMarkers(); _gl.Focus(); };
+            if (!tb.Checked) tb.Image = DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70));
+            _bar.Items.Add(tb);
         }
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
+        _element = element;
+        if (element is not null) _clientNames = MapTags.ClientMapNames(element);
         _terrain = new WorldTerrain(t, _load, element, start);
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
@@ -231,7 +259,7 @@ internal sealed class WorldView : Form
                     }
                     if (mk is { Id: > 0 } && NpcQuests is not null)
                     {
-                        if (NpcQuests(mk.Id) is { } qi) _quests.ShowNpc(qi);   // NPC: quests que dá e recebe
+                        if (NpcQuests(mk.Id) is { } qi) { _questNpc = mk.Id; _quests.ShowNpc(qi); }   // NPC: quests que dá e recebe
                         else { _quests.HidePanel(); _status.Text += "   ·   " + Loc.T("wq.notNpc", "não é NPC: o painel de quests abre ao clicar num NPC"); }
                     }
                 }
@@ -275,7 +303,7 @@ internal sealed class WorldView : Form
         FormClosed += (_, _) =>
         {
             _tick.Dispose(); _load.Dispose(); _gl.MakeCurrent();
-            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _grass.Dispose(); _sky.Dispose(); _worldMap?.Dispose();
+            _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _grass.Dispose(); _sky.Dispose(); _worldMap?.Dispose(); _instMap?.Dispose();
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
         };
@@ -291,7 +319,7 @@ internal sealed class WorldView : Form
             switch (e.KeyCode)
             {
                 case Keys.Z or Keys.Y:
-                    bool ok = (e.KeyCode == Keys.Z ? UndoAction : RedoAction)?.Invoke() ?? false;
+                    bool ok = e.KeyCode == Keys.Z ? UndoAny() : RedoAny();
                     _status.Text = ok ? "" : e.KeyCode == Keys.Z ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer");
                     RefreshMarkers(); break;
                 case Keys.C:
@@ -1205,6 +1233,8 @@ internal sealed class WorldView : Form
     Bitmap WorldMap()
     {
         if (_worldMap is not null) return _worldMap;
+        // instância: o pergaminho da tecla M do jogo, quando o cliente tem (senão, as peças do minimapa como antes)
+        if (_t.Name != "world" && _element is not null && InstanceMap.Load(_element, MapTag) is { } inst) { _instMap = inst; return _worldMap = inst.Image; }
         bool painted = _t.Name == "world" && _terrain.ReadSurface(@"surfaces\maps\000.dds") is not null;
         float tileM = painted ? 1024 : WorldTerrain.TileM;
         int rows = (int)Math.Ceiling(_t.Height / tileM), cols = (int)Math.Ceiling(_t.Width / tileM);
@@ -1230,6 +1260,10 @@ internal sealed class WorldView : Form
         return _worldMap = bmp;
     }
 
+    // ponto do jogo (x, z) ↔ pixel da imagem do mapa
+    PointF MapPx(float x, float z) => _instMap?.ToPixel(x, z) ?? new((x + _t.Width / 2) / _mapMPerPx, (_t.Height / 2 - z) / _mapMPerPx);
+    (float X, float Z) MapGame(float px, float py) => _instMap?.ToGame(px, py) ?? (px * _mapMPerPx - _t.Width / 2, _t.Height / 2 - py * _mapMPerPx);
+
     void ShowMap()
     {
         _keys.Clear();
@@ -1242,18 +1276,21 @@ internal sealed class WorldView : Form
         var pic = new DoubleBufferedPanel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(24, 28, 34) };
         f.Controls.Add(pic);
         float minZoom = 1, zoom = 1;
-        PointF center = new((_cam.X + _t.Width / 2) / _mapMPerPx, (_t.Height / 2 + _cam.Z) / _mapMPerPx);   // em px do mapa, começa na câmera
+        PointF center = MapPx(_cam.X, -_cam.Z);   // em px do mapa, começa na câmera
         // o mapa não sai da janela: zoom mínimo = cabe inteiro; o centro fica preso às bordas
         void Fit()
         {
+            if (pic.Width <= 0 || pic.Height <= 0) return;   // janela minimizada: nada a encaixar
             minZoom = Math.Min(pic.Width / (float)img.Width, pic.Height / (float)img.Height);
-            zoom = Math.Clamp(zoom, minZoom, 6);
+            zoom = Math.Clamp(float.IsFinite(zoom) ? zoom : 1, minZoom, 6);
+            // câmera fora do mapa (ou conversão inválida) deixava o centro NaN/gigante e o GDI+ estourava (OverflowException)
+            if (!float.IsFinite(center.X) || !float.IsFinite(center.Y)) center = new(img.Width / 2f, img.Height / 2f);
             float hw = pic.Width / 2f / zoom, hh = pic.Height / 2f / zoom;
             center = new(img.Width <= hw * 2 ? img.Width / 2f : Math.Clamp(center.X, hw, img.Width - hw),
                          img.Height <= hh * 2 ? img.Height / 2f : Math.Clamp(center.Y, hh, img.Height - hh));
         }
-        PointF ToScreen(float x, float z) => new(((x + _t.Width / 2) / _mapMPerPx - center.X) * zoom + pic.Width / 2f, ((_t.Height / 2 - z) / _mapMPerPx - center.Y) * zoom + pic.Height / 2f);
-        (float X, float Z) World(Point p) => (((p.X - pic.Width / 2f) / zoom + center.X) * _mapMPerPx - _t.Width / 2, _t.Height / 2 - ((p.Y - pic.Height / 2f) / zoom + center.Y) * _mapMPerPx);
+        PointF ToScreen(float x, float z) { var q = MapPx(x, z); return new((q.X - center.X) * zoom + pic.Width / 2f, (q.Y - center.Y) * zoom + pic.Height / 2f); }
+        (float X, float Z) World(Point p) => MapGame((p.X - pic.Width / 2f) / zoom + center.X, (p.Y - pic.Height / 2f) / zoom + center.Y);
         pic.Paint += (_, e) =>
         {
             var gr = e.Graphics;
@@ -1290,10 +1327,10 @@ internal sealed class WorldView : Form
         };
         pic.MouseWheel += (_, e) =>
         {
-            var before = World(e.Location);
+            // o ponto sob o mouse fica parado
+            PointF under = new((e.X - pic.Width / 2f) / zoom + center.X, (e.Y - pic.Height / 2f) / zoom + center.Y);
             zoom = Math.Clamp(zoom * (e.Delta > 0 ? 1.25f : 0.8f), minZoom, 6f);
-            var after = World(e.Location);
-            center = new(center.X - (after.X - before.X) / _mapMPerPx, center.Y + (after.Z - before.Z) / _mapMPerPx);
+            center = new(under.X - (e.X - pic.Width / 2f) / zoom, under.Y - (e.Y - pic.Height / 2f) / zoom);
             Fit(); pic.Invalidate();
         };
         f.KeyDown += (_, e) => { if (e.KeyCode is Keys.M or Keys.Escape) f.Close(); };
@@ -1315,7 +1352,11 @@ internal sealed class WorldView : Form
         ["a33"] = "Chrono City", ["a34"] = "Perfect Chapel", ["a35"] = "Faction Base", ["a37"] = "Morai", ["a38"] = "Phoenix Valley",
         ["a39"] = "Endless Universe", ["a40"] = "Rat Lurk Pits",
     };
-    sealed record MapItem(string Key) { public override string ToString() => MapNames.TryGetValue(Key, out var n) ? $"{Key} — {n}" : Key; }
+    static Dictionary<string, string> _clientNames = new();   // instance.txt do cliente aberto (nome como no jogo)
+    sealed record MapItem(string Key)
+    {
+        public override string ToString() => _clientNames.TryGetValue(Key, out var c) ? $"{Key} — {c}" : MapNames.TryGetValue(Key, out var n) ? $"{Key} — {n}" : Key;
+    }
 
     /// <summary>Barra de status sem piscar: desenha com buffer duplo e só repinta quando o texto muda.</summary>
     // ---------- criar / ligar quests ----------
@@ -1325,6 +1366,31 @@ internal sealed class WorldView : Form
         if (_host is null) return;
         if (_editor is not null) { _editor.Focus(); return; }
         if (_host.NewDraft(npcId, out var why) is not { } draft) { MessageBox.Show(this, why, Loc.T("qe.cantCreate", "Não dá para criar quest agora"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        OpenDraft(draft, npcId);
+    }
+
+    /// <summary>Editar quest: o mesmo assistente, já preenchido com a quest (Concluir troca a quest no lugar).</summary>
+    void OpenQuestEditor(int questId)
+    {
+        if (_host is null) return;
+        if (_editor is not null) { _editor.Focus(); return; }
+        if (_host.EditDraft(questId, out var why) is not { } draft) { MessageBox.Show(this, why, Loc.T("qe.cantEdit", "Não dá para editar esta quest aqui"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        OpenDraft(draft, _questNpc);
+    }
+
+    void DeleteQuest(int questId)
+    {
+        if (_host is null || _editor is not null) return;
+        if (_host.DeleteAsk(questId) is not { } ask) return;
+        if (MessageBox.Show(this, ask, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (_host.Delete(questId) is { } err) { MessageBox.Show(this, err, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        QuestDone(_questNpc);
+        _status.Text = string.Format(Loc.T("qe.deleted", "Quest {0} excluída e tirada dos NPCs (Ctrl+Z desfaz) — clique em Salvar no editor para gravar."), questId);
+    }
+
+    void OpenDraft(QuestDraft draft, int npcId)
+    {
+        bool editing = draft.Editing > 0;
         var world = new QuestWorld(
             act => { _pickNpc = act; _pickArea = null; _status.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)"); _gl.Focus(); },
             act => { _pickArea = act; _pickNpc = null; _status.Text = Loc.T("qe.areaPicking", "Arraste no chão para marcar a área (clique sem arrastar = 10 × 10 m; Esc cancela)…"); _gl.Focus(); },
@@ -1335,12 +1401,44 @@ internal sealed class WorldView : Form
         ed.Created += id =>
         {
             Close();
-            _status.Text = string.Format(Loc.T("qe.created", "Quest {0} criada e ligada aos NPCs — clique em Salvar no editor para gravar."), id);
-            if (NpcQuests?.Invoke(npcId) is { } qi) _quests.ShowNpc(qi);
+            QuestDone(npcId);
+            _status.Text = editing ? string.Format(Loc.T("qe.edited", "Quest {0} alterada (Ctrl+Z desfaz) — clique em Salvar no editor para gravar."), id)
+                : string.Format(Loc.T("qe.created2", "Quest {0} criada e ligada aos NPCs (Ctrl+Z desfaz) — clique em Salvar no editor para gravar."), id);
         };
         ed.Cancelled += Close;
         Controls.Add(ed);
     }
+
+    // a ação mais recente é desfeita primeiro: quest (se nada de ponto mudou depois dela) ou ponto do NPCGen
+    bool UndoAny()
+    {
+        if (_qUndo.Count > 0 && _qUndo[^1] == (UndoDepth?.Invoke() ?? 0) && _host?.Undo() == true)
+        {
+            _qUndo.RemoveAt(_qUndo.Count - 1); _qRedo.Add(RedoDepth?.Invoke() ?? 0);
+            RefreshQuestPanel(); _status.Text = Loc.T("qe.undone", "Quest desfeita (Ctrl+Y refaz).");
+            return true;
+        }
+        return UndoAction?.Invoke() ?? false;
+    }
+
+    bool RedoAny()
+    {
+        if (_qRedo.Count > 0 && _qRedo[^1] == (RedoDepth?.Invoke() ?? 0) && _host?.Redo() == true)
+        {
+            _qRedo.RemoveAt(_qRedo.Count - 1); _qUndo.Add(UndoDepth?.Invoke() ?? 0);
+            RefreshQuestPanel(); _status.Text = Loc.T("qe.redone", "Quest refeita.");
+            return true;
+        }
+        return RedoAction?.Invoke() ?? false;
+    }
+
+    void QuestDone(int npcId)
+    {
+        _qUndo.Add(UndoDepth?.Invoke() ?? 0); _qRedo.Clear();
+        _questNpc = npcId; RefreshQuestPanel();
+    }
+
+    void RefreshQuestPanel() { if (_questNpc > 0 && NpcQuests?.Invoke(_questNpc) is { } qi) _quests.ShowNpc(qi); }
 
     void LinkExisting(int npcId)
     {
@@ -1348,8 +1446,8 @@ internal sealed class WorldView : Form
         using var dlg = new QuestLinkDialog(_host, _host.NameOf(npcId) ?? npcId.ToString());
         if (dlg.ShowDialog(this) != DialogResult.OK || dlg.QuestId <= 0) return;
         if (_host.LinkExisting(npcId, dlg.QuestId) is { } err) { MessageBox.Show(this, err, Loc.T("ql.failed", "Não foi possível dar a quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-        _status.Text = string.Format(Loc.T("ql.done", "Quest {0} agora é dada por este NPC — clique em Salvar no editor para gravar."), dlg.QuestId);
-        if (NpcQuests?.Invoke(npcId) is { } qi) _quests.ShowNpc(qi);
+        QuestDone(npcId);
+        _status.Text = string.Format(Loc.T("ql.done2", "Quest {0} agora é dada por este NPC (Ctrl+Z desfaz) — clique em Salvar no editor para gravar."), dlg.QuestId);
     }
 
     /// <summary>

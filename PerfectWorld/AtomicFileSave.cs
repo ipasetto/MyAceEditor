@@ -50,8 +50,7 @@ public static class AtomicFileSave
             {
                 stage = FieldKinds.Translate("fsave.backup", "Criando backup");
                 context?.Report(.90, stage, Path.GetFileName(full), force: true);
-                backup = full + "." + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "." + Guid.NewGuid().ToString("N") + ".bak";
-                File.Copy(full, backup, overwrite: false);
+                backup = BackupStore.Save(full);   // fora do cliente, compactado (BackupStore)
                 // A última checagem de cancelamento vem antes da substituição; depois dela nunca se reporta cancelamento.
                 context?.Check();
                 stage = FieldKinds.Translate("fsave.replace", "Substituindo o arquivo");

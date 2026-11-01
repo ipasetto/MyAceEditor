@@ -10,7 +10,8 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
     readonly Func<object> _value;
     public event Action<QuestChoiceBlock>? Removed;
 
-    public QuestChoiceBlock(QuestOption o, IQuestHost host, ToolTip tip)
+    /// <param name="initial">Valor que a quest já tem (editar quest); null = vazio.</param>
+    public QuestChoiceBlock(QuestOption o, IQuestHost host, ToolTip tip, object? initial = null)
     {
         Option = o;
         FlowDirection = FlowDirection.TopDown; WrapContents = false; AutoSize = true;
@@ -32,12 +33,13 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
         {
             case QOType.Number:
             {
-                var n = Num(); Controls.Add(n); _value = () => (long)n.Value; break;
+                var n = Num(); if (initial is long iv) n.Value = Math.Clamp(iv, 0, int.MaxValue); Controls.Add(n); _value = () => (long)n.Value; break;
             }
             case QOType.Range:
             {
                 var (la, lb) = o.Id == "skill" ? (Loc.T("qe.skillId", "ID"), Loc.T("qe.skillLv", "nível")) : (Loc.T("qe.min", "mín."), Loc.T("qe.max", "máx."));
                 var a = Num(); var b = Num();
+                if (initial is ValueTuple<long, long> r0) { a.Value = Math.Clamp(r0.Item1, 0, int.MaxValue); b.Value = Math.Clamp(r0.Item2, 0, int.MaxValue); }
                 var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
                 row.Controls.AddRange(new Control[] { Small(la), a, Small(lb), b });
                 Controls.Add(row);
@@ -52,7 +54,7 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
             {
                 var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
                 c.Items.AddRange(new object[] { Loc.T("qe.male", "Masculino"), Loc.T("qe.female", "Feminino") });
-                c.SelectedIndex = 0;
+                c.SelectedIndex = initial is 2L ? 1 : 0;
                 Controls.Add(c);
                 _value = () => (long)(c.SelectedIndex + 1);   // 1 = masculino, 2 = feminino (0 = qualquer)
                 break;
@@ -60,7 +62,7 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
             case QOType.Classes:
             {
                 var list = new CheckedListBox { Width = 320, Height = 110, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.None, CheckOnClick = true, MultiColumn = true, ColumnWidth = 150 };
-                for (int i = 0; i < 12; i++) list.Items.Add(FieldKinds.ClassName(i));
+                for (int i = 0; i < 12; i++) list.Items.Add(FieldKinds.ClassName(i), initial is List<int> on && on.Contains(i));
                 Controls.Add(list);
                 _value = () => list.CheckedIndices.Cast<int>().ToList();
                 break;
@@ -72,6 +74,7 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
                 List<int> Ids() => box.Text.Split(',', ';', ' ').Select(p => int.TryParse(p.Trim(), out var v) ? v : 0).Where(v => v > 0).Distinct().ToList();
                 box.TextChanged += (_, _) => names.Text = string.Join("\n", Ids().Select(id => $"{id}: {host.QuestName(id) ?? Loc.T("qe.noQuest", "(quest não existe)")}"));
                 Controls.Add(box); Controls.Add(names);
+                if (initial is List<int> q0) box.Text = string.Join(", ", q0);
                 _value = () => Ids();
                 break;
             }
@@ -83,6 +86,8 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
                 id.ValueChanged += (_, _) => nm.Text = id.Value <= 0 ? "" : host.NameOf((int)id.Value) ?? Loc.T("qe.unknown", "(não existe no elements.data)");
                 var add = new Button { Text = Loc.T("qe.add", "Adicionar"), AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White };
                 var items = new List<(int, int)>();
+                if (initial is List<(int Id, int Count)> i0)
+                    foreach (var (iid, cnt) in i0) { items.Add((iid, cnt)); lb.Items.Add($"{cnt} × {host.NameOf(iid) ?? "?"} ({iid})"); }
                 add.Click += (_, _) =>
                 {
                     if (id.Value <= 0 || host.NameOf((int)id.Value) is not { } name) return;

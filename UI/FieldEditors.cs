@@ -276,8 +276,9 @@ internal static class FieldEditors
     /// Grade com todos os ícones do jogo (atlas do surfaces.pck), como no "Icon selection" dos editores da comunidade.
     /// Clique escolhe, duplo clique confirma. Retorna o nome do arquivo do ícone (ex.: "x.dds") ou null.
     /// </summary>
-    public static string? IconPicker(IWin32Window owner, PerfectWorld.IconAtlas atlas, string current)
+    public static string? IconPicker(IWin32Window owner, PerfectWorld.IconAtlas atlas, string current, Func<string?>? addNew = null)
     {
+        string? added = null;
         using var f = NewDialog(Loc.T("dlg.iconTitle", "Escolher ícone"), 780, 620);
         var all = atlas.Names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
         var curName = Path.GetFileName(current.Replace('/', '\\'));
@@ -296,9 +297,18 @@ internal static class FieldEditors
         grid.Accepted += () => { f.DialogResult = DialogResult.OK; f.Close(); };
         search.TextChanged += (_, _) => Refresh();
         var bottom = Buttons(f, out _);
+        if (addNew is not null)
+        {
+            // imagem do PC vira ícone do jogo (grava nos atlas do surfaces.pck) e já fica escolhida
+            var add = new Button { Text = Loc.T("icon.add", "➕ Adicionar ícone novo…"), AutoSize = true, Dock = DockStyle.Left, FlatStyle = FlatStyle.Flat };
+            add.Click += (_, _) => { if (addNew() is { } n) { added = n; f.DialogResult = DialogResult.OK; f.Close(); } };
+            bottom.Controls.Add(add);
+        }
         f.Controls.Add(grid); f.Controls.Add(search); f.Controls.Add(info); f.Controls.Add(bottom);
         f.Shown += (_, _) => { Refresh(); grid.EnsureVisible(grid.Selected); grid.Focus(); };
-        if (f.ShowDialog(owner) != DialogResult.OK || grid.Selected < 0) return null;
+        if (f.ShowDialog(owner) != DialogResult.OK) return null;
+        if (added is not null) return added;
+        if (grid.Selected < 0) return null;
         return grid.Items[grid.Selected];
     }
 

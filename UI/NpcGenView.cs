@@ -97,6 +97,7 @@ internal sealed class NpcGenView : UserControl
         Button B(string key, string pt, Action a, int w = 110)
         {
             var b = new Button { Width = w, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Fg };
+            UiKit.Decorate(b, key + " " + pt);
             b.Click += (_, _) => a();
             AppLang.Changed += () => b.Text = Loc.T(key, pt);
             b.Text = Loc.T(key, pt);
@@ -413,6 +414,7 @@ internal sealed class NpcGenView : UserControl
         Button B(string key, string pt, Action a, int w)
         {
             var b = new Button { Width = w, Height = 28, FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Fg };
+            UiKit.Decorate(b, key + " " + pt);
             b.Click += (_, _) => a();
             AppLang.Changed += () => b.Text = Loc.T(key, pt);
             b.Text = Loc.T(key, pt);
@@ -650,7 +652,8 @@ internal sealed class NpcGenView : UserControl
                 : string.Format(Loc.T("world.noMap", "Não achei o terreno do mapa \"{0}\" no cliente (element\\maps\\{0}). Abra a pasta do jogo na aba Elements."), _cur), "NPCGen");
             return;
         }
-        object? Sel() => SelectedIndex() is { } i ? ListOf(f)[i] : null;
+        // a lista da aba pode ter mudado (outro arquivo, outra aba, ponto apagado) com o 3D aberto: índice fora = sem seleção
+        object? Sel() => ReferenceEquals(Cur, f) && SelectedIndex() is { } i && i < ListOf(f).Count ? ListOf(f)[i] : null;
         // sem seleção: mundo = centro do mapa visto de cima; instância = entrada (portais dos region.sev do servidor;
         // sem eles, o 1º NPC, que costuma ser o teleporte da entrada)
         var selected = fromSwitch ? null : Sel();
@@ -671,7 +674,7 @@ internal sealed class NpcGenView : UserControl
         // já aberto (mesmo mapa): só leva a câmera ao ponto selecionado
         if (_world is { IsDisposed: false } open && open.Tag as string == _cur)
         {
-            if (SelectedIndex() is { } si) open.GoTo(ListOf(f)[si]!);
+            if (Sel() is { } sp) open.GoTo(sp);
             open.Activate();
             return;
         }
@@ -731,7 +734,7 @@ internal sealed class NpcGenView : UserControl
             InsertPoint(ci + 1, copy);
         };
         w.EditPoint = o => { SelectObject(o); int id = o is NpcGenSpawn es ? es.Creatures.FirstOrDefault()?.Id ?? 0 : ((NpcGenResource)o).Items.FirstOrDefault()?.Id ?? 0; if (id > 0) _editItem(id); };
-        w.UndoAction = Undo; w.RedoAction = Redo;
+        w.UndoAction = Undo; w.RedoAction = Redo; w.UndoDepth = () => UndoDepth; w.RedoDepth = () => RedoDepth;
         w.CreateNewHere = (g, kind) =>
         {
             if (CreateCreature is null) return;
@@ -909,6 +912,9 @@ internal sealed class NpcGenView : UserControl
     void Step(string file, int d) => _level[file] = Level(file) + d;
 
     public bool Undo() => Apply(_undo, _redo);
+    /// <summary>Tamanho das pilhas (o Mundo 3D intercala o desfazer dos pontos com o das quests criadas lá).</summary>
+    public int UndoDepth => _undo.Count;
+    public int RedoDepth => _redo.Count;
     public bool Redo() => Apply(_redo, _undo);
 
     bool Apply(List<Op> from, List<Op> to)
