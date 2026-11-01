@@ -48,6 +48,24 @@ internal static class Program
             File.WriteAllText("client-plan-report.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--pathsev")   // <pasta ou arquivo>: lê e regrava todos os path.sev (pathsev-report.txt)
+        {
+            var files = Directory.Exists(args[1]) ? Directory.GetFiles(args[1], "path.sev", SearchOption.AllDirectories) : new[] { args[1] };
+            var sb = new StringBuilder();
+            int ok = 0;
+            foreach (var file in files)
+            {
+                try
+                {
+                    var b = File.ReadAllBytes(file); var pf = PathFile.Read(b); bool same = pf.Write().AsSpan().SequenceEqual(b);
+                    if (same) ok++;
+                    sb.AppendLine($"{file}: v{pf.Version} · {pf.Paths.Count} caminhos · versões {string.Join(",", pf.Paths.Select(x => x.Version).Distinct())} · {(same ? "IDÊNTICO" : "DIFERENTE")}");
+                }
+                catch (Exception ex) { sb.AppendLine($"{file}: ERRO {ex.Message}"); }
+            }
+            File.WriteAllText("pathsev-report.txt", $"# {ok}/{files.Length} idênticos\n" + sb, new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--pck-diff")   // <pck A> <pck B> [prefixo]: arquivos presentes nos dois com conteúdo diferente (pck-diff-report.txt)
         {
             using var a = new PckArchive(args[1]); using var b = new PckArchive(args[2]);

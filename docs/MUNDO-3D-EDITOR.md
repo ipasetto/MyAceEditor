@@ -82,7 +82,7 @@ Cada passo: ler → provar gravação **idêntica** ao original → só então e
 2. **Geradores completos no 3D** — [~] painel com todos os campos do monstro/NPC e área de nascimento desenhada no chão prontos; e a alça para arrastar a área no 3D [x]: painel de propriedades como o oficial (quantidade, renascer, altura, agressivo,
    grupo/ajuda, caminho, sumir) e **área** de nascimento desenhada no chão; coleta igual.
 3. **Controladores (eventos)** — [x] janela Eventos do mapa no NPCGen (falta: ver no 3D quais pontos um evento liga): editar data/hora/semana/espera/ativo e ligar geradores a eles, vendo no mundo.
-4. **Caminhos (`path.sev`)**: ver as rotas de patrulha no chão, editar pontos (formato `SevBezier`), ligar a geradores.
+4. **Caminhos (`path.sev`)** — [~] leitura/gravação idêntica e desenho no 3D (o do ponto + todos com P); falta editar pontos: ver as rotas de patrulha no chão, editar pontos (formato `SevBezier`), ligar a geradores.
 5. **Áreas (`precinct` / `region`)**: ver e editar caixas/polígonos de nome de área, música, renascer, zona segura,
    portais — sempre o par `.clt` (cliente) + `.sev` (servidor).
 6. **Objetos do cenário (`.ecwld` / `.ecbsd`)**: primeiro ler tudo (luzes, sons, efeitos, criaturas, caixas de área,

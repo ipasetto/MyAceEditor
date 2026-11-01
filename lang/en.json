@@ -4348,5 +4348,9 @@
   "ev.inUse": "{0} point(s) use this event. Change the Trigger of those points before deleting.",
   "ev.dupId": "Repeated event ID: {0}.",
   "ev.dupGm": "Repeated GM ID: {0}.",
-  "ev.noVersion": "This npcgen.data (version below 7) has no events."
+  "ev.noVersion": "This npcgen.data (version below 7) has no events.",
+  "legend.kPaths": "patrol paths (all / only the point's)",
+  "world.noPaths": "This map has no path.sev on the server.",
+  "world.pathsOn": "Patrol paths: all ({0}) — P hides",
+  "world.pathsOff": "Patrol paths: only the selected point's — P shows all"
 }

@@ -4350,5 +4350,9 @@
   "ev.inUse": "有 {0} 个点使用此事件。删除前请先修改这些点的触发。",
   "ev.dupId": "事件ID重复：{0}。",
   "ev.dupGm": "GM ID重复：{0}。",
-  "ev.noVersion": "此 npcgen.data（版本低于7）没有事件。"
+  "ev.noVersion": "此 npcgen.data（版本低于7）没有事件。",
+  "legend.kPaths": "巡逻路径（全部/仅该点）",
+  "world.noPaths": "此地图在服务器上没有 path.sev。",
+  "world.pathsOn": "巡逻路径：全部（{0}）—— P 隐藏",
+  "world.pathsOff": "巡逻路径：仅所选点的 —— P 显示全部"
 }

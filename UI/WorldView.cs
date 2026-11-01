@@ -36,6 +36,9 @@ internal sealed class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, float>? RotatePoint { get; set; }
     /// <summary>Novo tamanho total (X, Z) da área de nascimento do ponto (alça do canto da área arrastada no chão).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, float, float>? ResizeArea { get; set; }
+    /// <summary>Caminhos de patrulha do path.sev do mapa (ID → pontos da curva). O do ponto selecionado aparece sempre; P mostra todos.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Dictionary<int, List<Vec3>>? Paths { get; set; }
+    bool _allPaths;
     /// <summary>Clique no vazio: nenhum ponto selecionado.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action? ClearSelection { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? UndoAction { get; set; }
@@ -359,6 +362,11 @@ internal sealed class WorldView : Form
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
+            case Keys.P:   // caminhos de patrulha (path.sev) perto da câmera
+                _allPaths = !_allPaths; _gl.Invalidate();
+                _status.Text = Paths is null ? Loc.T("world.noPaths", "Este mapa não tem path.sev no servidor.")
+                    : _allPaths ? string.Format(Loc.T("world.pathsOn", "Caminhos de patrulha: todos ({0}) — P esconde"), Paths.Count) : Loc.T("world.pathsOff", "Caminhos de patrulha: só o do ponto selecionado — P mostra todos");
+                return;
             case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;
             case Keys.L: _nightOn = !_nightOn; _gl.Invalidate(); return;               // dia / noite               // neblina do jogo (por área) ou longe
             case Keys.Delete:
@@ -556,6 +564,7 @@ internal sealed class WorldView : Form
         GL.End();
         DrawAreas();
         DrawSpawnArea();
+        DrawPaths();
         DrawGizmo();
 
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
@@ -636,6 +645,33 @@ internal sealed class WorldView : Form
             GL.Begin(PrimitiveType.Lines);
             foreach (var f in new[] { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 }) GL.Vertex3(c[f]);
             GL.End();
+        }
+        GL.LineWidth(1); GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color3(1f, 1f, 1f);
+    }
+
+    /// <summary>
+    /// Caminhos de patrulha: o(s) do ponto selecionado (campo Caminho dos monstros dele) em laranja forte com setas no sentido
+    /// da ida; com P, todos os caminhos a até 600 m da câmera em lilás fraco.
+    /// </summary>
+    void DrawPaths()
+    {
+        if (Paths is null) return;
+        var sel = SelectedMark()?.Tag is NpcGenSpawn s ? s.Creatures.Select(c => c.PathId).Where(id => id > 0).ToHashSet() : new HashSet<int>();
+        if (!_allPaths && sel.Count == 0) return;
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
+        foreach (var (id, pts) in Paths)
+        {
+            bool strong = sel.Contains(id);
+            if (!strong && (!_allPaths || pts.Count == 0 || !pts.Any(p => (Gl(p.X, p.Y, p.Z) - _cam).LengthSquared < 600 * 600))) continue;
+            if (strong) { GL.LineWidth(4); GL.Color4(1f, 0.6f, 0.15f, 1f); } else { GL.LineWidth(2); GL.Color4(0.8f, 0.55f, 1f, 0.6f); }
+            GL.Begin(PrimitiveType.LineStrip);
+            foreach (var p in pts) GL.Vertex3(Gl(p.X, p.Y + 0.5f, p.Z));
+            GL.End();
+            if (strong && pts.Count > 1)
+            {
+                // começo do caminho: ponto grande (o monstro anda daqui para o fim)
+                GL.PointSize(12); GL.Begin(PrimitiveType.Points); GL.Vertex3(Gl(pts[0].X, pts[0].Y + 0.5f, pts[0].Z)); GL.End(); GL.PointSize(1);
+            }
         }
         GL.LineWidth(1); GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color3(1f, 1f, 1f);
     }
@@ -933,6 +969,7 @@ internal sealed class WorldView : Form
             new(K("legend.kTerrain", "esconder o terreno (ver cavernas)"), Keys: new[] { "T" }),
             new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "B" }),
             new(K("legend.kGrass", "esconder a grama"), Keys: new[] { "G" }),
+            new(K("legend.kPaths", "caminhos de patrulha (todos / só o do ponto)"), Keys: new[] { "P" }),
             new(K("legend.kFog", "neblina do jogo / neblina longe"), Keys: new[] { "N" }),
             new(K("legend.kDayNight", "dia / noite"), Keys: new[] { "L" }),
             new(K("legend.kLegend", "abrir / fechar esta legenda"), Keys: new[] { "H" }),

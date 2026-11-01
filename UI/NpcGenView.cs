@@ -861,6 +861,13 @@ internal sealed class NpcGenView : UserControl
             else if (o is NpcGenResource res) { res.SpreadX = sx; res.SpreadZ = sz; }
             Touch(); ShowPoint();
         };
+        // caminhos de patrulha: path.sev na mesma pasta do npcgen (o campo Caminho dos monstros aponta para o ID)
+        try
+        {
+            var ps = Path.Combine(Path.GetDirectoryName(_paths[_cur!])!, "path.sev");
+            if (File.Exists(ps)) w.Paths = PathFile.Read(File.ReadAllBytes(ps)).Paths.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.First().Sample());
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or EndOfStreamException) { AppLog.Info("path.sev: " + ex.Message); }
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
         if (overview is { } ov)
