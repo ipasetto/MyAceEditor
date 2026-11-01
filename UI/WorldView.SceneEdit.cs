@@ -4,35 +4,43 @@ using OpenTK.Mathematics;
 namespace MyAceEditor.UI;
 
 /// <summary>
-/// Edição dos objetos do cenário no Mundo 3D (tecla O): efeitos (.gfx) e sons do .ecwld — mover, clonar, apagar, Ctrl+Z e
-/// Salvar cenário (backup + escrita atômica). Construções, modelos e árvores têm colisão no servidor (map.bht) e ficam
-/// travados até o editor gerar a colisão de novo (docs/REGRAS-DO-JOGO.md, PW-KB §S32). Gravação: EcwldFile (idêntica sem mudança).
+/// Edição dos objetos do cenário no Mundo 3D (tecla O): efeitos (.gfx) e sons do .ecwld (mover, clonar, apagar) e grupos de
+/// bichos de enfeite do .ecbsd (mover: o centro fica na struct, mesmo tamanho), com Ctrl+Z e Salvar cenário (backup + escrita
+/// atômica). Construções, modelos e árvores têm colisão no servidor (map.bht) e ficam travados até o editor gerar a colisão
+/// de novo (docs/REGRAS-DO-JOGO.md, PW-KB §S32). Gravação do .ecwld: EcwldFile (idêntica sem mudança).
 /// </summary>
 internal sealed partial class WorldView
 {
     EcwldFile? _ecw;            // .ecwld em edição (null = só leitura ou sem arquivo)
+    byte[]? _bsd;               // .ecbsd em edição (bichos: centro trocado no lugar)
     WorldScene? _objScene;      // cena relida depois de cada mudança (o que O desenha e o clique escolhe)
-    string? _ecwPath, _ecwWhy;  // arquivo; motivo de não editar
-    byte[]? _ecwSaved;          // bytes do que está gravado (sem mudança = nada a salvar)
-    sealed record SceneStep(byte[] Bytes, int Npc, int Quests);   // estado antes + profundidade das outras pilhas (ordem do Ctrl+Z)
+    string? _ecwPath, _bsdPath, _ecwWhy;   // arquivos; motivo de não editar
+    byte[]? _ecwSaved, _bsdSaved;          // o que está gravado (sem mudança = nada a salvar)
+    // estado antes (os dois arquivos) + profundidade das outras pilhas (ordem do Ctrl+Z); cada passo guarda ~3+3 MB no mundo
+    sealed record SceneStep(byte[] Ecwld, byte[]? Bsd, int Npc, int Quests);
+    const int MaxSceneSteps = 30;
     readonly List<SceneStep> _sUndo = new(), _sRedo = new();
     readonly Panel _objPanel = new() { Width = 390, Height = 196, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(8) };
     readonly Label _objTitle = new() { AutoSize = false, Height = 40, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9.5f) };
     readonly NumericUpDown[] _objXYZ = Enumerable.Range(0, 3).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 92, Increment = 0.5m }).ToArray();
+    Button? _objCloneBtn, _objDeleteBtn;
     bool _objBinding;
 
     WorldScene? ObjScene => _objScene ?? _trees.Scene;
 
-    /// <summary>Cena do .ecwld + bichos e curvas do .ecbsd (só leitura) para o O desenhar.</summary>
+    /// <summary>Cena do .ecwld + bichos e curvas do .ecbsd para o O desenhar.</summary>
     WorldScene ScanScene(byte[] ecwld)
     {
         var sc = new WorldScene(ecwld);
-        if (_ecwPath is not null) sc.LoadCrittersAndCurves(Path.ChangeExtension(_ecwPath, ".ecbsd"));
+        if (_bsd is not null) sc.LoadCrittersAndCurves(_bsd);
+        else if (_ecwPath is not null) sc.LoadCrittersAndCurves(Path.ChangeExtension(_ecwPath, ".ecbsd"));
         return sc;
     }
-    bool SceneDirty => _ecw is not null && _ecwSaved is not null && !_ecw.Write().AsSpan().SequenceEqual(_ecwSaved);
 
-    /// <summary>Carrega o .ecwld para editar (na 1ª vez que O liga).</summary>
+    bool SceneDirty => _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
+        || _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved));
+
+    /// <summary>Carrega o .ecwld (e o .ecbsd) para editar (na 1ª vez que O liga).</summary>
     void LoadSceneForEdit()
     {
         if (_ecw is not null || _ecwWhy is not null || _element is null) return;
@@ -44,7 +52,10 @@ internal sealed partial class WorldView
             var ef = new EcwldFile(bytes);
             // regra: só edita formato que regrava idêntico
             if (!ef.Write().AsSpan().SequenceEqual(bytes)) { _ecwWhy = Loc.T("world.sceneNotSame", "Este .ecwld não regrava idêntico: edição desligada (só ver)."); return; }
-            _ecw = ef; _ecwSaved = bytes; _objScene = ScanScene(bytes);
+            _ecw = ef; _ecwSaved = bytes;
+            _bsdPath = Path.ChangeExtension(_ecwPath, ".ecbsd");
+            if (File.Exists(_bsdPath)) { _bsd = File.ReadAllBytes(_bsdPath); _bsdSaved = (byte[])_bsd.Clone(); } else _bsdPath = null;
+            _objScene = ScanScene(bytes);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { _ecwWhy = ex.Message; }
     }
@@ -68,9 +79,11 @@ internal sealed partial class WorldView
             b.FlatAppearance.BorderColor = main ? UiKit.Accent : Color.FromArgb(70, 78, 90);
             b.Text = Loc.T(key, pt); b.Click += (_, _) => { a(); _gl.Focus(); }; return b;
         }
-        bar.Controls.AddRange(new Control[] { B("world.objClone", "Clonar", "", CloneSceneObject), B("world.objDelete", "Apagar", "", DeleteSceneObject), B("world.objSave", "Salvar cenário", "", SaveScene, main: true) });
+        _objCloneBtn = B("world.objClone", "Clonar", "", CloneSceneObject);
+        _objDeleteBtn = B("world.objDelete", "Apagar", "", DeleteSceneObject);
+        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, B("world.objSave", "Salvar cenário", "", SaveScene, main: true) });
         var note = new Label { Dock = DockStyle.Top, Height = 44, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
-            Text = Loc.T("world.objNote", "Efeitos e sons ficam só no cliente (sem colisão no servidor). Construções, modelos e árvores: travados até o editor gerar a colisão do servidor.") };
+            Text = Loc.T("world.objNote2", "Efeitos, sons e bichos ficam só no cliente (sem colisão no servidor). Construções, modelos e árvores: travados até o editor gerar a colisão do servidor.") };
         _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
         Controls.Add(_objPanel);
         _objPanel.BringToFront();
@@ -79,7 +92,7 @@ internal sealed partial class WorldView
         FormClosing += (_, e) =>
         {
             if (!SceneDirty) return;
-            var r = MessageBox.Show(this, Loc.T("world.sceneAskSave", "O cenário (efeitos e sons) tem mudanças não salvas. Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            var r = MessageBox.Show(this, Loc.T("world.sceneAskSave2", "O cenário (efeitos, sons e bichos) tem mudanças não salvas. Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             if (r == DialogResult.Cancel) e.Cancel = true;
             else if (r == DialogResult.Yes) SaveScene();
         };
@@ -95,49 +108,72 @@ internal sealed partial class WorldView
     /// <summary>Mostra/esconde o painel do objeto escolhido (com as coordenadas atuais).</summary>
     void ShowObjPanel()
     {
-        if (_sceneSel is null or WorldScene.Critter) { _objPanel.Visible = false; return; }   // bichos: só ver por enquanto
+        if (_sceneSel is null) { _objPanel.Visible = false; return; }
         var (name, x, y, z) = _sceneSel switch
         {
             WorldScene.SceneEffect fx => (Loc.T("world.objEffect", "Efeito") + ": " + fx.Gfx, fx.X, fx.Y, fx.Z),
             WorldScene.SceneSound sd => (Loc.T("world.objSound", "Som") + ": " + sd.File, sd.X, sd.Y, sd.Z),
+            WorldScene.Critter cr => (Loc.T("world.objCritter", "Bichos") + ": " + cr.Model, cr.X, cr.Y, cr.Z),
             _ => ("", 0f, 0f, 0f),
         };
+        bool critter = _sceneSel is WorldScene.Critter;
         _objBinding = true;
-        _objTitle.Text = name + (_ecw is null ? "\n" + (_ecwWhy ?? "") : "");
+        _objTitle.Text = name + (_ecw is null ? "\n" + (_ecwWhy ?? "") : critter ? "\n" + Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto") : "");
         _objXYZ[0].Value = (decimal)Math.Clamp(x, -100000, 100000); _objXYZ[1].Value = (decimal)Math.Clamp(y, -100000, 100000); _objXYZ[2].Value = (decimal)Math.Clamp(z, -100000, 100000);
-        foreach (var n in _objXYZ) n.Enabled = _ecw is not null;
+        foreach (var n in _objXYZ) n.Enabled = _ecw is not null && (!critter || _bsd is not null);
+        if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter;
+        if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = !critter;
         _objBinding = false;
         _objPanel.Visible = true; _objPanel.BringToFront();
     }
 
-    /// <summary>Aplica uma mudança ao .ecwld guardando o estado antes (Ctrl+Z) e relê a cena; mantém escolhido o objeto do ID dado.</summary>
+    /// <summary>
+    /// Aplica uma mudança guardando o estado antes (Ctrl+Z) e relê a cena. change devolve o ID a manter escolhido
+    /// (efeito/som) ou 0; bichos são achados de novo pelo offset.
+    /// </summary>
     void SceneEdit(Func<EcwldFile, uint> change, string status)
     {
         if (_ecw is null) { _status.Text = _ecwWhy ?? Loc.T("world.noScene", "Este mapa não tem .ecwld no cliente."); return; }
-        var before = _ecw.Write();
+        var step = new SceneStep(_ecw.Write(), (byte[]?)_bsd?.Clone(), UndoDepth?.Invoke() ?? 0, _qUndo.Count);
+        int critterAt = (_sceneSel as WorldScene.Critter)?.Offset ?? -1;
         uint keep = change(_ecw);
-        _sUndo.Add(new SceneStep(before, UndoDepth?.Invoke() ?? 0, _qUndo.Count)); if (_sUndo.Count > 60) _sUndo.RemoveAt(0);
+        _sUndo.Add(step); if (_sUndo.Count > MaxSceneSteps) _sUndo.RemoveAt(0);
         _sRedo.Clear();
-        Reselect(keep);
+        Reselect(keep, critterAt);
         _status.Text = status + Loc.T("world.sceneUnsaved", " — não salvo (Salvar cenário grava; Ctrl+Z desfaz)");
     }
 
-    void Reselect(uint id)
+    void Reselect(uint id, int critterAt = -1)
     {
         _objScene = ScanScene(_ecw!.Write());
-        _sceneSel = (object?)_objScene.Effects.FirstOrDefault(e => e.Id == id) ?? _objScene.Sounds.FirstOrDefault(s => s.Id == id);
+        _sceneSel = critterAt >= 0 ? _objScene.Critters.FirstOrDefault(c => c.Offset == critterAt)
+            : (object?)_objScene.Effects.FirstOrDefault(e => e.Id == id) ?? _objScene.Sounds.FirstOrDefault(s => s.Id == id);
         ShowObjPanel(); _gl.Invalidate();
+    }
+
+    /// <summary>Centro do grupo de bichos (ECBSDFILECRITTER5 +4) trocado no lugar do .ecbsd.</summary>
+    void MoveCritter(WorldScene.Critter c, float x, float y, float z)
+    {
+        if (_bsd is null) return;
+        SceneEdit(_ =>
+        {
+            BitConverter.GetBytes(x).CopyTo(_bsd, c.Offset + 4); BitConverter.GetBytes(y).CopyTo(_bsd, c.Offset + 8); BitConverter.GetBytes(z).CopyTo(_bsd, c.Offset + 12);
+            return 0;
+        }, string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), x, z, y));
     }
 
     void ObjMovedByNumbers()
     {
-        if (_objBinding || SelKey is not { } k) return;
+        if (_objBinding) return;
         float x = (float)_objXYZ[0].Value, y = (float)_objXYZ[1].Value, z = (float)_objXYZ[2].Value;
+        if (_sceneSel is WorldScene.Critter c) { MoveCritter(c, x, y, z); return; }
+        if (SelKey is not { } k) return;
         SceneEdit(f => { f.Move(k.Kind, k.Id, x, y, z); return k.Id; }, string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), x, z, y));
     }
 
     void MoveSceneObjectTo(Vector3 at)
     {
+        if (_sceneSel is WorldScene.Critter c) { MoveCritter(c, at.X, at.Y + 1, at.Z); return; }
         if (SelKey is not { } k) return;
         SceneEdit(f => { f.Move(k.Kind, k.Id, at.X, at.Y + (k.Kind == EcwldFile.Kind.Effect ? 0.5f : 0), at.Z); return k.Id; },
             string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), at.X, at.Z, at.Y));
@@ -163,17 +199,18 @@ internal sealed partial class WorldView
         var top = from[^1];
         if (top.Npc != (UndoDepth?.Invoke() ?? 0) || top.Quests != _qUndo.Count) return false;
         from.RemoveAt(from.Count - 1);
-        to.Add(new SceneStep(_ecw.Write(), top.Npc, top.Quests));
-        _ecw = new EcwldFile(top.Bytes);
+        to.Add(new SceneStep(_ecw.Write(), (byte[]?)_bsd?.Clone(), top.Npc, top.Quests));
+        _ecw = new EcwldFile(top.Ecwld);
+        if (top.Bsd is not null) _bsd = top.Bsd;
         uint id = SelKey?.Id ?? 0;
-        Reselect(id);
+        Reselect(id, (_sceneSel as WorldScene.Critter)?.Offset ?? -1);
         _status.Text = redo ? Loc.T("world.sceneRedone", "Cenário: refeito.") : Loc.T("world.sceneUndone", "Cenário: desfeito (Ctrl+Y refaz).");
         return true;
     }
 
     /// <summary>
-    /// Teste do --world-shot (foto "obj…"): liga O, escolhe o efeito mais perto da câmera, clona, move o clone, desfaz tudo e
-    /// confere que o .ecwld em memória voltou ao gravado. Não grava nada no disco. Devolve o relatório.
+    /// Teste do --world-shot (foto "obj…"): liga O; efeito mais perto da câmera: clona, move, desfaz tudo; bicho mais perto:
+    /// move e desfaz; confere que os dois arquivos em memória voltaram ao gravado. Não grava nada no disco.
     /// </summary>
     internal string SceneSelfTest()
     {
@@ -192,23 +229,54 @@ internal sealed partial class WorldView
         bool redo = SceneUndo(true);
         int n2 = ObjScene!.Effects.Count;
         SceneUndo(false);
+        string crit = "sem bichos";
+        if (ObjScene!.Critters.OrderBy(c => (Gl(c.X, c.Y, c.Z) - _cam).LengthSquared).FirstOrDefault() is { } cr)
+        {
+            _sceneSel = cr; ShowObjPanel();
+            _objXYZ[2].Value += 4;
+            var cm = _sceneSel as WorldScene.Critter;
+            bool cu = SceneUndo(false);
+            bool cSame = _bsd is not null && _bsdSaved is not null && _bsd.AsSpan().SequenceEqual(_bsdSaved);
+            crit = $"bicho {cr.Model}: Z {cr.Z:0.0}→{cm?.Z:0.0}, Ctrl+Z {cu}, .ecbsd voltou ao gravado {cSame}";
+        }
         _sceneSel = fx; ShowObjPanel();
-        return $"cenário: {sc.Critters.Count} grupos de bichos (ex. {sc.Critters.FirstOrDefault()?.Model}), {sc.Curves.Count} curvas · efeito {fx.Gfx} (ID {fx.Id}) · clonar {n0}→{n1} (ID novo {clone?.Id}) · mover X {clone?.X:0.0}→{moved?.X:0.0} · Ctrl+Z×2 {undo1 && undo2} · voltou ao gravado {same} · Ctrl+Y {redo} ({n2} efeitos) · sujo no fim {SceneDirty}";
+        return $"cenário: {sc.Critters.Count} grupos de bichos, {sc.Curves.Count} curvas · efeito {fx.Gfx} (ID {fx.Id}) · clonar {n0}→{n1} (ID novo {clone?.Id}) · mover X {clone?.X:0.0}→{moved?.X:0.0} · Ctrl+Z×2 {undo1 && undo2} · voltou ao gravado {same} · Ctrl+Y {redo} ({n2} efeitos) · {crit} · sujo no fim {SceneDirty}";
+    }
+
+    /// <summary>Teste do Salvar (foto "objsave…", só numa CÓPIA do mapa): move o 1º efeito +1 m em X, salva e relê do disco.</summary>
+    internal string SceneSaveTest()
+    {
+        _sceneObjs = true; LoadSceneForEdit();
+        if (_ecw is null || _ecwPath is null || ObjScene is not { Effects.Count: > 0 } sc) return "salvar: sem edição ou sem efeitos";
+        var fx = sc.Effects[0]; _sceneSel = fx; ShowObjPanel();
+        _objXYZ[0].Value += 1;
+        SaveScene();
+        var disk = new WorldScene(File.ReadAllBytes(_ecwPath));
+        var back = disk.Effects.FirstOrDefault(e => e.Id == fx.Id);
+        return $"salvar: efeito {fx.Id} X {fx.X:0.0} → no disco {back?.X:0.0} · blocos {disk.BlocksExact}/{disk.BlocksTotal} · sujo depois {SceneDirty} · status: {_status.Text}";
     }
 
     void SaveScene()
     {
         if (_ecw is null || _ecwPath is null) return;
         var bytes = _ecw.Write();
-        if (_ecwSaved is not null && bytes.AsSpan().SequenceEqual(_ecwSaved)) { _status.Text = Loc.T("world.sceneNothing", "Cenário: nada a salvar."); return; }
+        bool ecwChanged = _ecwSaved is null || !bytes.AsSpan().SequenceEqual(_ecwSaved);
+        bool bsdChanged = _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved);
+        if (!ecwChanged && !bsdChanged) { _status.Text = Loc.T("world.sceneNothing", "Cenário: nada a salvar."); return; }
         try
         {
             // regra: o que vai para o disco tem que ser relido igual (formato entendido)
             var check = new WorldScene(bytes);
             if (check.BlocksExact != check.BlocksTotal) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
-            AtomicFileSave.Write(_ecwPath, bytes);   // backup fora do cliente (BackupStore)
-            _ecwSaved = bytes;
-            _status.Text = string.Format(Loc.T("world.sceneSaved", "Cenário salvo em {0} (backup feito). Só o cliente muda; não precisa enviar ao servidor."), Path.GetFileName(_ecwPath));
+            if (bsdChanged)
+            {
+                check.LoadCrittersAndCurves(_bsd!);
+                if (check.Critters.Count != (_objScene?.Critters.Count ?? check.Critters.Count)) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
+            }
+            if (ecwChanged) { AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
+            if (bsdChanged && _bsdPath is not null) { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
+            _status.Text = string.Format(Loc.T("world.sceneSaved", "Cenário salvo em {0} (backup feito). Só o cliente muda; não precisa enviar ao servidor."),
+                string.Join(" + ", new[] { ecwChanged ? Path.GetFileName(_ecwPath) : null, bsdChanged ? Path.GetFileName(_bsdPath) : null }.Where(s => s is not null)));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or FileSaveException)
         { MessageBox.Show(this, ex.Message, Loc.T("world.objSave", "Salvar cenário"), MessageBoxButtons.OK, MessageBoxIcon.Warning); }

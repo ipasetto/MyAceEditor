@@ -746,7 +746,7 @@ internal sealed partial class WorldView : Form
         return best switch
         {
             WorldScene.SceneEffect fx => string.Format(Loc.T("world.fxInfo", "Efeito: {0} · escala {1:0.##} · {2} · X {3:0} Z {4:0} altura {5:0}"), fx.Gfx, fx.Scale, When(fx.ValidTime), fx.X, fx.Z, fx.Y),
-            WorldScene.Critter cr => string.Format(Loc.T("world.critterInfo", "Bichos de enfeite: {0} · {1} na área de {2:0} m · {3} · X {4:0} Z {5:0} (só ver por enquanto)"), cr.Model, cr.Count, cr.Radius,
+            WorldScene.Critter cr => string.Format(Loc.T("world.critterInfo", "Bichos de enfeite: {0} · {1} na área de {2:0} m · {3} · X {4:0} Z {5:0}"), cr.Model, cr.Count, cr.Radius,
                 cr.Behaviour switch { 0 => Loc.T("world.critWander", "vagam"), 1 => Loc.T("world.critHover", "pairam"), _ => string.Format(Loc.T("world.critOther", "comportamento {0}"), cr.Behaviour) }, cr.X, cr.Z),
             WorldScene.SceneSound sd => string.Format(Loc.T("world.sndInfo", "Som: {0} · ouve de {1:0} a {2:0} m · {3} · X {4:0} Z {5:0}"), sd.File, sd.MinDist, sd.MaxDist, When(sd.ValidTime), sd.X, sd.Z),
             _ => null,
