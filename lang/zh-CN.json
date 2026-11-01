@@ -4263,5 +4263,9 @@
   "qb.stepNoWait": "等待时间必须大于零。",
   "qb.sumStepCollect": "  {0}. [{1}]“{2}”：获得 {3}",
   "qb.sumStepDeliver": "  {0}. [{1}]“{2}”：将 {3} 交给 {4}",
-  "qb.sumStepWait": "  {0}. [{1}]“{2}”：等待 {3}"
+  "qb.sumStepWait": "  {0}. [{1}]“{2}”：等待 {3}",
+  "qe.pickMine": "🎯 在世界中选采集点",
+  "qe.pickingMine": "在世界中点击一个采集点（矿石、草药……）（Esc 取消）",
+  "qe.pickMineCancel": "已取消选择采集点。",
+  "qe.mineGives": "{0} 产出：{1}"
 }

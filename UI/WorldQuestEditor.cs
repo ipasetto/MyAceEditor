@@ -325,6 +325,21 @@ internal sealed class WorldQuestEditor : Panel
         ir.Controls.Add(_wItemId); ir.Controls.Add(_wItemN);
         ir.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), AddWantedItem));
         ir.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), RemoveWantedItem));
+        // o item que um ponto de coleta dá (MINE_ESSENCE): clica na mina no mundo e entra o material mais provável
+        ir.Controls.Add(Btn(Loc.T("qe.pickMine", "🎯 Coleta no mundo"), () =>
+        {
+            _title.Text = Loc.T("qe.pickingMine", "Clique num ponto de coleta (minério, erva…) no mundo… (Esc cancela)");
+            _world.PickMine(mine =>
+            {
+                _title.Text = Title();
+                var prods = _host.MineProducts(mine);
+                if (prods.Count == 0) return;
+                _wItemId.Value = prods[0].Item;
+                AddWantedItem();
+                _wItemName.Text = string.Format(Loc.T("qe.mineGives", "{0} dá: {1}"), _host.NameOf(mine) ?? mine.ToString(),
+                    string.Join(", ", prods.Select(p => $"{_host.NameOf(p.Item) ?? p.Item.ToString()} ({p.Prob:P0})")));
+            });
+        }));
         _itemsBox.Controls.Add(ir);
         _itemsBox.Controls.Add(_wItemName);
         _wItemId.ValueChanged += (_, _) => _wItemName.Text = _wItemId.Value <= 0 ? "" : _host.NameOf((int)_wItemId.Value) ?? Loc.T("qe.unknown", "(não existe no elements.data)");

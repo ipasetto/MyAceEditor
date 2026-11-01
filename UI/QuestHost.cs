@@ -7,7 +7,7 @@ namespace MyAceEditor.UI;
 /// (com a selecionada destacada; -1 = nenhuma), a tag do mapa aberto (0 = não sei) e escolher monstro clicando num ponto de monstro.
 /// </summary>
 internal sealed record QuestWorld(Action<Action<int>> PickNpc, Action<Action<QuestArea>> PickArea, Action<IReadOnlyList<QuestArea>, int> ShowAreas, Func<int> MapTag,
-    Action<Action<int>> PickMonster);
+    Action<Action<int>> PickMonster, Action<Action<int>> PickMine);
 
 /// <summary>O que o Mundo 3D pede ao editor para criar e ligar quests (elements + tasks carregados, com desfazer).</summary>
 internal interface IQuestHost
@@ -31,6 +31,8 @@ internal interface IQuestHost
     string? NameOf(int id);
     bool IsNpc(int id);
     bool IsMonster(int id);
+    /// <summary>O que um item de coleta (MINE_ESSENCE) dá: materiais com chance &gt; 0, do mais provável ao menos; vazio se não é coleta.</summary>
+    IReadOnlyList<(int Item, float Prob)> MineProducts(int mineId);
     IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max);
     /// <summary>Esta quest passa a ser dada pelo NPC (serviço do NPC + campo "NPC que dá"). Null = deu certo.</summary>
     string? LinkExisting(int npcId, int questId);

@@ -2921,6 +2921,17 @@ public sealed class EditorForm : Form
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
         public bool IsNpc(int id) => f.CreatureItem(id) is { Block.Name: "NPC_ESSENCE" };
         public bool IsMonster(int id) => f.CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" };
+        public IReadOnlyList<(int Item, float Prob)> MineProducts(int mineId)
+        {
+            // MINE_ESSENCE: materials_N_id + materials_N_probability (PW-KB, item de coleta)
+            if (f._store.Current?.FindListByName("MINE_ESSENCE")?.Items.FirstOrDefault(i => i.Id == mineId.ToString()) is not { } mine) return Array.Empty<(int, float)>();
+            var list = new List<(int, float)>();
+            for (int n = 1; mine.Fields.TryGetValue($"materials_{n}_id", out var idf); n++)
+                if (int.TryParse(idf.Value, out var item) && item > 0 && mine.Fields.TryGetValue($"materials_{n}_probability", out var pf)
+                    && float.TryParse(pf.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var prob) && prob > 0)
+                    list.Add((item, prob));
+            return list.OrderByDescending(x => x.Item2).ToList();
+        }
         public IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max)
         {
             if (f._tasks is not { FullSchema: true } t) return Array.Empty<(int, string, int)>();

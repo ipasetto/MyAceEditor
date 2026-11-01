@@ -18,6 +18,7 @@ internal static class QuestShotTest
         public string? NameOf(int id) => id == 2001 ? "Ferreiro Wang" : id == 2002 ? "Guarda Li" : id == 3001 ? "Lobo da Colina" : id == 3002 ? "Lobo Alfa" : $"Item {id}";
         public bool IsNpc(int id) => id is 2001 or 2002;
         public bool IsMonster(int id) => id is 3001 or 3002;
+        public IReadOnlyList<(int Item, float Prob)> MineProducts(int mineId) => mineId == 5001 ? new[] { (4001, 0.8f) } : Array.Empty<(int, float)>();
         public IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max) => Array.Empty<(int, string, int)>();
         public string? LinkExisting(int npcId, int questId) => null;
         public IReadOnlyList<QuestOption> Options(bool reward) => Array.Empty<QuestOption>();
@@ -36,7 +37,7 @@ internal static class QuestShotTest
         if (page == 1) draft.Steps.AddRange(new[] { new QuestStep { Kind = QuestStepKind.Talk, Npc = 2002 }, new QuestStep { Kind = QuestStepKind.Kill, Name = "Lobos da colina", Monsters = { (3001, 10), (3002, 3) } },
             new QuestStep { Kind = QuestStepKind.Wait, Name = "Espere", WaitSeconds = 90 },
             new QuestStep { Kind = QuestStepKind.Deliver, Name = "Entregue as peles", Npc = 2002, Text = "Belas peles!", Items = { (4001, 10) } } });
-        var ed = new WorldQuestEditor(host, draft, new QuestWorld(_ => { }, _ => { }, (_, _) => { }, () => 1, _ => { }));
+        var ed = new WorldQuestEditor(host, draft, new QuestWorld(_ => { }, _ => { }, (_, _) => { }, () => 1, _ => { }, _ => { }));
         var panel = new WorldQuestPanel { CreateQuest = _ => { }, LinkQuest = _ => { }, EditQuest = _ => { }, DeleteQuest = _ => { } };
         f.Controls.Add(ed); f.Controls.Add(panel);
         f.Show();

@@ -4261,5 +4261,9 @@
   "qb.stepNoWait": "the wait time must be greater than zero.",
   "qb.sumStepCollect": "  {0}. [{1}] \"{2}\": get {3}",
   "qb.sumStepDeliver": "  {0}. [{1}] \"{2}\": deliver {3} to {4}",
-  "qb.sumStepWait": "  {0}. [{1}] \"{2}\": wait {3}"
+  "qb.sumStepWait": "  {0}. [{1}] \"{2}\": wait {3}",
+  "qe.pickMine": "🎯 Gathering in the world",
+  "qe.pickingMine": "Click a gathering point (ore, herb…) in the world… (Esc cancels)",
+  "qe.pickMineCancel": "Gathering pick cancelled.",
+  "qe.mineGives": "{0} gives: {1}"
 }
