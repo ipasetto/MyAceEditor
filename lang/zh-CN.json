@@ -4414,5 +4414,18 @@
   "world.objBuilding": "建筑",
   "world.bldPending": "移动先保存在这里；写入需要服务器碰撞",
   "world.bldMoved": "建筑在3D中移到 X {0:0.0} Z {1:0.0} 高度 {2:0.0}（尚未写入）",
-  "world.bldSaveLater": "{0} 个移动过的建筑先保存在3D世界里：写入建筑会修改 litmodels.pck 的 .bmd、.ecbsd 和服务器碰撞，而服务器碰撞是编辑器的下一步。特效、声音和生物现在写入。"
+  "world.bldSaveLater": "{0} 个移动过的建筑先保存在3D世界里：写入建筑会修改 litmodels.pck 的 .bmd、.ecbsd 和服务器碰撞，而服务器碰撞是编辑器的下一步。特效、声音和生物现在写入。",
+  "tools.title": "工具",
+  "tools.back": "返回工具菜单",
+  "tools.fold": "收起菜单",
+  "tools.unfold": "展开菜单",
+  "tools.scene": "编辑场景",
+  "tools.sceneSub": "特效、声音、小动物和建筑",
+  "tools.paths": "巡逻路径",
+  "tools.pathsSub": "查看怪物行走路线",
+  "tools.grass": "草",
+  "tools.grassSub": "显示或隐藏 (G)",
+  "tools.sceneSteps": "点击橙色点（特效）、蓝色点（声音）、绿色点（小动物）或建筑。修改 X / 高度 / Z，或使用克隆和删除。右键点击地面：移动到那里。",
+  "tools.pathsSteps": "镜头附近的路径显示为淡紫色。选择一个怪物点：它的路径变为橙色，并标出起点。（编辑路径点：下一步。）",
+  "world.objNote3": "特效、声音和小动物：仅客户端。建筑：在 3D 中移动，等服务器碰撞完成前保持待定。"
 }

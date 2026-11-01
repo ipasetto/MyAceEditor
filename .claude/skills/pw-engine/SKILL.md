@@ -5,6 +5,11 @@ description: Arquitetura do Perfect World (client+server, protocolo, formatos), 
 
 # PW Engine — mapa para pular direto a informacao
 
+> **OBRIGATORIO sempre que esta skill for chamada (regra do usuario, 01/11):**
+> 1. Tudo o que for feito segue as regras do §4 e o layout do §4b (inclusive o padrao do Mundo 3D abaixo), sem excecao.
+> 2. No fim da resposta, listar de forma clara **o que falta**: do trabalho atual + os itens abertos do `docs/AFAZERES.md`.
+> 3. Seguir o limite de tokens pedido; perto de ~100k, parar e pedir permissao para continuar.
+
 **Regra do usuario: consultar esta skill antes de mexer em qualquer coisa de PW.** Ela nao e para ler inteira: e um
 indice. Cada camada abaixo diz onde dar o Grep. Custo alvo: 1-3 Greps pequenos por pergunta.
 
@@ -46,6 +51,10 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 - Repositorio publico: nunca gravar senhas, chaves de rede (isec/osec), dados pessoais ou bytes de patch nas KBs.
 
 ## 4b. Layout das telas (REGRA DO USUARIO: toda tela nova ou mexida segue isto; pecas em UI/UiKit.cs)
+- MUNDO 3D (usuario 01/11): filtros "Mostrar" ficam na barra de CIMA (como sempre); a legenda/atalhos so abre pelo botao
+  Atalhos de cima (nada flutuando por padrao). Ferramentas = menu FLUTUANTE a direita (nao colado em cima nem embaixo),
+  botoes grandes com icone + nome; clicar numa ferramenta liga a visao do que ela mexe no mundo e o painel dela TOMA O
+  LUGAR do menu, com seta "voltar" no topo. Nada de menu lateral fixo.
 - Pensado no usuario, o mais intuitivo possivel; textos simples, sempre via Loc.T (pt-BR/en/ru/zh-CN).
 - Areas de uma janela: barra lateral `NavBar` (icone + nome, dica diz para que serve), nunca abas em cima.
 - Comandos: barra estilo Word `UiKit.Ribbon/Cmd/Menu` (icone em cima, texto embaixo, dica; acao principal em azul).

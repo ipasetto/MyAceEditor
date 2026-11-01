@@ -895,7 +895,12 @@ internal static class Program
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
-        using (var full = new System.Drawing.Bitmap(w.Width, w.Height)) { w.DrawToBitmap(full, new System.Drawing.Rectangle(0, 0, w.Width, w.Height)); full.Save(Path.Combine(outDir, "window.png"), System.Drawing.Imaging.ImageFormat.Png); }
+        foreach (var (scene, png) in new[] { (false, "window.png"), (true, "window-tool.png") })
+        {
+            w.ShotTool(scene); Application.DoEvents();
+            using var full = new System.Drawing.Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(full, new System.Drawing.Rectangle(0, 0, w.Width, w.Height)); full.Save(Path.Combine(outDir, png), System.Drawing.Imaging.ImageFormat.Png);
+        }
         var miss = MyAceEditor.UI.WorldBuildings.MissingTextures.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (miss.Count > 0) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), $"texturas de construção não achadas ({miss.Count}):\n" + string.Join("\n", miss.Take(40)) + "\n");
         w.Close();

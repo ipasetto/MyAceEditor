@@ -157,7 +157,17 @@ internal sealed partial class WorldView : Form
         _bar.Items.Add(_mapBox);
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", ToggleLegend));
-        // filtros "Mostrar" ficam no menu lateral (WorldView.Side.cs)
+        _bar.Items.Add(new ToolStripSeparator());
+        _bar.Items.Add(new ToolStripLabel(Loc.T("world.show", "Mostrar:")) { ForeColor = Color.Silver });
+        foreach (var f in _filterDefs)
+        {
+            // botão liga/desliga com a cor do tipo de ponto (como uma legenda que também filtra)
+            var tb = new ToolStripButton(Loc.T(f.Key, f.Pt), DarkBarRenderer.Dot(f.Color)) { CheckOnClick = true, Checked = (_show & f.Kind) != 0, ToolTipText = Loc.T(f.Key + ".h", f.Tip),
+                ForeColor = Color.White, TextImageRelation = TextImageRelation.ImageBeforeText, Margin = new Padding(1, 0, 1, 0) };
+            tb.CheckedChanged += (_, _) => { _show = tb.Checked ? _show | f.Kind : _show & ~f.Kind; tb.Image = DarkBarRenderer.Dot(tb.Checked ? f.Color : Color.FromArgb(70, 70, 70)); RefreshMarkers(); _gl.Focus(); };
+            if (!tb.Checked) tb.Image = DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70));
+            _bar.Items.Add(tb);
+        }
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_status);   // painel de quests acima da barra de status
@@ -195,7 +205,7 @@ internal sealed partial class WorldView : Form
         _gl.MouseDown += (_, e) =>
         {
             _gl.Focus(); _down = _drag = e.Location;
-            if (e.Button == MouseButtons.Left && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
+            if (e.Button == MouseButtons.Left && _legendOpen && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
             // setas / anel do ponto selecionado têm preferência
             if (e.Button == MouseButtons.Left && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
@@ -305,7 +315,7 @@ internal sealed partial class WorldView : Form
         _tick.Tick += (_, _) => Step();
         _tick.Start();
         InitSceneEdit();
-        InitSidePanel();   // menu lateral por último: usa a grama e os outros desenhos já criados
+        InitToolMenu();    // menu flutuante de ferramentas por último: usa a grama e os outros desenhos já criados
         FormClosed += (_, _) =>
         {
             _tick.Dispose(); _load.Dispose(); _gl.MakeCurrent();
@@ -347,8 +357,8 @@ internal sealed partial class WorldView : Form
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.G: _grass.Visible = !_grass.Visible; _gl.Invalidate(); return;    // esconde a grama
-            case Keys.O:   // edição do cenário (efeitos, sons e bichos) — o mesmo botão do menu lateral
-                SetSceneObjects(!_sceneObjs);
+            case Keys.O:   // ferramenta Editar cenário (abre/fecha, como o botão do menu de ferramentas)
+                if (_sceneObjs) CloseTool(); else OpenTool(Tool.Scene);
                 return;
             case Keys.P:   // caminhos de patrulha (path.sev) perto da câmera
                 _allPaths = !_allPaths; _gl.Invalidate();
@@ -1073,6 +1083,7 @@ internal sealed partial class WorldView : Form
 
     void DrawLegend()
     {
+        if (!_legendOpen) return;   // legenda só pelo botão Atalhos de cima (nada flutuando por padrão)
         if (_legendTex == 0 || _legendState != _legendOpen)
         {
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);

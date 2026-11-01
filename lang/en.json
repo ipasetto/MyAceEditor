@@ -4412,5 +4412,18 @@
   "world.objBuilding": "Building",
   "world.bldPending": "moving is kept here; writing needs the server collision",
   "world.bldMoved": "Building moved in 3D to X {0:0.0} Z {1:0.0} height {2:0.0} (not written yet)",
-  "world.bldSaveLater": "{0} moved building(s) stay kept here in the 3D World: writing a building changes the litmodels.pck .bmd, the .ecbsd and the server collision, and the server collision is the editor's next step. Effects, sounds and critters are written now."
+  "world.bldSaveLater": "{0} moved building(s) stay kept here in the 3D World: writing a building changes the litmodels.pck .bmd, the .ecbsd and the server collision, and the server collision is the editor's next step. Effects, sounds and critters are written now.",
+  "tools.title": "Tools",
+  "tools.back": "Back to the tools menu",
+  "tools.fold": "Collapse the menu",
+  "tools.unfold": "Open the menu",
+  "tools.scene": "Edit scenery",
+  "tools.sceneSub": "Effects, sounds, critters and buildings",
+  "tools.paths": "Patrol paths",
+  "tools.pathsSub": "See where monsters walk",
+  "tools.grass": "Grass",
+  "tools.grassSub": "Show or hide (G)",
+  "tools.sceneSteps": "Click an orange point (effect), blue (sound), green (critters) or a building. Change X / height / Z, or use Clone and Delete. Right-click the ground: move there.",
+  "tools.pathsSteps": "Paths near the camera show in lilac. Pick a monster point: its path turns orange, with the start marked. (Editing path points: next step.)",
+  "world.objNote3": "Effects, sounds and critters: client only. Buildings: move in 3D and stay pending until the server collision is ready."
 }

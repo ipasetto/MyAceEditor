@@ -72,7 +72,7 @@ internal sealed partial class WorldView
             grid.Controls.Add(_objXYZ[i], i, 1);
             _objXYZ[i].ValueChanged += (_, _) => ObjMovedByNumbers();
         }
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 76, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 0) };
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 0) };
         // tela escura: ícones brancos desenhados (UiKit.Icon), como o painel de quests do 3D
         Button B(string key, string pt, string glyph, Action a, bool main = false)
         {
@@ -83,11 +83,11 @@ internal sealed partial class WorldView
         }
         _objCloneBtn = B("world.objClone", "Clonar", "", CloneSceneObject);
         _objDeleteBtn = B("world.objDelete", "Apagar", "", DeleteSceneObject);
-        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, B("world.objSave", "Salvar cenário", "", SaveScene, main: true) });
-        var note = new Label { Dock = DockStyle.Top, Height = 58, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
-            Text = Loc.T("world.objNote2", "Efeitos, sons e bichos ficam só no cliente (sem colisão no servidor). Construções, modelos e árvores: travados até o editor gerar a colisão do servidor.") };
+        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn });
+        var note = new Label { Dock = DockStyle.Top, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
+            Text = Loc.T("world.objNote3", "Efeitos, sons e bichos: só no cliente. Construções: andam no 3D e ficam pendentes até a colisão do servidor ficar pronta.") };
         _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
-        // o painel do objeto escolhido mora no menu lateral (InitSidePanel)
+        // o painel do objeto escolhido mora na ferramenta Editar cenário do menu flutuante (WorldView.Tools.cs)
         FormClosing += (_, e) =>
         {
             if (!SceneDirty) return;
