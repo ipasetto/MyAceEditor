@@ -39,7 +39,7 @@
 [~] criar quest tipo 1 (recado) pelo Mundo 3D + dar quest existente (falta testar no app e no jogo) | [x] requisitos/premios por lista de opcoes + "outro campo" | [x] brilho do "Salvar e enviar ao servidor" (tudo, sessao) | [~] tipo 2 ir ate um lugar com etapas (em ordem/qualquer ordem/basta uma, varias areas; testado no arquivo nas 4 versoes, falta testar no app e no jogo) | [x] etapas matar monstros, obter itens, entregar itens a um NPC, esperar (31/10; testado no arquivo nas 4 versoes + captura; falta testar no app e no jogo) | [ ] demais objetivos (ver docs/MUNDO-3D-EDITOR.md) | [x] editar e excluir quest pelo painel do NPC (so quests no formato do assistente; Ctrl+Z; testado no arquivo nas 4 versoes, falta testar no app e no jogo)
 [!] recados do tipo 1 criados ANTES de 29/10 tinham a opcao aceitar/concluir apontando para a quest modelo: recriar
 [ ] depois da 1a etapa das quests: arvores, grama e objetos no Mundo 3D (.ecwld/.spt) em todas as versoes (usuario 29/10)
-[ ] futuro (usuario 29/10, "nao agora"): editor de mapa que cria o cenario (arvores, grama, objetos no .ecwld)
+[~] editor de cenario (01/11): .ecwld regrava identico em 332/332 mapas; efeitos/sons/bichos editaveis | [ ] construcoes, modelos e arvores (precisam gerar a colisao do servidor) | [ ] plantar arvores/grama
 
 ## FASE 4 — engine
 [x] corrigir automaticamente o par (Verificacao > Corrigir, --fix-pair; #26)
@@ -132,7 +132,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] region.sev lido; Mundo 3D abre a instancia na entrada (26 de 45 mapas)
 - [x] a26: so a copia do mapa do cliente; terreno-tampa escondido; entrada na altura do piso
 - [ ] aipolicy: conferir os 16 layouts "inferidos" com Policy.cpp e dar nome aos campos
-- [ ] path.sev (pathman.cpp): desenhar no 3D o caminho de patrulha dos grupos (iPathID)
+- [x] path.sev (pathman.cpp): caminho de patrulha desenhado no 3D (P) | [ ] editar pontos do caminho
 - [ ] arvores/grama (depois): leitor do .ecwld = EC_SceneBlock.cpp; arvores reais = SpeedTreeRT.h + speedtreert.dll
 
 ## BUGS + SERVIDOR LOCAL (25/10/2026 tarde)
@@ -185,7 +185,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [ ] usuario testar no app: arvores (shingleoak4 em 1560,220,454), grama, L de noite, agua; depois conferir 144/155/180 (pedir permissao)
 - [x] (30/10 tarde) arvores na escala do SpeedTree (x tamanho), conferido com print em 1064,1113; Ctrl+Z ate o ponto salvo tira a marca do npcgen
 - [ ] grama: conferir flores (陆地04/小黄花05) de perto; vento (grama e arvores); [ ] agua: reflexo real (2a camera) e mais transparente/azul como no jogo; [ ] cor do tronco
-- [ ] NAO LIDOS do .ecwld: efeitos .gfx (3.519 no world), bichos/critters (1.347), curvas bezier (42.790), sons (1.044), scenelights.dat
+- [x] 01/11 lidos do .ecwld/.ecbsd: efeitos .gfx, bichos, curvas, sons (tecla O; efeitos/sons/bichos editaveis) | [ ] scenelights.dat
 ## MUNDO 3D — PENDENTES (organizado 30/10, depois dos testes em 144/155/1.5.5/180)
 - [x] testado em 144, 155, 1.5.5 e 180: árvores (100 tipos, 0 erros, mesmas folhas), grama (.mox lidos em todas), áreas, dia/noite (.t2lm1 em todas)
 - [x] 155/180: folhas opacas e grama preta (estado do OpenGL dependia das construções) — corrigido; 180: áreas .ecbsd v17 (364 B) — corrigido
@@ -193,7 +193,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] ~~155 e 180 NÃO têm litmodels.pck/models.pck com o nome certo (litmodels-001.pck + litmodels.pkx; models-005.pck + models.pkx; no 180 building-002.pck, litmodels-020.pck, -013.pkx, -019.pkx1, models-003.pck...): sem construções nem modelos no Mundo 3D dessas pastas. Perguntar ao usuário se são cópias quebradas ou se o editor deve aceitar esses nomes.
 - [ ] grama: vento (maciez do tipo); árvores: vento; cor do tronco x jogo
 - [ ] água: reflexo real (2ª câmera espelhada, como A3DTerrainWaterRender) e cor mais azul/transparente como nos prints do jogo
-- [ ] NÃO LIDOS do .ecwld: efeitos .gfx (3.519 no world), bichos/critters (1.347), curvas bezier (42.790), sons (1.044), scenelights.dat (lâmpadas de noite)
+- [x] 01/11 efeitos, bichos, curvas e sons lidos e mostrados (O); efeitos e sons: mover/clonar/apagar; bichos: mover; salvar com backup | [ ] scenelights.dat (lâmpadas de noite)
 - [ ] usuário testar no app (lista em TESTES-PENDENTES "Mundo 3D — rodada de 30/10")
 
 ## Ideias dos utilitarios estudados em 31/10 (PW-KB §S15)
