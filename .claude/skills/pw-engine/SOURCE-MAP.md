@@ -30,6 +30,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 - guerra territorial: domain.sev / domain2.sev (servidor): source_server_153/cnet/gdeliveryd/domaindataman.cpp domain_data_load / domain2_data_load
 - versao mais nova do servidor (1.7.2): D:/Perfect World/PW/Source Client/172Source (§M15-16)
 - porte 1.8.0 -> 1.8.9 (notas de pesquisa): D:/Perfect World/Estudo PW/pw-189-port/docs/notes (00 = indice; 14 protocolo 1.7.6x1.8.0; 18 elements v531; 22 aipolicy 1.8.0; 23 tasks v198; 26 comandos; Diario)
+- editor oficial de mapas (3D, mover/girar/escalar com desfazer): Estudo PW/CPW_Dev/CElement/CElementEditor SceneObjectMoveOperation/UndoMan; escritor .ecwld/.ecbsd: SceneExportor.cpp ExportProjectBlock; npcgen/precinct/region: AIGenExportor.cpp ExportProjectAIGens/Precincts/Regions; path.sev: SevBezier.cpp; map.bht: DlgExportBHT.cpp (PW-KB §S32)
 - loja (gshopsev) no gs 1.7.4 / servidor auth aberto / editor oficial de quests: ver PW-KB §S32 (Estudo PW: 174Source.zip cgame/gs/playermall.cpp; GAuthDaemon-master; CPW_Dev.rar CElement/CTaskTemplEditor) [nao extraidos]
 
 ## §M1 gs (servidor de mapa): cgame/gs (249 arquivos) — `source_server_153/cgame/gs`

@@ -4207,5 +4207,14 @@
   "quest.askDelete2": "Delete quest {0} \"{1}\" and its {2} subquests?",
   "quest.askDeleteSvc": "The NPCs stop offering and receiving this quest (the ID is removed from their services).",
   "quest.askDeleteRefs": "Warning: {0} other quest(s) point to it (previous, exclusive or next quest) and will wait for a quest that doesn't exist: {1}",
-  "quest.askDeleteUndo": "Ctrl+Z undoes."
+  "quest.askDeleteUndo": "Ctrl+Z undoes.",
+  "ct.warTitle": "Territory war map: {0} file(s)",
+  "ct.warDetail": "territory names (territory war and nation war), teleport destination names and the territory map with the names drawn on it; only the text changes, polygons and IDs stay",
+  "ct.textImgTitle": "Other images with text (surfaces.pck): {0} images",
+  "ct.textImgDetail": "chat channel tags, HP/MP warnings, \"in combat\", guild base signs, login states, help pictures, event calendar and discount badges",
+  "ct.textImgSkipped": " — {0} stay (different size in the other client)",
+  "ct.warNamesLog": "{0}: {1} territory names",
+  "ct.warTargetsLog": "world_targets.txt: {0} teleport destinations",
+  "ct.warMapLog": "surfaces.pck: territory map (GuildMap.dds)",
+  "ct.warMapSize": "the other client's territory map has a different size and stays"
 }

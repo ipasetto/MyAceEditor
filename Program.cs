@@ -22,6 +22,47 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--inspect") { InspectElements(args[1]); return; }
         if (args.Length >= 3 && args[0] == "--testcfg") { TestCfg(args[1], args[2]); return; }
         if (args.Length >= 2 && args[0] == "--pck") { ListPck(args[1], args.Length >= 3 ? args[2] : ""); return; }
+        if (args.Length >= 3 && args[0] == "--client-plan")   // <element destino> <element traduzido>: passos do tradutor sem aplicar + leitura dos domain*.data (client-plan-report.txt)
+        {
+            var sb = new StringBuilder();
+            foreach (var dir in new[] { args[1], args[2] })
+                foreach (var (name, d2) in DomainFile.Files)
+                {
+                    var p = Path.Combine(dir, "data", name);
+                    if (!File.Exists(p)) continue;
+                    var b = File.ReadAllBytes(p);
+                    var df = DomainFile.Parse(b, d2);
+                    sb.AppendLine($"{dir} {name}: {(df is null ? "NÃO lido" : $"{df.NameAt.Count} territórios · ex.: {string.Join(", ", df.NameAt.Keys.Take(4).Select(id => $"{id} {df.Name(id)}"))}")}");
+                    // prova: traduzido pelo outro, só os 32 bytes dos nomes mudam
+                    var other = Path.Combine(dir == args[1] ? args[2] : args[1], "data", name);
+                    if (dir == args[1] && df is not null && File.Exists(other) && DomainFile.Translate(b, File.ReadAllBytes(other), d2) is { } tr)
+                    {
+                        var names = df.NameAt.Values.ToList();
+                        bool onlyNames = tr.Bytes.Length == b.Length && Enumerable.Range(0, b.Length).All(i => b[i] == tr.Bytes[i] || names.Any(at => i >= at && i < at + DomainFile.NameChars * 2));
+                        var back = DomainFile.Parse(tr.Bytes, d2);
+                        sb.AppendLine($"  traduzido: {tr.Changed} nomes · só nomes mudaram: {onlyNames} · relido: {(back is null ? "NÃO" : string.Join(", ", back.NameAt.Keys.Take(4).Select(id => back.Name(id))))}");
+                    }
+                }
+            foreach (var st in ClientTranslator.Plan(args[1], args[2]))
+                sb.AppendLine($"[{(st.Default ? "x" : " ")}{(st.Enabled ? "" : " desligado")}] {st.Title} — {st.Detail}");
+            File.WriteAllText("client-plan-report.txt", sb.ToString(), new UTF8Encoding(false));
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--pck-diff")   // <pck A> <pck B> [prefixo]: arquivos presentes nos dois com conteúdo diferente (pck-diff-report.txt)
+        {
+            using var a = new PckArchive(args[1]); using var b = new PckArchive(args[2]);
+            var pre = args.Length >= 4 ? args[3] : "";
+            var sb = new StringBuilder();
+            int same = 0, onlyA = 0;
+            foreach (var ea in a.Entries.Where(e => e.Path.StartsWith(pre, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.Path, StringComparer.OrdinalIgnoreCase))
+            {
+                if (b.Find(ea.Path) is not { } eb) { onlyA++; continue; }
+                byte[] da = a.Read(ea), db = b.Read(eb);
+                if (da.AsSpan().SequenceEqual(db)) same++; else sb.AppendLine($"{ea.Path}\t{da.Length}\t{db.Length}");
+            }
+            File.WriteAllText("pck-diff-report.txt", $"# iguais {same} · só em A {onlyA}\n" + sb, new UTF8Encoding(false));
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--pck-extract")   // --pck-extract <pck> <filtro> <pasta>
         {
             using var pck = new PckArchive(args[1]);

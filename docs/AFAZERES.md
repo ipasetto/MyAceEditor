@@ -197,8 +197,9 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [ ] usuário testar no app (lista em TESTES-PENDENTES "Mundo 3D — rodada de 30/10")
 
 ## Ideias dos utilitarios estudados em 31/10 (PW-KB §S15)
+- [ ] Mundo 3D com edicao como o editor oficial (CPW_Dev CElementEditor, PW-KB §S32): ler arvores/objetos/agua do .ecwld/.ecbsd pelo SceneExportor; caixas de precinct/region e caminhos (path.sev) editaveis no 3D; ao mudar terreno/objetos regerar bht/rmap do servidor
 - [ ] editor da guerra territorial (domain.data + domain.sev, formato em PW-KB; editar os dois juntos)
-- [ ] tradutor de cliente: nomes dos mapas da guerra territorial nao sao traduzidos (vem do domain.data UTF-16; PW-KB §S32/§S6) — pedido do usuario 31/10
+- [x] tradutor de cliente: nomes dos mapas da guerra territorial (domain*.data, world_targets.txt, GuildMap.dds) + outras imagens com texto (31/10; falta testar aplicando num cliente) (vem do domain.data UTF-16; PW-KB §S32/§S6) — pedido do usuario 31/10
 - [ ] ler as notas do porte 1.8.9 (Estudo PW\pw-189-port) e levar para a PW-KB o que valer para o editor (elements v531, tasks v198, aipolicy 1.8.0)
 - [ ] ItemRules: avisar quando os addons fixos de movimento de um item somam > 3 m/s (o gs limita a 3 e zera acima de 5; REGRAS-DO-JOGO §2)
 - [ ] adicionar icone novo ao iconlist (ivtrm + ivtrf juntos) para itens novos, como o Glue do IconListEditor

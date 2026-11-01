@@ -4209,5 +4209,14 @@
   "quest.askDelete2": "删除任务 {0}“{1}”及其 {2} 个子任务？",
   "quest.askDeleteSvc": "NPC将不再发放和接收此任务（ID会从其服务中移除）。",
   "quest.askDeleteRefs": "注意：有 {0} 个其他任务指向它（前置、互斥或后续任务），将等待一个不存在的任务：{1}",
-  "quest.askDeleteUndo": "Ctrl+Z 可撤销。"
+  "quest.askDeleteUndo": "Ctrl+Z 可撤销。",
+  "ct.warTitle": "领土战地图：{0} 个文件",
+  "ct.warDetail": "领土名称（领土战和国战）、传送目的地名称以及画有名称的领土地图；只改文字，多边形和ID不变",
+  "ct.textImgTitle": "其他带文字的图片（surfaces.pck）：{0} 张",
+  "ct.textImgDetail": "聊天频道标签、HP/MP警告、“战斗中”、帮派基地牌匾、登录状态、帮助图片、活动日历和折扣角标",
+  "ct.textImgSkipped": " —— {0} 张保留（另一个客户端中尺寸不同）",
+  "ct.warNamesLog": "{0}：{1} 个领土名称",
+  "ct.warTargetsLog": "world_targets.txt：{0} 个传送目的地",
+  "ct.warMapLog": "surfaces.pck：领土地图（GuildMap.dds）",
+  "ct.warMapSize": "另一个客户端的领土地图尺寸不同，保留不变"
 }

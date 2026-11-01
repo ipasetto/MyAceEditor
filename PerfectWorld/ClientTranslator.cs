@@ -13,7 +13,9 @@ namespace MyAceEditor.PerfectWorld;
 ///   configs.pck, interfaces.pck — texto por texto (PackTextTranslator), em qualquer versão.
 ///   surfaces.pck, help\script.pck e info\ — arquivo inteiro, só marcado quando os executáveis são o mesmo programa.
 /// O elements.data é traduzido à parte, pela janela de revisão que já existe (casa por bloco/campo/ID).
-/// Nunca: executável, elements inteiro, mapas, construções, lista de servidores, patcher/launcher. Backup de tudo.
+///   guerra territorial — nomes dos territórios (data\domain*.data) e dos destinos (maps\world\world_targets.txt) pelo ID,
+///                  e o GuildMap.dds se tiver o mesmo tamanho; imagens com texto escrito (lista TextImagePaths), só do mesmo tamanho.
+/// Nunca: executável, elements inteiro, terreno e construções dos mapas, lista de servidores, patcher/launcher. Backup de tudo.
 /// </summary>
 public static class ClientTranslator
 {
@@ -229,6 +231,49 @@ public static class ClientTranslator
             catch (Exception ex) { steps.Add(new Step { Title = "surfaces.pck", Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
         }
 
+        // ---- guerra territorial e de nação: nomes dos territórios (data\domain*.data), destinos de teleporte
+        // (maps\world\world_targets.txt) e o mapa de territórios desenhado (surfaces\ingame\GuildMap.dds) ----
+        var war = WarFiles(target, source, sT, sS);
+        if (war.Count > 0)
+            steps.Add(new Step
+            {
+                Title = string.Format(Loc.T("ct.warTitle", "Mapa da guerra territorial: {0} arquivo(s)"), war.Count),
+                Detail = Loc.T("ct.warDetail", "nomes dos territórios (guerra territorial e de nação), nomes dos destinos de teleporte e o mapa de territórios com os nomes desenhados; só o texto muda, polígonos e IDs ficam")
+                    + (war.Any(w => w.Note.Length > 0) ? " — " + string.Join("; ", war.Where(w => w.Note.Length > 0).Select(w => w.Note)) : ""),
+                Default = true, Enabled = true,
+                Apply = log =>
+                {
+                    foreach (var w in WarFiles(target, source, sT, sS)) if (w.Apply() is { Length: > 0 } msg) log(msg);
+                    return Path.Combine(target, "data");
+                },
+            });
+
+        // ---- outras imagens com texto escrito (canais do chat, avisos, base de clã, ajudas, calendário...): só as do mesmo
+        // tamanho nos dois clientes (outro tamanho = outra arte/versão, desalinharia a janela) ----
+        if (File.Exists(sT) && File.Exists(sS) && !SameFile(sT, sS))
+        {
+            try
+            {
+                var (imgs, skipped) = TextImages(sT, sS);
+                if (imgs.Count > 0)
+                    steps.Add(new Step
+                    {
+                        Title = string.Format(Loc.T("ct.textImgTitle", "Outras imagens com texto (surfaces.pck): {0} imagens"), imgs.Count),
+                        Detail = Loc.T("ct.textImgDetail", "etiquetas dos canais do chat, avisos de HP/MP, \"em combate\", placas da base do clã, estados do login, ajudas com figura, calendário de eventos e selos de desconto")
+                            + (skipped > 0 ? string.Format(Loc.T("ct.textImgSkipped", " — {0} ficam (tamanho diferente no outro cliente)"), skipped) : ""),
+                        Default = true, Enabled = !File.Exists(Path.ChangeExtension(sT, ".pkx")),
+                        Apply = log =>
+                        {
+                            var files = TextImages(sT, sS).Files;
+                            if (files.Count > 0) PckWriter.Write(sT, files);
+                            log(string.Format(Loc.T("ct.pckTextsLog", "{0}: {1:N0} textos em {2} arquivo(s)"), "surfaces.pck", files.Count, files.Count));
+                            return sT;
+                        },
+                    });
+            }
+            catch (Exception ex) { steps.Add(new Step { Title = "surfaces.pck", Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); }
+        }
+
         ctx?.Report(0.95, Loc.T("ct.stFiles", "Imagens e ajuda"), force: true);
         // ---- imagens e ajuda (arquivo inteiro) ----
         foreach (var p in Packages)
@@ -305,8 +350,118 @@ public static class ClientTranslator
     {
         "爆击", "元神", "吸血", "免疫", "未命中", "无效", "反震", "状态闪避", "复仇惩戒", "复仇镜像", "升级了", "经验", "金钱",
         "失败", "成功", "决斗一", "决斗二", "决斗三", "决斗开始", "决斗胜利", "决斗失败", "中立", "中立偏守方", "中立偏攻方",
-        "守方占领", "攻方占领", "有矿提示",
+        "守方占领", "攻方占领", "有矿提示", "反击", "反噬", "反弹", "复仇反噬", "复仇封印", "复仇震荡",
     };
+
+    // outras imagens com palavra escrita (achadas comparando o surfaces.pck do 155 BR com o do PWI 1.5.5: o que difere entre
+    // dois clientes traduzidos é o que tem texto); caminho exato ou pasta inteira (termina em \)
+    static readonly string[] TextImagePaths =
+    {
+        @"surfaces\ingame\journeymap.dds", @"surfaces\ingame\hp_warn.tga", @"surfaces\ingame\mp_warn.tga", @"surfaces\ingame\minimapdir.tga",
+        // etiquetas dos canais do chat
+        @"surfaces\ingame\世界.tga", @"surfaces\ingame\交易.tga", @"surfaces\ingame\普通.tga", @"surfaces\ingame\组队.tga", @"surfaces\ingame\帮派.tga",
+        @"surfaces\ingame\密语.tga", @"surfaces\ingame\系统.tga", @"surfaces\ingame\号角.tga", @"surfaces\ingame\国家.tga", @"surfaces\ingame\战场.tga",
+        @"surfaces\ingame\跨服.tga",
+        // placas da base do clã
+        @"surfaces\ingame\兵械库.tga", @"surfaces\ingame\炼丹房.tga", @"surfaces\ingame\破魔堂.tga", @"surfaces\ingame\聚义厅.tga", @"surfaces\ingame\天元宝号.tga",
+        @"surfaces\number\战斗中.tga", @"surfaces\2013\转生\一二三四五六七八九十.dds",
+        @"surfaces\version01\登陆\删除中.tga", @"surfaces\version01\登陆\寄卖中.tga", @"surfaces\version01\登陆\跨服中.tga",
+        @"surfaces\scripthelp\", @"surfaces\version02\系统\家园\家园帮助\", @"surfaces\version02\系统\按键指示图\", @"surfaces\活动日历\", @"surfaces\打折促销\",
+    };
+
+    /// <summary>Largura × altura de DDS, TGA ou BMP (null se não reconhece): imagem de outro tamanho não entra.</summary>
+    static (int W, int H)? ImageSize(byte[] d)
+    {
+        if (d.Length >= 20 && d[0] == 'D' && d[1] == 'D' && d[2] == 'S' && d[3] == ' ') return (BitConverter.ToInt32(d, 16), BitConverter.ToInt32(d, 12));
+        if (d.Length >= 26 && d[0] == 'B' && d[1] == 'M') return (BitConverter.ToInt32(d, 18), Math.Abs(BitConverter.ToInt32(d, 22)));
+        if (d.Length >= 18 && d[1] <= 1 && d[2] is 1 or 2 or 3 or 9 or 10 or 11) return (BitConverter.ToUInt16(d, 12), BitConverter.ToUInt16(d, 14));   // TGA
+        return null;
+    }
+
+    static bool SameSize(byte[] a, byte[] b) => ImageSize(a) is { } sa && ImageSize(b) is { } sb && sa == sb;
+
+    /// <summary>Imagens com texto (lista acima) diferentes nos dois pacotes e do mesmo tamanho; skipped = diferentes mas de outro tamanho.</summary>
+    static (Dictionary<string, byte[]> Files, int Skipped) TextImages(string targetPck, string sourcePck)
+    {
+        var r = new Dictionary<string, byte[]>(); int skipped = 0;
+        using var a = new PckArchive(targetPck); using var b = new PckArchive(sourcePck);
+        foreach (var ea in a.Entries)
+        {
+            if (!TextImagePaths.Any(p => p.EndsWith('\\') ? ea.Path.StartsWith(p, StringComparison.OrdinalIgnoreCase) : ea.Path.Equals(p, StringComparison.OrdinalIgnoreCase))) continue;
+            if (b.Find(ea.Path) is not { } eb) continue;
+            byte[] da = a.Read(ea), db = b.Read(eb);
+            if (da.AsSpan().SequenceEqual(db)) continue;
+            if (SameSize(da, db)) r[ea.Path] = db; else skipped++;
+        }
+        return (r, skipped);
+    }
+
+    sealed record WarFile(string Note, Func<string> Apply);
+
+    /// <summary>Arquivos da guerra territorial/de nação com texto diferente no outro cliente (cada um sabe se aplicar).</summary>
+    static List<WarFile> WarFiles(string target, string source, string targetPck, string sourcePck)
+    {
+        var list = new List<WarFile>();
+        foreach (var (name, d2) in DomainFile.Files)
+        {
+            var dst = Path.Combine(target, "data", name); var src = Path.Combine(source, "data", name);
+            if (!File.Exists(dst) || !File.Exists(src)) continue;
+            if (DomainFile.Translate(File.ReadAllBytes(dst), File.ReadAllBytes(src), d2) is not { Changed: > 0 }) continue;
+            list.Add(new WarFile("", () =>
+            {
+                var res = DomainFile.Translate(File.ReadAllBytes(dst), File.ReadAllBytes(src), d2)!.Value;
+                AtomicFileSave.Write(dst, res.Bytes);   // backup fora do cliente (BackupStore)
+                return string.Format(Loc.T("ct.warNamesLog", "{0}: {1} nomes de território"), name, res.Changed);
+            }));
+        }
+        var wT = Path.Combine(target, "maps", "world", "world_targets.txt"); var wS = Path.Combine(source, "maps", "world", "world_targets.txt");
+        if (File.Exists(wT) && File.Exists(wS) && WorldTargets(File.ReadAllBytes(wT), File.ReadAllBytes(wS)) is { Changed: > 0 })
+            list.Add(new WarFile("", () =>
+            {
+                var res = WorldTargets(File.ReadAllBytes(wT), File.ReadAllBytes(wS))!.Value;
+                AtomicFileSave.Write(wT, res.Bytes);
+                return string.Format(Loc.T("ct.warTargetsLog", "world_targets.txt: {0} destinos de teleporte"), res.Changed);
+            }));
+        if (File.Exists(targetPck) && File.Exists(sourcePck) && !SameFile(targetPck, sourcePck) && !File.Exists(Path.ChangeExtension(targetPck, ".pkx")))
+        {
+            const string gm = @"surfaces\ingame\guildmap.dds";
+            using var a = new PckArchive(targetPck); using var b = new PckArchive(sourcePck);
+            if (a.Find(gm) is { } ea && b.Find(gm) is { } eb && a.Read(ea) is var da && b.Read(eb) is var db && !da.AsSpan().SequenceEqual(db))
+            {
+                // os polígonos dos territórios (domain.data) são em pixels desta imagem: outro tamanho = outro mapa
+                if (SameSize(da, db))
+                    list.Add(new WarFile("", () =>
+                    {
+                        using (var b2 = new PckArchive(sourcePck)) PckWriter.Write(targetPck, new Dictionary<string, byte[]> { [ea.Path] = b2.Read(b2.Find(gm)!) });
+                        return Loc.T("ct.warMapLog", "surfaces.pck: mapa de territórios (GuildMap.dds)");
+                    }));
+                else list.Add(new WarFile(Loc.T("ct.warMapSize", "o mapa de territórios do outro cliente tem outro tamanho e fica"), () => ""));
+            }
+        }
+        return list.Any(w => w.Note.Length == 0) ? list : new();
+    }
+
+    static readonly System.Text.RegularExpressions.Regex TargetLine = new("^(\\s*)(\\d+)(\\s+)\"([^\"]*)\"", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+    /// <summary>
+    /// world_targets.txt (UTF-16, uma linha por destino: id "nome" mapa "x,y,z" território): troca só o nome entre aspas
+    /// pelo do mesmo ID no outro cliente; coordenadas e o resto ficam. Null se não é UTF-16.
+    /// </summary>
+    static (byte[] Bytes, int Changed)? WorldTargets(byte[] target, byte[] source)
+    {
+        static string? Text(byte[] d) => d.Length >= 2 && d[0] == 0xFF && d[1] == 0xFE ? Encoding.Unicode.GetString(d, 2, d.Length - 2) : null;
+        if (Text(target) is not { } t || Text(source) is not { } s) return null;
+        var names = new Dictionary<string, string>();
+        foreach (System.Text.RegularExpressions.Match m in TargetLine.Matches(s)) names.TryAdd(m.Groups[2].Value, m.Groups[4].Value);
+        int changed = 0;
+        var outText = TargetLine.Replace(t, m =>
+        {
+            if (!names.TryGetValue(m.Groups[2].Value, out var n) || n.Length == 0 || n == m.Groups[4].Value) return m.Value;
+            changed++;
+            return $"{m.Groups[1].Value}{m.Groups[2].Value}{m.Groups[3].Value}\"{n}\"";
+        });
+        return (new byte[] { 0xFF, 0xFE }.Concat(Encoding.Unicode.GetBytes(outText)).ToArray(), changed);
+    }
 
     /// <summary>Imagens de texto da batalha que existem nos dois surfaces.pck e são diferentes (caminho no pacote → conteúdo do outro).</summary>
     static Dictionary<string, byte[]> CombatImages(string targetPck, string sourcePck)
