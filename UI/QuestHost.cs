@@ -23,8 +23,11 @@ internal interface IQuestHost
     QuestDraft? EditDraft(int questId, out string? why);
     /// <summary>Texto da pergunta antes de excluir (quest, subquests, NPCs e quests que apontam para ela); null se a quest não existe.</summary>
     string? DeleteAsk(int questId);
-    /// <summary>Exclui a quest (com as subquests) e tira o ID dos serviços dos NPCs, num passo do desfazer. Null = deu certo.</summary>
-    string? Delete(int questId);
+    /// <summary>Exclui a quest (com as subquests) e tira o ID dos serviços dos NPCs, num passo do desfazer. Null = deu certo.
+    /// <paramref name="withNext"/>: também as quests seguintes da cadeia (<see cref="NextQuests"/>), no mesmo passo.</summary>
+    string? Delete(int questId, bool withNext = false);
+    /// <summary>Quests seguintes da cadeia desta (ID + nome), para perguntar se saem junto ao excluir.</summary>
+    IReadOnlyList<(int Id, string Name)> NextQuests(int questId);
     /// <summary>Quest que não existe mais no tasks.data (apagada fora daqui): tira o ID dos serviços dos NPCs, num passo do desfazer. Null = deu certo.</summary>
     string? RemoveMissing(int questId);
     /// <summary>Nome de NPC, monstro ou item do elements; null se o ID não existe.</summary>

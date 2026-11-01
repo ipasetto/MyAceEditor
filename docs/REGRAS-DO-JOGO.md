@@ -54,6 +54,8 @@ até 65534. Nunca use "maior ID + 1" da lista sozinha.
 | Regra | O que acontece se quebrar | Fonte |
 |---|---|---|
 | ID de quest único | o gs ignora a segunda ("Dup Task Found") | `ATaskTemplMan::AddOneTaskTempl` |
+| ID de quest (e de cada subquest) até 65535 | o personagem guarda as quests ativas e concluídas com ID de 16 bits: acima disso a quest não fica ativa nem conta como feita | gs `task/TaskProcess.h` TASK_ENTRY_FIXED_DATA.m_ID, FnshedTaskEntry.m_uTaskId (unsigned short); `QuestRules` regra `quest-id16` |
+| Quest nova não reaproveita o ID de uma apagada | personagem que concluiu a antiga (sem "pode refazer") nunca vê a nova sobre o NPC | cliente `ATaskTempl::CanShowTask` -> CheckFnshLst; `EditorForm.QuestIdsUsed` (maior ID já entregue, por tasks.data) |
 | Item, monstro e NPC que a quest usa existem no elements.data (recompensa, pedido, matar, invocar, entregar) | não derruba, mas a quest não entrega, não conta ou não aparece | campos de `IdRefactor.QuestFieldPoints` |
 | Versão do tasks.data igual à do gs | o gs não carrega nenhuma quest | `LoadTasksFromPack` |
 | Objeto sólido do cenário (construção .bmd, modelo EC, árvore) só muda junto com a colisão do servidor | o servidor anda/colide no lugar antigo (map.bht, .rmap/.dhmap, octree de voo); efeitos e sons não têm colisão e podem mudar só no cliente | editor oficial CElementEditor (DlgExportBHT, PathMap); Mundo 3D trava esses objetos (WorldView.SceneEdit) |

@@ -16,6 +16,10 @@ internal sealed class WorldQuestEditor : Panel
     readonly QuestWorld _world;
     QuestDraft _d;
     readonly List<RadioButton> _typeButtons = new();   // tipo da quest = ícone sobre o NPC
+    // repetição (usuário 01/11): Tag 0 = uma vez, -1 = pode refazer (m_bCanRedo), 1..3 = 1 vez por dia/semana/mês (m_lAvailFrequency)
+    readonly List<RadioButton> _repeatButtons = new();
+    QuestOption? _redoOpt, _repeatOpt;
+    static bool IsRepeatOption(QuestOption o) => o.Id is "redo" or "repeat";
     readonly Label _title = new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI", 10.5f, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0) };
     readonly StepperBar _stepper = new();
     readonly Label _sub = new() { Dock = DockStyle.Bottom, Height = 18, ForeColor = Color.Silver, Font = new Font("Segoe UI", 8.5f), Padding = new Padding(36, 0, 0, 0) };
@@ -191,6 +195,23 @@ internal sealed class WorldQuestEditor : Panel
             _typeButtons.Add(b); types.Controls.Add(b);
         }
         npcs.Controls.Add(types);
+        var reqOpts = _host.Options(false);
+        _redoOpt = reqOpts.FirstOrDefault(o => o.Id == "redo"); _repeatOpt = reqOpts.FirstOrDefault(o => o.Id == "repeat");
+        if (_redoOpt is not null || _repeatOpt is not null)
+        {
+            Caption(npcs, "qe.repeat", "Repetição", "qe.repeatHint", "Quantas vezes o mesmo jogador pode fazer a quest.");
+            var reps = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 2, 0, 6) };
+            foreach (var (code, key, pt) in new[] { (0, "qe.rOnce", "Uma vez só"), (-1, "qe.rRedo", "Pode refazer sempre"), (1, "qe.rDaily", "1 vez por dia"),
+                         (2, "qe.rWeekly", "1 vez por semana"), (3, "qe.rMonthly", "1 vez por mês") })
+            {
+                if (code == -1 && _redoOpt is null || code > 0 && _repeatOpt is null) continue;   // a versão não tem o campo
+                var b = new RadioButton { Appearance = Appearance.Button, AutoSize = true, Text = Loc.T(key, pt), Tag = code, FlatStyle = FlatStyle.Flat, ForeColor = Color.White,
+                    BackColor = Color.FromArgb(40, 45, 54), Margin = new Padding(0, 0, 6, 6), Padding = new Padding(8, 2, 8, 2), MinimumSize = new Size(0, 32) };
+                b.FlatAppearance.CheckedBackColor = UiKit.Accent; b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
+                _repeatButtons.Add(b); reps.Controls.Add(b);
+            }
+            npcs.Controls.Add(reps);
+        }
 
         BuildStepsPage();
 
@@ -682,7 +703,7 @@ internal sealed class WorldQuestEditor : Panel
     {
         Caption(page, reward ? "qe.moreAward" : "qe.moreReq", reward ? "Mais prêmios" : "Mais requisitos",
             reward ? "qe.moreAwardHint" : "qe.moreReqHint", reward ? "Escolha o tipo e clique em Adicionar; pode pôr vários." : "Escolha o tipo e clique em Adicionar; pode pôr vários ao mesmo tempo.");
-        var opts = _host.Options(reward);
+        var opts = _host.Options(reward).Where(o => !IsRepeatOption(o)).ToList();   // repetição tem linha própria na 1ª página
         // 1ª linha da lista = "escolha um tipo": nada vem pré-escolhido (antes "Classes" parecia já ser um requisito)
         var box = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 230, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, DropDownWidth = 300 };
         box.Items.Add(reward ? Loc.T("qe.pickAward", "— escolha um tipo de prêmio —") : Loc.T("qe.pickReq", "— escolha um tipo de requisito —"));
@@ -712,7 +733,7 @@ internal sealed class WorldQuestEditor : Panel
             _choices.Add(b); holder.Controls.Add(b); Sync();
         }
         // editar quest: as opções que ela já tem entram preenchidas
-        foreach (var c in _d.Choices.Where(c => c.Option.Reward == reward)) AddBlock(c.Option, c.Value);
+        foreach (var c in _d.Choices.Where(c => c.Option.Reward == reward && !IsRepeatOption(c.Option))) AddBlock(c.Option, c.Value);
         var addBtn = Btn(Loc.T("qe.add", "Adicionar"), () =>
         {
             if (box.SelectedIndex <= 0) return;
@@ -791,6 +812,9 @@ internal sealed class WorldQuestEditor : Panel
     {
         _id.Value = Math.Max(1, _d.Id); _giver.Value = _d.Giver; _name.Text = _d.Name;
         foreach (var tb in _typeButtons) tb.Checked = _d.Key ? tb.Name == "key" : tb.Name != "key" && (int)tb.Tag! == (_d.Type is 0 or < 100 ? 101 : _d.Type);
+        int rep = _d.Choices.FirstOrDefault(c => c.Option.Id == "repeat")?.Value is long f and >= 1 and <= 3 ? (int)f : _d.Choices.Any(c => c.Option.Id == "redo") ? -1 : 0;
+        foreach (var rb in _repeatButtons) rb.Checked = (int)rb.Tag! == rep;
+        if (!_repeatButtons.Any(rb => rb.Checked) && _repeatButtons.Count > 0) _repeatButtons[0].Checked = true;
         _order.SelectedIndex = (int)_d.Order;
         RefreshStepList(0);
         _minLv.Value = _d.MinLevel; _maxLv.Value = _d.MaxLevel;
@@ -814,6 +838,11 @@ internal sealed class WorldQuestEditor : Panel
         _d.Items = _items.Items.Cast<ListViewItem>().Select(i => ((int, int))i.Tag!).ToList();
         _d.Description = _desc.Text.Trim(); _d.OfferText = _offer.Text.Trim();
         _d.Choices = _choices.Select(c => c.Choice).ToList();
+        switch (_repeatButtons.FirstOrDefault(rb => rb.Checked)?.Tag)
+        {
+            case -1 when _redoOpt is not null: _d.Choices.Add(new QuestChoice(_redoOpt, true)); break;
+            case int f when f > 0 && _repeatOpt is not null: _d.Choices.Add(new QuestChoice(_repeatOpt, (long)f)); break;   // liga também m_bCanRedo
+        }
         _d.RandomItem = _howItems.SelectedIndex == 1;
         return _d;
     }

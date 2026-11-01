@@ -111,6 +111,8 @@ internal sealed class WorldQuestPanel : Panel
         _create.Text = Loc.T("wq.create2", "Criar quest");
         _link.Text = Loc.T("wq.link", "Dar quest existente");
         _create.Enabled = _createQuest is not null; _link.Enabled = _linkQuest is not null;
+        // sem ação ligada o botão some (no Mundo 3D as ações ficam na ferramenta Quests; o painel só mostra)
+        _create.Visible = _createQuest is not null; _link.Visible = _linkQuest is not null;
         var soon = Loc.T("wq.soon", "Em construção: próximo passo.");
         _tip.SetToolTip(_create, _createQuest is null ? soon : Loc.T("wq.createTip", "Nova quest com este NPC como o NPC que dá a quest."));
         _tip.SetToolTip(_link, _linkQuest is null ? soon : Loc.T("wq.linkTip", "Escolher uma quest que já existe para este NPC dar (aplicado no Salvar)."));
@@ -131,6 +133,7 @@ internal sealed class WorldQuestPanel : Panel
     {
         bool pick = SelectedQuest > 0;
         _edit.Enabled = _editQuest is not null; _delete.Enabled = _deleteQuest is not null;
+        _edit.Visible = _editQuest is not null; _delete.Visible = _deleteQuest is not null;
         _tip.SetToolTip(_edit, _editQuest is null ? Loc.T("wq.soon", "Em construção: próximo passo.")
             : pick ? Loc.T("wq.editTip", "Abre a quest escolhida no assistente, com tudo preenchido, para mudar.") : Loc.T("wq.pickFirst", "Escolha uma quest na lista primeiro (Ver quests)."));
         _tip.SetToolTip(_delete, _deleteQuest is null ? Loc.T("wq.soon", "Em construção: próximo passo.")
@@ -141,7 +144,7 @@ internal sealed class WorldQuestPanel : Panel
     }
 
     /// <param name="expanded">já abre com as listas (clique no NPC sem ferramenta, como o painel da criatura)</param>
-    public void ShowNpc(NpcQuestInfo info, bool expanded = false)
+    public void ShowNpc(NpcQuestInfo info, bool expanded = true)
     {
         _info = info;
         ApplyText();

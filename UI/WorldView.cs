@@ -79,9 +79,7 @@ internal sealed partial class WorldView : Form
         get => _host;
         set
         {
-            _host = value;
-            _quests.CreateQuest = value is null ? null : OpenCreator; _quests.LinkQuest = value is null ? null : LinkExisting;
-            _quests.EditQuest = value is null ? null : OpenQuestEditor; _quests.DeleteQuest = value is null ? null : DeleteQuest;
+            _host = value;   // criar/dar/editar/excluir ficam só na ferramenta Quests; o painel de baixo do NPC só mostra (usuário 01/11)
         }
     }
 
@@ -301,15 +299,15 @@ internal sealed partial class WorldView : Form
                         if (NpcQuests(mk.Id) is { } qi)
                         {
                             // NPC: com a ferramenta Quests, no painel dela; sem ferramenta, as quests dele no painel de baixo (como a criatura)
-                            _questNpc = mk.Id; _creature.HidePanel();
+                            _questNpc = mk.Id; HideBottomPanels();
                             if (_tool == Tool.Quests) ShowQuestTool(qi);
-                            else if (_tool == Tool.None) _quests.ShowNpc(qi, expanded: true);
+                            else if (BottomPanelsAllowed) _quests.ShowNpc(qi);
                         }
                         else
                         {
-                            _quests.HidePanel();
+                            HideBottomPanels();
                             // monstro: painel da criatura (renascer, quantidade, quests que pedem para matar)
-                            if (ShowCreatureInfo?.Invoke(mk.Tag, _creature) != true) _creature.HidePanel();
+                            if (BottomPanelsAllowed && ShowCreatureInfo?.Invoke(mk.Tag, _creature) != true) _creature.HidePanel();
                         }
                     }
                 }
@@ -320,7 +318,7 @@ internal sealed partial class WorldView : Form
             // clique esquerdo no vazio (sem arrastar a câmera): o NPC perde a seleção e a barra de quests some
             else if (e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4)
             {
-                _quests.HidePanel(); _creature.HidePanel();
+                HideBottomPanels();
                 _questNpc = 0;   // a ferramenta Quests volta a pedir "Clique em um NPC"
                 if (_tool == Tool.Quests) ShowQuestTool(null);
                 if (_selected() is not null) { ClearSelection?.Invoke(); _gizmoHover = 0; _gl.Invalidate(); }
@@ -1682,7 +1680,17 @@ internal sealed partial class WorldView : Form
             return;
         }
         if (MessageBox.Show(this, ask, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-        if (_host.Delete(questId) is { } err) { MessageBox.Show(this, err, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        // quest com seguintes na cadeia (nova ao concluir / quest anterior): pergunta se saem junto (usuário 01/11)
+        bool withNext = false;
+        if (_host.NextQuests(questId) is { Count: > 0 } next)
+        {
+            var list = string.Join("\n", next.Take(15).Select(n => $"   {n.Id}  {n.Name}")) + (next.Count > 15 ? "\n   …" : "");
+            var r = MessageBox.Show(this, string.Format(Loc.T("qe.askNext", "Esta quest abre {0} quest(s) seguinte(s) na cadeia:\n\n{1}\n\nExcluir também essas quests e tirá-las dos NPCs e áreas onde estão?\n\nSim = exclui todas · Não = só esta (as seguintes ficam esperando uma quest que não existe) · Cancelar = nada"), next.Count, list),
+                Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (r == DialogResult.Cancel) return;
+            withNext = r == DialogResult.Yes;
+        }
+        if (_host.Delete(questId, withNext) is { } err) { MessageBox.Show(this, err, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         QuestDone(_questNpc);
         _status.Text = string.Format(Loc.T("qe.deleted", "Quest {0} excluída e tirada dos NPCs (Ctrl+Z desfaz) — clique em Salvar no editor para gravar."), questId);
     }
@@ -1698,7 +1706,9 @@ internal sealed partial class WorldView : Form
             act => { _pickMonster = act; _pickNpc = null; _pickArea = null; _pickMine = null; _status.Text = Loc.T("qe.pickingMonster", "Clique num ponto de monstro no mundo… (Esc cancela)"); _gl.Focus(); },
             act => { _pickMine = act; _pickNpc = null; _pickArea = null; _pickMonster = null; _status.Text = Loc.T("qe.pickingMine", "Clique num ponto de coleta (minério, erva…) no mundo… (Esc cancela)"); _gl.Focus(); });
         var ed = _editor = new WorldQuestEditor(_host, draft, world);
-        void Close() { _pickNpc = null; _pickMonster = null; _pickMine = null; _pickArea = null; _areaA = _areaB = null; _areas = Array.Empty<QuestArea>(); Controls.Remove(ed); ed.Dispose(); _editor = null; _gl.Focus(); _gl.Invalidate(); }
+        // durante a edição só o assistente fica na tela: o menu/painel de ferramentas some e volta ao concluir ou cancelar (usuário 01/11)
+        _tools.Visible = false;
+        void Close() { _pickNpc = null; _pickMonster = null; _pickMine = null; _pickArea = null; _areaA = _areaB = null; _areas = Array.Empty<QuestArea>(); Controls.Remove(ed); ed.Dispose(); _editor = null; _tools.Visible = true; LayoutTools(); _gl.Focus(); _gl.Invalidate(); }
         ed.Created += id =>
         {
             Close();

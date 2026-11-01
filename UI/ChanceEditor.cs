@@ -90,7 +90,7 @@ internal sealed class ChanceEditor : Form
             DialogResult = DialogResult.OK;
         };
         bottom.Controls.Add(_status, 0, 0); bottom.Controls.Add(ok, 1, 0); bottom.Controls.Add(cancel, 2, 0);
-        Info(drops ? Loc.T("dropEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o item. Shift/Ctrl+clique marca várias; Delete remove. Ctrl+Z desfaz.")
+        Info(drops ? Loc.T("dropEd.hint2", "O jogo conta cada grupo como 100%: sorteia quantos itens caem (Chance de cair N itens) e, a cada vez, um item da lista pelo peso. Para cair menos, aumente \"cair 0 itens\". Duplo clique no nome troca o item; Delete remove; Ctrl+Z desfaz.")
             : Loc.T("addonEd.hint", "Arraste as barras; o cadeado fixa o slot. Duplo clique no nome troca o addon. Shift/Ctrl+clique marca várias; Delete remove. Ctrl+C/Ctrl+V copia linhas entre listas e itens. Ctrl+Z desfaz."));
         CancelButton = cancel;
         Controls.Add(tabs); Controls.Add(bottom);

@@ -4605,5 +4605,16 @@
   "qt.useTool": "this NPC's quests: Quests tool (menu on the right)",
   "qe.tKey": "Cultivation (key)",
   "path.savedAt": "✓ Paths saved at {0:HH:mm:ss}. Restart the map on the server.",
-  "path.savedFlash": "✓ Saved!"
+  "path.savedFlash": "✓ Saved!",
+  "dropEd.hint2": "The game counts each group as 100%: it rolls how many items drop (Chance to drop N items) and, each time, one item from the list by weight. To drop less, raise \"drop 0 items\". Double-click the name to change the item; Delete removes; Ctrl+Z undoes.",
+  "qe.repeat": "Repetition",
+  "qe.repeatHint": "How many times the same player can do the quest.",
+  "qe.rOnce": "Only once",
+  "qe.rRedo": "Can always redo",
+  "qe.rDaily": "Once a day",
+  "qe.rWeekly": "Once a week",
+  "qe.rMonthly": "Once a month",
+  "quest.deletedChain": "Quest {0} and {1} following quest(s) deleted",
+  "qe.askNext": "This quest opens {0} following quest(s) in the chain:\n\n{1}\n\nAlso delete those quests and remove them from the NPCs and areas where they are?\n\nYes = delete all · No = only this one (the following ones will wait for a quest that does not exist) · Cancel = nothing",
+  "rule.questId16": "Quest ID above {0}: the game stores the character's quests in 16 bits and it does not work"
 }

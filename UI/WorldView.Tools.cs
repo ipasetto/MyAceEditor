@@ -140,13 +140,18 @@ internal sealed partial class WorldView
     /// <summary>Altura que o conteúdo visível da página pede (o painel não fica com sobra vazia embaixo).</summary>
     static int FitHeight(FlowLayoutPanel p) => p.Padding.Vertical + 10 + p.Controls.Cast<Control>().Where(c => c.Visible || !p.Visible).Sum(c => c.Height + c.Margin.Vertical);
 
+    /// <summary>Painéis de baixo (quests do NPC, criatura) só sem ferramenta: com uma ferramenta aberta a tela mostra só o que
+    /// ela edita (regra do usuário 01/11). Todo painel de baixo novo passa por aqui.</summary>
+    bool BottomPanelsAllowed => _tool == Tool.None;
+    void HideBottomPanels() { _quests.HidePanel(); _creature.HidePanel(); }
+
     /// <summary>Abre a ferramenta: liga a visão do que ela mexe e o painel dela toma o lugar do menu (seta para voltar).</summary>
     void OpenTool(Tool t)
     {
         _tool = t; _toolsFolded = false;
         _toolBack.Visible = true;
         // só o que a ferramenta faz: sai o painel de baixo (quests/criatura) e a legenda
-        _quests.HidePanel(); _creature.HidePanel();
+        HideBottomPanels();
         if (_legendOpen) { _legendOpen = false; _gl.Invalidate(); }
         _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "\uF158" : t == Tool.Quests ? "\uE7C1" : "\uE707", Color.White, 18);
         if (t == Tool.Quests)

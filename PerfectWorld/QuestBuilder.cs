@@ -549,6 +549,30 @@ public static class QuestBuilder
     }
 
     /// <summary>
+    /// Quests seguintes da cadeia de <paramref name="rootId"/> (IDs das principais, em ordem): a "nova quest ao concluir" de
+    /// qualquer nó da árvore e as quests que têm esta como quest anterior; em cascata (a seguinte da seguinte...).
+    /// </summary>
+    public static List<int> NextQuests(TasksFile t, int rootId)
+    {
+        int RootOf(int id) { var n = t.Index.Find(id) as QuestNode; while (n?.Parent is { } p) n = p; return n?.Id ?? 0; }
+        var next = new Dictionary<int, List<int>>();   // principal -> principais que vêm depois dela
+        void Link(int from, int to) { if (from > 0 && to > 0 && from != to) { if (!next.TryGetValue(from, out var l)) next[from] = l = new(); if (!l.Contains(to)) l.Add(to); } }
+        foreach (var root in t.Roots!)
+            foreach (var n in root.Descendants().Prepend(root))
+                foreach (var (k, v) in ReadRec(n, t.Version).V)
+                {
+                    if (v is byte[] || Convert.ToInt64(v) is not (> 0 and var x)) continue;
+                    if (k.StartsWith("m_ulPremise_Tasks[")) Link(RootOf((int)x), root.Id);
+                    else if (k == QuestOptions.AwardPrefix + "m_ulNewTask") Link(root.Id, RootOf((int)x));
+                }
+        var res = new List<int>(); var seen = new HashSet<int> { rootId }; var queue = new Queue<int>(); queue.Enqueue(rootId);
+        while (queue.Count > 0)
+            foreach (var id in next.GetValueOrDefault(queue.Dequeue()) ?? new())
+                if (seen.Add(id)) { res.Add(id); queue.Enqueue(id); }
+        return res;
+    }
+
+    /// <summary>
     /// Troca a quest <paramref name="old"/> pela do rascunho na mesma posição da lista (editar quest); a antiga sai do arquivo.
     /// Quem chama guarda a antiga e a posição para o desfazer. Chame <see cref="Validate"/> antes.
     /// </summary>

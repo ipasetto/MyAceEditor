@@ -10,6 +10,9 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public static class QuestRules
 {
+    /// <summary>Maior ID de quest que o jogo aceita (ID guardado em unsigned short no personagem).</summary>
+    public const int MaxQuestId = 65535;
+
     public static List<ItemRules.Problem> Check(TasksFile tasks, Module m)
     {
         var list = new List<ItemRules.Problem>();
@@ -19,6 +22,12 @@ public static class QuestRules
         foreach (var g in tasks.AllNodes().GroupBy(q => q.Id).Where(g => g.Count() > 1))
             list.Add(new("quest-dup", "TASKS", g.Key.ToString(), QName(g.First()),
                 string.Format(UI.Loc.T("rule.questDup", "ID de quest repetido ({0}×): o gs ignora a segunda"), g.Count())));
+
+        // o personagem guarda as quests ativas e concluídas com ID de 16 bits (gs task/TaskProcess.h TASK_ENTRY_FIXED_DATA.m_ID,
+        // FnshedTaskEntry.m_uTaskId = unsigned short): acima de 65535 a quest não fica ativa nem conta como feita
+        foreach (var q in tasks.AllNodes().Where(q => q.Id > MaxQuestId))
+            list.Add(new("quest-id16", "TASKS", q.Id.ToString(), QName(q),
+                string.Format(UI.Loc.T("rule.questId16", "ID de quest acima de {0}: o jogo guarda a quest do personagem em 16 bits e ela não funciona"), MaxQuestId)));
 
         // serviço de dar/receber quest do NPC apontando para quest que não existe (quest apagada por fora): no jogo o NPC lista
         // uma quest que não existe. Limpar: Mundo 3D, painel do NPC → "Tirar do NPC"

@@ -14,7 +14,8 @@ internal static class QuestShotTest
         public string? Commit(QuestDraft d) => null;
         public QuestDraft? EditDraft(int questId, out string? why) { why = null; return new QuestDraft { Id = questId, Editing = questId }; }
         public string? DeleteAsk(int questId) => "Excluir " + questId;
-        public string? Delete(int questId) => null;
+        public string? Delete(int questId, bool withNext = false) => null;
+        public IReadOnlyList<(int Id, string Name)> NextQuests(int questId) => Array.Empty<(int, string)>();
         public string? RemoveMissing(int questId) => null;
         public string? NameOf(int id) => id == 2001 ? "Ferreiro Wang" : id == 2002 ? "Guarda Li" : id == 3001 ? "Lobo da Colina" : id == 3002 ? "Lobo Alfa" : $"Item {id}";
         public bool IsNpc(int id) => id is 2001 or 2002;

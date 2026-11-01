@@ -1565,6 +1565,8 @@ public sealed class EditorForm : Form
 
     // ---------- seletor de blocos (busca + categorias + ícone de cada bloco) ----------
     internal Form? LastPicker;   // --snapshot ... picker: print do seletor de bloco
+    // seções abertas no seletor de bloco (chave da categoria), guardadas entre sessões
+    private readonly HashSet<string> _pickerOpenCats = new((LoadSetting("blockPickOpen") ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     private bool _pickerOpen;   // evita abrir de novo enquanto o seletor está aberto (piscava abrindo/fechando)
     private readonly Dictionary<ItemList, int> _blockIconCache = new();
     private void ShowBlockPicker()
@@ -1586,18 +1588,24 @@ public sealed class EditorForm : Form
             BackColor = CTreeBg, ForeColor = CTreeFg, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10), SmallImageList = _treeIcons, OwnerDraw = true,
         };
         // títulos de seção em faixa (barra azul + negrito + contagem), como na grade; os grupos do Windows ficavam apagados
-        // no fundo escuro (teste 11, usuário 01/11). Linha de título = Tag string; bloco = Tag int.
+        // no fundo escuro (teste 11, usuário 01/11). Bloco = Tag int; título = Tag string (chave da categoria); espaço = Tag null.
+        // Seções começam recolhidas; clicar no título abre/fecha e fica guardado (blockPickOpen); com busca, tudo aberto.
         lv.DrawItem += (_, e) =>
         {
-            if (e.Item.Tag is not string) { e.DrawDefault = true; return; }
+            if (e.Item.Tag is int) { e.DrawDefault = true; return; }
             var r = e.Bounds;
+            using (var bg = new SolidBrush(CTreeBg)) e.Graphics.FillRectangle(bg, r);
+            if (e.Item.Tag is not string key) return;   // espaço entre seções
+            bool open = search.Text.Trim().Length > 0 || _pickerOpenCats.Contains(key);
             using (var b = new SolidBrush(Color.FromArgb(32, 44, 62))) e.Graphics.FillRectangle(b, r);
             using (var b = new SolidBrush(CAccent)) e.Graphics.FillRectangle(b, r.Left + 2, r.Top + 4, 4, r.Height - 8);
+            var chev = UiKit.Icon(open ? "" : "", Color.FromArgb(130, 190, 255), 12);
+            e.Graphics.DrawImage(chev, r.Left + 12, r.Top + (r.Height - chev.Height) / 2);
             using var hf = new Font("Segoe UI Semibold", 10f);
-            TextRenderer.DrawText(e.Graphics, e.Item.Text, hf, new Rectangle(r.Left + 14, r.Top, r.Width - 16, r.Height), Color.FromArgb(130, 190, 255),
+            TextRenderer.DrawText(e.Graphics, e.Item.Text, hf, new Rectangle(r.Left + 30, r.Top, r.Width - 32, r.Height), Color.FromArgb(130, 190, 255),
                 TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         };
-        lv.ItemSelectionChanged += (_, e) => { if (e.IsSelected && e.Item?.Tag is string) e.Item.Selected = false; };
+        lv.ItemSelectionChanged += (_, e) => { if (e.IsSelected && e.Item?.Tag is not int) e.Item!.Selected = false; };
         typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(lv, true);
         lv.Columns.Add("", f.Width - 24);
         f.Controls.Add(lv); f.Controls.Add(search);
@@ -1616,22 +1624,24 @@ public sealed class EditorForm : Form
             var q = search.Text.Trim();
             target = null;
             lv.BeginUpdate(); lv.Items.Clear();
-            var cats = new List<(string Cat, List<ListViewItem> Items)>();
+            var cats = new List<(string Key, string Cat, List<ListViewItem> Items)>();
             for (int i = 0; i < _blockCombo.Items.Count; i++)
             {
                 if (_blockCombo.Items[i] is not BlockEntry e || e.Header) continue;
                 var text = e.ToString().Trim();
                 if (q.Length > 0 && !text.Contains(q, StringComparison.OrdinalIgnoreCase) && !(e.Block?.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)) continue;
-                var cat = e.Block is null ? Loc.T("blockPick.top", "Atalhos") : CategoryName(BlockCategory(e.Block.Name));
+                var key = e.Block is null ? "top" : BlockCategory(e.Block.Name);
+                var cat = e.Block is null ? Loc.T("blockPick.top", "Atalhos") : CategoryName(key);
                 var item = new ListViewItem(text, e.Block is null ? -1 : BlockIcon(e.Block)) { Tag = i };
-                if (cats.Count == 0 || cats[^1].Cat != cat) cats.Add((cat, new()));
+                if (cats.Count == 0 || cats[^1].Key != key) cats.Add((key, cat, new()));
                 cats[^1].Items.Add(item);
                 if (i == _blockCombo.SelectedIndex) target = item;
             }
-            foreach (var (cat, items) in cats)
+            foreach (var (key, cat, items) in cats)
             {
-                lv.Items.Add(new ListViewItem($"{cat.ToUpperInvariant()}   ({items.Count})") { Tag = cat });
-                lv.Items.AddRange(items.ToArray());
+                if (lv.Items.Count > 0) lv.Items.Add(new ListViewItem("") { Tag = null });   // espaço antes da próxima seção
+                lv.Items.Add(new ListViewItem($"{cat.ToUpperInvariant()}   ({items.Count})") { Tag = key });
+                if (q.Length > 0 || _pickerOpenCats.Contains(key)) lv.Items.AddRange(items.ToArray());
             }
             lv.EndUpdate();
             if (target is null && q.Length > 0) target = lv.Items.Cast<ListViewItem>().FirstOrDefault(x => x.Tag is int);
@@ -1648,12 +1658,26 @@ public sealed class EditorForm : Form
         }
         void Choose()
         {
-            if (lv.SelectedItems.Count > 0 && lv.SelectedItems[0].Tag is int idx) _blockCombo.SelectedIndex = idx;
+            if (lv.SelectedItems.Count == 0 || lv.SelectedItems[0].Tag is not int idx) return;   // título/espaço: não fecha
+            _blockCombo.SelectedIndex = idx;
             f.Close();
         }
         search.TextChanged += (_, _) => Fill();
         lv.ItemActivate += (_, _) => Choose();
-        lv.MouseUp += (_, e) => { if (e.Button == MouseButtons.Left && lv.GetItemAt(e.X, e.Y) is not null) Choose(); };
+        lv.MouseUp += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Left || lv.GetItemAt(e.X, e.Y) is not { } hit) return;
+            if (hit.Tag is string key && search.Text.Trim().Length == 0)
+            {
+                if (!_pickerOpenCats.Remove(key)) _pickerOpenCats.Add(key);
+                SaveSetting("blockPickOpen", string.Join("|", _pickerOpenCats));
+                int top = lv.TopItem?.Index ?? 0;
+                Fill();
+                if (lv.Items.Count > 0) lv.TopItem = lv.Items[Math.Min(top, lv.Items.Count - 1)];
+                return;
+            }
+            if (hit.Tag is int) Choose();
+        };
         f.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Escape) f.Close();
@@ -3073,7 +3097,8 @@ public sealed class EditorForm : Form
             return QuestBuilder.FromQuest(t, q, out why);
         }
         public string? DeleteAsk(int questId) => f.DeleteQuestAsk(questId);
-        public string? Delete(int questId) => f.DeleteQuestById(questId);
+        public string? Delete(int questId, bool withNext = false) => f.DeleteQuestById(questId, withNext);
+        public IReadOnlyList<(int Id, string Name)> NextQuests(int questId) => f.NextQuestsOf(questId);
         public string? RemoveMissing(int questId) => f.RemoveMissingQuest(questId);
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
@@ -3120,7 +3145,27 @@ public sealed class EditorForm : Form
         if (_tasks is not { FullSchema: true } t) { why = Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data."); return null; }
         if (!t.CanWrite) { why = Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason; return null; }
         if (QuestBuilder.FindRecadoTemplate(t) is null) { why = Loc.T("qb.noTemplate", "Não há uma quest de recado neste tasks.data para servir de modelo."); return null; }
-        return new QuestDraft { Id = t.NextFreeId(), Giver = giverNpc };
+        return new QuestDraft { Id = Math.Max(t.NextFreeId(), QuestIdsUsed() + 1), Giver = giverNpc };
+    }
+
+    // Maior ID de quest já entregue por este tasks.data (settings questIdsUsed: "caminho<TAB>maior" por linha). Quest nova
+    // nunca reaproveita o ID de uma apagada: o personagem que concluiu a antiga não vê a nova (cliente ATaskTempl::CanShowTask
+    // -> CheckFnshLst; PW-KB §S21). Teste 4 do usuário, 01/11.
+    private int QuestIdsUsed()
+    {
+        if (_tasksPath is null) return 0;
+        foreach (var line in (LoadSetting("questIdsUsed") ?? "").Split('\n'))
+            if (line.Split('\t') is [var path, var max] && string.Equals(path, _tasksPath, StringComparison.OrdinalIgnoreCase) && int.TryParse(max, out var m)) return m;
+        return 0;
+    }
+
+    private void MarkQuestIdsUsed(TasksFile t)
+    {
+        if (_tasksPath is null) return;
+        int max = Math.Max(QuestIdsUsed(), t.NextFreeId() - 1);
+        var lines = (LoadSetting("questIdsUsed") ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(l => !l.StartsWith(_tasksPath + "\t", StringComparison.OrdinalIgnoreCase)).Append(_tasksPath + "\t" + max);
+        SaveSetting("questIdsUsed", string.Join("\n", lines));
     }
 
     private string QuestSummary(QuestDraft d)
@@ -3221,6 +3266,7 @@ public sealed class EditorForm : Form
                 if ((err = AddQuestToService(CreatureItem(npc)!.Value.Item, quest, give)) is not null) break;
         }
         if (err is not null) _edits.Undo();   // algo não coube: desfaz a quest e o que já foi ligado
+        else MarkQuestIdsUsed(t);
         RefreshQuests();
         return err;
         }
@@ -3262,21 +3308,33 @@ public sealed class EditorForm : Form
         return sb.ToString();
     }
 
-    /// <summary>Exclui a quest principal (de qualquer ID da árvore) e tira os IDs dos serviços dos NPCs, num passo do desfazer.</summary>
-    private string? DeleteQuestById(int questId)
+    private IReadOnlyList<(int Id, string Name)> NextQuestsOf(int questId)
+    {
+        if (_tasks is not { FullSchema: true } t || t.Index.Find(questId) is not QuestNode q) return Array.Empty<(int, string)>();
+        while (q.Parent is { } p) q = p;
+        return QuestBuilder.NextQuests(t, q.Id).Select(id => (id, t.Index.Find(id) is QuestNode n ? TasksFile.SplitColor(n.Name).Text : "")).ToList();
+    }
+
+    /// <summary>Exclui a quest principal (de qualquer ID da árvore) e tira os IDs dos serviços dos NPCs, num passo do desfazer.
+    /// <paramref name="withNext"/>: também as quests seguintes da cadeia (QuestBuilder.NextQuests), no mesmo passo.</summary>
+    private string? DeleteQuestById(int questId, bool withNext = false)
     {
         if (_tasks is not { FullSchema: true } t || t.Index.Find(questId) is not QuestNode q) return Loc.T("qb.noQuest", "Quest não encontrada no tasks.data.");
         if (!t.CanWrite) return Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason;
         while (q.Parent is { } p) q = p;
-        var ids = q.Descendants().Select(n => n.Id).Append(q.Id).ToHashSet();
-        int at = t.Roots!.IndexOf(q);
-        var label = string.Format(Loc.T("quest.deleted", "Quest {0} excluída"), q.Id);
+        var roots = new List<QuestNode> { q };
+        if (withNext) roots.AddRange(QuestBuilder.NextQuests(t, q.Id).Select(id => t.Index.Find(id)).OfType<QuestNode>());
+        var ids = roots.SelectMany(r => r.Descendants().Select(n => n.Id).Append(r.Id)).ToHashSet();
+        var label = roots.Count == 1 ? string.Format(Loc.T("quest.deleted", "Quest {0} excluída"), q.Id)
+            : string.Format(Loc.T("quest.deletedChain", "Quest {0} e {1} seguinte(s) excluídas"), q.Id, roots.Count - 1);
         using (_edits.Batch(label))
         {
             RemoveQuestFromServices(ids);
+            // posições guardadas antes; o desfazer devolve na ordem inversa para cada uma voltar ao lugar
+            var at = roots.Select(r => t.Roots!.IndexOf(r)).ToList();
             _edits.Custom(label,
-                () => { t.DeleteRoot(q); MarkTasksDirty(label); },
-                () => { t.MoveRoot(q, at); MarkTasksDirty(label); });
+                () => { foreach (var r in roots) t.DeleteRoot(r); MarkTasksDirty(label); },
+                () => { for (int i = roots.Count - 1; i >= 0; i--) t.MoveRoot(roots[i], at[i]); MarkTasksDirty(label); });
         }
         RefreshQuests();
         return null;
