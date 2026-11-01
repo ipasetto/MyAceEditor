@@ -32,13 +32,34 @@ internal sealed class PluginsView : Panel
     readonly NumericUpDown _chance = new() { Minimum = 0, Maximum = 100, DecimalPlaces = 1, Increment = 1, Width = 100, Value = 10 };
     readonly ComboBox _startCh = Ch(), _endCh = Ch();
     readonly TextBox _startText = new() { Width = 420 }, _endText = new() { Width = 420 };
+    readonly FlowLayoutPanel _head = new() { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20, 14, 20, 10), BackColor = Color.White };
+    readonly Panel _cardPanel = new() { Dock = DockStyle.Fill, BackColor = Color.White };
     readonly Label _empty = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Muted, Font = new Font("Segoe UI", 11f), BackColor = Color.White };
-    readonly ToolStripButton _send, _fire, _stop, _pause, _resume, _runOn, _runOff;
+    readonly ToolStripButton _send, _runOn, _runOff;
+    // ações do plugin ficam no cartão dele (a barra de cima é só do servidor; a tela vai receber outros tipos de plugin)
+    readonly Button _fire = Act(UiKit.Play, true), _stop = Act(UiKit.Stop), _pauseToggle = Act(UiKit.Hide), _delete = Act(UiKit.Delete);
+    readonly Label _title = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 14f), ForeColor = Fg, Margin = new Padding(0, 0, 0, 2) };
+    readonly Label _sub = new() { AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 0, 0, 8) };
+    readonly Label _result = new() { AutoSize = false, Height = 34, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 0, 10, 0), Font = new Font("Segoe UI Semibold", 9.5f), Visible = false };
+    readonly Label _chanceInfo = new() { AutoSize = true, ForeColor = Color.FromArgb(37, 99, 235), Font = new Font("Segoe UI Semibold", 9.5f), Padding = new Padding(0, 4, 0, 0) };
+    void ChanceInfo() => _chanceInfo.Text = _chance.Value <= 0 ? Loc.T("pl.chanceNever", "= nunca (só chamando)")
+        : string.Format(Loc.T("pl.chanceEvery", "≈ 1 vez a cada {0:0.#} sorteios"), 100m / _chance.Value);
+    readonly Label _countdown = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(12, 9, 0, 0) };
+    readonly System.Windows.Forms.Timer _tick = new() { Interval = 1000 };
     readonly System.Windows.Forms.Timer _poll = new() { Interval = 5000 };
     readonly Stack<string> _undo = new(), _redo = new();
     List<PluginRule> _rules = new();
     Dictionary<string, string> _state = new();
     bool _binding, _dirty, _busy;
+
+    static Button Act(string glyph, bool main = false)
+    {
+        var b = new Button { AutoSize = true, Height = 34, FlatStyle = FlatStyle.Flat, Padding = new Padding(8, 0, 10, 0), Margin = new Padding(0, 0, 8, 0),
+            Image = UiKit.Icon(glyph, main ? Color.White : Fg, 16), TextImageRelation = TextImageRelation.ImageBeforeText,
+            BackColor = main ? UiKit.Accent : Color.White, ForeColor = main ? Color.White : Fg, Cursor = Cursors.Hand };
+        b.FlatAppearance.BorderColor = main ? UiKit.Accent : Color.FromArgb(203, 213, 225);
+        return b;
+    }
 
     static NumericUpDown N(int v, int min, int max) => new() { Minimum = min, Maximum = max, Value = v, Width = 100 };
     static ComboBox Ch() { var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 }; foreach (var x in Channels) c.Items.Add(Loc.T(x.Key, x.Pt)); c.SelectedIndex = 0; return c; }
@@ -46,19 +67,30 @@ internal sealed class PluginsView : Panel
     public PluginsView()
     {
         Dock = DockStyle.Fill; BackColor = Bg;
+        // barra de cima: só o que fala com o servidor (o mesmo para qualquer plugin)
         var top = UiKit.Ribbon();
-        UiKit.Cmd(top, UiKit.Add, "pl.rNew", "Monstro raro novo", NewRare, "pl.rNewTip", "Plugin que de tempos em tempos sorteia se um monstro (ou grupo) aparece.");
-        UiKit.Cmd(top, UiKit.Delete, "pl.rDelete", "Excluir", DeleteSel, "pl.rDeleteTip", "Tira o plugin escolhido (vale ao Salvar e enviar).");
-        UiKit.Sep(top);
         _send = UiKit.Cmd(top, UiKit.Upload, "pl.rSend", "Salvar e enviar", () => Work(SaveAndSend), "pl.rSendTip", "Grava os plugins no servidor; o programa relê sozinho.", primary: true);
-        UiKit.Sep(top);
-        _fire = UiKit.Cmd(top, UiKit.Play, "pl.rFire", "Chamar agora", () => Command("fire"), "pl.rFireTip", "Faz o evento acontecer agora, sem sorteio (também pelo painel do GM).");
-        _stop = UiKit.Cmd(top, UiKit.Stop, "pl.rStop", "Encerrar", () => Command("stop"), "pl.rStopTip", "Termina o evento ativo agora: os monstros somem e sai o aviso de fim.");
-        _pause = UiKit.Cmd(top, UiKit.Hide, "pl.rPause", "Pausar", () => Command("pause"), "pl.rPauseTip", "Para de sortear este plugin (não apaga).");
-        _resume = UiKit.Cmd(top, UiKit.Refresh, "pl.rResume", "Retomar", () => Command("resume"), "pl.rResumeTip", "Volta a sortear.");
         UiKit.Sep(top);
         _runOn = UiKit.Cmd(top, UiKit.Server, "pl.rRunOn", "Ligar programa", () => Work(StartProgram), "pl.rRunOnTip", "Instala (se preciso) e liga o programa dos plugins no servidor local.");
         _runOff = UiKit.Cmd(top, UiKit.Cancel, "pl.rRunOff", "Desligar programa", () => Work(() => { Admin().PluginsStop(); return Loc.T("pl.offDone", "Programa desligado."); }));
+        UiKit.Sep(top);
+        UiKit.Cmd(top, UiKit.Download, "pl.rImport", "Importar plugin", ImportPlugin, "pl.rImportTip", "Traz plugins de um arquivo .json (exportado aqui ou feito por outra pessoa; docs/PLUGINS.md).");
+        UiKit.Cmd(top, UiKit.Export, "pl.rExport", "Exportar plugin", ExportPlugin, "pl.rExportTip", "Grava o plugin escolhido num arquivo .json para usar em outro servidor.");
+
+        // cartão do plugin: título, ações dele, resultado da última ação (verde/vermelho) e quando pode chamar de novo
+        _fire.Text = Loc.T("pl.rFire", "Chamar agora"); _stop.Text = Loc.T("pl.rStop", "Encerrar"); _delete.Text = Loc.T("pl.rDelete", "Excluir");
+        _fire.Click += (_, _) => Command("fire"); _stop.Click += (_, _) => Command("stop");
+        _pauseToggle.Click += (_, _) => Command(_state.GetValueOrDefault(Sel?.Id ?? "", "") == "pausado" ? "resume" : "pause");
+        _delete.Click += (_, _) => DeleteSel();
+        var tips = new ToolTip();
+        tips.SetToolTip(_fire, Loc.T("pl.rFireTip", "Faz o evento acontecer agora, sem sorteio (também pelo painel do GM)."));
+        tips.SetToolTip(_stop, Loc.T("pl.rStopTip", "Termina o evento ativo agora: os monstros somem e sai o aviso de fim."));
+        tips.SetToolTip(_delete, Loc.T("pl.rDeleteTip", "Tira o plugin escolhido (vale ao Salvar e enviar)."));
+        var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0) };
+        actions.Controls.AddRange(new Control[] { _fire, _stop, _pauseToggle, _delete, _countdown });
+        _head.Controls.Add(_title); _head.Controls.Add(_sub); _head.Controls.Add(actions);
+        _tick.Tick += (_, _) => Countdown();
+        _tick.Start();
 
         _list.Columns.Add(Loc.T("pl.colName", "Plugin"), 160); _list.Columns.Add(Loc.T("pl.colState", "Agora"), 150);
         _list.SelectedIndexChanged += (_, _) => Bind();
@@ -66,16 +98,20 @@ internal sealed class PluginsView : Panel
         _empty.Text = Loc.T("pl.empty2", "Nenhum plugin ainda.\n\nClique em \"Monstro raro novo\" (barra de cima) para criar um monstro que aparece por sorteio.");
 
         var left = new Panel { Dock = DockStyle.Left, Width = 330, Padding = new Padding(10, 6, 6, 6), BackColor = Bg };
-        left.Controls.Add(_list);
+        var newBtn = Act(UiKit.Add, true);
+        newBtn.Text = Loc.T("pl.rNew", "Monstro raro novo"); newBtn.Dock = DockStyle.Top; newBtn.Click += (_, _) => NewRare();
+        tips.SetToolTip(newBtn, Loc.T("pl.rNewTip", "Plugin que de tempos em tempos sorteia se um monstro (ou grupo) aparece."));
+        left.Controls.Add(_list); left.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 6, BackColor = Bg }); left.Controls.Add(newBtn);
         var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(6, 6, 10, 6), BackColor = Bg };
-        right.Controls.Add(_form); right.Controls.Add(_empty);
+        _cardPanel.Controls.Add(_form); _cardPanel.Controls.Add(_result); _cardPanel.Controls.Add(_head);
+        right.Controls.Add(_cardPanel); right.Controls.Add(_empty);
         var logBox = new Panel { Dock = DockStyle.Bottom, Height = 125, Padding = new Padding(10, 0, 10, 8), BackColor = Bg };
         logBox.Controls.Add(_log);
         logBox.Controls.Add(new Label { Dock = DockStyle.Top, Height = 22, Text = Loc.T("pl.history", "Histórico do programa (servidor)"), ForeColor = Muted, Font = new Font("Segoe UI Semibold", 9f) });
         Controls.Add(right); Controls.Add(left); Controls.Add(logBox); Controls.Add(_card); Controls.Add(top);
         _poll.Tick += (_, _) => { if (Visible && !_busy) Work(Refresh, quiet: true); };
         VisibleChanged += (_, _) => { _poll.Enabled = Visible; if (Visible) Work(Load, quiet: true); };
-        Disposed += (_, _) => _poll.Dispose();
+        Disposed += (_, _) => { _poll.Dispose(); _tick.Dispose(); };
         Bind();
     }
 
@@ -112,7 +148,8 @@ internal sealed class PluginsView : Panel
         _form.Controls.Add(_enabled);
         _form.Controls.Add(Note("pl.onNote", "Desligado: só aparece quando chamado (aqui ou no painel do GM)."));
         Field("pl.every", "Sortear a cada (minutos)", _every);
-        Field("pl.chance", "Chance de aparecer em cada sorteio (%)", _chance, "pl.chanceNote", "Ex.: 10 = em média 1 vez a cada 10 sorteios.");
+        Field("pl.chance", "Chance de aparecer em cada sorteio (%)", Line(_chance, _chanceInfo), "pl.chanceNote2", "Ex.: 10 = em média 1 vez a cada 10 sorteios; 20 = 1 em 5.");
+        _chance.ValueChanged += (_, _) => ChanceInfo();
         Field("pl.dur", "Fica no mapa por (minutos)", _dur, "pl.durNote", "Depois disso o evento termina e os monstros que sobraram somem.");
         Field("pl.cool", "Espera mínima entre um evento e outro (segundos)", _cool, "pl.coolNote", "Vem do Renascer do ponto (+15 s do jogo): nem o sorteio nem o \"Chamar agora\" fazem ele voltar antes. Ele nasce uma vez só por evento.");
 
@@ -124,6 +161,7 @@ internal sealed class PluginsView : Panel
         _form.Controls.Add(Section("pl.s4", "Detalhes (preenchidos sozinhos)"));
         Field("pl.world", "Mapa (número do gs: 1 = mundo)", _world);
         Field("pl.ctrl", "Evento do ponto (ID no npcgen)", _ctrl, "pl.ctrlNote2", "Preenchido sozinho: o controlador que liga e desliga o ponto.");
+        _form.Controls.Add(new Panel { Width = 10, Height = 60, Margin = new Padding(0) });   // sobra embaixo (o padding não entra na rolagem)
 
         foreach (Control c in new Control[] { _name, _startText, _endText }) c.TextChanged += (_, _) => Edited();
         foreach (var n in new[] { _world, _ctrl, _every, _dur, _chance, _cool }) n.ValueChanged += (_, _) => Edited();
@@ -154,13 +192,16 @@ internal sealed class PluginsView : Panel
     void Bind()
     {
         var r = Sel;
-        _form.Visible = r is not null; _empty.Visible = r is null;
-        foreach (var b in new[] { _fire, _stop, _pause, _resume }) b.Enabled = r is not null;
+        _cardPanel.Visible = r is not null; _empty.Visible = r is null;
         if (r is null) return;
+        _title.Text = r.Name.Length > 0 ? r.Name : r.Id;
+        _sub.Text = Loc.T("pl.typeRare", "Monstro raro") + " · " + (r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)"));
+        ShowResult(r);
         _binding = true;
         _name.Text = r.Name; _enabled.Checked = r.Enabled; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
         _every.Value = Math.Clamp(r.EveryMin, 1, 100_000); _dur.Value = Math.Clamp(r.DurationMin, 1, 100_000); _chance.Value = (decimal)Math.Clamp(r.ChancePct, 0, 100);
         _startCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.StartChannel)); _endCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.EndChannel));
+        ChanceInfo();
         _startText.Text = r.StartText; _endText.Text = r.EndText; _cool.Value = Math.Clamp(r.CooldownSec, 0, 2_592_000);
         _point.Text = r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)");
         _point.ForeColor = r.Point.Length > 0 ? Color.FromArgb(22, 128, 61) : Muted;
@@ -210,6 +251,77 @@ internal sealed class PluginsView : Panel
             return string.Format(Loc.T("pl.pointDone", "Ponto ligado ao evento {0}. Agora: Salvar e enviar ao servidor (o NPCGen mudou) e reiniciar o mapa; depois Salvar e enviar aqui."), p.GmId)
                 + (tag == 0 ? " " + Loc.T("pl.noTag", "Confira o mapa (worldtag): não achei no gs.conf.") : "");
         });
+    }
+
+    // resultado da última ação do programa (#last no estado): faixa verde (deu certo) ou vermelha (não deu)
+    void ShowResult(PluginRule r)
+    {
+        var last = _state.GetValueOrDefault(r.Id + "#last", "");
+        var p = last.Split('|', 3);
+        if (p.Length < 3) { _result.Visible = false; }
+        else
+        {
+            bool ok = p[0] == "ok";
+            _result.Visible = true;
+            _result.Text = (ok ? "✓  " : "✗  ") + p[1] + "  ·  " + p[2];
+            _result.BackColor = ok ? Color.FromArgb(220, 245, 228) : Color.FromArgb(253, 226, 226);
+            _result.ForeColor = ok ? Color.FromArgb(22, 101, 52) : Color.FromArgb(185, 28, 28);
+        }
+        bool paused = _state.GetValueOrDefault(r.Id, "") == "pausado";
+        _pauseToggle.Text = paused ? Loc.T("pl.rResume", "Retomar") : Loc.T("pl.rPause", "Pausar");
+        _pauseToggle.Image = UiKit.Icon(paused ? UiKit.Refresh : UiKit.Hide, Fg, 16);
+        _pauseToggle.Enabled = r.Enabled;
+        Countdown();
+    }
+
+    // quando pode chamar de novo (#ready) / se está ativo (#active): conta em vermelho; pronto em verde (atualiza a cada 1 s)
+    void Countdown()
+    {
+        if (Sel is not { } r || !Visible) return;
+        bool active = _state.GetValueOrDefault(r.Id + "#active", "0") == "1";
+        var left = DateTime.TryParse(_state.GetValueOrDefault(r.Id + "#ready", ""), out var ready) ? ready - DateTime.Now : TimeSpan.Zero;
+        if (!_running) { _countdown.Text = Loc.T("pl.cdOff", "Programa desligado"); _countdown.ForeColor = Muted; _fire.Enabled = false; _stop.Enabled = false; return; }
+        if (left > TimeSpan.Zero)
+        {
+            _countdown.Text = string.Format(active ? Loc.T("pl.cdActive", "Ativo agora · termina em {0}") : Loc.T("pl.cdWait", "Pode chamar de novo em {0}"), left.ToString(left.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss"));
+            _countdown.ForeColor = active ? Color.FromArgb(37, 99, 235) : Color.FromArgb(220, 38, 38);
+            _fire.Enabled = false;
+        }
+        else
+        {
+            _countdown.Text = Loc.T("pl.cdReady", "✓ Pronto para chamar");
+            _countdown.ForeColor = Color.FromArgb(22, 128, 61);
+            _fire.Enabled = !_dirty;
+        }
+        _stop.Enabled = active;
+    }
+
+    void ImportPlugin()
+    {
+        using var dlg = new OpenFileDialog { Filter = "Plugins (*.json)|*.json", Title = Loc.T("pl.rImport", "Importar plugin") };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        List<PluginRule> add;
+        try { add = PluginFiles.Parse(File.ReadAllText(dlg.FileName)); }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or InvalidOperationException) { Status("⚠ " + ex.Message); return; }
+        if (add.Count == 0) { Status("⚠ " + Loc.T("pl.importNone", "O arquivo não tem plugins.")); return; }
+        Snapshot();
+        foreach (var r in add)
+        {
+            var id = r.Id.Length > 0 ? r.Id : "plugin";
+            for (int n = 2; _rules.Any(x => x.Id == id); n++) id = $"{r.Id}{n}";
+            r.Id = id; _rules.Add(r);
+        }
+        _dirty = true; Fill();
+        Status(string.Format(Loc.T("pl.imported", "{0} plugin(s) importado(s). Confira o ponto de cada um e clique em Salvar e enviar."), add.Count));
+    }
+
+    void ExportPlugin()
+    {
+        if (Sel is not { } r) return;
+        using var dlg = new SaveFileDialog { Filter = "Plugins (*.json)|*.json", FileName = (r.Name.Length > 0 ? r.Name : r.Id) + ".json" };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        File.WriteAllText(dlg.FileName, PluginFiles.Write(new[] { r }));
+        Status(string.Format(Loc.T("pl.exported", "Plugin gravado em {0}."), dlg.FileName));
     }
 
     void NewRare()

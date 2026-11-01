@@ -1085,7 +1085,7 @@ internal sealed class NpcGenView : UserControl
         { why = Loc.T("pl.pickFirst", "Escolha antes um ponto de monstro no NPCGen ou no Mundo 3D (clique nele)."); return null; }
         if (f.Version < 7) { why = Loc.T("ev.noVersion", "Este npcgen.data (versão menor que 7) não tem eventos."); return null; }
         int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
-        var name = $"{NameOf(id0)} ({id0})";
+        var name = NameOf(id0) is { Length: > 0 } nm && nm.Contains(id0.ToString()) ? nm : $"{NameOf(id0)} ({id0})";
         // renascer real = 15 s + o do grupo (gs npcgenerator.cpp BASE_REBORN_TIME; PW-KB §S22)
         int respawn = 15 + Math.Max(0, s.Creatures.FirstOrDefault()?.Respawn ?? 0);
         // ponto de plugin nasce UMA vez por evento: com renascer automático ele voltava a cada morte enquanto o evento estava

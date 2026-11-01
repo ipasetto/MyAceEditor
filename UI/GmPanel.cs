@@ -366,9 +366,10 @@ public sealed class GmPanel : Form
                     Btn(Loc.T("gm.eventOff", "Desligar"), () => Spawner(new[] { (int)trig.Value }, false, "#" + trig.Value)))),
             Group(Loc.T("gm.gPlugins", "Plugins de evento (programa do servidor)"),
                 Row(L(Loc.T("gm.plugin", "Plugin")), _plugins,
-                    Btn(Loc.T("gm.pluginFire", "Chamar agora"), () => PluginCmd("fire"), blue: true),
+                    _plFire = Btn(Loc.T("gm.pluginFire", "Chamar agora"), () => PluginCmd("fire"), blue: true),
                     Btn(Loc.T("gm.pluginStop", "Encerrar"), () => PluginCmd("stop")),
-                    Btn(Loc.T("gm.pluginReload", "Atualizar lista"), FillPlugins))),
+                    Btn(Loc.T("gm.pluginReload", "Atualizar lista"), FillPlugins)),
+                Row(_plInfo)),
             Group(Loc.T("gm.gMobs", "Monstros"),
                 Row(Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); }))),
             // d_rendernofocus: liga/desliga desenhar o jogo sem o foco da janela (EC_DlgCmdConsole.cpp CCMD_RENDERNOFOCUS; PW-KB §S31)
@@ -388,6 +389,39 @@ public sealed class GmPanel : Form
     sealed record GmEvent(string Name, int[] Open, int[] Close) { public override string ToString() => Name; }
     readonly ComboBox _events = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
     readonly ComboBox _plugins = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
+    // contador do plugin escolhido: "Chamar agora" fica desligado com a espera em vermelho e volta em verde quando pode
+    // (estado do programa: #ready/#active/#last; lido a cada 5 s, contado a cada 1 s; usuário 01/11)
+    Button _plFire = null!;
+    readonly Label _plInfo = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 9.5f), Margin = new Padding(3, 4, 3, 4) };
+    Dictionary<string, string> _plState = new();
+    System.Windows.Forms.Timer? _plTimer; int _plTicks; bool _plBusy;
+    void PluginTick()
+    {
+        if (!Visible) return;
+        if (++_plTicks % 5 == 1 && !_plBusy)
+        {
+            _plBusy = true;
+            Task.Run(() => { try { return LocalAdmin().PluginsState(); } catch (Exception) { return new Dictionary<string, string>(); } })
+                .ContinueWith(t => BeginInvoke(() => { _plState = t.Result; _plBusy = false; }));
+        }
+        if (_plugins.SelectedItem is not GmPlugin p) { _plInfo.Text = ""; return; }
+        bool active = _plState.GetValueOrDefault(p.Id + "#active", "0") == "1";
+        var left = DateTime.TryParse(_plState.GetValueOrDefault(p.Id + "#ready", ""), out var ready) ? ready - DateTime.Now : TimeSpan.Zero;
+        var last = _plState.GetValueOrDefault(p.Id + "#last", "").Split('|', 3);
+        string lastTxt = last.Length == 3 ? "   ·   " + (last[0] == "ok" ? "✓ " : "✗ ") + last[1] + " " + last[2] : "";
+        if (left > TimeSpan.Zero)
+        {
+            _plFire.Enabled = false;
+            _plInfo.ForeColor = active ? Color.FromArgb(37, 99, 235) : Color.FromArgb(220, 38, 38);
+            _plInfo.Text = string.Format(active ? Loc.T("pl.cdActive", "Ativo agora · termina em {0}") : Loc.T("pl.cdWait", "Pode chamar de novo em {0}"), left.ToString(left.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss")) + lastTxt;
+        }
+        else
+        {
+            _plFire.Enabled = true;
+            _plInfo.ForeColor = Color.FromArgb(22, 128, 61);
+            _plInfo.Text = Loc.T("pl.cdReady", "✓ Pronto para chamar") + lastTxt;
+        }
+    }
 
     // plugins de evento (docs/PLUGINS.md): o GM chama na hora o mesmo evento que o programa sorteia (fica no histórico)
     sealed record GmPlugin(string Id, string Name) { public override string ToString() => $"{Name} ({Id})"; }
@@ -395,6 +429,7 @@ public sealed class GmPanel : Form
     {
         Task.Run(() => { try { return LocalAdmin().PluginsLoad(); } catch (Exception) { return new List<PluginRule>(); } }).ContinueWith(t => BeginInvoke(() =>
         {
+            if (_plTimer is null) { _plTimer = new System.Windows.Forms.Timer { Interval = 1000 }; _plTimer.Tick += (_, _) => PluginTick(); _plTimer.Start(); Disposed += (_, _) => _plTimer.Dispose(); }
             _plugins.Items.Clear();
             foreach (var r in t.Result) _plugins.Items.Add(new GmPlugin(r.Id, r.Name));
             if (_plugins.Items.Count > 0) _plugins.SelectedIndex = 0;
