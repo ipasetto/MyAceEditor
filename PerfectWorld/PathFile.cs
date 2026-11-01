@@ -43,6 +43,12 @@ public sealed class SevPath
     {
         var p = new SevPath { Version = r.ReadInt32(), Id = r.ReadInt32() };
         if (p.Version >= 2) { p.GlobalId = r.ReadInt32(); p.NextGlobalId = r.ReadInt32(); }
+        return ReadBody(r, p);
+    }
+
+    /// <summary>Pontos e segmentos (iguais no path.sev do servidor e na curva do .ecbsd do cliente, CECBezier::Load).</summary>
+    internal static SevPath ReadBody(BinaryReader r, SevPath p)
+    {
         int np = r.ReadInt32();
         if (np < 0 || np > 100_000) throw new InvalidDataException($"path.sev: caminho {p.Id} com {np} pontos");
         for (int i = 0; i < np; i++) p.Points.Add((Vec3.Read(r), Vec3.Read(r)));

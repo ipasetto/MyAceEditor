@@ -4380,5 +4380,9 @@
   "world.sceneNothing": "Scene: nothing to save.",
   "world.sceneBad": "the reread did not match; nothing was written",
   "world.sceneSaved": "Scene saved to {0} (backup made). Only the client changes; no need to send to the server.",
-  "world.objMoveHere": "Move the chosen effect/sound here"
+  "world.objMoveHere": "Move the chosen effect/sound here",
+  "world.critterInfo": "Decorative critters: {0} · {1} in an area of {2:0} m · {3} · X {4:0} Z {5:0} (view only for now)",
+  "world.critWander": "wander",
+  "world.critHover": "hover",
+  "world.critOther": "behaviour {0}"
 }

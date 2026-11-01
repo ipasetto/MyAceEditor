@@ -692,6 +692,31 @@ internal sealed partial class WorldView : Form
         }
         GL.End();
         GL.PointSize(1);
+        // bichos de enfeite (verde; o escolhido mostra a área) e curvas do cenário (ciano fino)
+        GL.PointSize(8); GL.Begin(PrimitiveType.Points);
+        foreach (var cr in sc.Critters)
+        {
+            var g = Gl(cr.X, cr.Y, cr.Z);
+            if ((g - _cam).LengthSquared > R2) continue;
+            if (cr == _sceneSel) GL.Color3(1f, 1f, 0.4f); else GL.Color3(0.4f, 0.95f, 0.4f);
+            GL.Vertex3(g);
+        }
+        GL.End(); GL.PointSize(1);
+        GL.Color3(0.3f, 0.9f, 0.9f);
+        foreach (var cv in sc.Curves)
+        {
+            if (cv.Points.Count < 2 || !cv.Points.Any(q => (Gl(q.X, q.Y, q.Z) - _cam).LengthSquared < R2)) continue;
+            GL.Begin(PrimitiveType.LineStrip);
+            foreach (var q in cv.Points) GL.Vertex3(Gl(q.X, q.Y, q.Z));
+            GL.End();
+        }
+        if (_sceneSel is WorldScene.Critter c0 && c0.Radius > 0)
+        {
+            GL.Color3(0.4f, 0.95f, 0.4f);
+            GL.Begin(PrimitiveType.LineLoop);
+            for (int i = 0; i < 64; i++) { float t = i / 64f * MathF.Tau; GL.Vertex3(Gl(c0.X + MathF.Cos(t) * c0.Radius, c0.Y, c0.Z + MathF.Sin(t) * c0.Radius)); }
+            GL.End();
+        }
         if (_sceneSel is WorldScene.SceneSound s && s.MaxDist > 0)
         {
             GL.Color3(0.3f, 0.7f, 1f);
@@ -715,11 +740,14 @@ internal sealed partial class WorldView : Form
         }
         foreach (var fx in sc.Effects) Try(fx, fx.X, fx.Y, fx.Z);
         foreach (var sd in sc.Sounds) Try(sd, sd.X, sd.Y, sd.Z);
+        foreach (var cr in sc.Critters) Try(cr, cr.X, cr.Y, cr.Z);
         _sceneSel = best;
         string When(int v) => v switch { 0 => Loc.T("world.whenDay", "de dia"), 1 => Loc.T("world.whenNight", "de noite"), _ => Loc.T("world.whenAlways", "sempre") };
         return best switch
         {
             WorldScene.SceneEffect fx => string.Format(Loc.T("world.fxInfo", "Efeito: {0} · escala {1:0.##} · {2} · X {3:0} Z {4:0} altura {5:0}"), fx.Gfx, fx.Scale, When(fx.ValidTime), fx.X, fx.Z, fx.Y),
+            WorldScene.Critter cr => string.Format(Loc.T("world.critterInfo", "Bichos de enfeite: {0} · {1} na área de {2:0} m · {3} · X {4:0} Z {5:0} (só ver por enquanto)"), cr.Model, cr.Count, cr.Radius,
+                cr.Behaviour switch { 0 => Loc.T("world.critWander", "vagam"), 1 => Loc.T("world.critHover", "pairam"), _ => string.Format(Loc.T("world.critOther", "comportamento {0}"), cr.Behaviour) }, cr.X, cr.Z),
             WorldScene.SceneSound sd => string.Format(Loc.T("world.sndInfo", "Som: {0} · ouve de {1:0} a {2:0} m · {3} · X {4:0} Z {5:0}"), sd.File, sd.MinDist, sd.MaxDist, When(sd.ValidTime), sd.X, sd.Z),
             _ => null,
         };

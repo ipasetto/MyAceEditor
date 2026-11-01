@@ -22,6 +22,14 @@ internal sealed partial class WorldView
     bool _objBinding;
 
     WorldScene? ObjScene => _objScene ?? _trees.Scene;
+
+    /// <summary>Cena do .ecwld + bichos e curvas do .ecbsd (só leitura) para o O desenhar.</summary>
+    WorldScene ScanScene(byte[] ecwld)
+    {
+        var sc = new WorldScene(ecwld);
+        if (_ecwPath is not null) sc.LoadCrittersAndCurves(Path.ChangeExtension(_ecwPath, ".ecbsd"));
+        return sc;
+    }
     bool SceneDirty => _ecw is not null && _ecwSaved is not null && !_ecw.Write().AsSpan().SequenceEqual(_ecwSaved);
 
     /// <summary>Carrega o .ecwld para editar (na 1ª vez que O liga).</summary>
@@ -36,7 +44,7 @@ internal sealed partial class WorldView
             var ef = new EcwldFile(bytes);
             // regra: só edita formato que regrava idêntico
             if (!ef.Write().AsSpan().SequenceEqual(bytes)) { _ecwWhy = Loc.T("world.sceneNotSame", "Este .ecwld não regrava idêntico: edição desligada (só ver)."); return; }
-            _ecw = ef; _ecwSaved = bytes; _objScene = new WorldScene(bytes);
+            _ecw = ef; _ecwSaved = bytes; _objScene = ScanScene(bytes);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { _ecwWhy = ex.Message; }
     }
@@ -87,7 +95,7 @@ internal sealed partial class WorldView
     /// <summary>Mostra/esconde o painel do objeto escolhido (com as coordenadas atuais).</summary>
     void ShowObjPanel()
     {
-        if (_sceneSel is null) { _objPanel.Visible = false; return; }
+        if (_sceneSel is null or WorldScene.Critter) { _objPanel.Visible = false; return; }   // bichos: só ver por enquanto
         var (name, x, y, z) = _sceneSel switch
         {
             WorldScene.SceneEffect fx => (Loc.T("world.objEffect", "Efeito") + ": " + fx.Gfx, fx.X, fx.Y, fx.Z),
@@ -116,7 +124,7 @@ internal sealed partial class WorldView
 
     void Reselect(uint id)
     {
-        _objScene = new WorldScene(_ecw!.Write());
+        _objScene = ScanScene(_ecw!.Write());
         _sceneSel = (object?)_objScene.Effects.FirstOrDefault(e => e.Id == id) ?? _objScene.Sounds.FirstOrDefault(s => s.Id == id);
         ShowObjPanel(); _gl.Invalidate();
     }
@@ -185,7 +193,7 @@ internal sealed partial class WorldView
         int n2 = ObjScene!.Effects.Count;
         SceneUndo(false);
         _sceneSel = fx; ShowObjPanel();
-        return $"cenário: efeito {fx.Gfx} (ID {fx.Id}) · clonar {n0}→{n1} (ID novo {clone?.Id}) · mover X {clone?.X:0.0}→{moved?.X:0.0} · Ctrl+Z×2 {undo1 && undo2} · voltou ao gravado {same} · Ctrl+Y {redo} ({n2} efeitos) · sujo no fim {SceneDirty}";
+        return $"cenário: {sc.Critters.Count} grupos de bichos (ex. {sc.Critters.FirstOrDefault()?.Model}), {sc.Curves.Count} curvas · efeito {fx.Gfx} (ID {fx.Id}) · clonar {n0}→{n1} (ID novo {clone?.Id}) · mover X {clone?.X:0.0}→{moved?.X:0.0} · Ctrl+Z×2 {undo1 && undo2} · voltou ao gravado {same} · Ctrl+Y {redo} ({n2} efeitos) · sujo no fim {SceneDirty}";
     }
 
     void SaveScene()

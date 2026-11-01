@@ -4382,5 +4382,9 @@
   "world.sceneNothing": "场景：没有要保存的内容。",
   "world.sceneBad": "重读不一致；未写入任何内容",
   "world.sceneSaved": "场景已保存到 {0}（已备份）。只改客户端，无需发送到服务器。",
-  "world.objMoveHere": "把所选特效/声音移到这里"
+  "world.objMoveHere": "把所选特效/声音移到这里",
+  "world.critterInfo": "装饰生物：{0} · {1} 只，范围 {2:0} 米 · {3} · X {4:0} Z {5:0}（暂只查看）",
+  "world.critWander": "游荡",
+  "world.critHover": "盘旋",
+  "world.critOther": "行为 {0}"
 }
