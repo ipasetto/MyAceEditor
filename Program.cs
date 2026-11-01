@@ -806,6 +806,16 @@ internal static class Program
         if (args.Length >= 3 && args[0] == "--spt") { SptTest(args[1], args[2]); return; }   // <trees.pck> <pasta>: gera todas as árvores, spt-test.txt + PNG de lado
         if (args.Length >= 2 && args[0] == "--tasks-labels") { TaskLabels(args[1]); return; }   // <tasks.data>: rótulo, valor e dica de cada campo de uma quest com prêmio (tasks-labels.txt)
         if (args.Length >= 2 && args[0] == "--aipolicy") { TestAiPolicy(args[1]); return; }
+        if (args.Length >= 2 && args[0] == "--announce-shot")   // <png>: janela de anúncios com dados de exemplo
+        {
+            using var d = new MyAceEditor.UI.AnnounceDialog("Dragão Sanguinário", 3, 2214, 23, new List<MyAceEditor.PerfectWorld.AiAnnounce.Info>()) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
+            d.Show(); Application.DoEvents();
+            using var bmp = new System.Drawing.Bitmap(d.Width, d.Height);
+            d.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, d.Width, d.Height));
+            bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--announce-test") { AnnounceTest(args[1], int.Parse(args[2])); return; }   // <aipolicy.data> <política>: anúncio em cópia da política, só em memória (announce-test.txt)
         if (args.Length >= 1 && args[0] == "--translate-selftest") { TranslateSelfTest().GetAwaiter().GetResult(); return; }
         if (args.Length >= 2 && args[0] == "--addons") { TestAddons(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--bools") { TestBools(args[1]); return; }
@@ -1079,6 +1089,26 @@ internal static class Program
     }
 
     // --aipolicy <aipolicy.data>: lê, prova o round-trip byte a byte e aponta onde o esquema para (aipolicy-report.txt).
+    // AiAnnounce no arquivo real, só em memória: clona a política, põe anúncio de morte e de combate, grava, relê e confere
+    private static void AnnounceTest(string path, int policyId)
+    {
+        var sb = new StringBuilder();
+        var f = new MyAceEditor.PerfectWorld.AiPolicyFile(path);
+        int before = f.Policies.Count;
+        var p = MyAceEditor.PerfectWorld.AiAnnounce.OwnPolicy(f, policyId, 2, out bool cloned);
+        int ver = MyAceEditor.PerfectWorld.AiAnnounce.TriggerVersion(f, p);
+        p.Triggers.Add(MyAceEditor.PerfectWorld.AiAnnounce.Make(f, p, MyAceEditor.PerfectWorld.AiAnnounce.When.Died, "$B", "derrotou o Dragão!", true));
+        p.Triggers.Add(MyAceEditor.PerfectWorld.AiAnnounce.Make(f, p, MyAceEditor.PerfectWorld.AiAnnounce.When.CombatStart, "$S", "O Dragão despertou!", false));
+        var bytes = f.Build();
+        var g = new MyAceEditor.PerfectWorld.AiPolicyFile(bytes);
+        var gp = g.Policies.FirstOrDefault(x => x.Id == p.Id);
+        sb.AppendLine($"arquivo {Path.GetFileName(path)} v{f.Version}: {before} -> {g.Policies.Count} políticas, clonada={cloned} (ID {p.Id}), versão do gatilho {ver}, nome automático {(MyAceEditor.PerfectWorld.AiAnnounce.CanAppendName(ver) ? "sim" : "não")}");
+        sb.AppendLine($"relido: ok={g.Ok} {g.Error}; regravado igual={g.Build().AsSpan().SequenceEqual(bytes)}");
+        foreach (var a in gp is null ? new() : MyAceEditor.PerfectWorld.AiAnnounce.Find(gp))
+            sb.AppendLine($"  anúncio: {a.When} canal '{a.Prefix}' texto '{a.Text}' nome={a.AppendName} cond={a.Trigger.Root.Type} param={a.Trigger.Root.Param.Length}B alvo={a.Trigger.Ops[0].Target.Type}");
+        File.WriteAllText("announce-test.txt", sb.ToString());
+    }
+
     private static void TestAiPolicy(string path)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();

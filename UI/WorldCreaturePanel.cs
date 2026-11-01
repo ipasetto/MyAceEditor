@@ -9,7 +9,7 @@ internal sealed class WorldCreaturePanel : Panel
     const int Full = 268, Header = 44;
     static readonly Color Bg = Color.FromArgb(28, 32, 38), Bg2 = Color.FromArgb(36, 41, 49), Card = Color.FromArgb(22, 25, 30), Muted = Color.FromArgb(150, 160, 175);
     readonly Label _title = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11f), AutoEllipsis = true };
-    readonly Button _edit, _close;
+    readonly Button _edit, _announce, _close;
     readonly ToolTip _tip = new();
     readonly System.Windows.Forms.Timer _anim = new() { Interval = 12 };
     readonly ComboBox _group = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210, BackColor = Color.FromArgb(40, 46, 56), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -27,6 +27,8 @@ internal sealed class WorldCreaturePanel : Panel
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? OpenQuest { get; set; }
     /// <summary>Abrir a criatura no editor de elements (ID).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? EditCreature { get; set; }
+    /// <summary>Anúncios do monstro (AnnounceDialog / AiAnnounce). Null = botão escondido.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? Announce { get; set; }
 
     static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 90, BackColor = Color.FromArgb(40, 46, 56), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 6, 2) };
     static Label Value() => new() { AutoSize = true, ForeColor = Color.Gainsboro, Margin = new Padding(0, 6, 0, 0) };
@@ -42,9 +44,10 @@ internal sealed class WorldCreaturePanel : Panel
             b.Click += (_, _) => a(); return b;
         }
         _edit = Btn(() => { if (_id > 0) EditCreature?.Invoke(_id); }, "");
+        _announce = Btn(() => { if (_id > 0) Announce?.Invoke(_id); }, "\uE789");
         _close = Btn(HidePanel, "");
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 6, 6, 0) };
-        buttons.Controls.AddRange(new Control[] { _edit, _close });
+        buttons.Controls.AddRange(new Control[] { _announce, _edit, _close });
         var head = new Panel { Dock = DockStyle.Top, Height = Header, BackColor = Bg2 };
         var icon = new PictureBox { Dock = DockStyle.Left, Width = 40, Image = UiKit.Icon("", Color.FromArgb(240, 120, 110), 22), SizeMode = PictureBoxSizeMode.CenterImage };
         head.Controls.Add(_title); head.Controls.Add(icon); head.Controls.Add(buttons);
@@ -88,6 +91,8 @@ internal sealed class WorldCreaturePanel : Panel
                 Loc.T("wc.walk", "Como anda"), Loc.T("wc.trigger", "Quando nasce") };
             for (int i = 0; i < n.Length; i++) _names[i].Text = n[i];
             _edit.Text = Loc.T("wc.edit", "Abrir no editor");
+            _announce.Text = Loc.T("wc.announce", "Anúncios");
+            _tip.SetToolTip(_announce, Loc.T("wc.announceTip", "O que o jogo anuncia quando ele morre ou entra em combate (canal e texto)."));
             _tip.SetToolTip(_edit, Loc.T("wc.editTip", "Abre o monstro no editor de elements (nível, drops, modelo...)."));
             _tip.SetToolTip(_close, Loc.T("wq.close", "Fechar"));
             _quests.Columns[0].Text = Loc.T("wq.colId", "ID"); _quests.Columns[1].Text = Loc.T("wq.colName", "Quest"); _quests.Columns[2].Text = Loc.T("ci.how", "Como usa");
@@ -104,6 +109,7 @@ internal sealed class WorldCreaturePanel : Panel
     /// <summary>Mostra o ponto escolhido; as quests vêm em segundo plano (a 1ª busca leva alguns segundos).</summary>
     public void ShowCreature(int id, string name, IReadOnlyList<SpawnRow> rows, Func<IReadOnlyList<QuestUse>>? quests)
     {
+        _announce.Visible = Announce is not null;
         _id = id; _rows = rows;
         _title.Text = string.Format(Loc.T("wc.title", "{0}   ·   ID {1}"), name, id);
         _group.BeginUpdate(); _group.Items.Clear();

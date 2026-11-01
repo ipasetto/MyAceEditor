@@ -38,6 +38,8 @@ internal sealed class NpcGenView : UserControl
     /// <summary>NPC com serviço de venda (filtro "Comerciantes" do Mundo 3D).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<int, bool>? IsMerchant { get; set; }
+    /// <summary>Anúncios do monstro (EditorForm.OpenAnnouncements).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<IWin32Window, int>? Announce { get; set; }
     /// <summary>inhabit_type do monstro (Mundo 3D: patrulha de voador/nadador com altura).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Func<int, int>? InhabitOf { get; set; }
     /// <summary>Criar e ligar quests pelo Mundo 3D.</summary>
@@ -837,6 +839,8 @@ internal sealed class NpcGenView : UserControl
             if (o is not NpcGenSpawn s || s.Creatures.Count == 0 || _cur is null) return false;
             int id0 = s.Creatures[0].Id;
             var cq = CreatureQuests;
+            var ann = Announce;
+            panel.Announce = ann is null ? null : mid => ann(_world ?? (IWin32Window)this, mid);
             panel.Apply = (r, a, sp, mn, d) =>
             {
                 SelectObject(o); Snapshot("crea3d:" + DateTime.Now.Ticks);

@@ -724,6 +724,25 @@ public sealed class AiPolicyView : UserControl
 
     /// <summary>Salvar tudo / Salvar e enviar ao servidor.</summary>
     public bool HasUnsaved => _dirty;
+    /// <summary>Arquivo aberto e lido inteiro (anúncios do Mundo 3D usam: AiAnnounce); null se não há.</summary>
+    internal AiPolicyFile? OpenFile => _file is { Ok: true } ? _file : null;
+
+    /// <summary>Mudança feita de fora (anúncio, Ctrl+Z dele): refaz a lista de políticas e marca para salvar.</summary>
+    internal void ChangedOutside(Module? m)
+    {
+        if (_file is null) return;
+        SetElements(m);
+        _policies.BeginUpdate(); _policies.Nodes.Clear();
+        foreach (var p in _file.Policies)
+        {
+            var pn = new TreeNode(PolicyLabel(p)) { Tag = p };
+            foreach (var t in p.Triggers) pn.Nodes.Add(new TreeNode(TriggerLabel(t)) { Tag = t });
+            _policies.Nodes.Add(pn);
+        }
+        _policies.EndUpdate();
+        ClearDetail();
+        MarkDirty();
+    }
     public string? FilePath => _file is { Ok: true } ? _path : null;
     public string? SaveIfDirty() { if (!_dirty) return null; SaveFile(); return _dirty ? null : _path; }
 

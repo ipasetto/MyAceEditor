@@ -443,6 +443,7 @@ public sealed class EditorForm : Form
         _npcgen.DeletedMany += n => Status(string.Format(Loc.T("npcgen.deletedMany", "{0} ponto(s) excluído(s). Ctrl+Z desfaz."), n));
         _npcgen.QuestHost = new QuestHostImpl(this);
         _npcgen.InhabitOf = id => CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" } c && int.TryParse(c.Item.Fields.GetValueOrDefault("inhabit_type")?.Value, out var ih) ? ih : 0;
+        _npcgen.Announce = OpenAnnouncements;
         _npcgen.IsMerchant = id => CreatureItem(id) is { } c && c.Item.Fields.TryGetValue("id_sell_service", out var sv) && sv.Value is not ("0" or "");
         _npcgen.OpenQuest = id => { GoToQuest(id); Activate(); };
         // servidor escolhido no NPCGen (pasta gamed\config) vira o servidor do programa todo
@@ -3448,6 +3449,41 @@ public sealed class EditorForm : Form
         var gives = Merge(Service("id_task_out_service", "NPC_TASK_OUT_SERVICE"), _tasks?.QuestsOfNpc(npcId, true) ?? Array.Empty<QuestNode>());
         var takes = Merge(Service("id_task_in_service", "NPC_TASK_IN_SERVICE"), _tasks?.QuestsOfNpc(npcId, false) ?? Array.Empty<QuestNode>());
         return new NpcQuestInfo(npcId, TasksFile.SplitColor(npc.Item.Name).Text, gives, takes);
+    }
+
+    /// <summary>
+    /// Anúncios do monstro (AiAnnounce + AnnounceDialog): política compartilhada vira cópia só dele (id_strategy no elements,
+    /// par cliente + servidor no Salvar); tudo num passo do Ctrl+Z (usuário 01/11).
+    /// </summary>
+    private void OpenAnnouncements(IWin32Window owner, int monsterId)
+    {
+        if (CreatureItem(monsterId) is not { Block.Name: "MONSTER_ESSENCE" } ci) { Status(Loc.T("ann.onlyMonster", "Anúncio só para monstro.")); return; }
+        if (_aiView?.OpenFile is not { } f) { MessageBox.Show(owner, Loc.T("ann.noAi", "Abra o aipolicy.data na área AI Policy primeiro (ele carrega sozinho ao abrir a pasta do PW)."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        var item = ci.Item;
+        int pid = int.TryParse(item.Fields.GetValueOrDefault("id_strategy")?.Value, out var v) ? v : 0;
+        int users = pid <= 0 ? 0 : ci.Block.Items.Count(i => i.Fields.GetValueOrDefault("id_strategy")?.Value == pid.ToString());
+        var pol = f.Policies.FirstOrDefault(p => p.Id == pid);
+        int ver = pol is null ? AiAnnounce.TriggerVersion(f, new AiPolicy()) : AiAnnounce.TriggerVersion(f, pol);
+        using var dlg = new AnnounceDialog(TasksFile.SplitColor(item.Name).Text, pid, users, ver, pol is null ? new List<AiAnnounce.Info>() : AiAnnounce.Find(pol));
+        if (dlg.ShowDialog(owner) != DialogResult.OK || dlg.Added.Count + dlg.Removed.Count == 0) return;
+
+        var target = AiAnnounce.OwnPolicy(f, pid, pol is null ? 2 : users, out bool cloned);
+        var before = target.Triggers.ToList();
+        foreach (var t in dlg.Removed) target.Triggers.RemoveAll(x => x.Id == t.Id);
+        foreach (var a in dlg.Added) target.Triggers.Add(AiAnnounce.Make(f, target, a.When, a.Prefix, a.Text, a.AppendName));
+        var after = target.Triggers.ToList();
+        target.Triggers = before;   // o Custom abaixo aplica (e o Ctrl+Z volta)
+        if (cloned) f.Policies.Remove(target);
+        var label = string.Format(Loc.T("ann.hist", "Anúncios de {0}"), monsterId);
+        using (_edits.Batch(label))
+        {
+            _edits.Custom(label,
+                () => { if (cloned && !f.Policies.Contains(target)) f.Policies.Add(target); target.Triggers = after.ToList(); _aiView?.ChangedOutside(_store.Current); },
+                () => { target.Triggers = before.ToList(); if (cloned) f.Policies.Remove(target); _aiView?.ChangedOutside(_store.Current); });
+            if (cloned && item.Fields.TryGetValue("id_strategy", out var fs)) _edits.SetField(item, "id_strategy", Field.Of(fs.Type, target.Id.ToString()), "");
+        }
+        Status(string.Format(Loc.T("ann.done", "Anúncios de {0} aplicados{1} (Ctrl+Z desfaz). Salve e envie ao servidor."), item.Name,
+            cloned ? string.Format(Loc.T("ann.clonedNote", " · IA própria: política {0}"), target.Id) : ""));
     }
 
     private (ItemList Block, Item Item)? CreatureItem(int id)
