@@ -4605,5 +4605,7 @@
   "tools.sendSub": "写入所有改动并用它们重启本地服务器",
   "tools.sendPaths": "有未保存的巡逻路径。也一起保存吗？",
   "qt.useTool": "该 NPC 的任务：任务工具（右侧菜单）",
-  "qe.tKey": "修真（关键）"
+  "qe.tKey": "修真（关键）",
+  "path.savedAt": "✓ 路径已于 {0:HH:mm:ss} 保存。请在服务器上重启地图。",
+  "path.savedFlash": "✓ 已保存！"
 }

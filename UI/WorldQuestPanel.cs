@@ -140,7 +140,8 @@ internal sealed class WorldQuestPanel : Panel
         _delete.Text = pick && SelectedMissing ? Loc.T("wq.removeMissing", "Tirar do NPC") : Loc.T("wq.delete", "Excluir quest");
     }
 
-    public void ShowNpc(NpcQuestInfo info)
+    /// <param name="expanded">já abre com as listas (clique no NPC sem ferramenta, como o painel da criatura)</param>
+    public void ShowNpc(NpcQuestInfo info, bool expanded = false)
     {
         _info = info;
         ApplyText();
@@ -152,7 +153,7 @@ internal sealed class WorldQuestPanel : Panel
         Fill(_takes, info.Takes, gives: false);
         _tip.SetToolTip(_title, Loc.T("wq.hint", "Clique duas vezes numa quest para abrir. Clique duas vezes aqui para minimizar."));
         Visible = true; BringToFront();
-        SetMinimized(true);   // primeiro só a barra; a lista abre em "Ver quests"
+        SetMinimized(!expanded);   // senão primeiro só a barra; a lista abre em "Ver quests"
         ApplyText();
     }
 

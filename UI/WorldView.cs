@@ -300,10 +300,10 @@ internal sealed partial class WorldView : Form
                     {
                         if (NpcQuests(mk.Id) is { } qi)
                         {
-                            // NPC: as quests dele ficam na ferramenta Quests (antes: barra de botões embaixo)
+                            // NPC: com a ferramenta Quests, no painel dela; sem ferramenta, as quests dele no painel de baixo (como a criatura)
                             _questNpc = mk.Id; _creature.HidePanel();
                             if (_tool == Tool.Quests) ShowQuestTool(qi);
-                            else if (_tool == Tool.None) _status.Text += "   ·   " + Loc.T("qt.useTool", "quests deste NPC: ferramenta Quests (menu à direita)");
+                            else if (_tool == Tool.None) _quests.ShowNpc(qi, expanded: true);
                         }
                         else
                         {
@@ -321,6 +321,8 @@ internal sealed partial class WorldView : Form
             else if (e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4)
             {
                 _quests.HidePanel(); _creature.HidePanel();
+                _questNpc = 0;   // a ferramenta Quests volta a pedir "Clique em um NPC"
+                if (_tool == Tool.Quests) ShowQuestTool(null);
                 if (_selected() is not null) { ClearSelection?.Invoke(); _gizmoHover = 0; _gl.Invalidate(); }
             }
         };

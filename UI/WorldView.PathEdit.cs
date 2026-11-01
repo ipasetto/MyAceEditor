@@ -30,8 +30,9 @@ internal sealed partial class WorldView
     readonly Label _pathState = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
     Button _modeArea = null!, _modePath = null!, _pathDraw = null!, _pathDone = null!, _pathDel = null!;
 
-    internal void SetPathFile(string file, PathFile pf) { _pathSev = file; _pathFile = pf; _pathSaved = pf.Write(); RebuildPaths(); }
+    internal void SetPathFile(string file, PathFile pf) { _pathSev = file; _pathFile = pf; _pathSaved = pf.Write(); _pathSavedAt = null; RebuildPaths(); }
     void RebuildPaths() => Paths = _pathFile?.Paths.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.First().Sample());
+    DateTime? _pathSavedAt;   // confirmação visível do último Salvar (teste 6, usuário 01/11)
     bool PathDirty => _pathFile is not null && _pathSaved is not null && !_pathFile.Write().AsSpan().SequenceEqual(_pathSaved);
 
     NpcGenSpawn? PathSpawn => _tool == Tool.Paths && SelectedMark()?.Tag is NpcGenSpawn s ? s : null;
@@ -190,8 +191,10 @@ internal sealed partial class WorldView
         _loop2.BackColor = loop is not (0 or 1) ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _pathDel.Visible = hasPath && !drawing;
         _pathState.Text = _pathFile is null ? Loc.T("path.noFile", "Este mapa não tem path.sev no servidor.")
-            : PathDirty ? Loc.T("path.dirty", "● Caminhos não salvos.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
-        _pathState.ForeColor = PathDirty ? Color.FromArgb(255, 200, 90) : Color.Silver;
+            : PathDirty ? Loc.T("path.dirty", "● Caminhos não salvos.")
+            : _pathSavedAt is { } at ? string.Format(Loc.T("path.savedAt", "✓ Caminhos salvos às {0:HH:mm:ss}. Reinicie o mapa no servidor."), at)
+            : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
+        _pathState.ForeColor = PathDirty ? Color.FromArgb(255, 200, 90) : _pathSavedAt is not null ? Color.FromArgb(120, 220, 120) : Color.Silver;
         if (_tool == Tool.Paths) BeginInvoke(LayoutTools);   // altura do painel acompanha o que está visível
     }
 
@@ -324,11 +327,29 @@ internal sealed partial class WorldView
             if (!PathFile.Read(bytes).Write().AsSpan().SequenceEqual(bytes)) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
             AtomicFileSave.Write(_pathSev, bytes);   // backup fora do servidor (BackupStore)
             _pathSaved = bytes;
+            _pathSavedAt = DateTime.Now;
+            FlashSaved();
             _status.Text = Loc.T("path.saved", "path.sev salvo (backup feito). A ligação do monstro ao caminho vai no npcgen.data: salve também no NPCGen. Reinicie o mapa no servidor.");
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or FileSaveException)
         { MessageBox.Show(this, ex.Message, Loc.T("path.save", "Salvar caminhos (path.sev)"), MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         UpdatePathPanel();
+    }
+
+    // botão Salvar fica verde com "✓ Salvo!" por 2 s
+    void FlashSaved()
+    {
+        string text = _pathSave.Text; var back = _pathSave.BackColor; var border = _pathSave.FlatAppearance.BorderColor;
+        var green = Color.FromArgb(46, 125, 50);
+        _pathSave.Text = "  " + Loc.T("path.savedFlash", "✓ Salvo!"); _pathSave.BackColor = green; _pathSave.FlatAppearance.BorderColor = green;
+        var t = new System.Windows.Forms.Timer { Interval = 2000 };
+        t.Tick += (_, _) =>
+        {
+            t.Dispose();
+            if (_pathSave.IsDisposed) return;
+            _pathSave.Text = text; _pathSave.BackColor = back; _pathSave.FlatAppearance.BorderColor = border;
+        };
+        t.Start();
     }
 
     // ---------- mouse (ligado nos eventos do _gl) ----------

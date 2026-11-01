@@ -428,7 +428,17 @@ public sealed class EditorForm : Form
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
         _npcgen.QuestsOfNpc = NpcQuests;
         // Mundo 3D, fim do menu de ferramentas: salvar tudo e enviar, com a janela principal na aba Servidor
-        _npcgen.SaveAndSendAll = () => { Activate(); BringToFront(); SaveAndSend(); if (_tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer; };
+        _npcgen.SaveAndSendAll = () =>
+        {
+            SaveAndSend();
+            // depois que o clique no Mundo 3D termina (senão ele volta a ficar na frente): editor na aba Servidor
+            BeginInvoke(() =>
+            {
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                if (_tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;
+                Activate(); BringToFront();
+            });
+        };
         // painel da criatura no Mundo 3D: quests que usam o monstro/NPC (roda fora da tela)
         // NPC comum não tem IA no gs (npcgenerator.cpp: id_type 3214 = normal, aipolicy 0): não anda nem patrulha; só guarda (3216)
         _npcgen.PatrolProblem = id => CreatureItem(id) is { Block.Name: "NPC_ESSENCE" } c && c.Item.Fields.GetValueOrDefault("id_type")?.Value != "3216"
@@ -914,13 +924,10 @@ public sealed class EditorForm : Form
         if (_probDrag is not { } d) return;
         double v = Math.Round(Math.Clamp((x - bar.X) / (double)bar.Width, 0, 1), 3);   // passo de 0,1%
         foreach (var (k, f) in d.Before) d.Item.Fields[k] = f;                         // parte sempre do original
-        var refOf = d.Item.Fields.Keys.Where(k => FieldKinds.IsReference(FieldKinds.Of(k)))
-            .Select(k => (Ref: k, Prob: FieldKinds.ProbabilityFor(k, d.Item.Fields))).Where(t => t.Prob is not null)
-            .GroupBy(t => t.Prob!).ToDictionary(g => g.Key, g => g.First().Ref);
-        var nv = ProbabilityGroups.Set(d.Item, d.Key, v, _probLocks, k => refOf.TryGetValue(k, out var rk) && !IsEmpty(d.Item.Fields[rk].Value));
-        foreach (var (k, val) in nv) d.Item.Fields[k] = Field.Of(d.Before[k].Type, ProbabilityGroups.Fmt(val));
+        // Só o campo arrastado muda (usuário 01/11): somar 100% é só no "Distribuir 100%".
+        d.Item.Fields[d.Key] = Field.Of(d.Before[d.Key].Type, ProbabilityGroups.Fmt(v));
         foreach (DataGridViewRow row in _grid.Rows)
-            if (row.Tag is string rk2 && nv.ContainsKey(rk2)) row.Cells[1].Value = d.Item.Fields[rk2].Value;
+            if (row.Tag as string == d.Key) row.Cells[1].Value = d.Item.Fields[d.Key].Value;
         _grid.InvalidateColumn(2);
     }
 
@@ -1576,8 +1583,21 @@ public sealed class EditorForm : Form
         var lv = new ListView
         {
             Dock = DockStyle.Fill, View = View.Details, HeaderStyle = ColumnHeaderStyle.None, FullRowSelect = true, MultiSelect = false, HideSelection = false,
-            BackColor = CTreeBg, ForeColor = CTreeFg, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10), SmallImageList = _treeIcons, ShowGroups = true,
+            BackColor = CTreeBg, ForeColor = CTreeFg, BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 10), SmallImageList = _treeIcons, OwnerDraw = true,
         };
+        // títulos de seção em faixa (barra azul + negrito + contagem), como na grade; os grupos do Windows ficavam apagados
+        // no fundo escuro (teste 11, usuário 01/11). Linha de título = Tag string; bloco = Tag int.
+        lv.DrawItem += (_, e) =>
+        {
+            if (e.Item.Tag is not string) { e.DrawDefault = true; return; }
+            var r = e.Bounds;
+            using (var b = new SolidBrush(Color.FromArgb(32, 44, 62))) e.Graphics.FillRectangle(b, r);
+            using (var b = new SolidBrush(CAccent)) e.Graphics.FillRectangle(b, r.Left + 2, r.Top + 4, 4, r.Height - 8);
+            using var hf = new Font("Segoe UI Semibold", 10f);
+            TextRenderer.DrawText(e.Graphics, e.Item.Text, hf, new Rectangle(r.Left + 14, r.Top, r.Width - 16, r.Height), Color.FromArgb(130, 190, 255),
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        };
+        lv.ItemSelectionChanged += (_, e) => { if (e.IsSelected && e.Item?.Tag is string) e.Item.Selected = false; };
         typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(lv, true);
         lv.Columns.Add("", f.Width - 24);
         f.Controls.Add(lv); f.Controls.Add(search);
@@ -1595,21 +1615,26 @@ public sealed class EditorForm : Form
         {
             var q = search.Text.Trim();
             target = null;
-            lv.BeginUpdate(); lv.Items.Clear(); lv.Groups.Clear();
-            var groups = new Dictionary<string, ListViewGroup>();
-            ListViewGroup G(string key, string text) { if (!groups.TryGetValue(key, out var g)) { g = new ListViewGroup(key, text); groups[key] = g; lv.Groups.Add(g); } return g; }
+            lv.BeginUpdate(); lv.Items.Clear();
+            var cats = new List<(string Cat, List<ListViewItem> Items)>();
             for (int i = 0; i < _blockCombo.Items.Count; i++)
             {
                 if (_blockCombo.Items[i] is not BlockEntry e || e.Header) continue;
                 var text = e.ToString().Trim();
                 if (q.Length > 0 && !text.Contains(q, StringComparison.OrdinalIgnoreCase) && !(e.Block?.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)) continue;
                 var cat = e.Block is null ? Loc.T("blockPick.top", "Atalhos") : CategoryName(BlockCategory(e.Block.Name));
-                var item = new ListViewItem(text, e.Block is null ? -1 : BlockIcon(e.Block), G(cat, cat)) { Tag = i };
-                lv.Items.Add(item);
+                var item = new ListViewItem(text, e.Block is null ? -1 : BlockIcon(e.Block)) { Tag = i };
+                if (cats.Count == 0 || cats[^1].Cat != cat) cats.Add((cat, new()));
+                cats[^1].Items.Add(item);
                 if (i == _blockCombo.SelectedIndex) target = item;
             }
+            foreach (var (cat, items) in cats)
+            {
+                lv.Items.Add(new ListViewItem($"{cat.ToUpperInvariant()}   ({items.Count})") { Tag = cat });
+                lv.Items.AddRange(items.ToArray());
+            }
             lv.EndUpdate();
-            if (target is null && lv.Items.Count > 0 && q.Length > 0) target = lv.Items[0];
+            if (target is null && q.Length > 0) target = lv.Items.Cast<ListViewItem>().FirstOrDefault(x => x.Tag is int);
             if (lv.IsHandleCreated) MarkTarget();
         }
         // a seleção feita antes de a lista existir se perdia: abria no topo sem nada marcado (print do --snapshot)
@@ -1654,6 +1679,17 @@ public sealed class EditorForm : Form
         if (e.Index < 0) return;
         var o = cb.Items[e.Index];
         var col = o is BlockEntry { Header: true } ? CListId : o is BlockEntry { Block: null } ? GGold : CTreeFg;
+        // filtro de tipo: tipo principal = título de seção (faixa + barra azul + negrito), subtipos recuados embaixo
+        if (o is TypeEntry { Major: not null, Sub: null } && (e.State & DrawItemState.ComboBoxEdit) == 0)
+        {
+            if (!sel) using (var b = new SolidBrush(Color.FromArgb(32, 44, 62))) e.Graphics.FillRectangle(b, e.Bounds);
+            using (var b = new SolidBrush(CAccent)) e.Graphics.FillRectangle(b, e.Bounds.Left + 2, e.Bounds.Top + 4, 4, e.Bounds.Height - 8);
+            using var hf = new Font(cb.Font, FontStyle.Bold);
+            TextRenderer.DrawText(e.Graphics, o.ToString(), hf, new Rectangle(e.Bounds.Left + 12, e.Bounds.Top, e.Bounds.Width - 14, e.Bounds.Height),
+                sel ? Color.White : Color.FromArgb(130, 190, 255), TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            return;
+        }
+        if (o is TypeEntry { Major: null }) col = GGold;
         TextRenderer.DrawText(e.Graphics, o.ToString(), cb.Font, Rectangle.Inflate(e.Bounds, -4, 0), sel ? Color.White : col,
             TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }

@@ -7,6 +7,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 ## §M0 Indice por assunto -> arquivo:simbolo (servidor S=`source_server_153/cgame/gs`, cliente C=`source_client_153/CElementClient`)
 
 - drop de monstro (quantos e quantidade): S/npc.cpp OnDeath (drop_times, double_drop) -> template/itemdataman.cpp generate_item_from_monster -> S/worldmanager.cpp case GM_MSG_PRODUCE_MONSTER_DROP -> generate_item_for_drop; quantidade so na aljava: template/generate_item_temp.h (num_min/num_max)
+- drop: grupos de chance somados a 100% ao carregar (o gs ignora a soma do arquivo): S/template/elementdataman.cpp NormalizeRandom (+ chamada no MONSTER_ESSENCE: probability_drop_num0, drop_matters); sorteio abase::RandSelect em template/itemdataman.cpp:1106
 - nivel "[?]" do alvo: C/DlgTarget.cpp (iLevel == 150 -> "[?] %s"; show_level do MONSTER_ESSENCE)
 - raio de toque do monstro (size): C/EC_Monster.cpp (m_fTouchRad = m_pDBEssence->size)
 - icone de quest sobre o NPC: C/EC_NPCServer.cpp UpdateCurQuestIcon/RenderQuestIcon, C/EC_ImageRes.cpp (IMG_PATEQUEST = InGame\PateQuest.tga)

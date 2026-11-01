@@ -4603,5 +4603,7 @@
   "tools.sendSub": "Writes everything that changed and restarts the local server with it",
   "tools.sendPaths": "There are unsaved patrol paths. Save the paths too?",
   "qt.useTool": "this NPC's quests: Quests tool (menu on the right)",
-  "qe.tKey": "Cultivation (key)"
+  "qe.tKey": "Cultivation (key)",
+  "path.savedAt": "✓ Paths saved at {0:HH:mm:ss}. Restart the map on the server.",
+  "path.savedFlash": "✓ Saved!"
 }
