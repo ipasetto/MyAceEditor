@@ -17,10 +17,10 @@ internal sealed class PluginsView : Panel
     readonly TextBox _log = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9f), BackColor = Color.FromArgb(24, 28, 34), ForeColor = Color.Gainsboro, BorderStyle = BorderStyle.None };
     // formulário em blocos verticais (título, campo, explicação embaixo), como as outras telas; a grade de 3 colunas quebrava
     // as explicações numa palavra por linha (usuário 01/11)
-    readonly FlowLayoutPanel _form = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(20, 10, 20, 16), BackColor = Color.White };
+    readonly FlowLayoutPanel _form = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(20, 10, 20, 48), BackColor = Color.White };   // sobra embaixo: o último campo não cola na borda
     readonly TextBox _name = new() { Width = 260 };
     readonly CheckBox _enabled = new() { AutoSize = true };
-    readonly NumericUpDown _world = N(1, 1, 999), _ctrl = N(0, 0, 9_999_999), _every = N(30, 1, 100_000), _dur = N(20, 1, 100_000);
+    readonly NumericUpDown _world = N(1, 1, 999), _ctrl = N(0, 0, 9_999_999), _every = N(30, 1, 100_000), _dur = N(20, 1, 100_000), _cool = N(0, 0, 2_592_000);
     readonly Label _point = new() { AutoSize = true, MaximumSize = new Size(420, 0), ForeColor = Color.FromArgb(22, 128, 61), Font = new Font("Segoe UI Semibold", 9.5f) };
 
     /// <summary>
@@ -28,7 +28,7 @@ internal sealed class PluginsView : Panel
     /// devolve mapa, monstro e o ID do controlador; null + motivo.
     /// </summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-    public Func<(Func<(string Map, string Name, int GmId)?> Pick, Func<string?> Why)>? PointSource { get; set; }
+    public Func<(Func<(string Map, string Name, int GmId, int RespawnSec)?> Pick, Func<string?> Why)>? PointSource { get; set; }
     readonly NumericUpDown _chance = new() { Minimum = 0, Maximum = 100, DecimalPlaces = 1, Increment = 1, Width = 100, Value = 10 };
     readonly ComboBox _startCh = Ch(), _endCh = Ch();
     readonly TextBox _startText = new() { Width = 420 }, _endText = new() { Width = 420 };
@@ -114,6 +114,7 @@ internal sealed class PluginsView : Panel
         Field("pl.every", "Sortear a cada (minutos)", _every);
         Field("pl.chance", "Chance de aparecer em cada sorteio (%)", _chance, "pl.chanceNote", "Ex.: 10 = em média 1 vez a cada 10 sorteios.");
         Field("pl.dur", "Fica no mapa por (minutos)", _dur, "pl.durNote", "Depois disso o evento termina e os monstros que sobraram somem.");
+        Field("pl.cool", "Espera mínima entre um evento e outro (segundos)", _cool, "pl.coolNote", "Vem do Renascer do ponto (+15 s do jogo): nem o sorteio nem o \"Chamar agora\" fazem ele voltar antes. Ele nasce uma vez só por evento.");
 
         _form.Controls.Add(Section("pl.s3", "3. Avisos para todos os jogadores"));
         _form.Controls.Add(Note("pl.textNote", "Texto vazio = sem aviso."));
@@ -125,7 +126,7 @@ internal sealed class PluginsView : Panel
         Field("pl.ctrl", "Evento do ponto (ID no npcgen)", _ctrl, "pl.ctrlNote2", "Preenchido sozinho: o controlador que liga e desliga o ponto.");
 
         foreach (Control c in new Control[] { _name, _startText, _endText }) c.TextChanged += (_, _) => Edited();
-        foreach (var n in new[] { _world, _ctrl, _every, _dur, _chance }) n.ValueChanged += (_, _) => Edited();
+        foreach (var n in new[] { _world, _ctrl, _every, _dur, _chance, _cool }) n.ValueChanged += (_, _) => Edited();
         foreach (var cb in new[] { _startCh, _endCh }) cb.SelectedIndexChanged += (_, _) => Edited();
         _enabled.CheckedChanged += (_, _) => Edited();
     }
@@ -160,7 +161,7 @@ internal sealed class PluginsView : Panel
         _name.Text = r.Name; _enabled.Checked = r.Enabled; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
         _every.Value = Math.Clamp(r.EveryMin, 1, 100_000); _dur.Value = Math.Clamp(r.DurationMin, 1, 100_000); _chance.Value = (decimal)Math.Clamp(r.ChancePct, 0, 100);
         _startCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.StartChannel)); _endCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.EndChannel));
-        _startText.Text = r.StartText; _endText.Text = r.EndText;
+        _startText.Text = r.StartText; _endText.Text = r.EndText; _cool.Value = Math.Clamp(r.CooldownSec, 0, 2_592_000);
         _point.Text = r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)");
         _point.ForeColor = r.Point.Length > 0 ? Color.FromArgb(22, 128, 61) : Muted;
         _binding = false;
@@ -173,7 +174,7 @@ internal sealed class PluginsView : Panel
         r.Name = _name.Text.Trim(); r.Enabled = _enabled.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
         r.EveryMin = (int)_every.Value; r.DurationMin = (int)_dur.Value; r.ChancePct = (double)_chance.Value;
         r.StartChannel = Channels[Math.Max(0, _startCh.SelectedIndex)].Ch; r.EndChannel = Channels[Math.Max(0, _endCh.SelectedIndex)].Ch;
-        r.StartText = _startText.Text.Trim(); r.EndText = _endText.Text.Trim();
+        r.StartText = _startText.Text.Trim(); r.EndText = _endText.Text.Trim(); r.CooldownSec = (int)_cool.Value;
         _dirty = true;
         if (_list.SelectedItems.Count > 0) _list.SelectedItems[0].Text = r.Name.Length > 0 ? r.Name : r.Id;
         Status();
@@ -195,7 +196,7 @@ internal sealed class PluginsView : Panel
         if (Sel is not { } r || PointSource?.Invoke() is not { } src) return;
         if (src.Pick() is not { } p) { Status("⚠ " + (src.Why() ?? "")); return; }
         Snapshot();
-        r.Controller = p.GmId; r.Point = $"{p.Map} · {p.Name}";
+        r.Controller = p.GmId; r.Point = $"{p.Map} · {p.Name}"; r.CooldownSec = p.RespawnSec;
         if (r.Name.StartsWith(Loc.T("pl.newName", "Monstro raro {0}").Split('{')[0], StringComparison.Ordinal)) r.Name = p.Name;
         _dirty = true;
         var map = p.Map;

@@ -137,19 +137,30 @@ internal sealed partial class WorldView
         SyncFlyCursor();
         if (_drawPts is null) { var keep = _flyCursor; StartDraw(); _flyFor = PathSpawn; _flyCursor = keep; }   // começa o desenho sem perder o círculo
         if (_drawPts is null || _flyCursor is not { } c) return;
-        // quem anda no chão não atravessa nada sólido (pedra, árvore, construção); marcar de novo no mesmo lugar põe assim mesmo
+        // quem anda no chão não atravessa nada sólido (pedra, árvore, construção): o ponto entra na hora e a conferência
+        // roda em segundo plano (antes travava a tela a cada ponto); se o trecho bate em algo, o ponto sai e avisa.
+        // Marcar de novo no mesmo lugar põe assim mesmo (chão de ponte ou construção).
         bool insist = _blockedClick is { } bc && (bc - c).Length < 1.5f;
         _blockedClick = null;
-        if (!PathAir && !insist && _drawPts.Count > 0 && BlockedBetween(_drawPts[^1], c) is { } where)
-        {
-            _blockedClick = c;
-            _status.Text = string.Format(Loc.T("path.blocked3", "Esse trecho passa por dentro de algo sólido (perto de {0:0}, {1:0}): mova o círculo para contornar. Se for chão de ponte ou construção, marque de novo."), where.X, where.Z);
-            System.Media.SystemSounds.Beep.Play();
-            return;
-        }
-        _drawPts.Add(c); _flySel = -1;
-        _status.Text = string.Format(Loc.T("path.flyMarked3", "Ponto {0} marcado. Mova o círculo e marque o próximo (E ou botão direito); para acabar, clique em Terminar o desenho."), _drawPts.Count);
+        var pts = _drawPts;
+        var from = pts.Count > 0 ? pts[^1] : (Vector3?)null;
+        pts.Add(c); _flySel = -1;
+        _status.Text = string.Format(Loc.T("path.flyMarked3", "Ponto {0} marcado. Mova o círculo e marque o próximo (E ou botão direito); para acabar, clique em Terminar o desenho."), pts.Count);
         UpdatePathPanel(); _gl.Invalidate();
+        if (PathAir || insist || from is not { } a) return;
+        Task.Run(() => BlockedBetween(a, c)).ContinueWith(t =>
+        {
+            if (t.Result is not { } where || IsDisposed) return;
+            BeginInvoke(() =>
+            {
+                if (!ReferenceEquals(_drawPts, pts) || pts.Count == 0 || pts[^1] != c) return;   // já mudou: nada a desfazer
+                pts.RemoveAt(pts.Count - 1);
+                _blockedClick = c;
+                _status.Text = string.Format(Loc.T("path.blocked3", "Esse trecho passa por dentro de algo sólido (perto de {0:0}, {1:0}): mova o círculo para contornar. Se for chão de ponte ou construção, marque de novo."), where.X, where.Z);
+                System.Media.SystemSounds.Beep.Play();
+                UpdatePathPanel(); _gl.Invalidate();
+            });
+        });
     }
 
     void DrawAirPath()

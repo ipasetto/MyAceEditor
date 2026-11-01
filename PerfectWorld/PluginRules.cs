@@ -6,7 +6,7 @@ namespace MyAceEditor.PerfectWorld;
 /// <summary>
 /// Regra de um plugin de evento (docs/PLUGINS.md). Etapa 1: "Monstro raro" — a cada <see cref="EveryMin"/> minutos o
 /// programa do servidor sorteia <see cref="ChancePct"/>%; se cair, liga o controlador do npcgen (GMControlGame
-/// active_npc_generator) no mapa <see cref="WorldTag"/> por <see cref="DurationMin"/> minutos, avisa todos (ChatBroadCast)
+/// active_npc_generator) no mapa <see cref="WorldTag"/> por <see cref="DurationMin"/> minutos, avisa todos (PublicChat 79)
 /// e no fim desliga (os monstros que sobraram somem) e avisa de novo. Mesmo código no editor e no programa (Linux).
 /// </summary>
 public sealed class PluginRule
@@ -19,6 +19,9 @@ public sealed class PluginRule
     public string StartText = "", EndText = "";
     /// <summary>Só para mostrar: o ponto do NPCGen ligado ao controlador (mapa · monstro).</summary>
     public string Point = "";
+    /// <summary>Espera mínima entre um evento e o próximo (s): o tempo de renascer do ponto (+15 s do jogo). Nem sorteio nem
+    /// "Chamar agora" fazem ele aparecer antes disso (usuário 01/11).</summary>
+    public int CooldownSec;
 }
 
 /// <summary>Arquivos do programa dos plugins no servidor (Linux/WSL) e leitura/gravação das regras em JSON.</summary>
@@ -42,7 +45,7 @@ public static class PluginFiles
                 Enabled = n["enabled"] is not JsonValue e || !e.TryGetValue(out bool b) || b,
                 WorldTag = I("worldTag", 1), Controller = I("controller", 0), EveryMin = I("everyMin", 30), DurationMin = I("durationMin", 20),
                 ChancePct = n["chancePct"] is JsonValue c && c.TryGetValue(out double cp) ? cp : 10,
-                StartChannel = I("startChannel", 9), EndChannel = I("endChannel", 9), StartText = S("startText"), EndText = S("endText"), Point = S("point"),
+                StartChannel = I("startChannel", 9), EndChannel = I("endChannel", 9), StartText = S("startText"), EndText = S("endText"), Point = S("point"), CooldownSec = I("cooldownSec", 0),
             });
         }
         return list;
@@ -56,7 +59,7 @@ public static class PluginFiles
             {
                 ["id"] = r.Id, ["name"] = r.Name, ["type"] = r.Type, ["enabled"] = r.Enabled, ["worldTag"] = r.WorldTag, ["controller"] = r.Controller,
                 ["everyMin"] = r.EveryMin, ["chancePct"] = r.ChancePct, ["durationMin"] = r.DurationMin,
-                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText, ["point"] = r.Point,
+                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText, ["point"] = r.Point, ["cooldownSec"] = r.CooldownSec,
             });
         return new JsonObject { ["version"] = 1, ["plugins"] = arr }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }

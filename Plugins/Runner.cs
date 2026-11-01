@@ -14,11 +14,11 @@ namespace MyAceEditor.Plugins
     /// Programa dos plugins de evento (docs/PLUGINS.md), sempre ligado no servidor. A cada segundo: lê os comandos do painel
     /// (plugins.cmd: "fire id", "pause id", "resume id", "stop id"), relê as regras quando o plugins.json muda e cuida de cada
     /// plugin; grava o estado (plugins-state.json) e o histórico (plugins.log). Fala com o gdeliveryd (127.0.0.1:29100):
-    /// GMControlGame 380 liga/desliga o controlador do npcgen, ChatBroadCast 120 avisa todos.
+    /// GMControlGame 380 liga/desliga o controlador do npcgen, PublicChat 79 avisa todos.
     /// </summary>
     static class Runner
     {
-        sealed class Live { public DateTime NextRoll; public DateTime? ActiveUntil; public bool Paused; }
+        sealed class Live { public DateTime NextRoll; public DateTime? ActiveUntil; public bool Paused; public DateTime ReadyAt; }
 
         static readonly Dictionary<string, Live> State = new();
         static List<PluginRule> _rules = new();
@@ -65,6 +65,7 @@ namespace MyAceEditor.Plugins
                 if (!r.Enabled || s.Paused || now < s.NextRoll) continue;
                 double roll = Random.Shared.NextDouble() * 100;
                 s.NextRoll = now.AddMinutes(Math.Max(1, r.EveryMin));
+                if (now < s.ReadyAt) { Log($"[{r.Id}] sorteio pulado: ainda no tempo de renascer (até {s.ReadyAt:HH:mm:ss})"); continue; }
                 if (roll < r.ChancePct) Start(r, s, now, $"sorteio {roll:0.0} < {r.ChancePct}%");
                 else Log($"[{r.Id}] sorteio {roll:0.0} >= {r.ChancePct}%: não apareceu (próximo {s.NextRoll:HH:mm})");
             }
@@ -82,7 +83,11 @@ namespace MyAceEditor.Plugins
                 if (p.Length < 2 || _rules.FirstOrDefault(r => r.Id == p[1].Trim()) is not { } r || !State.TryGetValue(r.Id, out var s)) continue;
                 switch (p[0])
                 {
-                    case "fire": if (s.ActiveUntil is null) Start(r, s, now, "chamado pelo painel"); break;
+                    case "fire":
+                        if (s.ActiveUntil is { } au) Log($"[{r.Id}] já está ativo (até {au:HH:mm}): chamar de novo não faz nascer outro");
+                        else if (now < s.ReadyAt) Log($"[{r.Id}] ainda no tempo de renascer do monstro (até {s.ReadyAt:HH:mm:ss}): não chamado");
+                        else Start(r, s, now, "chamado pelo painel");
+                        break;
                     case "stop": if (s.ActiveUntil is not null) End(r, s, now, "encerrado pelo painel"); break;
                     case "pause": s.Paused = true; Log($"[{r.Id}] pausado"); break;
                     case "resume": s.Paused = false; s.NextRoll = now.AddMinutes(Math.Max(1, r.EveryMin)); Log($"[{r.Id}] retomado"); break;
@@ -102,6 +107,7 @@ namespace MyAceEditor.Plugins
         {
             var ok = Controller(r, on: false);
             s.ActiveUntil = null; s.NextRoll = now.AddMinutes(Math.Max(1, r.EveryMin));
+            s.ReadyAt = now.AddSeconds(Math.Max(0, r.CooldownSec));   // respeita o renascer do monstro antes do próximo
             if (r.EndText.Length > 0) Say(r.EndChannel, r.EndText);
             Log($"[{r.Id}] terminou ({why}); controlador {r.Controller} {(ok ? "desligado" : "não respondeu")}; próximo sorteio {s.NextRoll:HH:mm}");
         }
@@ -124,13 +130,15 @@ namespace MyAceEditor.Plugins
             catch (Exception ex) { Log($"[{r.Id}] gdeliveryd: {ex.Message}"); return false; }
         }
 
-        // ChatBroadCast (120): canal, emoção, srcroleid (0 = sem nome), msg UTF-16LE, data -> todos os jogadores
+        // PublicChat (79), como o "Aviso para todos" do painel do GM e o broadcast do iweb: canal, emoção 0, roleid -1 (sistema),
+        // localsid 0, texto UTF-16LE, dados vazios. O ChatBroadCast (120) mandado ao gdeliveryd é IGNORADO (aviso não saía; 01/11)
         static void Say(int channel, string text)
         {
             try
             {
                 using var c = new GnetConnection(_host, _port);
-                c.Send(120, new GnetWriter().Byte((byte)channel).Byte(0).Int(0).Text(text).Octets(ReadOnlySpan<byte>.Empty).ToArray());
+                c.Send(79, new GnetWriter().Byte((byte)channel).Byte(0).Int(-1).Int(0).Text(text).Octets(ReadOnlySpan<byte>.Empty).ToArray());
+                Thread.Sleep(300);   // dá tempo de o gdeliveryd ler antes de a conexão fechar
             }
             catch (Exception ex) { Log("aviso não enviado: " + ex.Message); }
         }

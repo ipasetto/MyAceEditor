@@ -4808,5 +4808,13 @@
   "path.done2": "Finish drawing",
   "path.cursorDrawing3": "Click the ground to take the circle there (or drag the arrows; green = height). At each stop press E (or right-click the ground, or \"Mark point here\"): the points link up. To finish, click \"Finish drawing\"; Esc cancels. Then just save.",
   "rule.mobStrategy": "attack type (id_strategy) {0} outside 0..7: the gs crashes on load",
-  "nav.pluginsTip": "Automatic events on the server: rare monster by chance, called by the GM"
+  "nav.pluginsTip": "Automatic events on the server: rare monster by chance, called by the GM",
+  "gm.gScreen": "Your screen",
+  "gm.noFocus": "Don't pause the game without focus (on/off)",
+  "gm.noFocusNote": "The game keeps drawing when you click another window.",
+  "pl.cool": "Minimum wait between one event and the next (seconds)",
+  "pl.coolNote": "Comes from the point's Respawn (+15 s of the game): neither the roll nor \"Call now\" brings it back earlier. It spawns only once per event.",
+  "path.firstPoint": "Point 1 = where it spawns. Take the circle to the next stop and mark it (E or right click).",
+  "world.fPlugin": "Plugins",
+  "world.fPluginTip": "Plugin event points (Plugins area): orange name. They appear if the type is also checked."
 }

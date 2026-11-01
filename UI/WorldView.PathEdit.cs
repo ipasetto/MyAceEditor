@@ -57,7 +57,15 @@ internal sealed partial class WorldView
     readonly Dictionary<NpcGenSpawn, int> _lastPathOf = new();
     BhtFile? _pathBht; bool _pathBhtTried; Vector3? _blockedClick;
     /// <summary>Colisão do servidor (map.bht) para conferir o caminho; null se não há servidor.</summary>
+    // o map.bht do mundo tem ~195 MB: carregar na hora do 1º ponto travava a tela; agora começa em segundo plano quando o
+    // desenho começa (WarmCollision) e quem pede espera o mesmo carregamento (lock)
+    readonly object _bhtLock = new();
+    void WarmCollision() { if (!_pathBhtTried) Task.Run(() => PathCollision()); }
     BhtFile? PathCollision()
+    {
+        lock (_bhtLock) return LoadCollision();
+    }
+    BhtFile? LoadCollision()
     {
         if (_pathBhtTried) return _pathBht;
         _pathBhtTried = true;
@@ -241,7 +249,16 @@ internal sealed partial class WorldView
     }
 
     // redesenhar: o círculo volta para onde a criatura nasce (_flyFor = null)
-    void StartDraw() { if (PathSpawn is null || _pathFile is null) return; _flyFor = null; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
+    // o 1º ponto já vem marcado onde a criatura nasce (usuário 01/11); a colisão começa a carregar em segundo plano
+    void StartDraw()
+    {
+        if (PathSpawn is not { } s || _pathFile is null) return;
+        _flyFor = null;
+        _drawPts = new() { new Vector3(s.Position.X, s.Position.Y, s.Position.Z) };
+        if (!PathAir) WarmCollision();
+        UpdatePathPanel(); _gl.Focus(); _gl.Invalidate();
+        _status.Text = Loc.T("path.firstPoint", "Ponto 1 = onde ele nasce. Leve o círculo até a próxima parada e marque (E ou botão direito).");
+    }
 
     void CancelDraw() { _drawPts = null; _drawHover = null; UpdatePathPanel(); _gl.Invalidate(); }
 

@@ -371,6 +371,10 @@ public sealed class GmPanel : Form
                     Btn(Loc.T("gm.pluginReload", "Atualizar lista"), FillPlugins))),
             Group(Loc.T("gm.gMobs", "Monstros"),
                 Row(Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); }))),
+            // d_rendernofocus: liga/desliga desenhar o jogo sem o foco da janela (EC_DlgCmdConsole.cpp CCMD_RENDERNOFOCUS; PW-KB §S31)
+            Group(Loc.T("gm.gScreen", "Sua tela"),
+                Row(Btn(Loc.T("gm.noFocus", "Não parar o jogo sem foco (liga/desliga)"), () => Run("d_rendernofocus")),
+                    L(Loc.T("gm.noFocusNote", "O jogo continua desenhando quando você clica em outra janela.")))),
             Group(Loc.T("gm.gTime", "Hora do dia (só na sua tela)"),
                 Row(hh, L(":"), mm, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d_settimeofday {hh.Value},{mm.Value:00}")))),
             Group(Loc.T("gm.gServer", "Servidor"),

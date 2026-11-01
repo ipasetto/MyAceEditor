@@ -20,10 +20,10 @@ internal sealed partial class WorldView : Form
         Color LabelColor = default, bool OnGround = false, int Id = 0, MarkKind Kind = 0);
 
     /// <summary>Tipo do ponto para o filtro da barra (tipo + gatilho). 0 = sempre visível.</summary>
-    [Flags] public enum MarkKind { Monster = 1, Npc = 2, Merchant = 4, Guard = 8, Mine = 16, Event = 32, Trigger = 64 }
-    const MarkKind Types = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine, Triggers = MarkKind.Event | MarkKind.Trigger;
+    [Flags] public enum MarkKind { Monster = 1, Npc = 2, Merchant = 4, Guard = 8, Mine = 16, Event = 32, Trigger = 64, Plugin = 128 }
+    const MarkKind Types = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine, Triggers = MarkKind.Event | MarkKind.Trigger | MarkKind.Plugin;
     /// <summary>Filtro "Mostrar" (vale para a sessão toda): por padrão tudo menos eventos e gatilhos.</summary>
-    static MarkKind _show = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine;
+    static MarkKind _show = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine | MarkKind.Plugin;   // pontos de plugin ligados por padrão (usuário 01/11)
     List<Marker> _allMarks = new();
     static bool Visible(Marker m) => m.Kind == 0 || (m.Kind & Types & _show) != 0 && ((m.Kind & Triggers) == 0 || (m.Kind & Triggers & _show) != 0);
 

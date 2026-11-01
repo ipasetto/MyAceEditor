@@ -158,7 +158,7 @@ internal sealed class WorldQuestEditor : Panel
 
     void NpcRow(FlowLayoutPanel p, NumericUpDown num, Label name)
     {
-        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0) };
         row.Controls.Add(num);
         row.Controls.Add(Btn(Loc.T("qe.pick", "🎯 Escolher no mundo"), () =>
         {
@@ -234,8 +234,8 @@ internal sealed class WorldQuestEditor : Panel
         Caption(award, "qe.items", "Itens", "qe.itemsHint", "Itens ganhos ao entregar. Abaixo da lista, escolha se o jogador ganha todos ou um sorteado.");
         _items.Columns.Add(Loc.T("wq.colId", "ID"), 70); _items.Columns.Add(Loc.T("qe.itemCol", "Item"), 190); _items.Columns.Add(Loc.T("qe.countCol", "Qtd."), 60);
         award.Controls.Add(_items);
-        var addRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 4, 0, 0) };
-        _itemId.Width = 96; _itemN.Width = 58;   // cabe na largura do painel com os dois botões
+        var addRow = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 4, 0, 0) };
+        _itemId.Width = 96; _itemN.Width = 58;   // linhas de botões quebram quando não cabem (o Remover cortava; usuário 01/11)
         addRow.Controls.Add(_itemId); addRow.Controls.Add(_itemN);
         addRow.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), AddItem));
         addRow.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), () => { if (_items.SelectedItems.Count == 0) return; Remember(); foreach (ListViewItem it in _items.SelectedItems) _items.Items.Remove(it); }));
@@ -277,19 +277,19 @@ internal sealed class WorldQuestEditor : Panel
         var p = NewPage("qe.stepSteps", "Etapas", () => ShowAreas());
         Caption(p, "qe.steps", "Etapas da quest", "qe.stepsHint", "O que o jogador faz depois de aceitar. Só \"Falar com NPC\" = recado. Ir até um lugar, depois falar com um NPC, ir a outro lugar… cada etapa aparece no diário.");
         p.Controls.Add(_stepList);
-        var add = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 4, 0, 0) };
+        var add = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 4, 0, 0) };
         add.Controls.Add(Btn(Loc.T("qe.addReach", "+ Ir até um lugar"), () => AddStep(QuestStepKind.Reach)));
         add.Controls.Add(Btn(Loc.T("qe.addTalk", "+ Falar com NPC"), () => AddStep(QuestStepKind.Talk)));
         p.Controls.Add(add);
-        var add2 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
+        var add2 = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 2, 0, 0) };
         add2.Controls.Add(Btn(Loc.T("qe.addKill", "+ Matar monstros"), () => AddStep(QuestStepKind.Kill)));
         add2.Controls.Add(Btn(Loc.T("qe.addCollect", "+ Obter itens"), () => AddStep(QuestStepKind.Collect)));
         p.Controls.Add(add2);
-        var add3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
+        var add3 = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 2, 0, 0) };
         add3.Controls.Add(Btn(Loc.T("qe.addDeliver", "+ Entregar itens"), () => AddStep(QuestStepKind.Deliver)));
         add3.Controls.Add(Btn(Loc.T("qe.addWait", "+ Esperar"), () => AddStep(QuestStepKind.Wait)));
         p.Controls.Add(add3);
-        var move = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
+        var move = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 2, 0, 0) };
         move.Controls.Add(Btn("▲", () => MoveStep(-1)));
         move.Controls.Add(Btn("▼", () => MoveStep(1)));
         move.Controls.Add(Btn(Loc.T("qe.removeStep", "Remover etapa"), RemoveStep));
@@ -724,7 +724,7 @@ internal sealed class WorldQuestEditor : Panel
             count.Text = reward ? string.Format(Loc.T("qe.awardsN", "{0} prêmio(s) a mais:"), n) : string.Format(Loc.T("qe.reqsN", "{0} requisito(s):"), n);
         }
         Sync();
-        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0) };
         row.Controls.Add(box);
         void AddBlock(QuestOption o, object? initial)
         {

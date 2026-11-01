@@ -6,10 +6,11 @@ controladores do npcgen e avisa os jogadores. Funciona igual em todas as versõe
 ## Como funciona
 - **O que nasce e onde**: preparado antes no npcgen, em pontos de evento ligados a um controlador desligado
   (marcados no Mundo 3D a partir do plugin). Mudar o npcgen pede reiniciar o mapa; ligar/desligar é ao vivo.
+- **Ponto de plugin**: nasce UMA vez por evento (renascer automático desligado no ponto); a espera entre eventos = Renascer do ponto + 15 s (cooldownSec), vale para o sorteio e para o "Chamar agora".
 - **Ligar/desligar**: `GMControlGame` (380) no gdeliveryd :29100 com `active_npc_generator <id>` /
   `cancel_npc_generator <id>`, para cada gs (worldtag) do mapa. Desligar tira os monstros vivos do evento (o usuário
   escolheu: no fim, os que sobraram somem).
-- **Avisos do plugin**: `ChatBroadCast` (120) no gdeliveryd: canal (u8: 0 normal, 1 mundo, 3 clã, 8 sistema,
+- **Avisos do plugin**: `PublicChat` (79) no gdeliveryd, como o iweb (corrigido 01/11: o `ChatBroadCast` 120 é ignorado pelo gdeliveryd). Antes estava escrito ChatBroadCast (120): canal (u8: 0 normal, 1 mundo, 3 clã, 8 sistema,
   9 anúncio, 11 instância, 12 super mundo, 14 país), emoção (u8), srcroleid (i32; 0 = sem nome), msg (Octets
   UTF-16LE), data (Octets). O gdeliveryd repassa a todos os jogadores (WorldChat). Texto genérico, escrito pelo usuário
   no plugin: ao começar e ao terminar o evento. Os anúncios da IA (AiAnnounce: morre / entra em combate) continuam valendo.

@@ -794,15 +794,18 @@ internal sealed class NpcGenView : UserControl
                 // vermelho = guarda (NPC em ponto de monstro), ciano = coletável
                 var triggers = f.Triggers.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
                 // gatilho que liga sozinho com o mapa e sem agenda = sempre presente (cidades); agenda = evento; senão = fase/GM
+                static bool IsPlugin(NpcGenTrigger t) => t.Name.StartsWith("MyAce plugin", StringComparison.Ordinal);   // criado pela área Plugins
                 Color TriggerColor(int id, Color normal) => id == 0 || !triggers.TryGetValue(id, out var tg) ? normal
+                    : IsPlugin(tg) ? Color.FromArgb(255, 152, 0)
                     : tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? Color.LimeGreen
                     : tg.AutoStart != 0 ? normal : Color.Violet;
                 // só o que cai no terreno do cliente: a a26 do servidor tem 8 cópias do mapa de 1 km lado a lado (x a cada
                 // 1024 m) e só a do meio coincide com o mapa do cliente (PW-KB §S22)
                 // filtro do Mundo 3D: tipo do ponto + gatilho (evento agendado / fase ou GM)
-                // ponto de plugin (controlador "MyAce plugin", criado pela área Plugins) aparece como monstro normal: senão o
-                // monstro "sumia" do Mundo 3D ao virar evento (usuário 01/11)
-                WorldView.MarkKind TriggerKind(int id) => id == 0 || !triggers.TryGetValue(id, out var tg) || tg.Name.StartsWith("MyAce plugin", StringComparison.Ordinal) ? 0
+                // ponto de plugin (controlador "MyAce plugin", criado pela área Plugins): filtro próprio, laranja, ligado por
+                // padrão (antes "sumia" do Mundo 3D ao virar evento; usuário 01/11)
+                WorldView.MarkKind TriggerKind(int id) => id == 0 || !triggers.TryGetValue(id, out var tg) ? 0
+                    : IsPlugin(tg) ? WorldView.MarkKind.Plugin
                     : tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? WorldView.MarkKind.Event
                     : tg.AutoStart != 0 ? 0 : WorldView.MarkKind.Trigger;
                 WorldView.MarkKind SpawnKind(NpcGenSpawn sp, int id) => _blockOf(id) != "NPC_ESSENCE" ? WorldView.MarkKind.Monster
@@ -1075,7 +1078,7 @@ internal sealed class NpcGenView : UserControl
     /// (ou usa o que já tem), para o programa dos plugins ligar/desligar. Devolve mapa, nome e o ID do controlador no jogo
     /// (o que o gs usa em active_npc_generator); null + motivo se não dá. Um passo do Ctrl+Z.
     /// </summary>
-    public (string Map, string Name, int GmId)? EventControllerForSelected(out string? why)
+    public (string Map, string Name, int GmId, int RespawnSec)? EventControllerForSelected(out string? why)
     {
         why = null;
         if (Cur is not { } f || _cur is null || SelectedIndex() is not { } i || ListOf(f)[i] is not NpcGenSpawn s)
@@ -1083,7 +1086,15 @@ internal sealed class NpcGenView : UserControl
         if (f.Version < 7) { why = Loc.T("ev.noVersion", "Este npcgen.data (versão menor que 7) não tem eventos."); return null; }
         int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
         var name = $"{NameOf(id0)} ({id0})";
-        if (s.Trigger > 0 && f.Triggers.FirstOrDefault(t => t.Id == s.Trigger) is { } has) return (_cur, name, has.GmId);
+        // renascer real = 15 s + o do grupo (gs npcgenerator.cpp BASE_REBORN_TIME; PW-KB §S22)
+        int respawn = 15 + Math.Max(0, s.Creatures.FirstOrDefault()?.Respawn ?? 0);
+        // ponto de plugin nasce UMA vez por evento: com renascer automático ele voltava a cada morte enquanto o evento estava
+        // ligado (usuário 01/11); quem decide quando volta é o programa dos plugins (espera = renascer)
+        if (s.Trigger > 0 && f.Triggers.FirstOrDefault(t => t.Id == s.Trigger) is { } has)
+        {
+            if (s.AutoRevive != 0) { Push(_undo, new Op(_cur, false, OpKind.Replace, i, CloneOf(s))); Step(_cur, +1); _redo.Clear(); _lastKey = null; s.AutoRevive = 0; Touch(); ShowPoint(); }
+            return (_cur, name, has.GmId, respawn);
+        }
         int batch = Environment.TickCount;
         Push(_undo, new Op(_cur, false, OpKind.Triggers, 0, f.Triggers.ToList(), batch)); Step(_cur, +1);
         Push(_undo, new Op(_cur, false, OpKind.Replace, i, CloneOf(s), batch)); Step(_cur, +1);
@@ -1092,9 +1103,9 @@ internal sealed class NpcGenView : UserControl
         var t = new NpcGenTrigger { Id = Next(x => x.Id), GmId = Next(x => x.GmId), AutoStart = 0, NoStartSchedule = 1, NoStopSchedule = 1, Name = $"MyAce plugin {id0}" };
         for (int k = 0; k < 6; k++) { t.Start[k] = -1; t.Stop[k] = -1; }
         f.Triggers.Add(t);
-        s.Trigger = t.Id;
+        s.Trigger = t.Id; s.AutoRevive = 0;
         Touch(); ShowPoint();
-        return (_cur, name, t.GmId);
+        return (_cur, name, t.GmId, respawn);
     }
 
     /// <summary>Janela dos eventos do mapa (controladores): OK troca a lista inteira num passo do desfazer.</summary>

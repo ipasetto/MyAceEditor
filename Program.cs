@@ -431,6 +431,9 @@ internal static class Program
                 var d = File.ReadAllBytes(args[1]); var f = NpcGenFile.Read(d);
                 rep = $"v{f.Version} · {f.Spawns.Count:N0} pontos · {f.Resources.Count:N0} recursos · regrava {(f.Write().AsSpan().SequenceEqual(d) ? "IDÊNTICO" : "DIFERENTE")}";
                 // controladores (gatilhos): ID do jogo, nome, ligado ao abrir, quantos pontos usam (para testar plugins)
+                if (args.Length >= 3 && int.TryParse(args[2], out var cid))   // --npcgen <arquivo> <id da criatura>: pontos dela
+                    foreach (var (sp, k) in f.Spawns.Select((sp, k) => (sp, k)).Where(x => x.sp.Creatures.Any(c => c.Id == cid)))
+                        rep += $"\nponto {k}: pos {sp.Position.X:0},{sp.Position.Y:0},{sp.Position.Z:0} gatilho {sp.Trigger} autoRevive {sp.AutoRevive} initGen {sp.InitGen} renascer {string.Join("/", sp.Creatures.Select(c => c.Respawn))}";
                 foreach (var t in f.Triggers)
                     rep += $"\ncontrolador {t.GmId} (id {t.Id}) '{t.Name}' auto={t.AutoStart} pontos={f.Spawns.Count(x => x.Trigger == t.Id)}";
             }
