@@ -4835,5 +4835,19 @@
   "pl.imported": "{0} plugin(s) imported. Check each one's point and click Save and send.",
   "pl.exported": "Plugin saved to {0}.",
   "qe.noStepsHint": "No steps yet: choose below what the player does after accepting (at least one).",
-  "path.copied": "This path was used by other points: it became path {0}, only for this creature (Ctrl+Z undoes)."
+  "path.copied": "This path was used by other points: it became path {0}, only for this creature (Ctrl+Z undoes).",
+  "pl.tRare": "Rare Apparition",
+  "pl.tRareDesc": "A chosen monster appears now and then, by chance, at a point on the map, with a message to everyone. If nobody kills it in time, it leaves.",
+  "pl.colName2": "Name",
+  "pl.colPlugin": "Plugin",
+  "pl.colDesc": "Description",
+  "pl.notReady": "Can't call yet: see the countdown on the card.",
+  "pl.empty3": "Nothing running yet.\n\nPick a plugin in \"Available plugins\" (left) and click \"Run it\".",
+  "pl.available": "Available plugins",
+  "pl.addRun": "Run it",
+  "pl.addRunTip": "Creates a copy of this plugin in the \"Running on the server\" list; you can add several, each with its own name and description.",
+  "pl.running": "Running on the server",
+  "pl.name2": "Name (this copy only)",
+  "pl.desc": "Description (what it does; shown in the list)",
+  "pl.nowLabel": "Now: "
 }

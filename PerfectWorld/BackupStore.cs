@@ -131,6 +131,38 @@ public static class BackupStore
         return list.OrderByDescending(x => x.Item2).ToList();
     }
 
+    /// <summary>Pasta do armazém de uma raiz (pasta acima de element\ ou gamed\), igual à que <see cref="Target"/> usa.</summary>
+    public static string FolderOfRoot(string root)
+    {
+        root = Path.GetFullPath(root).TrimEnd('\\', '/');
+        var hash = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(root.ToLowerInvariant())))[..8];
+        var name = Path.GetFileName(root);
+        if (string.IsNullOrEmpty(name)) name = root.Replace(":", "").Trim('\\', '/');
+        return Path.Combine(Root, $"{Safe(name)}-{hash}");
+    }
+
+    /// <summary>
+    /// Os <paramref name="n"/> backups mais novos de qualquer arquivo destas raízes (cliente e servidor: elements, tasks,
+    /// path.sev, npcgen, pacotes...), com o arquivo original de cada um.
+    /// </summary>
+    public static List<(string Bak, string Original, DateTime When)> Recent(IEnumerable<string> roots, int n)
+    {
+        var list = new List<(string, string, DateTime)>();
+        foreach (var root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var dir = FolderOfRoot(root);
+            if (!Directory.Exists(dir)) continue;
+            foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                if (Regex.Match(Path.GetFileName(f), @"^(?<n>.+?)\.(?<s>\d{8}-\d{6})(?:-\d+)?\.(?:gz|bak)$", RegexOptions.IgnoreCase) is { Success: true } m
+                    && DateTime.TryParseExact(m.Groups["s"].Value, "yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var when))
+                {
+                    var rel = Path.GetRelativePath(dir, Path.GetDirectoryName(f)!);
+                    list.Add((f, Path.GetFullPath(Path.Combine(root, rel == "." ? "" : rel, m.Groups["n"].Value)), when));
+                }
+        }
+        return list.OrderByDescending(x => x.Item3).Take(n).ToList();
+    }
+
     /// <summary>Nome do arquivo original de um backup ("elements.data.20261101-172944.gz" -> "elements.data").</summary>
     public static string? OriginalName(string bak) =>
         Regex.Match(Path.GetFileName(bak), @"^(?<n>.+?)\.\d{8}-\d{6}(?:-\d+)?\.(?:gz|bak)$", RegexOptions.IgnoreCase) is { Success: true } m ? m.Groups["n"].Value : null;

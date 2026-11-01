@@ -12,6 +12,8 @@ namespace MyAceEditor.PerfectWorld;
 public sealed class PluginRule
 {
     public string Id = "", Name = "", Type = "rare";
+    /// <summary>O que esta cópia faz (texto livre do usuário, aparece na lista "em execução").</summary>
+    public string Description = "";
     public bool Enabled = true;
     public int WorldTag = 1, Controller, EveryMin = 30, DurationMin = 20;
     public double ChancePct = 10;
@@ -45,7 +47,7 @@ public static class PluginFiles
                 Enabled = n["enabled"] is not JsonValue e || !e.TryGetValue(out bool b) || b,
                 WorldTag = I("worldTag", 1), Controller = I("controller", 0), EveryMin = I("everyMin", 30), DurationMin = I("durationMin", 20),
                 ChancePct = n["chancePct"] is JsonValue c && c.TryGetValue(out double cp) ? cp : 10,
-                StartChannel = I("startChannel", 9), EndChannel = I("endChannel", 9), StartText = S("startText"), EndText = S("endText"), Point = S("point"), CooldownSec = I("cooldownSec", 0),
+                StartChannel = I("startChannel", 9), EndChannel = I("endChannel", 9), StartText = S("startText"), EndText = S("endText"), Point = S("point"), Description = S("description"), CooldownSec = I("cooldownSec", 0),
             });
         }
         return list;
@@ -59,7 +61,7 @@ public static class PluginFiles
             {
                 ["id"] = r.Id, ["name"] = r.Name, ["type"] = r.Type, ["enabled"] = r.Enabled, ["worldTag"] = r.WorldTag, ["controller"] = r.Controller,
                 ["everyMin"] = r.EveryMin, ["chancePct"] = r.ChancePct, ["durationMin"] = r.DurationMin,
-                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText, ["point"] = r.Point, ["cooldownSec"] = r.CooldownSec,
+                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText, ["point"] = r.Point, ["description"] = r.Description, ["cooldownSec"] = r.CooldownSec,
             });
         return new JsonObject { ["version"] = 1, ["plugins"] = arr }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }

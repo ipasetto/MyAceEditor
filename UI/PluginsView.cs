@@ -10,10 +10,23 @@ namespace MyAceEditor.UI;
 internal sealed class PluginsView : Panel
 {
     static readonly Color Bg = Color.FromArgb(231, 236, 242), Fg = Color.FromArgb(30, 39, 51), Muted = Color.FromArgb(100, 112, 128);
+    /// <summary>
+    /// Catálogo: os plugins que existem (cada um com nome próprio fixo). "Pôr em execução" cria uma cópia na lista "Em
+    /// execução no servidor" (pode haver várias do mesmo plugin, cada uma com nome e descrição; usuário 01/11).
+    /// </summary>
+    static readonly (string Type, string Glyph, string Key, string Pt, string DescKey, string DescPt)[] Catalog =
+    {
+        ("rare", "\uE734", "pl.tRare", "Aparição Rara", "pl.tRareDesc", "Um monstro escolhido aparece de vez em quando, por sorteio, num ponto do mapa, com aviso para todos. Se ninguém o matar a tempo, ele vai embora."),
+    };
+    static string TypeName(string type) => Catalog.FirstOrDefault(c => c.Type == type) is { Key: not null } c ? Loc.T(c.Key, c.Pt) : type;
+
     static readonly (int Ch, string Key, string Pt)[] Channels = { (9, "pl.ch9", "Anúncio (todos)"), (8, "pl.ch8", "Sistema"), (1, "pl.ch1", "Mundo"), (12, "pl.ch12", "Super mundo") };
 
     readonly StatusCard _card = new();
-    readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None };
+    readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None, OwnerDraw = true };
+    readonly Label _desc = new() { AutoSize = true, MaximumSize = new Size(620, 0), ForeColor = Fg, Margin = new Padding(0, 0, 0, 6) };
+    readonly Label _now = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), ForeColor = Color.FromArgb(37, 99, 235), Margin = new Padding(0, 0, 0, 8) };
+    readonly TextBox _description = new() { Multiline = true, Height = 54, ScrollBars = ScrollBars.Vertical };
     readonly TextBox _log = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9f), BackColor = Color.FromArgb(24, 28, 34), ForeColor = Color.Gainsboro, BorderStyle = BorderStyle.None };
     // formulário em blocos verticais (título, campo, explicação embaixo), como as outras telas; a grade de 3 colunas quebrava
     // as explicações numa palavra por linha (usuário 01/11)
@@ -87,21 +100,64 @@ internal sealed class PluginsView : Panel
         tips.SetToolTip(_stop, Loc.T("pl.rStopTip", "Termina o evento ativo agora: os monstros somem e sai o aviso de fim."));
         tips.SetToolTip(_delete, Loc.T("pl.rDeleteTip", "Tira o plugin escolhido (vale ao Salvar e enviar)."));
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0) };
-        actions.Controls.AddRange(new Control[] { _fire, _stop, _pauseToggle, _delete, _countdown });
-        _head.Controls.Add(_title); _head.Controls.Add(_sub); _head.Controls.Add(actions);
+        actions.Controls.AddRange(new Control[] { _stop, _pauseToggle, _delete, _countdown });   // chamar agora fica na frente de cada linha da lista
+        // cartão da cópia: nome, plugin · ponto, descrição, o que ela está fazendo agora (próximo sorteio, ativo...) e ações
+        _head.Controls.Add(_title); _head.Controls.Add(_sub); _head.Controls.Add(_desc); _head.Controls.Add(_now); _head.Controls.Add(actions);
         _tick.Tick += (_, _) => Countdown();
         _tick.Start();
 
-        _list.Columns.Add(Loc.T("pl.colName", "Plugin"), 160); _list.Columns.Add(Loc.T("pl.colState", "Agora"), 150);
+        // lista "em execução": ▶ (chamar agora) na frente de cada linha, nome, plugin e descrição
+        _list.Columns.Add("", 34); _list.Columns.Add(Loc.T("pl.colName2", "Nome"), 140); _list.Columns.Add(Loc.T("pl.colPlugin", "Plugin"), 110); _list.Columns.Add(Loc.T("pl.colDesc", "Descrição"), 220);
         _list.SelectedIndexChanged += (_, _) => Bind();
+        _list.DrawColumnHeader += (_, e) => e.DrawDefault = true;
+        _list.DrawItem += (_, e) => { };
+        _list.DrawSubItem += (_, e) =>
+        {
+            if (e.ColumnIndex != 0) { e.DrawDefault = true; return; }
+            e.DrawBackground();
+            if (e.Item?.Tag is not PluginRule r) return;
+            bool ready = CanCall(r);
+            var ic = UiKit.Icon(UiKit.Play, ready ? Color.FromArgb(22, 128, 61) : Color.FromArgb(185, 190, 198), 18);
+            e.Graphics.DrawImage(ic, e.Bounds.X + (e.Bounds.Width - 18) / 2, e.Bounds.Y + (e.Bounds.Height - 18) / 2);
+        };
+        _list.MouseClick += (_, e) =>
+        {
+            if (_list.HitTest(e.Location) is not { Item.Tag: PluginRule r } h || h.Item.SubItems.IndexOf(h.SubItem) != 0) return;
+            h.Item.Selected = true;
+            if (CanCall(r)) Command("fire"); else Status("⚠ " + Loc.T("pl.notReady", "Ainda não dá para chamar: veja o contador no cartão."));
+        };
+        var hint = new ToolTip();
+        _list.MouseMove += (_, e) =>
+        {
+            bool onPlay = _list.HitTest(e.Location) is { Item: not null } h && h.Item.SubItems.IndexOf(h.SubItem) == 0;
+            var t = onPlay ? Loc.T("pl.rFire", "Chamar agora") : "";
+            if (hint.GetToolTip(_list) != t) hint.SetToolTip(_list, t);
+            _list.Cursor = onPlay ? Cursors.Hand : Cursors.Default;
+        };
         BuildForm();
-        _empty.Text = Loc.T("pl.empty2", "Nenhum plugin ainda.\n\nClique em \"Monstro raro novo\" (barra de cima) para criar um monstro que aparece por sorteio.");
+        _empty.Text = Loc.T("pl.empty3", "Nada em execução ainda.\n\nEscolha um plugin em \"Plugins disponíveis\" (à esquerda) e clique em \"Pôr em execução\".");
 
-        var left = new Panel { Dock = DockStyle.Left, Width = 330, Padding = new Padding(10, 6, 6, 6), BackColor = Bg };
-        var newBtn = Act(UiKit.Add, true);
-        newBtn.Text = Loc.T("pl.rNew", "Monstro raro novo"); newBtn.Dock = DockStyle.Top; newBtn.Click += (_, _) => NewRare();
-        tips.SetToolTip(newBtn, Loc.T("pl.rNewTip", "Plugin que de tempos em tempos sorteia se um monstro (ou grupo) aparece."));
-        left.Controls.Add(_list); left.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 6, BackColor = Bg }); left.Controls.Add(newBtn);
+        var left = new Panel { Dock = DockStyle.Left, Width = 520, Padding = new Padding(10, 6, 6, 6), BackColor = Bg };
+        // 1) plugins disponíveis (catálogo): cada um com o botão de pôr uma cópia em execução
+        var cat = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Bg, Padding = new Padding(0, 0, 0, 6) };
+        cat.Controls.Add(new Label { Text = Loc.T("pl.available", "Plugins disponíveis"), AutoSize = true, Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = Fg, Margin = new Padding(0, 2, 0, 4) });
+        foreach (var c in Catalog)
+        {
+            var tile = new Panel { Width = 496, Height = 86, BackColor = Color.White, Margin = new Padding(0, 0, 0, 6) };
+            tile.Controls.Add(new PictureBox { Image = UiKit.Icon(c.Glyph, UiKit.Accent, 30), Size = new Size(36, 36), Location = new Point(12, 12) });
+            tile.Controls.Add(new Label { Text = Loc.T(c.Key, c.Pt), Font = new Font("Segoe UI Semibold", 11f), ForeColor = Fg, AutoSize = true, Location = new Point(58, 8) });
+            var descLbl = new Label { Text = Loc.T(c.DescKey, c.DescPt), ForeColor = Muted, Location = new Point(58, 32), Size = new Size(270, 50), AutoEllipsis = true };
+            tile.Controls.Add(descLbl); tips.SetToolTip(descLbl, descLbl.Text);
+            var add = Act(UiKit.Add, true);
+            add.Text = Loc.T("pl.addRun", "Pôr em execução"); add.Location = new Point(338, 25);
+            var type = c.Type; add.Click += (_, _) => NewInstance(type);
+            tips.SetToolTip(add, Loc.T("pl.addRunTip", "Cria uma cópia deste plugin na lista \"Em execução no servidor\"; dá para pôr várias, cada uma com seu nome e descrição."));
+            tile.Controls.Add(add);
+            cat.Controls.Add(tile);
+        }
+        // 2) em execução no servidor: as cópias, com ▶ chamar agora em cada linha
+        var runTitle = new Label { Dock = DockStyle.Top, Height = 26, Text = Loc.T("pl.running", "Em execução no servidor"), Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = Fg, BackColor = Bg, TextAlign = ContentAlignment.BottomLeft };
+        left.Controls.Add(_list); left.Controls.Add(runTitle); left.Controls.Add(cat);
         var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(6, 6, 10, 6), BackColor = Bg };
         _cardPanel.Controls.Add(_form); _cardPanel.Controls.Add(_result); _cardPanel.Controls.Add(_head);
         right.Controls.Add(_cardPanel); right.Controls.Add(_empty);
@@ -131,7 +187,10 @@ internal sealed class PluginsView : Panel
         _name.Width = 320; _startText.Width = W - 180; _endText.Width = W - 180;
         _enabled.Text = Loc.T("pl.enabled", "Ligado (sorteia sozinho)");
 
-        Field("pl.name", "Nome do plugin", _name);
+        Field("pl.name2", "Nome (só desta cópia)", _name);
+        _description.Width = 520;
+        Field("pl.desc", "Descrição (o que ela faz; aparece na lista)", _description);
+        _description.TextChanged += (_, _) => Edited();
 
         _form.Controls.Add(Section("pl.s1", "1. Qual monstro aparece"));
         _form.Controls.Add(Note("pl.s1Note", "Clique no monstro no NPCGen ou no Mundo 3D e depois no botão abaixo: o editor cria um evento desligado só daquele ponto. Depois use \"Salvar e enviar ao servidor\" (barra de cima) e reinicie o mapa."));
@@ -179,7 +238,7 @@ internal sealed class PluginsView : Panel
         _list.BeginUpdate(); _list.Items.Clear();
         foreach (var r in _rules)
         {
-            var it = new ListViewItem(new[] { r.Name.Length > 0 ? r.Name : r.Id, _state.GetValueOrDefault(r.Id, _dirty ? Loc.T("pl.notSent", "não enviado") : "") }) { Tag = r };
+            var it = new ListViewItem(new[] { "", r.Name.Length > 0 ? r.Name : r.Id, TypeName(r.Type), r.Description }) { Tag = r };
             if (_state.GetValueOrDefault(r.Id, "").StartsWith("ATIVO", StringComparison.Ordinal)) it.ForeColor = Color.FromArgb(22, 128, 61);
             _list.Items.Add(it);
             if (r.Id == keep) it.Selected = true;
@@ -195,10 +254,12 @@ internal sealed class PluginsView : Panel
         _cardPanel.Visible = r is not null; _empty.Visible = r is null;
         if (r is null) return;
         _title.Text = r.Name.Length > 0 ? r.Name : r.Id;
-        _sub.Text = Loc.T("pl.typeRare", "Monstro raro") + " · " + (r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)"));
+        _sub.Text = TypeName(r.Type) + " · " + (r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)"));
+        _desc.Text = r.Description; _desc.Visible = r.Description.Length > 0;
+        _now.Text = _state.GetValueOrDefault(r.Id, "") is { Length: > 0 } st ? Loc.T("pl.nowLabel", "Agora: ") + st : _dirty ? Loc.T("pl.notSent", "não enviado") : "";
         ShowResult(r);
         _binding = true;
-        _name.Text = r.Name; _enabled.Checked = r.Enabled; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
+        _name.Text = r.Name; _description.Text = r.Description; _enabled.Checked = r.Enabled; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
         _every.Value = Math.Clamp(r.EveryMin, 1, 100_000); _dur.Value = Math.Clamp(r.DurationMin, 1, 100_000); _chance.Value = (decimal)Math.Clamp(r.ChancePct, 0, 100);
         _startCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.StartChannel)); _endCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.EndChannel));
         ChanceInfo();
@@ -212,7 +273,7 @@ internal sealed class PluginsView : Panel
     {
         if (_binding || Sel is not { } r) return;
         Snapshot();
-        r.Name = _name.Text.Trim(); r.Enabled = _enabled.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
+        r.Name = _name.Text.Trim(); r.Description = _description.Text.Trim(); r.Enabled = _enabled.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
         r.EveryMin = (int)_every.Value; r.DurationMin = (int)_dur.Value; r.ChancePct = (double)_chance.Value;
         r.StartChannel = Channels[Math.Max(0, _startCh.SelectedIndex)].Ch; r.EndChannel = Channels[Math.Max(0, _endCh.SelectedIndex)].Ch;
         r.StartText = _startText.Text.Trim(); r.EndText = _endText.Text.Trim(); r.CooldownSec = (int)_cool.Value;
@@ -324,11 +385,15 @@ internal sealed class PluginsView : Panel
         Status(string.Format(Loc.T("pl.exported", "Plugin gravado em {0}."), dlg.FileName));
     }
 
-    void NewRare()
+    /// <summary>Dá para chamar agora? (programa ligado, nada ativo, fora da espera do renascer, sem mudança por enviar)</summary>
+    bool CanCall(PluginRule r) => _running && !_dirty && _state.GetValueOrDefault(r.Id + "#active", "0") != "1"
+        && !(DateTime.TryParse(_state.GetValueOrDefault(r.Id + "#ready", ""), out var ready) && ready > DateTime.Now);
+
+    void NewInstance(string type)
     {
         Snapshot();
-        int n = 1; while (_rules.Any(r => r.Id == $"raro{n}")) n++;
-        var r = new PluginRule { Id = $"raro{n}", Name = string.Format(Loc.T("pl.newName", "Monstro raro {0}"), n),
+        int n = 1; while (_rules.Any(r => r.Id == $"{type}{n}")) n++;
+        var r = new PluginRule { Id = $"{type}{n}", Type = type, Name = $"{TypeName(type)} {n}",
             StartText = Loc.T("pl.newStart", "Um monstro raro apareceu! Corra antes que ele suma."), EndText = Loc.T("pl.newEnd", "O monstro raro foi embora.") };
         _rules.Add(r); _dirty = true; Fill();
         foreach (ListViewItem it in _list.Items) it.Selected = it.Tag == r;

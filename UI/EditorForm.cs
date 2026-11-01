@@ -4862,14 +4862,24 @@ public sealed class EditorForm : Form
     /// <summary>Arquivos do jogo aberto que o editor grava (os backups deles aparecem no menu).</summary>
     IEnumerable<string> RestorableFiles() => new[] { _dataPath, _tasksPath, _aiView?.FilePath }.OfType<string>().Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase);
 
+    // raízes do jogo aberto e do servidor (pasta acima de element\ / gamed\): os backups de path.sev, npcgen... são do servidor
+    IEnumerable<string> BackupRoots()
+    {
+        if (_dataPath is not null && Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(_dataPath))) is { } client) yield return client;
+        if (LocalServer.LiveHome is { } live) yield return live;
+        if (_chkServer.Text.Length > 0 && Directory.Exists(_chkServer.Text)) yield return _chkServer.Text;
+    }
+
     void FillRestoreMenu(ToolStripMenuItem menu)
     {
         menu.DropDownItems.Clear();
-        var all = RestorableFiles().SelectMany(f => BackupStore.ListFor(f).Select(b => (File: f, b.Path, b.When))).OrderByDescending(x => x.When).Take(5).ToList();
+        // os 10 mais novos de tudo o que o editor guardou (cliente e servidor; usuário 01/11: o path.sev não aparecia)
+        var all = BackupStore.Recent(BackupRoots(), 10).Select(b => (File: b.Original, Path: b.Bak, b.When)).ToList();
         if (all.Count == 0) { menu.DropDownItems.Add(new ToolStripMenuItem(Loc.T("menu.noBackups", "(nenhum backup deste jogo ainda)")) { Enabled = false }); return; }
         foreach (var (file, bak, when) in all)
         {
-            var it = new ToolStripMenuItem($"{Path.GetFileName(file)}   ·   {when:dd/MM/yyyy HH:mm:ss}") { ForeColor = CFg, ToolTipText = bak };
+            var where = Path.GetFileName(Path.GetDirectoryName(file)) is { Length: > 0 } d && d is not ("data" or "config" or "element") ? d + "\\" : "";   // mapa (world\path.sev)
+            var it = new ToolStripMenuItem($"{where}{Path.GetFileName(file)}   ·   {when:dd/MM/yyyy HH:mm:ss}") { ForeColor = CFg, ToolTipText = file + "\n← " + bak };
             it.Click += (_, _) => RestoreBackup(bak, file);
             menu.DropDownItems.Add(it);
         }
