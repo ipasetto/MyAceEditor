@@ -133,6 +133,7 @@ internal sealed class NpcGenView : UserControl
         B("npcgen.new", "＋ Ponto", NewPoint, 90);
         B("npcgen.clone", "Clonar", ClonePoint, 80);
         B("npcgen.delete", "Excluir", DeletePoint, 80);
+        B("npcgen.events", "Eventos", EditEvents, 90);
         _bar.Controls.Add(new Label { Width = 8 });
         B("gshop.undo", "↶ Desfazer", () => Undo(), 100);
         B("gshop.redo", "↷ Refazer", () => Redo(), 100);
@@ -852,6 +853,14 @@ internal sealed class NpcGenView : UserControl
             else if (o is NpcGenResource res) { res.Dir1 = 0; res.Dir2 = 0; res.Rotation = (byte)Math.Clamp((int)(((yaw % 360 + 360) % 360) / 360 * 255), 0, 255); }
             Touch(); ShowPoint();
         };
+        w.ResizeArea = (o, sx, sz) =>
+        {
+            // tamanho total da área (o gs sorteia a posição em pos ± metade, npcgenerator.cpp); altura da área fica
+            SelectObject(o); Snapshot("area3d:" + DateTime.Now.Ticks);
+            if (o is NpcGenSpawn s) s.Spread = new Vec3(sx, s.Spread.Y, sz);
+            else if (o is NpcGenResource res) { res.SpreadX = sx; res.SpreadZ = sz; }
+            Touch(); ShowPoint();
+        };
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
         if (overview is { } ov)
@@ -979,7 +988,7 @@ internal sealed class NpcGenView : UserControl
 
     // ---------- desfazer / refazer ----------
     // cada passo diz como voltar: trocar o ponto pela cópia, inserir de volta ou remover
-    enum OpKind { Replace, Insert, Remove }
+    enum OpKind { Replace, Insert, Remove, Triggers }
     // Batch: passos com o mesmo número (≠ 0) são desfeitos/refeitos juntos (excluir vários pontos de uma vez)
     sealed record Op(string File, bool Mine, OpKind Kind, int Index, object? Obj, int Batch = 0);
     readonly List<Op> _undo = new(), _redo = new();
@@ -998,6 +1007,24 @@ internal sealed class NpcGenView : UserControl
         if (key == _lastKey && (now - _lastPush).TotalSeconds < 2) { _lastPush = now; return; }
         Push(_undo, new Op(_cur!, _kind == Kind.Mine, OpKind.Replace, i, CloneOf(ListOf(f)[i]!))); Step(_cur!, +1);
         _redo.Clear(); _lastKey = key; _lastPush = now;
+    }
+
+    /// <summary>Janela dos eventos do mapa (controladores): OK troca a lista inteira num passo do desfazer.</summary>
+    void EditEvents()
+    {
+        if (Cur is not { } f || _cur is null) return;
+        if (f.Version < 7) { MessageBox.Show(this, Loc.T("ev.noVersion", "Este npcgen.data (versão menor que 7) não tem eventos."), "NPCGen"); return; }
+        int Using(int id) => id == 0 ? 0 : f.Spawns.Count(s => s.Trigger == id) + f.Resources.Count(r => r.Trigger == id);
+        using var dlg = new NpcGenEventsDialog(f.Triggers, f.Version, Using);
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var now = dlg.Result;
+        if (now.Count == f.Triggers.Count && now.Zip(f.Triggers).All(p => Same(p.First, p.Second))) return;   // nada mudou
+        Push(_undo, new Op(_cur, false, OpKind.Triggers, 0, f.Triggers.ToList())); Step(_cur, +1); _redo.Clear(); _lastKey = null;
+        f.Triggers.Clear(); f.Triggers.AddRange(now);
+        Touch();
+        static bool Same(NpcGenTrigger a, NpcGenTrigger b) => a.Id == b.Id && a.GmId == b.GmId && a.NameRaw.AsSpan().SequenceEqual(b.NameRaw) && a.AutoStart == b.AutoStart
+            && a.WaitStart == b.WaitStart && a.WaitStop == b.WaitStop && a.NoStartSchedule == b.NoStartSchedule && a.NoStopSchedule == b.NoStopSchedule
+            && a.Start.AsSpan().SequenceEqual(b.Start) && a.Stop.AsSpan().SequenceEqual(b.Stop) && a.Duration == b.Duration;
     }
 
     // quantos passos o arquivo está à frente do que foi salvo (Ctrl+Z até o ponto salvo = sem mudança para salvar/enviar)
@@ -1020,6 +1047,15 @@ internal sealed class NpcGenView : UserControl
             op = from[^1]; from.RemoveAt(from.Count - 1);
             Step(op.File, from == _undo ? -1 : +1);
             var f = Load(op.File)!;
+            if (op.Kind == OpKind.Triggers)
+            {
+                // eventos (controladores): a lista inteira troca de uma vez
+                Push(to, op with { Obj = f.Triggers.ToList() });
+                f.Triggers.Clear(); f.Triggers.AddRange((List<NpcGenTrigger>)op.Obj!);
+                if (Level(op.File) == _savedLevel.GetValueOrDefault(op.File)) _dirty.Remove(op.File); else _dirty.Add(op.File);
+                _lastKey = null; UpdateInfo(); _list.Invalidate(); _world?.MarkDirty();
+                return true;
+            }
             l = op.Mine ? f.Resources : f.Spawns;
             switch (op.Kind)
             {

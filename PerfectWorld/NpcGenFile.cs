@@ -246,6 +246,13 @@ public sealed class NpcGenTrigger
 
     public string Name { get => NpcGenFile.Name(NameRaw); set => NameRaw = NpcGenFile.Name(value, 128); }
 
+    public NpcGenTrigger Clone()
+    {
+        var c = (NpcGenTrigger)MemberwiseClone();
+        c.NameRaw = (byte[])NameRaw.Clone(); c.Start = (int[])Start.Clone(); c.Stop = (int[])Stop.Clone();
+        return c;
+    }
+
     internal static NpcGenTrigger Read(BinaryReader r, int v)
     {
         var t = new NpcGenTrigger { Id = r.ReadInt32(), GmId = r.ReadInt32(), NameRaw = r.ReadBytes(128), AutoStart = r.ReadByte(), WaitStart = r.ReadInt32(), WaitStop = r.ReadInt32(),

@@ -34,6 +34,8 @@ internal sealed class WorldView : Form
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? DeletePoint { get; set; }
     /// <summary>Anel de giro: novo ângulo do ponto (graus; 0 = olhando para +Z, 90 = +X).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, float>? RotatePoint { get; set; }
+    /// <summary>Novo tamanho total (X, Z) da área de nascimento do ponto (alça do canto da área arrastada no chão).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, float, float>? ResizeArea { get; set; }
     /// <summary>Clique no vazio: nenhum ponto selecionado.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action? ClearSelection { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Func<bool>? UndoAction { get; set; }
@@ -119,6 +121,7 @@ internal sealed class WorldView : Form
     object? _movingTag; Vector3? _movePos;   // arrastando um ponto com o botão esquerdo
     // setas do ponto selecionado: 1 = X, 2 = Y (altura), 3 = Z, 4 = anel de giro; 0 = nenhuma
     int _gizmoAxis, _gizmoHover; object? _gizmoTag; Vector3 _gizmoStart; Point _gizmoDown; Vector3? _gizmoPos; float? _gizmoYaw;
+    (float X, float Z)? _gizmoSize;   // alça da área (eixo 5): tamanho total novo enquanto arrasta
     object? _clip;                            // Ctrl+C
     int _newLabels;
     bool _legendOpen = LoadLegend(); int _legendTex, _legendW, _legendH; bool _legendState;
@@ -217,7 +220,7 @@ internal sealed class WorldView : Form
             // setas / anel do ponto selecionado têm preferência
             if (e.Button == MouseButtons.Left && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
             {
-                _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null;
+                _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null; _gizmoSize = null;
                 return;
             }
             // esquerdo em cima de um ponto (na tela): arrasta o ponto; no vazio ou botão do meio: gira a câmera
@@ -232,7 +235,8 @@ internal sealed class WorldView : Form
                 var gt = _gizmoTag!;
                 if (_gizmoPos is { } gp && _moveHere is not null) _moveHere(gt, gp);
                 if (_gizmoYaw is { } gy && RotatePoint is not null) RotatePoint(gt, gy);
-                _gizmoAxis = 0; _gizmoTag = null; _gizmoPos = null; _gizmoYaw = null;
+                if (_gizmoSize is { } gsz && ResizeArea is not null) ResizeArea(gt, gsz.X, gsz.Z);
+                _gizmoAxis = 0; _gizmoTag = null; _gizmoPos = null; _gizmoYaw = null; _gizmoSize = null;
                 RefreshMarkers(); _gl.Invalidate();
                 return;
             }
@@ -642,14 +646,18 @@ internal sealed class WorldView : Form
     /// </summary>
     void DrawSpawnArea()
     {
-        if (SelectedMark() is not { } m) return;
-        var (cx, cz, sx, sz) = m.Tag switch
-        {
-            NpcGenSpawn s => (s.Position.X, s.Position.Z, s.Spread.X, s.Spread.Z),
-            NpcGenResource r => (r.Position.X, r.Position.Z, r.SpreadX, r.SpreadZ),
-            _ => (0f, 0f, 0f, 0f),
-        };
+        if (SelectedMark() is not { } m || AreaOf(m.Tag) is not { } ar) return;
+        var (cx, cz, sx, sz) = ar;
+        if (m.Tag == _gizmoTag && _gizmoSize is { } gs) (sx, sz) = gs;
         sx /= 2; sz /= 2;
+        if (AreaHandle(m) is { } h)
+        {
+            bool hot = _gizmoAxis == 5 || _gizmoHover == 5;
+            GL.Disable(EnableCap.DepthTest); GL.PointSize(hot ? 13 : 10);
+            GL.Color3(hot ? 1f : 0.35f, hot ? 0.9f : 0.75f, hot ? 0.3f : 1f);
+            GL.Begin(PrimitiveType.Points); GL.Vertex3(Gl(h.X, h.Y, h.Z)); GL.End();
+            GL.PointSize(1); GL.Enable(EnableCap.DepthTest); GL.Color3(1f, 1f, 1f);
+        }
         if (sx < 0.25f && sz < 0.25f) return;
         float Y(float x, float z) => (_t.HeightAt(x, z) ?? m.Y) + 0.4f;
         var pts = new List<Vector3>();
@@ -1048,9 +1056,27 @@ internal sealed class WorldView : Form
 
     static readonly Vector3[] GizmoDirs = { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ };
 
+    /// <summary>Centro e tamanho total (X, Z) da área de nascimento de um ponto do npcgen; null se não é ponto com área.</summary>
+    static (float Cx, float Cz, float Sx, float Sz)? AreaOf(object tag) => tag switch
+    {
+        NpcGenSpawn s => (s.Position.X, s.Position.Z, s.Spread.X, s.Spread.Z),
+        NpcGenResource r => (r.Position.X, r.Position.Z, r.SpreadX, r.SpreadZ),
+        _ => null,
+    };
+
+    /// <summary>Alça no canto +X/+Z da área (área zerada: 1,5 m do centro, para dar onde puxar).</summary>
+    Vector3? AreaHandle(Marker m)
+    {
+        if (ResizeArea is null || AreaOf(m.Tag) is not { } a) return null;
+        var (sx, sz) = m.Tag == _gizmoTag && _gizmoSize is { } g ? g : (a.Sx, a.Sz);
+        float hx = a.Cx + MathF.Max(sx / 2, 1.5f), hz = a.Cz + MathF.Max(sz / 2, 1.5f);
+        return new Vector3(hx, (_t.HeightAt(hx, hz) ?? m.Y) + 0.4f, hz);
+    }
+
     int GizmoHit(Point p)
     {
         if (SelectedMark() is not { } m) return 0;
+        if (AreaHandle(m) is { } h && Project(h) is { } hp && MathF.Abs(hp.X - p.X) < 9 && MathF.Abs(hp.Y - p.Y) < 9) return 5;
         var c = PosOf(m); float L = GizmoSize(c);
         if (Project(c) is not { } a) return 0;
         for (int k = 0; k < 3; k++)
@@ -1077,6 +1103,16 @@ internal sealed class WorldView : Form
     void GizmoDrag(Point p)
     {
         var c = _gizmoStart; float L = GizmoSize(c);
+        if (_gizmoAxis == 5)
+        {
+            // alça da área: o ponto do chão sob o mouse é o novo canto; a área cresce igual para os dois lados (passo de 10 cm)
+            if (Ray(p) is not { } hit || _gizmoTag is null || AreaOf(_gizmoTag) is not { } ar) return;
+            float nx = MathF.Round(MathF.Abs(hit.X - ar.Cx) * 2 * 10) / 10, nz = MathF.Round(MathF.Abs(hit.Z - ar.Cz) * 2 * 10) / 10;
+            _gizmoSize = (nx, nz);
+            _status.Text = string.Format(Loc.T("gizmo.area", "Área de nascimento: {0:0.0} × {1:0.0} m"), nx, nz);
+            _gl.Invalidate();
+            return;
+        }
         if (_gizmoAxis <= 3)
         {
             // quanto o mouse andou ao longo da seta na tela vira metros ao longo do eixo (passo de 10 cm)
