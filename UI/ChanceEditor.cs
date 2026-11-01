@@ -435,8 +435,9 @@ internal sealed class ProbListView : ScrollableControl
         if (_drag is null || _before is null) return;
         double v = Math.Round(Math.Clamp((x - bar.X) / (double)bar.Width, 0, 1), 3);
         foreach (var (k, f) in _before) _item.Fields[k] = f;
-        // Só a linha arrastada muda (usuário 01/11): somar 100% é só no botão "Ajustar para 100%".
-        _item.Fields[_drag.Prob] = Field.Of(_before[_drag.Prob].Type, ProbabilityGroups.Fmt(v));
+        var refOf = _sections.SelectMany(s => s.Rows).Where(r => r.Ref is not null).ToDictionary(r => r.Prob, r => r.Ref!);
+        var nv = ProbabilityGroups.Set(_item, _drag.Prob, v, _locks, k => refOf.TryGetValue(k, out var rk) && !AddonGroups.Empty(_item.Fields[rk].Value));
+        foreach (var (k, val) in nv) _item.Fields[k] = Field.Of(_before[k].Type, ProbabilityGroups.Fmt(val));
         Invalidate();
     }
 }

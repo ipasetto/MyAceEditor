@@ -109,7 +109,7 @@ internal sealed class InterfaceView : UserControl
     // barra estilo Word: voltar | salvar | desfazer | arquivos | contornos
     void BuildBar()
     {
-        UiKit.Cmd(_bar, UiKit.Back, "ui.rBack", "Voltar", () => { if (AskDiscard()) { _dirty = false; _back(); } }, "ui.back", "◀ Voltar ao extrator");
+        UiKit.Cmd(_bar, UiKit.Back, "ui.rBack", "Voltar", () => { if (AskDiscard()) { _dirty = false; _back(); } }, "ui.back2", "◀ Voltar ao início de Interfaces");
         UiKit.Cmd(_bar, UiKit.Save, "ui.rSave", "Salvar janela", Save, "ui.rSaveTip", "Grava a janela no pacote (com backup fora do cliente).", primary: true);
         UiKit.Sep(_bar);
         UiKit.Cmd(_bar, UiKit.Undo, "ui.rUndo", "Desfazer", () => Undo(), "ui.rUndoTip", "Desfaz a última mudança (Ctrl+Z).");

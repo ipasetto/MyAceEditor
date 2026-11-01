@@ -535,16 +535,40 @@ public static class QuestBuilder
 
     static readonly System.Text.RegularExpressions.Regex QuestRefKey = new(@"^(m_ulPremise_Tasks|m_ulMutexTasks|m_ulNeededTasks)\[\d+\]$|^m_ulPremise_Cotask$|^m_Award_S\.m_ulNewTask$");
 
+    // Ligações de cada nó para outras quests (campo, ID), guardadas por nó e refeitas só quando os bytes dele mudam: ler os
+    // ~21-36 mil registros leva segundos (excluir quest ficava lento). WarmLinks monta em segundo plano ao abrir.
+    // Só campos inteiros: o registro tem floats enormes/NaN (Convert.ToInt64 estourava ao excluir, log 01/11 14:35).
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<QuestNode, LinkCache> Links = new();
+    sealed record LinkCache(int Hash, (string Key, int Id)[] Refs);
+
+    static (string Key, int Id)[] LinksOf(QuestNode n, int version)
+    {
+        var h = new HashCode(); h.AddBytes(n.Fixed); int hash = h.ToHashCode();
+        if (Links.TryGetValue(n, out var c) && c.Hash == hash) return c.Refs;
+        var refs = new List<(string, int)>();
+        foreach (var (k, v) in ReadRec(n, version).V)
+            if (v is long or int or uint or ulong or short or ushort or byte or sbyte && QuestRefKey.IsMatch(k)
+                && Convert.ToDecimal(v) is > 0 and <= int.MaxValue and var x)
+                refs.Add((k, (int)x));
+        var arr = refs.ToArray();
+        lock (Links) Links.AddOrUpdate(n, new LinkCache(hash, arr));
+        return arr;
+    }
+
+    /// <summary>Monta o cache de ligações entre quests (chamar em segundo plano ao abrir o tasks.data).</summary>
+    public static void WarmLinks(TasksFile t)
+    {
+        if (!t.FullSchema) return;
+        try { foreach (var n in t.AllNodes().ToList()) LinksOf(n, t.Version); }
+        catch (InvalidOperationException) { }   // a lista mudou enquanto montava: o resto é feito quando pedir
+    }
+
     /// <summary>Quests (fora de <paramref name="ids"/>) que apontam para algum desses IDs: anterior, exclusiva, necessária, conjunta ou nova ao concluir.</summary>
     public static List<int> ReferencedBy(TasksFile t, IReadOnlySet<int> ids)
     {
         var res = new List<int>();
         foreach (var n in t.AllNodes())
-        {
-            if (ids.Contains(n.Id)) continue;
-            var rec = ReadRec(n, t.Version);
-            if (rec.V.Any(kv => QuestRefKey.IsMatch(kv.Key) && kv.Value is not byte[] && ids.Contains((int)Convert.ToInt64(kv.Value)))) res.Add(n.Id);
-        }
+            if (!ids.Contains(n.Id) && LinksOf(n, t.Version).Any(r => ids.Contains(r.Id))) res.Add(n.Id);
         return res;
     }
 
@@ -559,11 +583,10 @@ public static class QuestBuilder
         void Link(int from, int to) { if (from > 0 && to > 0 && from != to) { if (!next.TryGetValue(from, out var l)) next[from] = l = new(); if (!l.Contains(to)) l.Add(to); } }
         foreach (var root in t.Roots!)
             foreach (var n in root.Descendants().Prepend(root))
-                foreach (var (k, v) in ReadRec(n, t.Version).V)
+                foreach (var (k, x) in LinksOf(n, t.Version))
                 {
-                    if (v is byte[] || Convert.ToInt64(v) is not (> 0 and var x)) continue;
-                    if (k.StartsWith("m_ulPremise_Tasks[")) Link(RootOf((int)x), root.Id);
-                    else if (k == QuestOptions.AwardPrefix + "m_ulNewTask") Link(root.Id, RootOf((int)x));
+                    if (k.StartsWith("m_ulPremise_Tasks[")) Link(RootOf(x), root.Id);
+                    else if (k == QuestOptions.AwardPrefix + "m_ulNewTask") Link(root.Id, RootOf(x));
                 }
         var res = new List<int>(); var seen = new HashSet<int> { rootId }; var queue = new Queue<int>(); queue.Enqueue(rootId);
         while (queue.Count > 0)

@@ -21,24 +21,13 @@ internal sealed class PckView : Panel
     readonly ListView _lv = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, VirtualMode = true, HideSelection = false, BorderStyle = BorderStyle.None };
     readonly PictureBox _pic = new() { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(40, 44, 52) };
     readonly TextBox _text = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Font = new Font("Consolas", 9.5f), Visible = false };
-    ToolStripButton _extractSel = null!, _extractAll = null!, _cancel = null!, _destChange = null!, _editUi = null!;
-    ToolStripDropDownButton _uiMenu = null!;
+    ToolStripButton _extractSel = null!, _extractAll = null!, _cancel = null!, _destChange = null!;
     readonly ProgressBar _bar = new() { Dock = DockStyle.Bottom, Height = 6, Visible = false };
+    readonly StatusCard _card = new();   // pacote aberto (ou o que fazer quando não há nenhum)
 
     PckArchive? _pck;
     string? _dest;   // pasta de destino; padrão = <pacote>.files ao lado do .pck (como o sPCK)
     readonly Label _destLabel = new() { Dock = DockStyle.Right, AutoSize = false, Width = 420, ForeColor = Muted, TextAlign = ContentAlignment.MiddleRight, AutoEllipsis = true };
-    InterfaceView? _editor;
-
-    // o pacote aberto foi regravado: o leitor antigo aponta para o backup
-    void Reopen(bool changed)
-    {
-        if (changed && _pck is { } p) Open(p.FilePath);
-    }
-    Control[] _listMode = Array.Empty<Control>();
-
-    /// <summary>Editor de janelas aberto (para o Ctrl+Z da janela principal ir para ele).</summary>
-    public InterfaceView? Editor => _editor is { Visible: true } ? _editor : null;
     List<PckEntry> _view = new();
     CancellationTokenSource? _work;
 
@@ -47,7 +36,7 @@ internal sealed class PckView : Panel
         _elementDir = elementDir;
         Dock = DockStyle.Fill; BackColor = Bg; Padding = new Padding(0);
 
-        // barra de comandos estilo Word: escolher o pacote, extrair, interface, destino
+        // barra de comandos estilo Word: escolher o pacote, extrair, destino (interfaces ficam na área Interfaces; usuário 01/11)
         var top = UiKit.Ribbon();
         var pick = new ToolStripControlHost(_known) { Margin = new Padding(2, 12, 6, 0), AutoSize = false, Width = 280 };
         top.Items.Add(pick);
@@ -56,13 +45,6 @@ internal sealed class PckView : Panel
         _extractSel = UiKit.Cmd(top, UiKit.Export, "pck.rExtractSel", "Extrair selecionados", () => Extract(selectedOnly: true), "pck.rExtractSelTip", "Extrai os arquivos marcados na lista para a pasta de destino.", primary: true);
         _extractAll = UiKit.Cmd(top, UiKit.Box, "pck.rExtractAll", "Extrair tudo", () => Extract(selectedOnly: false), "pck.rExtractAllTip", "Extrai todos os arquivos da lista (respeita o filtro).");
         _cancel = UiKit.Cmd(top, UiKit.Cancel, "dlg.cancel", "Cancelar", () => _work?.Cancel());
-        UiKit.Sep(top);
-        _editUi = UiKit.Cmd(top, UiKit.Edit, "pck.rEditUi", "Editar interfaces", OpenEditor, "pck.rEditUiTip", "Abre as janelas do jogo deste pacote para editar na tela.");
-        // importar (conferido) / trocar com outro cliente / telas de carregamento, para qualquer pacote (UiTools)
-        _uiMenu = UiKit.Menu(top, UiKit.Swap, "pck.rUiMenu", "Interface");
-        UiKit.Item(_uiMenu, UiKit.Download, "ui.mImport", "Importar pasta (confere antes de gravar)…", () => { if (_pck is { } p) Reopen(UiTools.Import(this, p.FilePath)); });
-        UiKit.Item(_uiMenu, UiKit.Swap, "ui.mSwap", "Trocar com a interface de outro cliente…", () => { if (_pck is { } p) Reopen(UiTools.Swap(this, p.FilePath)); });
-        UiKit.Item(_uiMenu, UiKit.Picture, "ui.mLoading", "Telas de carregamento…", () => Reopen(UiTools.LoadingScreens(this, _elementDir())));
         UiKit.Sep(top);
         _destChange = UiKit.Cmd(top, UiKit.Folder, "pck.rDest", "Pasta de destino", ChangeDest, "pck.dest", "Pasta de destino (as subpastas do pacote são mantidas)");
         UiKit.Cmd(top, UiKit.Folder, "pck.rOpenDest", "Abrir destino", () => { if (_dest is not null) { Directory.CreateDirectory(_dest); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_dest) { UseShellExecute = true }); } }, "pck.rOpenDestTip", "Abre a pasta de destino no Explorer.");
@@ -91,8 +73,7 @@ internal sealed class PckView : Panel
         split.Panel2.Controls.Add(_pic); split.Panel2.Controls.Add(_text); split.Panel2.Controls.Add(_empty);
         var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 0, 10, 6), BackColor = Bg };
         body.Controls.Add(split); body.Controls.Add(searchRow); body.Controls.Add(_bar); body.Controls.Add(_info);
-        Controls.Add(body); Controls.Add(top);
-        _listMode = new Control[] { body, top };
+        Controls.Add(body); Controls.Add(_card); Controls.Add(top);
         _info.Dock = DockStyle.Bottom;
         _filter.Parent!.BringToFront();
 
@@ -141,7 +122,6 @@ internal sealed class PckView : Panel
             _view = new(); _lv.VirtualListSize = 0;
             _pck = new PckArchive(path);
             _dest = path + ".files";
-            _dialogCount = InterfaceView.CountDialogs(_pck);
             ApplyFilter();
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("pck.openFail", "Não consegui abrir o pacote"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -159,61 +139,29 @@ internal sealed class PckView : Panel
         UpdateButtons(); UpdateInfo();
     }
 
-    void UpdateInfo() => _info.Text = _pck is null
+    void UpdateInfo()
+    {
+        if (_pck is null) _card.Set(StatusCard.Kind.Off, Loc.T("pck.cardNone", "Nenhum pacote aberto"), Loc.T("pck.cardNoneDetail", "Escolha um pacote do jogo na caixa acima (ou Abrir outro). Depois marque os arquivos e clique em Extrair."));
+        else _card.Set(StatusCard.Kind.On, Path.GetFileName(_pck.FilePath), string.Format(Loc.T("pck.cardOpen", "versão {0} · {1:N0} arquivos · extrai para {2}"), _pck.Version, _pck.Entries.Count, _dest ?? ""));
+        _info.Text = _pck is null
         ? Loc.T("pck.hint", "Escolha um pacote acima. Duplo clique extrai o arquivo; a prévia mostra imagens e textos.")
         : string.Format(Loc.T("pck.info", "{0} · versão {1} · {2:N0} arquivos ({3:N0} no filtro) · {4}"),
             Path.GetFileName(_pck.FilePath), _pck.Version, _pck.Entries.Count, _view.Count, Human(_view.Sum(e => (long)e.Size)));
-
-    // ---------- editor de janelas (pacotes com XML de interface) ----------
-    int _dialogCount;
-
-    void OpenEditor()
-    {
-        if (_pck is null || _dialogCount == 0) return;
-        if (_editor is null)
-        {
-            _editor = new InterfaceView(CloseEditor) { Dock = DockStyle.Fill, Visible = false };
-            Controls.Add(_editor);
-        }
-        foreach (var c in _listMode) c.Visible = false;
-        _editor.Visible = true; _editor.BringToFront();
-        _editor.LoadPack(_pck.FilePath);
     }
 
-    void CloseEditor()
-    {
-        if (_editor is not null) _editor.Visible = false;
-        foreach (var c in _listMode) c.Visible = true;
-    }
-
-    /// <summary>
-    /// Outra pasta do PW foi aberta: a lista de pacotes passa a ser a dela e o pacote aberto (e o editor de interface)
-    /// troca para o arquivo de mesmo nome do jogo novo; se ele não existir lá, o pacote é fechado.
-    /// </summary>
+    /// <summary>Outra pasta do PW foi aberta: a lista de pacotes passa a ser a dela e o pacote aberto troca para o arquivo de
+    /// mesmo nome do jogo novo; se ele não existir lá, o pacote é fechado.</summary>
     public void GameFolderChanged()
     {
         var dir = _elementDir();
         var name = _pck is null ? null : Path.GetFileName(_pck.FilePath);
-        bool editing = _editor is { Visible: true };
-        CloseEditor();
         if (name is not null)
         {
             var same = dir is null ? null : Path.Combine(dir, name);
             if (same is not null && File.Exists(same)) Open(same);
-            else { _pck?.Dispose(); _pck = null; _dialogCount = 0; ApplyFilter(); }
+            else { _pck?.Dispose(); _pck = null; ApplyFilter(); }
         }
         FillKnown();
-        if (editing && _pck is not null) OpenEditor();
-    }
-
-    /// <summary>Diagnóstico (--snapshot ... ui:arquivo.xml): abre o interfaces.pck do jogo no editor e a janela pedida.</summary>
-    internal void OpenUiForSnapshot(string file)
-    {
-        var dir = _elementDir();
-        if (dir is null) return;
-        Open(Path.Combine(dir, "interfaces.pck"));
-        OpenEditor();
-        _editor?.OpenForSnapshot(file);
     }
 
     void ChangeDest()
@@ -227,8 +175,6 @@ internal sealed class PckView : Panel
         int n = _lv.SelectedIndices.Count;
         _destLabel.Text = _dest is null ? "" : Loc.T("pck.to", "Destino: ") + _dest;
         _destChange.Enabled = _pck is not null;
-        _editUi.Enabled = _dialogCount > 0;
-        _editUi.Text = _dialogCount > 0 ? string.Format(Loc.T("pck.rEditUiN", "Editar interfaces ({0})"), _dialogCount) : Loc.T("pck.rEditUi", "Editar interfaces");
         _extractSel.Text = n > 0 ? string.Format(Loc.T("pck.rExtractSelN", "Extrair {0} selecionado(s)"), n) : Loc.T("pck.rExtractSel", "Extrair selecionados");
         _empty.Text = _pck is null ? Loc.T("pck.emptyNoPck", "Escolha um pacote na barra acima") : Loc.T("pck.emptyPick", "Clique num arquivo para ver a prévia\n(imagens e textos)");
         _empty.Visible = _pck is null || n != 1;

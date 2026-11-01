@@ -167,10 +167,6 @@ public sealed class EditorForm : Form
         Bind(() => translateFrom.Text = Loc.T("menu.translateFrom", "&Traduzir com outro elements.data…"));
         var translateClient = new ToolStripMenuItem { ForeColor = CFg }; translateClient.Click += (_, _) => TranslateFromClient();
         tools.DropDownItems.Add(translateClient);
-        // editor de interfaces em janela própria (pedido do usuário: é outra função, não é o extrator de .pck)
-        var uiEd = new ToolStripMenuItem { ForeColor = CFg }; uiEd.Click += (_, _) => OpenInterfaceWindow();
-        tools.DropDownItems.Add(uiEd);
-        Bind(() => uiEd.Text = Loc.T("menu.uiEditor", "Editor de &interfaces do jogo…"));
         Bind(() => translateClient.Text = Loc.T("menu.translateClient", "Traduzir a partir de outro &cliente…"));
         var showUnused = _miShowUnused = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = !_hideUnused };
         showUnused.CheckedChanged += (_, _) =>
@@ -468,6 +464,12 @@ public sealed class EditorForm : Form
             () => _chkServer.Text, LoadSetting, SaveSetting) { AiPolicyPath = () => _aiView?.FilePath });
         _serverView.FilesSent += ok => { if (ok) { _unsent.Clear(); _serverDiff = null; } UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
         tabs.TabPages.Add(tSrv);
+        // Interfaces (janelas do jogo) fica acima do Extrator PCK, que só extrai (usuário 01/11)
+        var tUi = new TabPage() { BackColor = CBg };
+        _tabUi = tUi;
+        Bind(() => tUi.Text = Loc.T("tab.interfaces", "Interfaces"));
+        tUi.Controls.Add(_uiArea = new InterfacesView(() => _dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath))));
+        tabs.TabPages.Add(tUi);
         var tPck = new TabPage() { BackColor = CBg };
         _tabPck = tPck;
         Bind(() => tPck.Text = Loc.T("tab.pck", "Extrator PCK"));
@@ -489,7 +491,8 @@ public sealed class EditorForm : Form
             (UiKit.Robot, "tab.aipolicy", "nav.aiTip", "Comportamento dos monstros (aipolicy.data)"),
             (UiKit.CheckList, "tab.verify", "nav.verifyTip", "Confere se cliente e servidor combinam e corrige"),
             (UiKit.Server, "tab.server", "nav.serverTip", "Servidor de teste no seu PC: ligar, enviar, administrar"),
-            (UiKit.Box, "tab.pck", "nav.pckTip", "Pacotes .pck: extrair, interfaces, telas de carregamento"),
+            (UiKit.Layers, "tab.interfaces", "nav.uiTip", "Janelas do jogo: editar na tela, importar, trocar com outro cliente, telas de carregamento"),
+            (UiKit.Box, "tab.pck", "nav.pckTip2", "Pacotes .pck: abrir, ver e extrair arquivos"),
         };
         for (int i = 0; i < pages.Length && i < tabs.TabPages.Count; i++)
         {
@@ -924,10 +927,14 @@ public sealed class EditorForm : Form
         if (_probDrag is not { } d) return;
         double v = Math.Round(Math.Clamp((x - bar.X) / (double)bar.Width, 0, 1), 3);   // passo de 0,1%
         foreach (var (k, f) in d.Before) d.Item.Fields[k] = f;                         // parte sempre do original
-        // Só o campo arrastado muda (usuário 01/11): somar 100% é só no "Distribuir 100%".
-        d.Item.Fields[d.Key] = Field.Of(d.Before[d.Key].Type, ProbabilityGroups.Fmt(v));
+        var refOf = d.Item.Fields.Keys.Where(k => FieldKinds.IsReference(FieldKinds.Of(k)))
+            .Select(k => (Ref: k, Prob: FieldKinds.ProbabilityFor(k, d.Item.Fields))).Where(t => t.Prob is not null)
+            .GroupBy(t => t.Prob!).ToDictionary(g => g.Key, g => g.First().Ref);
+        // o grupo continua somando 100% (o gs normaliza mesmo; usuário 01/11 pediu de volta por estética)
+        var nv = ProbabilityGroups.Set(d.Item, d.Key, v, _probLocks, k => refOf.TryGetValue(k, out var rk) && !IsEmpty(d.Item.Fields[rk].Value));
+        foreach (var (k, val) in nv) d.Item.Fields[k] = Field.Of(d.Before[k].Type, ProbabilityGroups.Fmt(val));
         foreach (DataGridViewRow row in _grid.Rows)
-            if (row.Tag as string == d.Key) row.Cells[1].Value = d.Item.Fields[d.Key].Value;
+            if (row.Tag is string rk2 && nv.ContainsKey(rk2)) row.Cells[1].Value = d.Item.Fields[rk2].Value;
         _grid.InvalidateColumn(2);
     }
 
@@ -1151,7 +1158,8 @@ public sealed class EditorForm : Form
         _cfgColorIds.Clear(); _cfgDescIds.Clear(); _cfgDirty = false; FillDescPalette();   // cor/descrição: nada pendente no jogo novo
         _tasks = r.Tasks; _tasksPath = r.TasksPath; _tasksDirty = false;
         // base das regras das quests (o jogo original já tem referências quebradas): em segundo plano, ~10-50 s
-        _questBase = r.Tasks is { } tk ? Task.Run(() => QuestRules.Check(tk, module).Select(QKey).ToHashSet()) : null;   // sem tasks.data no jogo novo, a aba fica vazia
+        _questBase = r.Tasks is { } tk ? Task.Run(() => QuestRules.Check(tk, module).Select(QKey).ToHashSet()) : null;
+        if (r.Tasks is { } tl) _ = Task.Run(() => QuestBuilder.WarmLinks(tl));   // excluir/ligar quest sem esperar a leitura de tudo   // sem tasks.data no jogo novo, a aba fica vazia
         _qTree.Nodes.Clear(); _qCur = null; _qGrid.Rows.Clear();
         RefreshQuests();
         _qStatus.Text = r.TasksPath is { } tp ? TasksStatus(tp) : Loc.T("quest.openFirst", "Abra um tasks.data primeiro.");
@@ -1174,7 +1182,7 @@ public sealed class EditorForm : Form
         {
             _gshop?.GameFolderChanged();
             _aiView?.GameFolderChanged(element);
-            _pckView?.GameFolderChanged();
+            _pckView?.GameFolderChanged(); _uiArea?.GameFolderChanged();
             _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do cliente anterior
         });
         int items = module.Lists.Sum(l => l.Items.Count);
@@ -1577,7 +1585,7 @@ public sealed class EditorForm : Form
         var f = new Form
         {
             FormBorderStyle = FormBorderStyle.None, ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, KeyPreview = true,
-            Location = screen, Size = new Size(Math.Max(_blockCombo.Width, 440), Math.Min(620, Screen.FromControl(this).WorkingArea.Bottom - screen.Y - 10)),
+            Location = screen, Size = new Size(_blockCombo.Width, Math.Min(620, Screen.FromControl(this).WorkingArea.Bottom - screen.Y - 10)),
             BackColor = CTreeBg, Padding = new Padding(1),
         };
         var search = new TextBox { Dock = DockStyle.Top, BackColor = CTreeInput, ForeColor = CTreeFg, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10.5f),
@@ -1607,7 +1615,9 @@ public sealed class EditorForm : Form
         };
         lv.ItemSelectionChanged += (_, e) => { if (e.IsSelected && e.Item?.Tag is not int) e.Item!.Selected = false; };
         typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(lv, true);
+        // a coluna ocupa a largura útil (sem a barra de rolagem): nada passa da borda da lista (usuário 01/11)
         lv.Columns.Add("", f.Width - 24);
+        lv.ClientSizeChanged += (_, _) => { if (lv.Columns.Count > 0 && lv.ClientSize.Width > 40) lv.Columns[0].Width = lv.ClientSize.Width - 2; };
         f.Controls.Add(lv); f.Controls.Add(search);
         // ícone do bloco: o de um item dele (ou a miniatura do modelo 3D)
         // guardado: procurar a cada abertura deixava a lista lenta e os ícones aparecendo aos poucos
@@ -2201,7 +2211,7 @@ public sealed class EditorForm : Form
         if (_tasksPath is not null && touched.Any(t => string.Equals(t, _tasksPath, StringComparison.OrdinalIgnoreCase))) LoadTasks(_tasksPath);
         if (touched.FirstOrDefault(t => t.EndsWith("aipolicy.data", StringComparison.OrdinalIgnoreCase)) is { } ai) _aiView?.LoadFile(ai);
         // pacotes regravados (interfaces, configs, surfaces): o extrator e o editor de interface releem sem fechar o programa
-        if (touched.Any(t => t.EndsWith(".pck", StringComparison.OrdinalIgnoreCase))) _pckView?.GameFolderChanged();
+        if (touched.Any(t => t.EndsWith(".pck", StringComparison.OrdinalIgnoreCase))) { _pckView?.GameFolderChanged(); _uiArea?.GameFolderChanged(); }
         if (log.Count > 0)
             MessageBox.Show(this, string.Join("\n", log), Loc.T("trc.title", "Traduzir a partir de outro cliente"));
         if (chosen.Contains(elementsRow)) TranslateFromOther(srcEl);
@@ -2256,7 +2266,8 @@ public sealed class EditorForm : Form
     private ErrorsWindow? _errors;
     private GShopView? _gshop;
     private NpcGenView? _npcgen;
-    private TabPage? _tabGShop, _tabPck, _tabNpcGen;
+    private TabPage? _tabGShop, _tabPck, _tabNpcGen, _tabUi;
+    private InterfacesView? _uiArea;
     private PckView? _pckView;
     private readonly MyAceEditor.Changes.EditHistory _edits = new();
 
@@ -2429,7 +2440,7 @@ public sealed class EditorForm : Form
             && ActiveControlDeep() is not TextBoxBase && !_grid.IsCurrentCellInEditMode)
         {
             bool undo = keyData == (Keys.Control | Keys.Z);
-            if (_tabs?.SelectedTab == _tabPck && _pckView?.Editor is { } ui) { if (!(undo ? ui.Undo() : ui.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
+            if (_tabs?.SelectedTab == _tabUi && _uiArea?.Editor is { } ui) { if (!(undo ? ui.Undo() : ui.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabGShop && _gshop is not null) { if (!(undo ? _gshop.Undo() : _gshop.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabNpcGen && _npcgen is not null) { if (!(undo ? _npcgen.Undo() : _npcgen.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             UndoRedo(undo);
@@ -2519,7 +2530,7 @@ public sealed class EditorForm : Form
         if (id.Equals("shop", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.SelectedTab = _tabShop; return; }
         if (id.Equals("make", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabMake)) _detailTabs.SelectedTab = _tabMake; return; }
         if (id.Equals("desc", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedIndex = _detailTabs.TabCount - 1; return; }
-        if (id.StartsWith("ui:", StringComparison.OrdinalIgnoreCase)) { if (_tabs is not null && _tabPck is not null) _tabs.SelectedTab = _tabPck; _pckView?.OpenUiForSnapshot(id[3..]); return; }
+        if (id.StartsWith("ui:", StringComparison.OrdinalIgnoreCase)) { if (_tabs is not null && _tabUi is not null) _tabs.SelectedTab = _tabUi; _uiArea?.OpenUiForSnapshot(id[3..]); return; }
         if (id.Equals("picker", StringComparison.OrdinalIgnoreCase)) { ShowBlockPicker(); return; }
         if (id.Equals("links", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedTab = _tabLinks; if (_current is not null) FillLinks(_current); return; }
         foreach (TabPage t in _groupTabs.TabPages)
@@ -4180,24 +4191,8 @@ public sealed class EditorForm : Form
     }
 
     private TabPage _tabDesc = null!;
-    private Form? _uiWindow;
 
     /// <summary>Editor de interfaces (interfaces.pck do PW aberto) numa janela própria; Voltar/fechar pergunta se há mudança.</summary>
-    private void OpenInterfaceWindow()
-    {
-        if (_uiWindow is { IsDisposed: false }) { _uiWindow.Activate(); return; }
-        var el = _dataPath is { } dp ? Path.GetDirectoryName(dp) : null;
-        var pck = el is null ? null : Path.Combine(el, "interfaces.pck");
-        if (pck is null || !PckArchive.Exists(pck)) { Status(Loc.T("ui.noPck", "Não achei o interfaces.pck: abra a pasta do PW primeiro.")); return; }
-        var w = new Form { Text = Loc.T("ui.windowTitle", "Editor de interfaces — MyAce"), Size = new Size(1280, 840), StartPosition = FormStartPosition.CenterScreen, Icon = Icon };
-        var view = new InterfaceView(() => w.Close()) { Dock = DockStyle.Fill };
-        w.Controls.Add(view);
-        w.Shown += (_, _) => view.LoadPack(pck);
-        w.FormClosing += (_, e) => { if (!view.AskDiscard()) e.Cancel = true; };   // fechar no X também pergunta
-        w.FormClosed += (_, _) => _uiWindow = null;
-        _uiWindow = w;
-        w.Show(this);
-    }
     private ToolStripMenuItem? _miShowUnused;   // Exibir > Mostrar campos sem uso (também nas Preferências)
 
     private CfgField? CfgFieldOf(ItemList block, string key) =>
