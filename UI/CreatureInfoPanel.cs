@@ -17,15 +17,17 @@ internal sealed class CreatureInfoPanel : UserControl
     readonly bool _dark;
     readonly Label _spawnTitle = Caption(), _questTitle = Caption(), _hint = new() { Dock = DockStyle.Bottom, Height = 22 };   // embaixo, junto dos campos
     readonly ListView _spawns = List(), _quests = List();
-    readonly FlowLayoutPanel _edit = new() { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Padding = new Padding(2, 6, 2, 2) };   // uma linha só
-    readonly NumericUpDown _amount = Num(1, 1000), _respawn = Num(0, 864000), _died = Num(0, 100000);
-    readonly Label _respawnText = new() { AutoSize = true, Margin = new Padding(2, 6, 12, 0) };
+    // ficha do ponto (padrão UiKit: nome | valor | o que significa), uma linha por campo — nada corta
+    readonly TableLayoutPanel _edit = new() { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 3, Padding = new Padding(6, 6, 6, 2) };
+    readonly NumericUpDown _amount = Num(1, 1000), _respawn = Num(0, 864000), _min = Num(0, 864000), _died = Num(0, 100000);
+    readonly Label _respawnText = Note(), _minText = Note(), _diedText = Note(), _amountText = Note();
     readonly Panel _spawnBox = new() { Dock = DockStyle.Fill }, _questBox = new() { Dock = DockStyle.Fill };
     bool _filling;
     IReadOnlyList<SpawnRow> _rows = Array.Empty<SpawnRow>();
 
     /// <summary>Grava no npcgen (com desfazer): linha, quantidade, renascer em segundos, mortes até parar.</summary>
-    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<SpawnRow, int, int, int>? Apply { get; set; }
+    /// <summary>Grava no npcgen (com desfazer): linha, quantidade, renascer (s), mínimo do sorteio (s, 0 = sem), mortes até parar.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<SpawnRow, int, int, int, int>? Apply { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? OpenQuest { get; set; }
     /// <summary>Ir até o ponto (Mundo 3D / aba NPCGen). Null = sem botão.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<SpawnRow>? GoTo { get; set; }
@@ -49,17 +51,21 @@ internal sealed class CreatureInfoPanel : UserControl
         _spawns.Columns.Add("", 70); _spawns.Columns.Add("", 150); _spawns.Columns.Add("", 40); _spawns.Columns.Add("", 80); _spawns.Columns.Add("", 70); _spawns.Columns.Add("", 110);
         _quests.Columns.Add("", 70); _quests.Columns.Add("", 260); _quests.Columns.Add("", 200);
 
-        Label L(Func<string> t) { var l = new Label { AutoSize = true, Margin = new Padding(8, 6, 2, 0) }; Bind(() => l.Text = t()); return l; }
-        // nome + campo juntos: ao quebrar a linha, o par vai inteiro
-        Control Pair(params Control[] cs) { var f = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(0) }; f.Controls.AddRange(cs); return f; }
-        _edit.Controls.AddRange(new Control[]
+        Label L(Func<string> t) { var l = new Label { AutoSize = true, Margin = new Padding(0, 6, 8, 0), ForeColor = dark ? Color.Silver : UiKit.Muted }; Bind(() => l.Text = t()); return l; }
+        _edit.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); _edit.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96)); _edit.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        void Row(Label name, NumericUpDown n, Label note) { int r = _edit.RowCount++; _edit.Controls.Add(name, 0, r); _edit.Controls.Add(n, 1, r); _edit.Controls.Add(note, 2, r); }
+        Row(L(() => Loc.T("ci.amount", "Quantidade")), _amount, _amountText);
+        Row(L(() => Loc.T("ci.respawn", "Renascer (s)")), _respawn, _respawnText);
+        Row(L(() => Loc.T("ci.min", "Mínimo (s)")), _min, _minText);
+        Row(L(() => Loc.T("ci.diedLabel", "Mortes até parar")), _died, _diedText);
+        Bind(() =>
         {
-            Pair(L(() => Loc.T("ci.amount", "Quantidade")), _amount),
-            Pair(L(() => Loc.T("ci.respawn", "Renascer (s)")), _respawn, _respawnText),
-            Pair(L(() => Loc.T("ci.diedLabel", "Mortes até parar")), _died),
+            _amountText.Text = Loc.T("ci.amountNote", "quantos nascem juntos neste ponto");
+            _minText.Text = Loc.T("ci.minNote", "0 = sempre o mesmo tempo; maior = o jogo sorteia entre o mínimo e o renascer");
+            _diedText.Text = Loc.T("ci.diedNote", "0 = renasce sempre; senão para depois de tantas mortes");
         });
-        if (dark) foreach (var n in new[] { _amount, _respawn, _died }) { n.BackColor = Color.FromArgb(40, 46, 56); n.ForeColor = Color.White; }
-        foreach (var n in new[] { _amount, _respawn, _died }) n.ValueChanged += (_, _) => Commit();
+        if (dark) foreach (var n in new[] { _amount, _respawn, _min, _died }) { n.BackColor = Color.FromArgb(40, 46, 56); n.ForeColor = Color.White; }
+        foreach (var n in new[] { _amount, _respawn, _min, _died }) n.ValueChanged += (_, _) => Commit();
         _spawnBox.Controls.Add(_spawns); _spawnBox.Controls.Add(_edit); _spawnBox.Controls.Add(_hint); _spawnBox.Controls.Add(_spawnTitle);
         _questBox.Controls.Add(_quests); _questBox.Controls.Add(_questTitle);
         Controls.Add(_spawnBox); Controls.Add(_questBox);
@@ -79,7 +85,8 @@ internal sealed class CreatureInfoPanel : UserControl
 
     static Label Caption() => new() { Dock = DockStyle.Top, Height = 30, Font = new Font("Segoe UI Semibold", 10.5f), TextAlign = ContentAlignment.MiddleLeft };
     static ListView List() => new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None, ShowItemToolTips = true, HeaderStyle = ColumnHeaderStyle.Nonclickable };
-    static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 64, Margin = new Padding(0, 3, 4, 0), ThousandsSeparator = false };
+    static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 86, Margin = new Padding(0, 2, 8, 2), ThousandsSeparator = false };
+    static Label Note() => new() { AutoSize = true, Margin = new Padding(0, 6, 0, 0), ForeColor = Color.Gray };
 
     SpawnRow? Selected => _spawns.SelectedItems.Count > 0 ? _spawns.SelectedItems[0].Tag as SpawnRow : null;
 
@@ -161,6 +168,7 @@ internal sealed class CreatureInfoPanel : UserControl
             _amount.Value = Math.Clamp(r.Group.Amount, (int)_amount.Minimum, (int)_amount.Maximum);
             _respawn.Value = Math.Clamp(r.Group.Respawn, (int)_respawn.Minimum, (int)_respawn.Maximum);
             _died.Value = Math.Clamp(r.Group.DiedTimes, (int)_died.Minimum, (int)_died.Maximum);
+            _min.Value = Math.Clamp(r.Group.RefreshLower, (int)_min.Minimum, (int)_min.Maximum);
             _respawnText.Text = RealRespawn(r.Group);
         }
         finally { _filling = false; }
@@ -169,9 +177,9 @@ internal sealed class CreatureInfoPanel : UserControl
     void Commit()
     {
         if (_filling || Selected is not { } r || Apply is null) return;
-        int a = (int)_amount.Value, s = (int)_respawn.Value, d = (int)_died.Value;
-        if (a == r.Group.Amount && s == r.Group.Respawn && d == r.Group.DiedTimes) return;
-        Apply(r, a, s, d);
+        int a = (int)_amount.Value, s = (int)_respawn.Value, m = (int)_min.Value, d = (int)_died.Value;
+        if (a == r.Group.Amount && s == r.Group.Respawn && m == r.Group.RefreshLower && d == r.Group.DiedTimes) return;
+        Apply(r, a, s, m, d);
         _respawnText.Text = RealRespawn(r.Group);
         if (_spawns.SelectedItems.Count > 0)
         {

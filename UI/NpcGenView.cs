@@ -30,6 +30,9 @@ internal sealed class NpcGenView : UserControl
     /// <summary>Motivo de a criatura não andar/patrulhar no jogo (null = anda). Ferramenta Caminhos e áreas.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<int, string?>? PatrolProblem { get; set; }
+    /// <summary>Salvar tudo e enviar ao servidor (botão no fim das ferramentas do Mundo 3D).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Action? SaveAndSendAll { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Action<int>? OpenQuest { get; set; }
     /// <summary>NPC com serviço de venda (filtro "Comerciantes" do Mundo 3D).</summary>
@@ -832,16 +835,17 @@ internal sealed class NpcGenView : UserControl
             if (o is not NpcGenSpawn s || s.Creatures.Count == 0 || _cur is null) return false;
             int id0 = s.Creatures[0].Id;
             var cq = CreatureQuests;
-            panel.Apply = (r, a, sp, d) =>
+            panel.Apply = (r, a, sp, mn, d) =>
             {
                 SelectObject(o); Snapshot("crea3d:" + DateTime.Now.Ticks);
-                r.Group.Amount = a; r.Group.Respawn = sp; r.Group.DiedTimes = d;
+                r.Group.Amount = a; r.Group.Respawn = sp; r.Group.RefreshLower = mn; r.Group.DiedTimes = d;
                 Touch(); ShowPoint();
             };
             panel.ShowCreature(id0, NameOf(id0), s.Creatures.Select(c => new SpawnRow(_cur, s, c)).ToList(), cq is null ? null : () => cq(id0) ?? Array.Empty<QuestUse>());
             return true;
         };
         w.EditCreature = _editItem;
+        w.SaveAndSendAll = SaveAndSendAll;
         var pp = PatrolProblem;
         w.PatrolBlock = o => o is NpcGenSpawn ps && ps.Creatures.Count > 0 ? pp?.Invoke(ps.Creatures[0].Id) : null;
         w.CloneHere = (o, g) =>

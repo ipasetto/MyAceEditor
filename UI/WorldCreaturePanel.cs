@@ -6,15 +6,15 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed class WorldCreaturePanel : Panel
 {
-    const int Full = 236, Header = 44;
+    const int Full = 268, Header = 44;
     static readonly Color Bg = Color.FromArgb(28, 32, 38), Bg2 = Color.FromArgb(36, 41, 49), Card = Color.FromArgb(22, 25, 30), Muted = Color.FromArgb(150, 160, 175);
     readonly Label _title = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11f), AutoEllipsis = true };
     readonly Button _edit, _close;
     readonly ToolTip _tip = new();
     readonly System.Windows.Forms.Timer _anim = new() { Interval = 12 };
     readonly ComboBox _group = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210, BackColor = Color.FromArgb(40, 46, 56), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-    readonly NumericUpDown _amount = Num(1, 1000), _respawn = Num(0, 864000), _died = Num(0, 100000);
-    readonly Label _respawnText = Value(), _diedText = Value(), _walk = Value(), _trigger = Value(), _groupLabel, _questTitle = new() { Dock = DockStyle.Top, Height = 26, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9.5f), TextAlign = ContentAlignment.MiddleLeft };
+    readonly NumericUpDown _amount = Num(1, 1000), _respawn = Num(0, 864000), _min = Num(0, 864000), _died = Num(0, 100000);
+    readonly Label _respawnText = Value(), _minText = Value(), _diedText = Value(), _walk = Value(), _trigger = Value(), _groupLabel, _questTitle = new() { Dock = DockStyle.Top, Height = 26, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9.5f), TextAlign = ContentAlignment.MiddleLeft };
     readonly ListView _quests = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None,
         BackColor = Card, ForeColor = Color.Gainsboro, HeaderStyle = ColumnHeaderStyle.Nonclickable, ShowItemToolTips = true };
     readonly List<Label> _names = new();
@@ -23,7 +23,7 @@ internal sealed class WorldCreaturePanel : Panel
     IReadOnlyList<SpawnRow> _rows = Array.Empty<SpawnRow>();
 
     /// <summary>Grava no npcgen (Ctrl+Z do NPCGen): grupo, quantidade, renascer (s), mortes até parar.</summary>
-    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<SpawnRow, int, int, int>? Apply { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<SpawnRow, int, int, int, int>? Apply { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? OpenQuest { get; set; }
     /// <summary>Abrir a criatura no editor de elements (ID).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? EditCreature { get; set; }
@@ -58,6 +58,7 @@ internal sealed class WorldCreaturePanel : Panel
         Row(_groupLabel, _group, null); sheet.SetColumnSpan(_group, 2);
         Row(Name(), _amount, null);
         Row(Name(), _respawn, _respawnText);
+        Row(Name(), _min, _minText);
         Row(Name(), _died, _diedText);
         var walkName = Name(); Row(walkName, _walk, null); sheet.SetColumnSpan(_walk, 2);
         var trigName = Name(); Row(trigName, _trigger, null); sheet.SetColumnSpan(_trigger, 2);
@@ -73,7 +74,7 @@ internal sealed class WorldCreaturePanel : Panel
 
         Controls.Add(questBox); Controls.Add(sheetBox); Controls.Add(head);
         _group.SelectedIndexChanged += (_, _) => LoadGroup();
-        foreach (var n in new[] { _amount, _respawn, _died }) n.ValueChanged += (_, _) => Commit();
+        foreach (var n in new[] { _amount, _respawn, _min, _died }) n.ValueChanged += (_, _) => Commit();
         _anim.Tick += (_, _) =>
         {
             int step = Math.Max(8, Math.Abs(_target - Height) / 3);
@@ -83,7 +84,8 @@ internal sealed class WorldCreaturePanel : Panel
         Disposed += (_, _) => { _anim.Dispose(); _tip.Dispose(); };
         void Texts()
         {
-            string[] n = { Loc.T("wc.group", "Criatura do ponto"), Loc.T("ci.amount", "Quantidade"), Loc.T("ci.respawn", "Renascer (s)"), Loc.T("ci.diedLabel", "Mortes até parar"),
+            _minText.Text = Loc.T("wc.minNote", "0 = sem sorteio");
+            string[] n = { Loc.T("wc.group", "Criatura do ponto"), Loc.T("ci.amount", "Quantidade"), Loc.T("ci.respawn", "Renascer (s)"), Loc.T("ci.min", "Mínimo (s)"), Loc.T("ci.diedLabel", "Mortes até parar"),
                 Loc.T("wc.walk", "Como anda"), Loc.T("wc.trigger", "Quando nasce") };
             for (int i = 0; i < n.Length; i++) _names[i].Text = n[i];
             _edit.Text = Loc.T("wc.edit", "Abrir no editor");
@@ -142,12 +144,13 @@ internal sealed class WorldCreaturePanel : Panel
         try
         {
             var r = Current;
-            foreach (var n in new[] { _amount, _respawn, _died }) n.Enabled = r is not null && Apply is not null;
+            foreach (var n in new[] { _amount, _respawn, _min, _died }) n.Enabled = r is not null && Apply is not null;
             if (r is null) { _respawnText.Text = _diedText.Text = _walk.Text = _trigger.Text = ""; return; }
             var g = r.Group; var s = r.Spawn;
             _amount.Value = Math.Clamp(g.Amount, 1, 1000);
             _respawn.Value = Math.Clamp(g.Respawn, 0, 864000);
             _died.Value = Math.Clamp(g.DiedTimes, 0, 100000);
+            _min.Value = Math.Clamp(g.RefreshLower, 0, 864000);
             _respawnText.Text = CreatureInfoPanel.RealRespawn(g);
             _diedText.Text = g.DiedTimes > 0 ? Loc.T("wc.diedN", "depois para") : Loc.T("wc.died0", "0 = renasce sempre");
             _walk.Text = g.PathId > 0
@@ -163,9 +166,9 @@ internal sealed class WorldCreaturePanel : Panel
     void Commit()
     {
         if (_filling || Current is not { } r || Apply is null) return;
-        int a = (int)_amount.Value, s = (int)_respawn.Value, d = (int)_died.Value;
-        if (a == r.Group.Amount && s == r.Group.Respawn && d == r.Group.DiedTimes) return;
-        Apply(r, a, s, d);
+        int a = (int)_amount.Value, s = (int)_respawn.Value, m = (int)_min.Value, d = (int)_died.Value;
+        if (a == r.Group.Amount && s == r.Group.Respawn && m == r.Group.RefreshLower && d == r.Group.DiedTimes) return;
+        Apply(r, a, s, m, d);
         LoadGroup();
     }
 
@@ -175,7 +178,7 @@ internal sealed class WorldCreaturePanel : Panel
     internal static Form ShotForm()
     {
         var f = new Form { Width = 1100, Height = 300, StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false, BackColor = Color.Black };
-        var p = new WorldCreaturePanel { Apply = (_, _, _, _) => { } };
+        var p = new WorldCreaturePanel { Apply = (_, _, _, _, _) => { } };
         f.Controls.Add(p);
         var s = new MyAceEditor.PerfectWorld.NpcGenSpawn { Spread = new MyAceEditor.PerfectWorld.Vec3(20, 0, 30) };
         var g = new MyAceEditor.PerfectWorld.NpcGenCreature { Id = 61648, Amount = 1, Respawn = 600, PathId = 12, PathLoop = 1 };

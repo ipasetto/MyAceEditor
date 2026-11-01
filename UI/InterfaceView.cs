@@ -475,7 +475,7 @@ internal sealed class InterfaceView : UserControl
     }
 
     /// <summary>Mudanças não salvas: Salvar (grava e segue), Descartar (segue sem gravar) ou Cancelar (fica). true = pode seguir.</summary>
-    bool AskDiscard()
+    internal bool AskDiscard()
     {
         if (!_dirty) return true;
         var save = new TaskDialogButton(Loc.T("ui.askSave", "Salvar"));

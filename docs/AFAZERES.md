@@ -223,11 +223,15 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 [x] Preferencias: MyAce (editor) x Servidor na barra lateral
 [x] Mundo 3D: painel da criatura refeito como ficha (conferido por --creature-shot); falta ver no 3D de verdade
 [~] Caminhos e areas em passos + fim do caminho (para / vai e volta / circuito) + "Sem area" - compilado, falta ver na tela
-[ ] limite minimo de quests nas Preferencias (premio m_iTaskLimit e 1 bit: nao soma 2x): exige patch do gs E do elementclient.exe (constante inline 20/30); estudar por versao antes
+[-] (abandonado pelo usuario 01/11) limite minimo de quests: exige patch do gs E do elementclient.exe (constante inline 20/30); estudar por versao antes
 
 ## TESTES 01/11 (4a rodada)
 [x] caminhos: nao apaga ao trocar, circuito, Enter, texto vermelho, colisao, NPC comum (compilado; falta ver)
 [x] drops/habilidades por slot; Spawn numa linha; cor amarela do besouro; icone da quest no assistente
-[ ] preferencia "todos comecam com 30 quests": quest automatica (m_bAutoDeliver) com premio m_iTaskLimit + esconder as que ampliam
 [ ] preferencia do cliente: esconder Win_PwdHint (patch do elementclient.exe; confirmar com o usuario se e essa janela)
 [ ] Spawn: editar "minimo" (RefreshLower) = tempo sorteado
+
+## TESTES 01/11 (5a rodada)
+[x] ferramenta Quests no 3D + Salvar e enviar; caminho: marcador, Enter, arvores, NPC comum; Spawn em ficha + Minimo; campos sem uso nas Preferencias; quests sumidas saem dos NPCs; editor de interfaces em janela; icone de cultivo (chave)
+[ ] chance de nascer + mensagem ao nascer (aipolicy do monstro: gatilho ativo no inicio, talk "$B..." e parar; chance precisa de um ajudante)
+[ ] aviso Win_PwdHint ("Lembre-se") e painel "Aviso" do login: texto editavel pelo editor de interfaces; esconder so com patch do cliente

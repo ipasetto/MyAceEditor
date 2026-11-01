@@ -7,7 +7,9 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed partial class WorldView
 {
-    enum Tool { None, Scene, Paths }
+    enum Tool { None, Scene, Paths, Quests }
+    /// <summary>Salvar tudo e enviar ao servidor (EditorForm.SaveAndSend).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Action? SaveAndSendAll { get; set; }
     Tool _tool;
     readonly Panel _tools = new() { Width = 270, BackColor = Color.FromArgb(28, 32, 38), BorderStyle = BorderStyle.FixedSingle };
     readonly Panel _toolHead = new() { Dock = DockStyle.Top, Height = 40, BackColor = Color.FromArgb(36, 41, 49) };
@@ -81,6 +83,15 @@ internal sealed partial class WorldView
         // ---- menu ----
         _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
+        _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
+        // sempre por último: grava tudo e leva ao servidor (a janela principal abre na aba Servidor)
+        var send = ToolButton("\uE898", Loc.T("tools.send", "Salvar e enviar ao servidor"), Loc.T("tools.sendSub", "Grava tudo o que mudou e reinicia o servidor local com isso"), () =>
+        {
+            if (PathDirty && MessageBox.Show(this, Loc.T("tools.sendPaths", "Há caminhos de patrulha não salvos. Salvar os caminhos também?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) SavePaths();
+            SaveAndSendAll?.Invoke();
+        });
+        send.BackColor = Color.FromArgb(30, 70, 140);
+        _toolMenu.Controls.Add(send);
 
         // ---- Objetos do mundo: só o que serve aqui ----
         _scenePage.Controls.Add(Hint(Loc.T("tools.objSteps", "Clique num objeto para escolher: construção, efeito (laranja), som (azul) ou bichos (verde). Arraste pelos números ou botão direito no chão: mover para lá.")));
@@ -104,8 +115,9 @@ internal sealed partial class WorldView
 
         // ---- Caminhos e áreas ----
         InitPathPage();
+        InitQuestPage();
 
-        _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_toolHead);
+        _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_questsPage); _tools.Controls.Add(_toolHead);
         Controls.Add(_tools);
         _tools.BringToFront();
         _gl.Resize += (_, _) => LayoutTools();
@@ -115,10 +127,10 @@ internal sealed partial class WorldView
     /// <summary>Tamanho e lugar do menu: solto à direita, um pouco abaixo da barra de cima; recolhido = só o cabeçalho.</summary>
     void LayoutTools()
     {
-        var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, _ => _toolMenu };
-        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, _ => _toolMenu };
+        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
-        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage }) p.Visible = !_toolsFolded && p == page;
+        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage }) p.Visible = !_toolsFolded && p == page;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);
         _toolTip.SetToolTip(_toolFold, _toolsFolded ? Loc.T("tools.unfold", "Abrir o menu") : Loc.T("tools.fold", "Recolher o menu"));
         _tools.Location = new Point(Math.Max(0, _gl.Right - _tools.Width - 16), _gl.Top + 16);
@@ -136,7 +148,12 @@ internal sealed partial class WorldView
         // só o que a ferramenta faz: sai o painel de baixo (quests/criatura) e a legenda
         _quests.HidePanel(); _creature.HidePanel();
         if (_legendOpen) { _legendOpen = false; _gl.Invalidate(); }
-        _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "" : "", Color.White, 18);
+        _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "\uF158" : t == Tool.Quests ? "\uE7C1" : "\uE707", Color.White, 18);
+        if (t == Tool.Quests)
+        {
+            _toolTitle.Text = "       " + Loc.T("tools.quests", "Quests");
+            ShowQuestTool(_questNpc > 0 ? NpcQuests?.Invoke(_questNpc) : null);
+        }
         if (t == Tool.Scene) { _toolTitle.Text = "       " + Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
         if (t == Tool.Paths) { _toolTitle.Text = "       " + Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
         LayoutTools();
@@ -166,7 +183,7 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Para a captura (--world-shot): abre a ferramenta Editar cenário ou volta ao menu.</summary>
-    internal void ShotTool(int tool) { CloseTool(); if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); }
+    internal void ShotTool(int tool) { CloseTool(); if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
 
     /// <summary>Aviso de mudança não salva no painel da ferramenta.</summary>
     void UpdateSideState()

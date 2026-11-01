@@ -298,7 +298,13 @@ internal sealed partial class WorldView : Form
                     }
                     if (mk is { Id: > 0 } && NpcQuests is not null)
                     {
-                        if (NpcQuests(mk.Id) is { } qi) { _questNpc = mk.Id; _creature.HidePanel(); _quests.ShowNpc(qi); }   // NPC: quests que dá e recebe
+                        if (NpcQuests(mk.Id) is { } qi)
+                        {
+                            // NPC: as quests dele ficam na ferramenta Quests (antes: barra de botões embaixo)
+                            _questNpc = mk.Id; _creature.HidePanel();
+                            if (_tool == Tool.Quests) ShowQuestTool(qi);
+                            else if (_tool == Tool.None) _status.Text += "   ·   " + Loc.T("qt.useTool", "quests deste NPC: ferramenta Quests (menu à direita)");
+                        }
                         else
                         {
                             _quests.HidePanel();
@@ -1735,7 +1741,7 @@ internal sealed partial class WorldView : Form
         _questNpc = npcId; RefreshQuestPanel();
     }
 
-    void RefreshQuestPanel() { if (_questNpc > 0 && NpcQuests?.Invoke(_questNpc) is { } qi) _quests.ShowNpc(qi); }
+    void RefreshQuestPanel() { if (_questNpc > 0 && NpcQuests?.Invoke(_questNpc) is { } qi && _tool == Tool.Quests) ShowQuestTool(qi); }
 
     void LinkExisting(int npcId)
     {

@@ -167,8 +167,12 @@ public sealed class EditorForm : Form
         Bind(() => translateFrom.Text = Loc.T("menu.translateFrom", "&Traduzir com outro elements.data…"));
         var translateClient = new ToolStripMenuItem { ForeColor = CFg }; translateClient.Click += (_, _) => TranslateFromClient();
         tools.DropDownItems.Add(translateClient);
+        // editor de interfaces em janela própria (pedido do usuário: é outra função, não é o extrator de .pck)
+        var uiEd = new ToolStripMenuItem { ForeColor = CFg }; uiEd.Click += (_, _) => OpenInterfaceWindow();
+        tools.DropDownItems.Add(uiEd);
+        Bind(() => uiEd.Text = Loc.T("menu.uiEditor", "Editor de &interfaces do jogo…"));
         Bind(() => translateClient.Text = Loc.T("menu.translateClient", "Traduzir a partir de outro &cliente…"));
-        var showUnused = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = !_hideUnused };
+        var showUnused = _miShowUnused = new ToolStripMenuItem { ForeColor = CFg, CheckOnClick = true, Checked = !_hideUnused };
         showUnused.CheckedChanged += (_, _) =>
         {
             _hideUnused = !showUnused.Checked;
@@ -278,6 +282,11 @@ public sealed class EditorForm : Form
                     : Loc.T("srv.localServerNotInstalledYet", "Servidor local ainda não instalado."),
                 on => on ? Loc.T("prefs.speedCapAskOff", "Remover a trava de velocidade do servidor local?\n\nO gs é alterado (2 bytes; o original fica guardado) e os mapas reiniciam: quem estiver no jogo cai.")
                          : Loc.T("prefs.speedCapAskOn", "Voltar a trava original de velocidade?\n\nOs mapas reiniciam: quem estiver no jogo cai.")),
+            new(editor, "\uE8F4",
+                () => Loc.T("prefs.unusedTitle", "Mostrar campos sem uso"),
+                () => Loc.T("prefs.unusedDetail", "Ligado: o editor de elements mostra todos os campos, até os que estão zerados em todos os itens do bloco. Desligado: esses campos ficam recolhidos (uma linha avisa quantos)."),
+                () => (!_hideUnused, null),
+                on => { if (_miShowUnused is { } mi) mi.Checked = on; return null; }),
             new(editor, "",
                 () => Loc.T("prefs.srvAskTitle", "Perguntar se quer enviar ao servidor"),
                 () => Loc.T("prefs.srvAskDetail", "Ligado: ao abrir e ao salvar, se o servidor local estiver diferente do cliente, pergunta se quer enviar agora. Desligado: não pergunta; o botão \"Salvar e enviar ao servidor\" fica verde e a dica dele lista o que falta."),
@@ -418,6 +427,8 @@ public sealed class EditorForm : Form
         tabs.TabPages.Add(tN);
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
         _npcgen.QuestsOfNpc = NpcQuests;
+        // Mundo 3D, fim do menu de ferramentas: salvar tudo e enviar, com a janela principal na aba Servidor
+        _npcgen.SaveAndSendAll = () => { Activate(); BringToFront(); SaveAndSend(); if (_tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer; };
         // painel da criatura no Mundo 3D: quests que usam o monstro/NPC (roda fora da tela)
         // NPC comum não tem IA no gs (npcgenerator.cpp: id_type 3214 = normal, aipolicy 0): não anda nem patrulha; só guarda (3216)
         _npcgen.PatrolProblem = id => CreatureItem(id) is { Block.Name: "NPC_ESSENCE" } c && c.Item.Fields.GetValueOrDefault("id_type")?.Value != "3216"
@@ -1138,6 +1149,7 @@ public sealed class EditorForm : Form
         RefreshQuests();
         _qStatus.Text = r.TasksPath is { } tp ? TasksStatus(tp) : Loc.T("quest.openFirst", "Abra um tasks.data primeiro.");
         BuildTree();
+        BeginInvoke(CleanMissingQuestsInNpcs);
         SaveLast(path);
         _dataPath = path;
         LoadRecent(path);
@@ -2609,8 +2621,7 @@ public sealed class EditorForm : Form
                 // título da seção (também com uma só seção escolhida: a tela diz onde você está)
                 int hr = _grid.Rows.Add("", "", "");
                 var hrow = _grid.Rows[hr]; hrow.ReadOnly = true; hrow.Height = 36;
-                hrow.Tag = new SectionTag(gname, FieldLabels.GroupName(gname) + SlotCount(item, gname) + "   ·   " + string.Format(Loc.T("grid.fieldsN", "{0} campos"), vis.Count)
-                    + (hiddenSlots > 0 ? "   ·   " + string.Format(Loc.T("grid.emptySlots", "+{0} vazios escondidos"), hiddenSlots) : ""));
+                hrow.Tag = new SectionTag(gname, FieldLabels.GroupName(gname) + SlotCount(item, gname));   // sem contador de campos (pedido do usuário)
             }
             // listas de slots (drops, habilidades, atributos): cada slot com fundo alternado, para ver onde um termina e o outro começa
             bool slotted = gname is "Queda" or "Habilidades" or "Atributos / Addons";
@@ -2666,7 +2677,7 @@ public sealed class EditorForm : Form
         if (hidden > 0)
         {
             int r = _grid.Rows.Add("  " + string.Format(Loc.T("grid.hiddenUnused", "{0} campos sem uso neste bloco estão ocultos"), hidden), "",
-                Loc.T("grid.hiddenHow", "Exibir > Mostrar campos sem uso no bloco"));
+                Loc.T("grid.hiddenHow2", "Preferências > MyAce > Mostrar campos sem uso"));
             var row = _grid.Rows[r]; row.ReadOnly = true;
             row.DefaultCellStyle.ForeColor = CMuted; row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Italic);
         }
@@ -3239,6 +3250,23 @@ public sealed class EditorForm : Form
     /// Quest apagada fora do editor (outro programa, ou a exclusão antiga que não limpava os serviços): o NPC continua com o
     /// ID no serviço de dar/receber e no jogo oferece uma quest que não existe. Tira o ID de todos os serviços.
     /// </summary>
+    /// <summary>
+    /// Ao abrir: serviço de dar/receber quest dos NPCs que aponta para quest que não existe no tasks.data (apagada por fora)
+    /// sai sozinho, num passo do desfazer (pedido do usuário; antes só pelo botão "Tirar do NPC").
+    /// </summary>
+    private void CleanMissingQuestsInNpcs()
+    {
+        if (_tasks is not { FullSchema: true } t || _store.Current is not { } m) return;
+        var missing = new HashSet<int>();
+        foreach (var block in new[] { "NPC_TASK_OUT_SERVICE", "NPC_TASK_IN_SERVICE" })
+            foreach (var svc in m.FindListByName(block)?.Items ?? new())
+                foreach (var (k, f) in svc.Fields)
+                    if (k.Contains("id_tasks") && !k.Contains("space") && int.TryParse(f.Value, out var q) && q > 0 && t.Index.Find(q) is null) missing.Add(q);
+        if (missing.Count == 0) return;
+        using (_edits.Batch(string.Format(Loc.T("qb.histCleanMissing", "Tirar dos NPCs {0} quest(s) que não existem"), missing.Count))) RemoveQuestFromServices(missing);
+        Status(string.Format(Loc.T("qb.cleanedMissing", "{0} quest(s) que não existem no tasks.data saíram dos NPCs (Ctrl+Z desfaz; Salvar grava)."), missing.Count));
+    }
+
     private string? RemoveMissingQuest(int questId)
     {
         if (_tasks is not { } t) return Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.");
@@ -4048,16 +4076,35 @@ public sealed class EditorForm : Form
             .ToList();
 
     /// <summary>Muda quantidade/renascer/mortes de um grupo do npcgen (Ctrl+Z no editor de elements desfaz).</summary>
-    private void ApplySpawn(SpawnRow r, int amount, int respawn, int died)
+    private void ApplySpawn(SpawnRow r, int amount, int respawn, int min, int died)
     {
         var g = r.Group;
-        var old = (g.Amount, g.Respawn, g.DiedTimes);
-        void Set((int A, int R, int D) v) { g.Amount = v.A; g.Respawn = v.R; g.DiedTimes = v.D; _npcgen?.ExternalEdit(r.Map); UpdateSendGlow(); }
-        _edits.Custom(string.Format(Loc.T("hist.spawn", "Spawn de {0} em {1}"), g.Id, r.Map), () => Set((amount, respawn, died)), () => Set(old));
+        var old = (g.Amount, g.Respawn, g.RefreshLower, g.DiedTimes);
+        void Set((int A, int R, int M, int D) v) { g.Amount = v.A; g.Respawn = v.R; g.RefreshLower = v.M; g.DiedTimes = v.D; _npcgen?.ExternalEdit(r.Map); UpdateSendGlow(); }
+        _edits.Custom(string.Format(Loc.T("hist.spawn", "Spawn de {0} em {1}"), g.Id, r.Map), () => Set((amount, respawn, min, died)), () => Set(old));
         Status(string.Format(Loc.T("status.spawnSet", "{0}: {1} · renasce em {2} · npcgen de {3} (Salvar grava)"), g.Id, amount, CreatureInfoPanel.Time(respawn), r.Map));
     }
 
     private TabPage _tabDesc = null!;
+    private Form? _uiWindow;
+
+    /// <summary>Editor de interfaces (interfaces.pck do PW aberto) numa janela própria; Voltar/fechar pergunta se há mudança.</summary>
+    private void OpenInterfaceWindow()
+    {
+        if (_uiWindow is { IsDisposed: false }) { _uiWindow.Activate(); return; }
+        var el = _dataPath is { } dp ? Path.GetDirectoryName(dp) : null;
+        var pck = el is null ? null : Path.Combine(el, "interfaces.pck");
+        if (pck is null || !PckArchive.Exists(pck)) { Status(Loc.T("ui.noPck", "Não achei o interfaces.pck: abra a pasta do PW primeiro.")); return; }
+        var w = new Form { Text = Loc.T("ui.windowTitle", "Editor de interfaces — MyAce"), Size = new Size(1280, 840), StartPosition = FormStartPosition.CenterScreen, Icon = Icon };
+        var view = new InterfaceView(() => w.Close()) { Dock = DockStyle.Fill };
+        w.Controls.Add(view);
+        w.Shown += (_, _) => view.LoadPack(pck);
+        w.FormClosing += (_, e) => { if (!view.AskDiscard()) e.Cancel = true; };   // fechar no X também pergunta
+        w.FormClosed += (_, _) => _uiWindow = null;
+        _uiWindow = w;
+        w.Show(this);
+    }
+    private ToolStripMenuItem? _miShowUnused;   // Exibir > Mostrar campos sem uso (também nas Preferências)
 
     private CfgField? CfgFieldOf(ItemList block, string key) =>
         _store.Current?.Source is ElementsLayout lay ? lay.Blocks.FirstOrDefault(s => s.List == block)?.Block.Fields.FirstOrDefault(f => f.Name == key) : null;

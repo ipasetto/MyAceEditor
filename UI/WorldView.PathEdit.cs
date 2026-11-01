@@ -60,8 +60,19 @@ internal sealed partial class WorldView
     /// <summary>Primeiro ponto do trecho a→b (seguindo o chão, à altura do corpo) que entra num brush sólido; null = livre.</summary>
     Vector3? BlockedBetween(Vector3 a, Vector3 b)
     {
-        if (PathCollision() is not { } bht) return null;
         float dx = b.X - a.X, dz = b.Z - a.Z;
+        // tronco de árvore (não está no map.bht): círculo de ~0,8 m em volta do pé de cada árvore perto do trecho
+        if (_trees.Scene?.Trees is { } trees)
+        {
+            float len2 = dx * dx + dz * dz;
+            foreach (var tr in trees)
+            {
+                float t = len2 < 1e-4f ? 0 : Math.Clamp(((tr.X - a.X) * dx + (tr.Z - a.Z) * dz) / len2, 0, 1);
+                float cx = a.X + dx * t - tr.X, cz = a.Z + dz * t - tr.Z;
+                if (cx * cx + cz * cz < 0.8f * 0.8f) return new Vector3(tr.X, tr.Y, tr.Z);
+            }
+        }
+        if (PathCollision() is not { } bht) return null;
         int n = Math.Clamp((int)(MathF.Sqrt(dx * dx + dz * dz) / 3), 1, 300);
         Vector3 P(int k) { float t = k / (float)n, x = a.X + dx * t, z = a.Z + dz * t; return new(x, MathF.Max(a.Y + (b.Y - a.Y) * t, _t.HeightAt(x, z) ?? a.Y) + 1.2f, z); }
         var prev = P(0);
@@ -148,8 +159,14 @@ internal sealed partial class WorldView
             : hasArea ? Loc.T("path.areaHint", "Ele anda solto dentro da área azul. Arraste a alça amarela para mudar o tamanho.")
             : Loc.T("path.noAreaHint", "Sem área: ele fica parado no ponto. Para dar uma área, arraste a alça amarela.");
         // NPC comum: o jogo não move, então nada de área/caminho; só o aviso
-        if (s is not null && PatrolBlock?.Invoke(s) is { } why) { _pathHint.Text = why; drawing = false; }
         bool blocked = s is not null && PatrolBlock?.Invoke(s) is not null;
+        if (s is not null && PatrolBlock?.Invoke(s) is { } why)
+        {
+            // em destaque (como o aviso de escolher criatura) e sem botões: não há o que fazer aqui
+            _pathPickRed.Text = Loc.T("path.npcStill", "Este NPC não anda no jogo");
+            _pathHint.Text = why + "\n\n" + Loc.T("path.npcHow", "Para um NPC andar ou patrulhar: no editor de elements, troque o \"Tipo\" dele para guarda (3216). Ou use um monstro não agressivo.");
+            drawing = false;
+        }
         _modeArea.Visible = _modePath.Visible = s is not null && !drawing && !blocked;
         _modeArea.BackColor = s is not null && !patrol ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _modePath.BackColor = patrol ? UiKit.Accent : Color.FromArgb(40, 45, 54);
@@ -158,10 +175,12 @@ internal sealed partial class WorldView
         _pathDraw.Visible = s is not null && patrol && !drawing && _pathFile is not null && !blocked;
         _pathDraw.Text = "  " + (hasPath ? Loc.T("path.redraw2", "Redesenhar o caminho") : Loc.T("path.draw", "Desenhar caminho novo"));
         _pathPickRed.Text = Loc.T("path.pickRed", "Clique em uma criatura ou um NPC");
-        _pathPickRed.Visible = s is null;
+        _pathPickRed.Visible = s is null || blocked;
         // sem criatura: nada de botões (só salvar, se ficou caminho sem salvar)
-        _pathUndo.Visible = _pathRedo.Visible = s is not null;
-        _pathSave.Visible = s is not null || PathDirty;
+        _pathUndo.Visible = _pathRedo.Visible = s is not null && !blocked;
+        _pathSave.Visible = (s is not null && !blocked) || PathDirty;
+        _pathState.Visible = !blocked;
+        _pathStep1.Visible &= !blocked;
         _pathDone.Visible = _pathCancel.Visible = drawing;
         _pathLoopTitle.Text = Loc.T("path.loopTitle", "3. No fim do caminho");
         _loopBox.Visible = hasPath && !drawing;
@@ -444,9 +463,15 @@ internal sealed partial class WorldView
             // perto do 1º ponto: ele fica maior (soltar ali fecha o circuito)
             if (pts.Count >= 2 && _drawHover is { } hv && new Vector2(hv.X - pts[0].X, hv.Z - pts[0].Z).Length < 5)
             { GL.PointSize(18); GL.Color3(1f, 0.9f, 0.3f); GL.Begin(PrimitiveType.Points); GL.Vertex3(Gl(pts[0].X, pts[0].Y + 0.5f, pts[0].Z)); GL.End(); }
-            // aviso sem fundo perto do cursor: confirma com Enter
             if (_drawHover is { } at)
-                DrawLabel("↵  " + Loc.T("path.enterHint", "Pressione Enter para confirmar"), new Vector3(at.X, at.Y + 3, at.Z), Color.FromArgb(255, 230, 120));
+            {
+                // quadrado na ponta do mouse, na cor do caminho que está sendo desenhado
+                GL.PointSize(12); GL.Color3(0.3f, 1f, 0.5f); GL.Begin(PrimitiveType.Points); GL.Vertex3(Gl(at.X, at.Y + 0.5f, at.Z)); GL.End();
+                // aviso sem fundo perto do cursor: confirma com Enter (o rótulo é textura: precisa dela ligada e cor branca)
+                GL.Enable(EnableCap.Texture2D); GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.Color4(1f, 1f, 1f, 1f);
+                DrawLabel("↵  " + Loc.T("path.enterHint", "Pressione Enter para confirmar"), new Vector3(at.X, at.Y + 2.5f, at.Z), Color.FromArgb(255, 230, 120));
+                GL.BindTexture(TextureTarget.Texture2D, 0); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Blend);
+            }
         }
         GL.PointSize(1); GL.LineWidth(1); GL.Enable(EnableCap.DepthTest); GL.Color3(1f, 1f, 1f);
     }

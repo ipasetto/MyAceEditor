@@ -995,7 +995,7 @@ internal static class Program
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
-        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png") })
+        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png") })
         {
             w.ShotTool(scene); Application.DoEvents();
             using var full = new System.Drawing.Bitmap(w.Width, w.Height);

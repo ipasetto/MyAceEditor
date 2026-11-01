@@ -179,13 +179,15 @@ internal sealed class WorldQuestEditor : Panel
         // tipo da quest = ícone que aparece sobre o NPC no jogo (cliente EC_NPCServer.cpp UpdateCurQuestIcon)
         Caption(npcs, "qe.type", "Ícone sobre o NPC (tipo da quest)", "qe.typeHint", "É o símbolo que o jogador vê em cima do NPC quando pode pegar a quest.");
         var types = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 2, 0, 6) };
-        foreach (var (type, icon, key, pt) in new[] { (101, 0, "qe.tNormal", "Comum"), (102, 12, "qe.tMain", "Principal"), (100, 10, "qe.tDaily", "Diária"),
-                     (104, 10, "qe.tEvent", "Evento"), (106, 6, "qe.tFaction", "Clã"), (105, 8, "qe.tHunt", "Lista de caça") })
+        foreach (var (type, icon, key, pt, isKey) in new[] { (101, 0, "qe.tNormal", "Comum", false), (102, 12, "qe.tMain", "Principal", false), (100, 10, "qe.tDaily", "Diária", false),
+                     (104, 10, "qe.tEvent", "Evento", false), (106, 6, "qe.tFaction", "Clã", false), (105, 8, "qe.tHunt", "Lista de caça", false),
+                     (101, 4, "qe.tKey", "Cultivo (chave)", true) })
         {
             var b = new RadioButton { Appearance = Appearance.Button, AutoSize = true, Text = Loc.T(key, pt), Tag = type, Image = _host.QuestIcon(icon), TextImageRelation = TextImageRelation.ImageBeforeText,
                 FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(40, 45, 54), Margin = new Padding(0, 0, 6, 6), Padding = new Padding(4, 2, 8, 2), MinimumSize = new Size(0, 36) };
             b.FlatAppearance.CheckedBackColor = UiKit.Accent; b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
-            b.CheckedChanged += (_, _) => { if (b.Checked) _d.Type = type; };
+            b.CheckedChanged += (_, _) => { if (b.Checked) { _d.Type = type; _d.Key = isKey; } };
+            b.Name = isKey ? "key" : "";
             _typeButtons.Add(b); types.Controls.Add(b);
         }
         npcs.Controls.Add(types);
@@ -788,7 +790,7 @@ internal sealed class WorldQuestEditor : Panel
     void Load()
     {
         _id.Value = Math.Max(1, _d.Id); _giver.Value = _d.Giver; _name.Text = _d.Name;
-        foreach (var tb in _typeButtons) tb.Checked = (int)tb.Tag! == (_d.Type is 0 or < 100 ? 101 : _d.Type);
+        foreach (var tb in _typeButtons) tb.Checked = _d.Key ? tb.Name == "key" : tb.Name != "key" && (int)tb.Tag! == (_d.Type is 0 or < 100 ? 101 : _d.Type);
         _order.SelectedIndex = (int)_d.Order;
         RefreshStepList(0);
         _minLv.Value = _d.MinLevel; _maxLv.Value = _d.MaxLevel;
