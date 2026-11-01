@@ -39,6 +39,7 @@ internal sealed partial class WorldView : Form
     /// <summary>Caminhos de patrulha do path.sev do mapa (ID → pontos da curva). O do ponto selecionado aparece sempre; P mostra todos.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Dictionary<int, List<Vec3>>? Paths { get; set; }
     bool _allPaths;
+    Action? _syncPathsBtn;   // tecla P liga/desliga o botão Patrulhas do Mostrar
     bool _sceneObjs;   // tecla O: efeitos (.gfx) e sons do cenário (.ecwld)
     /// <summary>Clique no vazio: nenhum ponto selecionado.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action? ClearSelection { get; set; }
@@ -178,6 +179,13 @@ internal sealed partial class WorldView : Form
         _bar.Items.Add(new ToolStripSeparator());
         _grassBtn.CheckedChanged += (_, _) => { _grass.Visible = _grassBtn.Checked; _grassBtn.Image = DarkBarRenderer.Dot(_grassBtn.Checked ? Color.FromArgb(124, 179, 66) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
         _bar.Items.Add(_grassBtn);
+        // caminhos de patrulha de todos os monstros (riscos rosas; antes só pela tecla P, sem nada dizendo o que eram)
+        var pathsBtn = new ToolStripButton(Loc.T("world.allPaths", "Patrulhas"), DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70)))
+        { CheckOnClick = true, ForeColor = Color.White, TextImageRelation = TextImageRelation.ImageBeforeText,
+          ToolTipText = Loc.T("world.allPaths.h", "Mostrar os caminhos de patrulha de todos os monstros perto (riscos rosas) — tecla P. O do monstro escolhido aparece em laranja na ferramenta Caminhos e áreas.") };
+        pathsBtn.CheckedChanged += (_, _) => { _allPaths = pathsBtn.Checked; pathsBtn.Image = DarkBarRenderer.Dot(_allPaths ? Color.FromArgb(205, 140, 255) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
+        _syncPathsBtn = () => { if (pathsBtn.Checked != _allPaths) pathsBtn.Checked = _allPaths; };
+        _bar.Items.Add(pathsBtn);
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_status);   // painel de quests acima da barra de status
@@ -380,7 +388,7 @@ internal sealed partial class WorldView : Form
                 if (_sceneObjs) CloseTool(); else OpenTool(Tool.Scene);
                 return;
             case Keys.P:   // caminhos de patrulha (path.sev) perto da câmera
-                _allPaths = !_allPaths; _gl.Invalidate();
+                _allPaths = !_allPaths; _syncPathsBtn?.Invoke(); _gl.Invalidate();
                 _status.Text = Paths is null ? Loc.T("world.noPaths", "Este mapa não tem path.sev no servidor.")
                     : _allPaths ? string.Format(Loc.T("world.pathsOn", "Caminhos de patrulha: todos ({0}) — P esconde"), Paths.Count) : Loc.T("world.pathsOff", "Caminhos de patrulha: só o do ponto selecionado — P mostra todos");
                 return;
@@ -766,10 +774,13 @@ internal sealed partial class WorldView : Form
     /// Caminhos de patrulha: o(s) do ponto selecionado (campo Caminho dos monstros dele) em laranja forte com setas no sentido
     /// da ida; com P, todos os caminhos a até 600 m da câmera em lilás fraco.
     /// </summary>
+    /// <summary>Altura para desenhar sobre o chão: o terreno (+0,5) quando está acima do ponto, senão o próprio ponto.</summary>
+    float OnGround(float x, float y, float z) => MathF.Max(y, _t.HeightAt(x, z) ?? y) + 0.5f;
+
     void DrawPaths()
     {
         if (Paths is null) return;
-        var sel = SelectedMark()?.Tag is NpcGenSpawn s ? s.Creatures.Select(c => c.PathId).Where(id => id > 0).ToHashSet() : new HashSet<int>();
+        var sel = _tool == Tool.Paths && SelectedMark()?.Tag is NpcGenSpawn s ? s.Creatures.Select(c => c.PathId).Where(id => id > 0).ToHashSet() : new HashSet<int>();
         if (!_allPaths && sel.Count == 0) return;
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
         foreach (var (id, pts) in Paths)
@@ -777,8 +788,21 @@ internal sealed partial class WorldView : Form
             bool strong = sel.Contains(id);
             if (!strong && (!_allPaths || pts.Count == 0 || !pts.Any(p => (Gl(p.X, p.Y, p.Z) - _cam).LengthSquared < 600 * 600))) continue;
             if (strong) { GL.LineWidth(4); GL.Color4(1f, 0.6f, 0.15f, 1f); } else { GL.LineWidth(2); GL.Color4(0.8f, 0.55f, 1f, 0.6f); }
+            // entre dois pontos do caminho a reta passava por baixo dos morros: subdivide a cada ~2 m e põe no chão
             GL.Begin(PrimitiveType.LineStrip);
-            foreach (var p in pts) GL.Vertex3(Gl(p.X, p.Y + 0.5f, p.Z));
+            for (int i = 0; i < pts.Count; i++)
+            {
+                var a = pts[i];
+                if (i == 0) { GL.Vertex3(Gl(a.X, OnGround(a.X, a.Y, a.Z), a.Z)); continue; }
+                var b = pts[i - 1];
+                float dx = a.X - b.X, dz = a.Z - b.Z;
+                int n = Math.Clamp((int)(MathF.Sqrt(dx * dx + dz * dz) / 2), 1, 200);
+                for (int k = 1; k <= n; k++)
+                {
+                    float t = k / (float)n, x = b.X + dx * t, z = b.Z + dz * t;
+                    GL.Vertex3(Gl(x, OnGround(x, b.Y + (a.Y - b.Y) * t, z), z));
+                }
+            }
             GL.End();
             if (strong && pts.Count > 1)
             {
@@ -1329,7 +1353,7 @@ internal sealed partial class WorldView : Form
 
     void GizmoLabels()
     {
-        if (SelectedMark() is not { } m) return;
+        if (_tool == Tool.Paths || SelectedMark() is not { } m) return;
         var c = PosOf(m); float L = GizmoSize(c) * 1.35f;
         DrawLabel(Loc.T("gizmo.x", "X · leste"), c + Vector3.UnitX * L, Color.Red);
         DrawLabel(Loc.T("gizmo.y", "Y · altura"), c + Vector3.UnitY * L, Color.LimeGreen);

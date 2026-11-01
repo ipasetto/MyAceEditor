@@ -69,7 +69,7 @@ internal sealed partial class WorldView
         bool drawing = _drawPts is not null, hasPath = SelPath is not null;
         _pathName.Visible = s is not null;
         _pathName.Text = s is null ? "" : SelectedMark()?.Name ?? "";
-        _pathHint.Text = s is null ? Loc.T("path.pick", "Clique num monstro ou NPC para mudar como ele anda.")
+        _pathHint.Text = s is null ? Loc.T("path.pick2", "Primeiro clique num monstro ou NPC no mundo: esta ferramenta só funciona com um deles escolhido.\n\nDepois escolha: andar numa área (azul) OU patrulhar um caminho (laranja). É um ou outro.")
             : drawing ? Loc.T("path.drawing", "Clique no chão para pôr os pontos, na ordem em que ele anda. Botão direito ou Enter termina; Esc cancela.")
             : hasPath ? Loc.T("path.editHint", "Arraste os quadrados laranja para mudar o caminho. O ponto grande é o começo.")
             : Loc.T("path.areaHint", "Ele anda solto dentro da área azul. Arraste a alça amarela para mudar o tamanho.");
@@ -77,6 +77,7 @@ internal sealed partial class WorldView
         _modeArea.BackColor = s is not null && !hasPath ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _modePath.BackColor = hasPath ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _pathDraw.Visible = s is not null && !drawing && _pathFile is not null;
+        _pathDraw.Text = "  " + (hasPath ? Loc.T("path.redraw", "Redesenhar (troca o caminho atual)") : Loc.T("path.draw", "Desenhar caminho novo"));
         _pathDone.Visible = drawing;
         _pathDel.Visible = hasPath && !drawing;
         _pathState.Text = _pathFile is null ? Loc.T("path.noFile", "Este mapa não tem path.sev no servidor.")
@@ -103,7 +104,9 @@ internal sealed partial class WorldView
         int id = _pathFile.Paths.Count == 0 ? 1 : _pathFile.Paths.Max(p => p.Id) + 1;
         var np = BuildPath(id, _pathFile.Paths.FirstOrDefault()?.Version ?? 3, pts);
         _drawPts = null; _drawHover = null;
-        LinkPath(s, id, np);
+        // já tinha caminho: o novo toma o lugar (o antigo sai do path.sev se ninguém mais usa) — nada de 2 caminhos no mesmo monstro
+        var old = SelPath;
+        LinkPath(s, id, np, remove: old is not null && (PathUsers?.Invoke(old.Id) ?? 1) <= 1 ? old : null);
         _status.Text = string.Format(Loc.T("path.created", "Caminho {0} criado com {1} pontos e ligado ao ponto (Ctrl+Z desfaz). Salve os caminhos e o NPCGen."), id, pts.Count);
     }
 

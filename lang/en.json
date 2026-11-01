@@ -4518,5 +4518,9 @@
   "cap.stoneLevel": "stone only 1 to 20: the gs crashes when used",
   "cap.mobAddon": "the gs crashes on start with param1 above 9",
   "group.spawn": "Spawn",
-  "group.quests": "Quests"
+  "group.quests": "Quests",
+  "path.redraw": "Redraw (replaces the current path)",
+  "path.pick2": "First click a monster or NPC in the world: this tool only works with one of them selected.\n\nThen choose: walk in an area (blue) OR patrol a path (orange). It is one or the other.",
+  "world.allPaths": "Patrols",
+  "world.allPaths.h": "Show the patrol paths of all nearby monsters (pink lines) — P key. The selected monster's path shows in orange in the Paths and areas tool."
 }

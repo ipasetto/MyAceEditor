@@ -130,7 +130,7 @@ internal sealed partial class WorldView
         _tool = t; _toolsFolded = false;
         _toolBack.Visible = true;
         if (t == Tool.Scene) { _toolTitle.Text = Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
-        if (t == Tool.Paths) { _toolTitle.Text = Loc.T("tools.paths2", "Caminhos e áreas"); _allPaths = true; UpdatePathPanel(); _gl.Invalidate(); }
+        if (t == Tool.Paths) { _toolTitle.Text = Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
         LayoutTools();
     }
 
@@ -138,7 +138,7 @@ internal sealed partial class WorldView
     void CloseTool()
     {
         if (_tool == Tool.Scene) SetSceneObjects(false);
-        if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _allPaths = false; _gl.Invalidate(); }
+        if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _gl.Invalidate(); }
         _tool = Tool.None;
         _toolBack.Visible = false;
         _toolTitle.Text = Loc.T("tools.title", "Ferramentas");

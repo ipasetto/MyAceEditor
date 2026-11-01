@@ -4520,5 +4520,9 @@
   "cap.stoneLevel": "宝石只能 1 到 20：使用时 gs 崩溃",
   "cap.mobAddon": "param1 大于 9 时 gs 启动崩溃",
   "group.spawn": "刷新",
-  "group.quests": "任务"
+  "group.quests": "任务",
+  "path.redraw": "重画（替换当前路径）",
+  "path.pick2": "先在世界中点击一个怪物或 NPC：此工具只在选中其一时可用。\n\n然后选择：在区域内走动（蓝色）或沿路径巡逻（橙色），二选一。",
+  "world.allPaths": "巡逻",
+  "world.allPaths.h": "显示附近所有怪物的巡逻路径（粉色线）— P 键。选中怪物的路径在“路径与区域”工具中显示为橙色。"
 }
