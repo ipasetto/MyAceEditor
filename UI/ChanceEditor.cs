@@ -436,7 +436,7 @@ internal sealed class ProbListView : ScrollableControl
         double v = Math.Round(Math.Clamp((x - bar.X) / (double)bar.Width, 0, 1), 3);
         foreach (var (k, f) in _before) _item.Fields[k] = f;
         var refOf = _sections.SelectMany(s => s.Rows).Where(r => r.Ref is not null).ToDictionary(r => r.Prob, r => r.Ref!);
-        var nv = ProbabilityGroups.Set(_item, _drag.Prob, v, _locks, k => refOf.TryGetValue(k, out var rk) && !AddonGroups.Empty(_item.Fields[rk].Value));
+        var nv = ProbabilityGroups.Set(_item, _drag.Prob, v, _locks, k => !refOf.TryGetValue(k, out var rk) || !AddonGroups.Empty(_item.Fields[rk].Value));
         foreach (var (k, val) in nv) _item.Fields[k] = Field.Of(_before[k].Type, ProbabilityGroups.Fmt(val));
         Invalidate();
     }

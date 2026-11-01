@@ -57,12 +57,10 @@ internal sealed class CreatureInfoPanel : UserControl
         Row(L(() => Loc.T("ci.amount", "Quantidade")), _amount, _amountText);
         Row(L(() => Loc.T("ci.respawn", "Renascer (s)")), _respawn, _respawnText);
         Row(L(() => Loc.T("ci.min", "Mínimo (s)")), _min, _minText);
-        Row(L(() => Loc.T("ci.diedLabel2", "Mortes até parar (não usado)")), _died, _diedText);
         Bind(() =>
         {
             _amountText.Text = Loc.T("ci.amountNote", "quantos nascem juntos neste ponto");
             _minText.Text = Loc.T("ci.minNote2", "0 = sempre o mesmo tempo. Maior (e menor que Renascer) = a cada morte o jogo sorteia um tempo entre 15 s + mínimo e 15 s + renascer.");
-            _diedText.Text = Loc.T("ci.diedNote2", "o servidor 1.5.x não usa este campo (só fica guardado): o ponto renasce sempre");
         });
         if (dark) foreach (var n in new[] { _amount, _respawn, _min, _died }) { n.BackColor = Color.FromArgb(40, 46, 56); n.ForeColor = Color.White; }
         foreach (var n in new[] { _amount, _respawn, _min, _died }) n.ValueChanged += (_, _) => Commit();
@@ -101,7 +99,7 @@ internal sealed class CreatureInfoPanel : UserControl
     void ApplyText()
     {
         string[] sc = { Loc.T("ci.map", "Mapa"), Loc.T("ci.pos", "Posição (x, y, z)"), Loc.T("ci.amountShort", "Qtd"), Loc.T("ci.respawnShort", "Renascer"),
-            Loc.T("ci.diedShort", "Mortes até parar"), Loc.T("ci.extra", "Patrulha / gatilho") };
+            Loc.T("ci.minShort", "Mínimo"), Loc.T("ci.extra", "Patrulha / gatilho") };   // "mortes até parar" saiu: o gs 1.5.x não usa (usuário 01/11)
         for (int i = 0; i < sc.Length; i++) _spawns.Columns[i].Text = sc[i];
         _quests.Columns[0].Text = Loc.T("wq.colId", "ID"); _quests.Columns[1].Text = Loc.T("wq.colName", "Quest"); _quests.Columns[2].Text = Loc.T("ci.how", "Como usa");
         _hint.Text = GoTo is null ? Loc.T("ci.hintEdit2", "Escolha um ponto e mude abaixo: grava no npcgen do mapa (Ctrl+Z desfaz). Não existe chance de nascer: quando o tempo acaba ele sempre nasce; o único sorteio do jogo é o do tempo (Mínimo).")
@@ -136,7 +134,7 @@ internal sealed class CreatureInfoPanel : UserControl
             if (s.Trigger > 0) extra.Add(string.Format(Loc.T("ci.trigger", "gatilho {0}"), s.Trigger));
             if (g.Aggressive != 0) extra.Add(Loc.T("ci.aggro", "agressivo"));
             var it = new ListViewItem(new[] { r.Map, $"{s.Position.X:0}, {s.Position.Y:0}, {s.Position.Z:0}", g.Amount.ToString(), Time(g.Respawn),
-                g.DiedTimes > 0 ? g.DiedTimes.ToString() : Loc.T("ci.always", "sempre"), string.Join(" · ", extra) }) { Tag = r };
+                g.RefreshLower > 0 && g.RefreshLower < g.Respawn ? Time(g.RefreshLower) : "—", string.Join(" · ", extra) }) { Tag = r };
             if (s.Trigger > 0) it.ToolTipText = Loc.T("ci.triggerTip", "Só nasce quando o gatilho (evento do mapa) está ligado.");
             _spawns.Items.Add(it);
             if (keep is not null && ReferenceEquals(keep.Group, g)) it.Selected = true;
@@ -184,7 +182,7 @@ internal sealed class CreatureInfoPanel : UserControl
         if (_spawns.SelectedItems.Count > 0)
         {
             var it = _spawns.SelectedItems[0];
-            it.SubItems[2].Text = a.ToString(); it.SubItems[3].Text = Time(s); it.SubItems[4].Text = d > 0 ? d.ToString() : Loc.T("ci.always", "sempre");
+            it.SubItems[2].Text = a.ToString(); it.SubItems[3].Text = Time(s); it.SubItems[4].Text = m > 0 && m < s ? Time(m) : "—";
         }
     }
 }

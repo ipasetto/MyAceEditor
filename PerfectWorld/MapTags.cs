@@ -74,9 +74,15 @@ public static class MapTags
             var bytes = pck.Read(e);
             var text = bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE ? Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2) : Encoding.Unicode.GetString(bytes);
             text = Regex.Replace(text, @"//[^\n]*", "");
+            // a mesma tag pode vir 2 vezes (1a em chinês, depois traduzida): fica o nome traduzido do PRÓPRIO cliente; só
+            // chinês se o cliente não tiver outro (PWI: a03/a04; 155 BR: a01 a03 a04 a15 a25 a33 — conferido 01/11)
+            static bool Cjk(string n) => n.Any(ch => ch is >= '⺀' and <= '鿿');
             foreach (Match m in Regex.Matches(text, @"""([^""]*)""\s*\{\s*\d+\s*""([^""]+)"""))
-                if (m.Groups[1].Value.Trim() is { Length: > 0 } name && !name.Any(ch => ch is >= '⺀' and <= '鿿'))
-                    r.TryAdd(m.Groups[2].Value.Trim(), name);
+                if (m.Groups[1].Value.Trim() is { Length: > 0 } name)
+                {
+                    var tag = m.Groups[2].Value.Trim();
+                    if (!r.TryGetValue(tag, out var had) || Cjk(had) && !Cjk(name)) r[tag] = name;
+                }
         }
         catch { }
         return r;

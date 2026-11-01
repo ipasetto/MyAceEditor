@@ -35,31 +35,11 @@ internal sealed partial class WorldView
     DateTime? _pathSavedAt;   // confirmação visível do último Salvar (teste 6, usuário 01/11)
     bool PathDirty => _pathFile is not null && _pathSaved is not null && !_pathFile.Write().AsSpan().SequenceEqual(_pathSaved);
 
-    // criatura de ar/água patrulha em 3D (gs: follow_target com _inhabit_mode; o alvo do ponto inclui a altura): os pontos
-    // ficam a esta altura acima do chão, que começa na altura em que ela nasce (teste 7 do usuário, 01/11)
-    readonly Label _pathAirTitle = SectionLabel("");
-    readonly NumericUpDown _pathLift = new() { Minimum = 0, Maximum = 500, DecimalPlaces = 0, Width = 90, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Margin = new Padding(3, 2, 3, 4) };
+    // criatura de ar/água: no editor só anda numa área (usuário 01/11; patrulha no ar pediria altura em cada ponto)
     readonly Label _pathAirHint = Hint("");
-    Button _pathLiftAll = null!;
-    NpcGenSpawn? _liftFor;
     /// <summary>inhabit_type do monstro (0 terra, 1 água, 2 ar, 3 terra+água, 4 terra+ar, 5 água+ar, 6 todos).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Func<int, int>? InhabitOf { get; set; }
     bool PathAir => PathSpawn is { Creatures.Count: > 0 } s && (InhabitOf?.Invoke(s.Creatures[0].Id) ?? 0) is 1 or 2 or 4 or 5 or 6;
-    Vector3 Lifted(Vector3 ground) => PathAir ? ground + new Vector3(0, (float)_pathLift.Value, 0) : ground;
-
-    void LiftAllPoints()
-    {
-        if (!PathAir || SelPath is not { } sp || _pathFile is null) return;
-        var before = _pathFile.Write();
-        for (int i = 0; i < sp.Points.Count; i++)
-        {
-            var cur = G(sp.Points[i].Pos);
-            if (_t.HeightAt(cur.X, cur.Z) is { } h) MovePoint(sp, i, new Vector3(0, h + (float)_pathLift.Value - cur.Y, 0));
-        }
-        if (!before.AsSpan().SequenceEqual(_pathFile.Write())) { _pUndo.Add(new PathStep(before, UndoDepth?.Invoke() ?? 0, false)); _pRedo.Clear(); }
-        RebuildPaths(); UpdatePathPanel(); _gl.Invalidate();
-        _status.Text = string.Format(Loc.T("path.liftedAll", "Todos os pontos a {0} m acima do chão (Ctrl+Z desfaz)."), _pathLift.Value);
-    }
 
     NpcGenSpawn? PathSpawn => _tool == Tool.Paths && SelectedMark()?.Tag is NpcGenSpawn s ? s : null;
     static int PathIdOf(NpcGenSpawn s) => s.Creatures.Select(c => c.PathId).FirstOrDefault(id => id > 0);
@@ -140,8 +120,7 @@ internal sealed partial class WorldView
         _pathUndo = SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny());
         _pathRedo = SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny());
         _pathSave = SmallButton("\uE74E", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true);
-        _pathLiftAll = SmallButton("\uE74A", Loc.T("path.liftAll", "Pôr todos os pontos nesta altura"), LiftAllPoints);
-        foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirTitle, _pathLift, _pathAirHint, _pathLiftAll, _pathDraw, _pathDone, _pathCancel,
+        foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirHint, _pathDraw, _pathDone, _pathCancel,
                      _loopBox, _pathDel, _pathState, _pathUndo, _pathRedo, _pathSave })
             _pathsPage.Controls.Add(c);
         FormClosing += (_, e) =>
@@ -211,18 +190,11 @@ internal sealed partial class WorldView
         _pathStep1.Visible &= !blocked;
         _pathDone.Visible = _pathCancel.Visible = drawing;
         _pathLoopTitle.Text = Loc.T("path.loopTitle", "3. No fim do caminho");
-        // voador/nadador: altura dos pontos (começa na altura em que ele nasce)
-        bool air = !blocked && PathAir && patrol;
-        if (PathSpawn is { } ls && !ReferenceEquals(ls, _liftFor))
-        {
-            _liftFor = ls;
-            var p0 = new Vector3(ls.Position.X, ls.Position.Y, ls.Position.Z);
-            _pathLift.Value = Math.Clamp((decimal)MathF.Round(p0.Y - (_t.HeightAt(p0.X, p0.Z) ?? p0.Y)), _pathLift.Minimum, _pathLift.Maximum);
-        }
-        _pathAirTitle.Text = Loc.T("path.airTitle", "Altura do voo (m acima do chão)");
-        _pathAirHint.Text = Loc.T("path.airHint", "Esta criatura voa ou nada: no jogo ela segue a altura de cada ponto. Os pontos novos (e os que você arrasta) ficam nesta altura.");
-        _pathAirTitle.Visible = _pathLift.Visible = _pathAirHint.Visible = air;
-        _pathLiftAll.Visible = air && hasPath && !drawing;
+        // voador/nadador: só área (sem patrulhar caminho)
+        bool air = !blocked && PathAir;
+        _pathAirHint.Text = Loc.T("path.airOnly", "Esta criatura voa ou nada: aqui ela só anda numa área. Se ela já tem um caminho, você pode apagá-lo.");
+        _pathAirHint.Visible = air;
+        if (air) { _modePath.Visible = false; _pathDraw.Visible = false; }
         _loopBox.Visible = hasPath && !drawing;
         int loop = s is null ? 0 : LoopOf(s);
         _loop0.BackColor = loop == 0 ? UiKit.Accent : Color.FromArgb(40, 45, 54);
@@ -260,7 +232,7 @@ internal sealed partial class WorldView
         else StartDraw();
     }
 
-    void StartDraw() { if (PathSpawn is null || _pathFile is null) return; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
+    void StartDraw() { if (PathSpawn is null || _pathFile is null || PathAir) return; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
 
     void CancelDraw() { _drawPts = null; _drawHover = null; UpdatePathPanel(); _gl.Invalidate(); }
 
@@ -414,11 +386,11 @@ internal sealed partial class WorldView
         if (_tool != Tool.Paths) return false;
         if (_dragPt >= 0 && SelPath is { } sp && Ray(p) is { } at)
         {
-            MovePoint(sp, _dragPt, Lifted(at) - G(sp.Points[_dragPt].Pos));
+            MovePoint(sp, _dragPt, at - G(sp.Points[_dragPt].Pos));
             RebuildPaths(); _gl.Invalidate();
             return true;
         }
-        if (_drawPts is not null && !_dragging) { _drawHover = Ray(p) is { } hv ? Lifted(hv) : null; _gl.Invalidate(); }
+        if (_drawPts is not null && !_dragging) { _drawHover = Ray(p); _gl.Invalidate(); }
         int h = _drawPts is null ? PathPointAt(p) : -1;
         if (h != _hoverPt) { _hoverPt = h; _gl.Invalidate(); }
         return false;
@@ -437,14 +409,13 @@ internal sealed partial class WorldView
         if (_drawPts is null) return false;
         bool click = Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4;
         if (e.Button == MouseButtons.Right && click) { FinishDraw(); return true; }
-        if (e.Button == MouseButtons.Left && click && Ray(e.Location) is { } ground)
+        if (e.Button == MouseButtons.Left && click && Ray(e.Location) is { } at)
         {
-            var at = Lifted(ground);
             // não atravessa nada sólido (pedra, árvore, construção): o monstro não passaria, igual ao jogador
             // 2º clique no mesmo lugar põe assim mesmo (chão de construção, ponte: o terreno fica embaixo do brush)
             bool insist = _blockedClick is { } bc && (bc - at).Length < 1.5f;
             _blockedClick = null;
-            if (!insist && !PathAir && _drawPts.Count > 0 && BlockedBetween(_drawPts[^1], at) is { } where)   // voador passa por cima
+            if (!insist && _drawPts.Count > 0 && BlockedBetween(_drawPts[^1], at) is { } where)
             {
                 _blockedClick = at;
                 _status.Text = string.Format(Loc.T("path.blocked2", "Esse trecho passa por dentro de algo sólido (perto de {0:0}, {1:0}): ponha um ponto antes, contornando. Se for chão de ponte ou construção, clique de novo no mesmo lugar."), where.X, where.Z);

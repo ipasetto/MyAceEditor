@@ -932,7 +932,7 @@ public sealed class EditorForm : Form
             .Select(k => (Ref: k, Prob: FieldKinds.ProbabilityFor(k, d.Item.Fields))).Where(t => t.Prob is not null)
             .GroupBy(t => t.Prob!).ToDictionary(g => g.Key, g => g.First().Ref);
         // o grupo continua somando 100% (o gs normaliza mesmo; usuário 01/11 pediu de volta por estética)
-        var nv = ProbabilityGroups.Set(d.Item, d.Key, v, _probLocks, k => refOf.TryGetValue(k, out var rk) && !IsEmpty(d.Item.Fields[rk].Value));
+        var nv = ProbabilityGroups.Set(d.Item, d.Key, v, _probLocks, k => !refOf.TryGetValue(k, out var rk) || !IsEmpty(d.Item.Fields[rk].Value));
         foreach (var (k, val) in nv) d.Item.Fields[k] = Field.Of(d.Before[k].Type, ProbabilityGroups.Fmt(val));
         foreach (DataGridViewRow row in _grid.Rows)
             if (row.Tag is string rk2 && nv.ContainsKey(rk2)) row.Cells[1].Value = d.Item.Fields[rk2].Value;

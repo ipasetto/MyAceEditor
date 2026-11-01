@@ -80,7 +80,7 @@ public sealed class StringTable
 public static class PackTextTranslator
 {
     static readonly Regex Format = new(@"%[-+ #0-9.]*[a-zA-Z%]", RegexOptions.CultureInvariant);
-    static readonly string[] Skip = { "badwords.txt" };
+    static readonly string[] Skip = { "badwords.txt", "instance.txt" };   // instance.txt tem tradutor próprio (InstanceNames)
 
     static bool IsTable(string path) =>
         (path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".stf", StringComparison.OrdinalIgnoreCase))
@@ -130,6 +130,14 @@ public static class PackTextTranslator
             catch { continue; }
             if (!dryRun && b is not null) files[e.Path] = b;
         }
+        // nomes dos mapas (configs\instance.txt), pela sigla do mapa
+        if (dst.Find(@"configs\instance.txt") is { } ie && src.Find(@"configs\instance.txt") is { } ise)
+            try
+            {
+                var b = InstanceNames(dst.Read(ie), src.Read(ise), out int n);
+                if (n > 0) { total += n; if (!dryRun && b is not null) files[ie.Path] = b; }
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException) { }
         foreach (var e in dst.Entries.Where(e => IsTable(e.Path)))
         {
             if (src.Find(e.Path) is not { } se) continue;
@@ -145,6 +153,39 @@ public static class PackTextTranslator
             if (!dryRun) files[e.Path] = a.Encode(changes);
         }
         return (total, windows, files);
+    }
+
+    // configs\instance.txt (UTF-16 com BOM): "nome" { n  // ID  "sigla" ... por mapa (comentário entre o número e a sigla); a mesma sigla pode vir 2 vezes (1a em chinês)
+    static readonly Regex InstanceEntry = new(@"""(?<n>[^""\r\n]*)""(?<mid>\s*\{\s*\d+[^""\r\n]*\s*"")(?<t>[^""\r\n]+)""", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Nomes dos mapas: o nome do outro cliente pela sigla (a01, world...), o traduzido dele quando a sigla vem 2 vezes. O
+    /// Mundo 3D mostra o nome do instance.txt do cliente aberto (MapTags.ClientMapNames), então traduzir aqui deixa os dois
+    /// iguais ao jogo (usuário 01/11).
+    /// </summary>
+    public static byte[]? InstanceNames(byte[] mine, byte[] other, out int count)
+    {
+        count = 0;
+        static string? T(byte[] b) => b.Length >= 2 && b[0] == 0xFF && b[1] == 0xFE ? Encoding.Unicode.GetString(b, 2, b.Length - 2 & ~1) : null;
+        if (T(mine) is not { } a || T(other) is not { } o) return null;
+        // sigla + ID do mapa iguais nos dois (a numeração pode mudar entre versões)
+        static string Key(Match m) => m.Groups["t"].Value.Trim() + "|" + Regex.Match(m.Groups["mid"].Value, @"\d+").Value;
+        var theirs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match m in InstanceEntry.Matches(o))
+        {
+            var tag = Key(m); var name = m.Groups["n"].Value;
+            if (name.Trim().Length == 0) continue;
+            if (!theirs.TryGetValue(tag, out var had) || Cjk.IsMatch(had) && !Cjk.IsMatch(name)) theirs[tag] = name;
+        }
+        int c = 0;
+        var res = InstanceEntry.Replace(a, m =>
+        {
+            if (!theirs.TryGetValue(Key(m), out var name) || !WindowTranslatable(m.Groups["n"].Value, name)) return m.Value;   // chinês só troca chinês
+            c++;
+            return "\"" + name + "\"" + m.Groups["mid"].Value + m.Groups["t"].Value + "\"";
+        });
+        count = c;
+        return c == 0 ? null : new byte[] { 0xFF, 0xFE }.Concat(Encoding.Unicode.GetBytes(res)).ToArray();
     }
 
     // .htf (dicas da interface antiga): UTF-16 com BOM, uma linha "controle"<TAB>"dica" (PW-KB §S20c)

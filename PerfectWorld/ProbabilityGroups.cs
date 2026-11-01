@@ -42,17 +42,17 @@ public static class ProbabilityGroups
     public static bool SumsToOne(double s, int n) => Math.Abs(s - 1) <= Eps * Math.Max(1, n);
 
     /// <summary>
-    /// Novos valores do grupo depois de pôr <paramref name="value"/> em <paramref name="key"/>. Se o grupo somava 100%,
-    /// a diferença vai para os outros slots livres (fora de <paramref name="locked"/>), na proporção que já tinham;
-    /// se todos estavam em 0, vai para os slots com referência preenchida (<paramref name="hasRef"/>). Os travados não mudam.
-    /// Sem para onde ir, só o próprio campo muda (o grupo fica fora de 100% e a soma aparece em vermelho).
+    /// Novos valores do grupo depois de pôr <paramref name="value"/> em <paramref name="key"/>: o grupo SEMPRE fecha 100%
+    /// (o gs normaliza mesmo; usuário 01/11). O resto vai para os outros slots livres (fora de <paramref name="locked"/>), na
+    /// proporção que já tinham; se todos estavam em 0, dividido igual entre os que podem receber (<paramref name="hasRef"/>:
+    /// sem referência ou com referência preenchida). Os travados não mudam. Sem para onde ir, só o próprio campo muda.
     /// </summary>
     public static Dictionary<string, double> Set(Item item, string key, double value, ISet<string> locked, Func<string, bool>? hasRef = null)
     {
         value = Math.Clamp(value, 0, 1);
         var sib = Siblings(item, key);
         var cur = sib.ToDictionary(k => k, k => item.Fields.TryGetValue(k, out var f) ? Num(f.Value) : 0);
-        if (sib.Count < 2 || !SumsToOne(cur.Values.Sum(), sib.Count)) return new() { [key] = value };
+        if (sib.Count < 2) return new() { [key] = value };
 
         double lockedSum = sib.Where(k => k != key && locked.Contains(k)).Sum(k => cur[k]);
         value = Math.Min(value, Math.Max(0, 1 - lockedSum));

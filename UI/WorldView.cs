@@ -792,10 +792,14 @@ internal sealed partial class WorldView : Form
     {
         if (Paths is null) return;
         var sel = _tool == Tool.Paths && SelectedMark()?.Tag is NpcGenSpawn s ? s.Creatures.Select(c => c.PathId).Where(id => id > 0).ToHashSet() : new HashSet<int>();
+        // redesenhando: o caminho atual some da tela (o novo toma o lugar ao terminar; usuário 01/11)
+        var hide = _drawPts is not null ? sel : null;
+        if (hide is not null) sel = new HashSet<int>();
         if (!_allPaths && sel.Count == 0) return;
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
         foreach (var (id, pts) in Paths)
         {
+            if (hide?.Contains(id) == true) continue;
             bool strong = sel.Contains(id);
             if (!strong && (!_allPaths || pts.Count == 0 || !pts.Any(p => (Gl(p.X, p.Y, p.Z) - _cam).LengthSquared < 600 * 600))) continue;
             if (strong) { GL.LineWidth(4); GL.Color4(1f, 0.6f, 0.15f, 1f); } else { GL.LineWidth(2); GL.Color4(0.8f, 0.55f, 1f, 0.6f); }
@@ -1627,23 +1631,12 @@ internal sealed partial class WorldView : Form
         _gl.Invalidate();
     }
 
-    // nome das instâncias (lista da comunidade; a numeração do servidor pode variar entre versões)
-    static readonly Dictionary<string, string> MapNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["world"] = "Mainland", ["a01"] = "City of Abominations", ["a02"] = "Secret Passage", ["a03"] = "Silk Cave", ["a04"] = "Earth Cave",
-        ["a05"] = "Firecrag Grotto", ["a06"] = "Den of Rabid Wolves", ["a07"] = "Cave of the Vicious", ["a08"] = "Hall of Deception",
-        ["a09"] = "Gate of Delirium", ["a10"] = "Secret Frostcover Grounds", ["a11"] = "Valley of Disaster", ["a12"] = "Forest Ruins",
-        ["a13"] = "Cave of Sadistic Glee", ["a14"] = "Wraithgate", ["a15"] = "Hallucinatory Trench", ["a16"] = "Eden", ["a17"] = "Brimstone Pit",
-        ["a18"] = "Temple of the Dragon", ["a19"] = "Nightscream Island", ["a20"] = "Snake Isle", ["a21"] = "Lothranis (Heaven)",
-        ["a22"] = "Momaganon (Hell)", ["a23"] = "Seat of Torment", ["a24"] = "Abaddon", ["a25"] = "Warsong City", ["a26"] = "Palace of Nirvana",
-        ["a27"] = "Lunar Glade", ["a28"] = "Valley of Reciprocity", ["a29"] = "Frostcover City", ["a31"] = "Twilight Temple", ["a32"] = "Cube of Fate",
-        ["a33"] = "Chrono City", ["a34"] = "Perfect Chapel", ["a35"] = "Faction Base", ["a37"] = "Morai", ["a38"] = "Phoenix Valley",
-        ["a39"] = "Endless Universe", ["a40"] = "Rat Lurk Pits",
-    };
-    static Dictionary<string, string> _clientNames = new();   // instance.txt do cliente aberto (nome como no jogo)
+    // nome do mapa SÓ do instance.txt do cliente aberto, no idioma dele (usuário 01/11: tradução nossa ficaria diferente do
+    // jogo); sem nome no cliente, só a sigla da pasta (a01...). A tabela fixa em inglês saiu.
+    static Dictionary<string, string> _clientNames = new();
     sealed record MapItem(string Key)
     {
-        public override string ToString() => _clientNames.TryGetValue(Key, out var c) ? $"{Key} — {c}" : MapNames.TryGetValue(Key, out var n) ? $"{Key} — {n}" : Key;
+        public override string ToString() => _clientNames.TryGetValue(Key, out var c) ? $"{Key} — {c}" : Key;
     }
 
     /// <summary>Barra de status sem piscar: desenha com buffer duplo e só repinta quando o texto muda.</summary>

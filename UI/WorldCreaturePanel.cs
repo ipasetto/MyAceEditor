@@ -59,7 +59,6 @@ internal sealed class WorldCreaturePanel : Panel
         Row(Name(), _amount, null);
         Row(Name(), _respawn, _respawnText);
         Row(Name(), _min, _minText);
-        Row(Name(), _died, _diedText);
         var walkName = Name(); Row(walkName, _walk, null); sheet.SetColumnSpan(_walk, 2);
         var trigName = Name(); Row(trigName, _trigger, null); sheet.SetColumnSpan(_trigger, 2);
         var sheetBox = new Panel { Dock = DockStyle.Left, Width = 470, Padding = new Padding(8, 8, 4, 8) };
@@ -85,13 +84,12 @@ internal sealed class WorldCreaturePanel : Panel
         void Texts()
         {
             _minText.Text = Loc.T("wc.minNote2", "0 = sem sorteio; maior = sorteia o tempo");
-            string[] n = { Loc.T("wc.group", "Criatura do ponto"), Loc.T("ci.amount", "Quantidade"), Loc.T("ci.respawn", "Renascer (s)"), Loc.T("ci.min", "Mínimo (s)"), Loc.T("ci.diedLabel2", "Mortes até parar (não usado)"),
+            string[] n = { Loc.T("wc.group", "Criatura do ponto"), Loc.T("ci.amount", "Quantidade"), Loc.T("ci.respawn", "Renascer (s)"), Loc.T("ci.min", "Mínimo (s)"),
                 Loc.T("wc.walk", "Como anda"), Loc.T("wc.trigger", "Quando nasce") };
             for (int i = 0; i < n.Length; i++) _names[i].Text = n[i];
             _edit.Text = Loc.T("wc.edit", "Abrir no editor");
             _tip.SetToolTip(_edit, Loc.T("wc.editTip", "Abre o monstro no editor de elements (nível, drops, modelo...)."));
             _tip.SetToolTip(_close, Loc.T("wq.close", "Fechar"));
-            _tip.SetToolTip(_died, Loc.T("ci.diedNote2", "o servidor 1.5.x não usa este campo (só fica guardado): o ponto renasce sempre"));
             _quests.Columns[0].Text = Loc.T("wq.colId", "ID"); _quests.Columns[1].Text = Loc.T("wq.colName", "Quest"); _quests.Columns[2].Text = Loc.T("ci.how", "Como usa");
         }
         Texts();
@@ -152,7 +150,6 @@ internal sealed class WorldCreaturePanel : Panel
             _died.Value = Math.Clamp(g.DiedTimes, 0, 100000);
             _min.Value = Math.Clamp(g.RefreshLower, 0, 864000);
             _respawnText.Text = CreatureInfoPanel.RealRespawn(g);
-            _diedText.Text = Loc.T("wc.diedIgnored", "o servidor não usa");
             _walk.Text = g.PathId > 0
                 ? string.Format(Loc.T("wc.walkPath", "patrulha o caminho {0} · {1}"), g.PathId, g.PathLoop switch
                     { 0 => Loc.T("wc.loop0", "para no fim"), 1 => Loc.T("wc.loop1", "vai e volta"), _ => Loc.T("wc.loop2", "circuito") })
