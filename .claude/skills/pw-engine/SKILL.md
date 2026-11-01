@@ -51,7 +51,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 - Repositorio publico: nunca gravar senhas, chaves de rede (isec/osec), dados pessoais ou bytes de patch nas KBs.
 
 ## 4b. Layout das telas (REGRA DO USUARIO: toda tela nova ou mexida segue isto; pecas em UI/UiKit.cs)
-- MUNDO 3D (usuario 01/11): filtros "Mostrar" ficam na barra de CIMA (como sempre); a legenda/atalhos so abre pelo botao
+- MUNDO 3D (usuario 01/11): filtros "Mostrar" ficam numa barra propria EMBAIXO que quebra em linhas (usuario 01/11, antes em cima e nao cabia), em grupos pontos | so com gatilho | mundo (grama, patrulhas); abrir ferramenta fecha os paineis de baixo e a legenda, titulo com icone; a legenda/atalhos so abre pelo botao
   Atalhos de cima (nada flutuando por padrao). Ferramentas = menu FLUTUANTE a direita (nao colado em cima nem embaixo),
   ladrilhos RETANGULARES, UM POR LINHA (icone grande a esquerda, nome + para que serve; usuario 01/11); o painel de uma ferramenta mostra SO o que serve para ela (ex.: area do monstro so em Caminhos e areas; gizmo de mover escondido la); clicar numa ferramenta liga a visao do que ela mexe no mundo e o painel dela TOMA O
   LUGAR do menu, com seta "voltar" no topo. Nada de menu lateral fixo.

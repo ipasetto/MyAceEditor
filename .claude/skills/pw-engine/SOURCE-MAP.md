@@ -8,6 +8,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 
 - drop de monstro (quantos e quantidade): S/npc.cpp OnDeath (drop_times, double_drop) -> template/itemdataman.cpp generate_item_from_monster -> S/worldmanager.cpp case GM_MSG_PRODUCE_MONSTER_DROP -> generate_item_for_drop; quantidade so na aljava: template/generate_item_temp.h (num_min/num_max)
 - nivel "[?]" do alvo: C/DlgTarget.cpp (iLevel == 150 -> "[?] %s"; show_level do MONSTER_ESSENCE)
+- raio de toque do monstro (size): C/EC_Monster.cpp (m_fTouchRad = m_pDBEssence->size)
 - limite de quests ativas: S/task/TaskProcess.h TASK_DEFAULT_MAX_SIMULTANEOUS_COUT/GetMaxSimultaneousCount; premio m_iTaskLimit -> TaskProcess.cpp ExpandTaskLimit
 - limite de quests no cliente: C/DlgTask.cpp e C/DlgTaskList.cpp (iMaxTaskCount = GetMaxSimultaneousCount), C/Task/TaskProcess.h (mesmas constantes do gs)
 - patrulha do monstro: S/aipolicy.cpp ai_policy::ChangePath, S/patrol_agent.h base_patrol_agent::Init (GetPathMan().GetPath), S/npcgenerator.cpp (ent.path_id = gen.iPathID, path_type = iLoopType)

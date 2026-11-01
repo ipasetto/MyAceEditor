@@ -4550,5 +4550,6 @@
   "wc.walkArea": "walks in an area of {0:0} × {1:0} m",
   "wc.walkStill": "stays still at the point",
   "wc.trig": "only with trigger {0} on (map event)",
-  "wc.always": "always (no trigger)"
+  "wc.always": "always (no trigger)",
+  "world.showWorld": "World:"
 }

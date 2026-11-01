@@ -4552,5 +4552,6 @@
   "wc.walkArea": "在 {0:0} × {1:0} 米区域内走动",
   "wc.walkStill": "停在原点",
   "wc.trig": "仅在触发器 {0} 开启时（地图事件）",
-  "wc.always": "一直（无触发器）"
+  "wc.always": "一直（无触发器）",
+  "world.showWorld": "世界："
 }

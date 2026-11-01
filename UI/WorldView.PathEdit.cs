@@ -124,6 +124,7 @@ internal sealed partial class WorldView
         _pathState.Text = _pathFile is null ? Loc.T("path.noFile", "Este mapa não tem path.sev no servidor.")
             : PathDirty ? Loc.T("path.dirty", "● Caminhos não salvos.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
         _pathState.ForeColor = PathDirty ? Color.FromArgb(255, 200, 90) : Color.Silver;
+        if (_tool == Tool.Paths) BeginInvoke(LayoutTools);   // altura do painel acompanha o que está visível
     }
 
     void SetMode(bool patrol)

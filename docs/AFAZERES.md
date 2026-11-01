@@ -214,8 +214,8 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 [x] 1/8/12/15 pesquisados (PW-KB §S12/§S21/§S22); 8 virou regra mob-level (> 150)
 [~] 3/4/5/14 Caminhos e areas (compilado, falta ver na tela): rotulos x/y fora, linha no chao, so na ferramenta, Patrulhas no Mostrar, 1 caminho por criatura, dica. Falta: conferir porque o monstro nao seguiu o caminho (path.sev salvo+enviado? gs reiniciado? PathLoop)
 [ ] (antigo) 3/4/5/6/14 Caminhos e areas: linha do caminho acompanhando o terreno; so com a ferramenta aberta; riscos rosas no Mostrar; patrulha OU area (um so); exigir criatura selecionada; 1 caminho por criatura; tirar rotulos x/y; dica do que fazer; conferir porque o monstro nao seguiu o caminho
-[ ] 7 Mostrar numa barra inferior (tela pequena corta filtros)
-[ ] 13 tamanho real do modelo no 3D (escala) + nome sobre modelo grande + cor do nome do monstro (tirar se nao existir)
+[x] 7 Mostrar numa barra inferior que quebra em linhas (conferido por --world-shot)
+[~] 13 cor do nome: aba Descricao e cor some em monstro/NPC [x]; tamanho do modelo no 3D: size e so raio de toque, escala vem do .ecm (estudar) [ ]; nome sobre modelo grande (cliente) [ ]
 [ ] 12 sorteio de spawn (aipolicy Rand + controller) e aviso no mundo
 [x] 9b seletor de bloco abre marcado no bloco atual (conferido por print)
 [x] teto de valor: FieldLimits troca pelo maximo (tipo + regras do jogo)

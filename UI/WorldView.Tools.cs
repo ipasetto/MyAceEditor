@@ -116,7 +116,7 @@ internal sealed partial class WorldView
     void LayoutTools()
     {
         var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, _ => _toolMenu };
-        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(640, _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
         foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage }) p.Visible = !_toolsFolded && p == page;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);
@@ -124,6 +124,9 @@ internal sealed partial class WorldView
         _tools.Location = new Point(Math.Max(0, _gl.Right - _tools.Width - 16), _gl.Top + 16);
         _tools.BringToFront();
     }
+
+    /// <summary>Altura que o conteúdo visível da página pede (o painel não fica com sobra vazia embaixo).</summary>
+    static int FitHeight(FlowLayoutPanel p) => p.Padding.Vertical + 10 + p.Controls.Cast<Control>().Where(c => c.Visible || !p.Visible).Sum(c => c.Height + c.Margin.Vertical);
 
     /// <summary>Abre a ferramenta: liga a visão do que ela mexe e o painel dela toma o lugar do menu (seta para voltar).</summary>
     void OpenTool(Tool t)

@@ -95,6 +95,8 @@ internal sealed partial class WorldView : Form
     readonly Action<object> _select;
     readonly GLControl _gl;
     readonly StatusLine _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.Gainsboro };
+    readonly ToolStrip _showBar = new() { Dock = DockStyle.Bottom, LayoutStyle = ToolStripLayoutStyle.Flow, GripStyle = ToolStripGripStyle.Hidden, Renderer = new DarkBarRenderer(),
+        BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Padding = new Padding(6, 3, 6, 3) };
     readonly ToolStrip _bar = new() { GripStyle = ToolStripGripStyle.Hidden, Renderer = new DarkBarRenderer(), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Padding = new Padding(6, 4, 6, 4) };
     readonly ToolStripTextBox _find = new() { Width = 220, BackColor = Color.Black, ForeColor = Color.White };
     readonly ToolStripComboBox _mapBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200, BackColor = Color.Black, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -164,8 +166,9 @@ internal sealed partial class WorldView : Form
         _bar.Items.Add(_mapBox);
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", ToggleLegend));
-        _bar.Items.Add(new ToolStripSeparator());
-        _bar.Items.Add(new ToolStripLabel(Loc.T("world.show", "Mostrar:")) { ForeColor = Color.Silver });
+        // "Mostrar" numa barra própria EMBAIXO (pedido do usuário 01/11: em cima não cabia em tela pequena); quebra em
+        // linhas quando falta largura, em grupos: pontos | só com gatilho | mundo
+        _showBar.Items.Add(new ToolStripLabel(Loc.T("world.show", "Mostrar:"), UiKit.Icon("", Color.Silver, 16)) { ForeColor = Color.Silver, TextImageRelation = TextImageRelation.ImageBeforeText });
         foreach (var f in _filterDefs)
         {
             // botão liga/desliga com a cor do tipo de ponto (como uma legenda que também filtra)
@@ -173,22 +176,24 @@ internal sealed partial class WorldView : Form
                 ForeColor = Color.White, TextImageRelation = TextImageRelation.ImageBeforeText, Margin = new Padding(1, 0, 1, 0) };
             tb.CheckedChanged += (_, _) => { _show = tb.Checked ? _show | f.Kind : _show & ~f.Kind; tb.Image = DarkBarRenderer.Dot(tb.Checked ? f.Color : Color.FromArgb(70, 70, 70)); RefreshMarkers(); _gl.Focus(); };
             if (!tb.Checked) tb.Image = DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70));
-            _bar.Items.Add(tb);
+            if (f.Kind == MarkKind.Event) _showBar.Items.Add(new ToolStripSeparator());
+            _showBar.Items.Add(tb);
         }
         // grama: só mostrar/esconder (G); desenhar grama é pincel do Objetos do mundo
-        _bar.Items.Add(new ToolStripSeparator());
+        _showBar.Items.Add(new ToolStripSeparator());
+        _showBar.Items.Add(new ToolStripLabel(Loc.T("world.showWorld", "Mundo:")) { ForeColor = Color.Silver });
         _grassBtn.CheckedChanged += (_, _) => { _grass.Visible = _grassBtn.Checked; _grassBtn.Image = DarkBarRenderer.Dot(_grassBtn.Checked ? Color.FromArgb(124, 179, 66) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
-        _bar.Items.Add(_grassBtn);
+        _showBar.Items.Add(_grassBtn);
         // caminhos de patrulha de todos os monstros (riscos rosas; antes só pela tecla P, sem nada dizendo o que eram)
         var pathsBtn = new ToolStripButton(Loc.T("world.allPaths", "Patrulhas"), DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70)))
         { CheckOnClick = true, ForeColor = Color.White, TextImageRelation = TextImageRelation.ImageBeforeText,
           ToolTipText = Loc.T("world.allPaths.h", "Mostrar os caminhos de patrulha de todos os monstros perto (riscos rosas) — tecla P. O do monstro escolhido aparece em laranja na ferramenta Caminhos e áreas.") };
         pathsBtn.CheckedChanged += (_, _) => { _allPaths = pathsBtn.Checked; pathsBtn.Image = DarkBarRenderer.Dot(_allPaths ? Color.FromArgb(205, 140, 255) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
         _syncPathsBtn = () => { if (pathsBtn.Checked != _allPaths) pathsBtn.Checked = _allPaths; };
-        _bar.Items.Add(pathsBtn);
+        _showBar.Items.Add(pathsBtn);
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
-        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_status);   // painel de quests acima da barra de status
+        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_showBar); Controls.Add(_status);   // painel de quests acima da barra de status
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         _element = element;
         if (element is not null) _clientNames = MapTags.ClientMapNames(element);

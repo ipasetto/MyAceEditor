@@ -691,7 +691,7 @@ public sealed class EditorForm : Form
         _findList.KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.A) { foreach (ListViewItem li in _findList.Items) li.Selected = true; e.SuppressKeyPress = true; } };
         tFind.Controls.Add(_findList); tFind.Controls.Add(findBar); tFind.Controls.Add(findActions);
         // Descrição e cor (item_ext_desc.txt do configs.pck)
-        var tDesc = new TabPage() { BackColor = CTreeBg, Padding = new Padding(12) };
+        var tDesc = _tabDesc = new TabPage() { BackColor = CTreeBg, Padding = new Padding(12) };
         Bind(() => tDesc.Text = Loc.T("detail.description", "Descrição e cor"));
         _descBox.BackColor = CTreeBg; _descBox.ForeColor = CTreeFg;
         BuildDescEditor(tDesc);
@@ -2404,6 +2404,10 @@ public sealed class EditorForm : Form
         if (isMake && !_detailTabs.TabPages.Contains(_tabMake)) _detailTabs.TabPages.Insert(1, _tabMake);
         else if (!isMake && _detailTabs.TabPages.Contains(_tabMake)) _detailTabs.TabPages.Remove(_tabMake);
         if (isMake) _make.ShowService(item);
+        // descrição e cor do nome são do item (configs.pck); monstro/NPC/mina não usam: a aba some para não dar a entender que dá
+        bool creature = _owner.TryGetValue(item, out var db) && db.Name is "MONSTER_ESSENCE" or "NPC_ESSENCE" or "MINE_ESSENCE";
+        if (creature && _detailTabs.TabPages.Contains(_tabDesc)) _detailTabs.TabPages.Remove(_tabDesc);
+        else if (!creature && !_detailTabs.TabPages.Contains(_tabDesc)) _detailTabs.TabPages.Add(_tabDesc);
 
         // sub-abas por grupo (Básico, Habilidades, Queda, Modelo…), mantendo a aba escolhida se existir
         RebuildGroupTabs(item);
@@ -4000,6 +4004,8 @@ public sealed class EditorForm : Form
         _edits.Custom(string.Format(Loc.T("hist.spawn", "Spawn de {0} em {1}"), g.Id, r.Map), () => Set((amount, respawn, died)), () => Set(old));
         Status(string.Format(Loc.T("status.spawnSet", "{0}: {1} · renasce em {2} · npcgen de {3} (Salvar grava)"), g.Id, amount, CreatureInfoPanel.Time(respawn), r.Map));
     }
+
+    private TabPage _tabDesc = null!;
 
     private CfgField? CfgFieldOf(ItemList block, string key) =>
         _store.Current?.Source is ElementsLayout lay ? lay.Blocks.FirstOrDefault(s => s.List == block)?.Block.Fields.FirstOrDefault(f => f.Name == key) : null;
