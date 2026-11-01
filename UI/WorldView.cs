@@ -54,6 +54,7 @@ internal sealed class WorldView : Form
     IQuestHost? _host;
     WorldQuestEditor? _editor;
     Action<int>? _pickNpc;   // painel de criação esperando um clique num NPC
+    Action<int>? _pickMonster;   // etapa "matar monstros" esperando um clique num ponto de monstro
     Action<QuestArea>? _pickArea;              // painel de criação esperando uma área arrastada no chão
     Vector3? _areaA, _areaB;                   // área sendo arrastada (coordenadas do jogo)
     IReadOnlyList<QuestArea> _areas = Array.Empty<QuestArea>(); int _areaSel = -1;   // áreas da quest em edição
@@ -251,6 +252,12 @@ internal sealed class WorldView : Form
                     _select(tag);
                     var mk = _marks.FirstOrDefault(m => m.Tag == tag);
                     _status.Text = mk?.Name ?? "";
+                    if (_pickMonster is not null && mk is { Id: > 0 } && _host?.IsMonster(mk.Id) == true)
+                    {
+                        var pickM = _pickMonster; _pickMonster = null; pickM(mk.Id);   // etapa de matar pediu este monstro
+                        _movingTag = null; _movePos = null; _gl.Invalidate();
+                        return;
+                    }
                     if (_pickNpc is not null && mk is { Id: > 0 } && _host?.IsNpc(mk.Id) == true)
                     {
                         var pick = _pickNpc; _pickNpc = null; pick(mk.Id);   // painel de criação pediu este NPC
@@ -313,6 +320,7 @@ internal sealed class WorldView : Form
     {
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (e.KeyCode == Keys.Escape && _pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return; }
+        if (e.KeyCode == Keys.Escape && _pickMonster is not null) { _pickMonster = null; _status.Text = Loc.T("qe.pickMonsterCancel", "Escolha de monstro cancelada."); return; }
         if (e.KeyCode == Keys.Escape && _pickArea is not null) { _pickArea = null; _areaA = _areaB = null; _status.Text = Loc.T("qe.areaCancel", "Marcação de área cancelada."); _gl.Invalidate(); return; }
         if (e.Control)
         {
@@ -1381,7 +1389,16 @@ internal sealed class WorldView : Form
     void DeleteQuest(int questId)
     {
         if (_host is null || _editor is not null) return;
-        if (_host.DeleteAsk(questId) is not { } ask) return;
+        if (_host.DeleteAsk(questId) is not { } ask)
+        {
+            // a quest já não existe (apagada fora daqui): só sobrou o ID no serviço do NPC
+            if (MessageBox.Show(this, string.Format(Loc.T("qe.missingAsk", "A quest {0} não existe no tasks.data, mas o serviço deste NPC ainda aponta para ela (no jogo ele ofereceria uma quest que não existe).\n\nTirar o ID {0} dos serviços dos NPCs? Ctrl+Z desfaz."), questId),
+                    Loc.T("wq.removeMissing", "Tirar do NPC"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (_host.RemoveMissing(questId) is { } e2) { MessageBox.Show(this, e2, Loc.T("wq.removeMissing", "Tirar do NPC"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            QuestDone(_questNpc);
+            _status.Text = string.Format(Loc.T("qe.missingDone", "ID {0} tirado dos serviços dos NPCs (Ctrl+Z desfaz) — clique em Salvar no editor para gravar."), questId);
+            return;
+        }
         if (MessageBox.Show(this, ask, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         if (_host.Delete(questId) is { } err) { MessageBox.Show(this, err, Loc.T("quest.delete", "Excluir quest"), MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         QuestDone(_questNpc);
@@ -1392,12 +1409,13 @@ internal sealed class WorldView : Form
     {
         bool editing = draft.Editing > 0;
         var world = new QuestWorld(
-            act => { _pickNpc = act; _pickArea = null; _status.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)"); _gl.Focus(); },
+            act => { _pickNpc = act; _pickArea = null; _pickMonster = null; _status.Text = Loc.T("qe.picking", "Clique no NPC no mundo… (Esc cancela)"); _gl.Focus(); },
             act => { _pickArea = act; _pickNpc = null; _status.Text = Loc.T("qe.areaPicking", "Arraste no chão para marcar a área (clique sem arrastar = 10 × 10 m; Esc cancela)…"); _gl.Focus(); },
             (areas, sel) => { _areas = areas; _areaSel = sel; _gl.Invalidate(); },
-            () => MapTag);
+            () => MapTag,
+            act => { _pickMonster = act; _pickNpc = null; _pickArea = null; _status.Text = Loc.T("qe.pickingMonster", "Clique num ponto de monstro no mundo… (Esc cancela)"); _gl.Focus(); });
         var ed = _editor = new WorldQuestEditor(_host, draft, world);
-        void Close() { _pickNpc = null; _pickArea = null; _areaA = _areaB = null; _areas = Array.Empty<QuestArea>(); Controls.Remove(ed); ed.Dispose(); _editor = null; _gl.Focus(); _gl.Invalidate(); }
+        void Close() { _pickNpc = null; _pickMonster = null; _pickArea = null; _areaA = _areaB = null; _areas = Array.Empty<QuestArea>(); Controls.Remove(ed); ed.Dispose(); _editor = null; _gl.Focus(); _gl.Invalidate(); }
         ed.Created += id =>
         {
             Close();

@@ -55,6 +55,7 @@ até 65534. Nunca use "maior ID + 1" da lista sozinha.
 | ID de quest único | o gs ignora a segunda ("Dup Task Found") | `ATaskTemplMan::AddOneTaskTempl` |
 | Item, monstro e NPC que a quest usa existem no elements.data (recompensa, pedido, matar, invocar, entregar) | não derruba, mas a quest não entrega, não conta ou não aparece | campos de `IdRefactor.QuestFieldPoints` |
 | Versão do tasks.data igual à do gs | o gs não carrega nenhuma quest | `LoadTasksFromPack` |
+| Serviço de dar/receber quest do NPC só aponta para quest que existe | não derruba (o jogo original já traz ~930-1000 IDs soltos: 155 BR / PWI 1.5.5), mas o NPC fica com uma quest que não existe; só os NOVOS barram o Salvar | `QuestRules` regra `quest-svc`; limpar: Mundo 3D → "Tirar do NPC" |
 
 Criar quest: seguir `docs/QUESTS-3D.md` e `QuestBuilder` (NPC que entrega e recebe com a quest no serviço, IDs dos
 filhos livres, até 29 caracteres no nome da etapa, regiões dentro do limite da versão).

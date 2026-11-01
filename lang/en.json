@@ -4222,5 +4222,20 @@
   "qb.stepMonstersMax": "at most {0} monsters in this version.",
   "qb.stepBadMonster": "monster {0}: ID and count must be greater than zero.",
   "qb.sumStepKill": "  {0}. [{1}] \"{2}\": kill {3}",
-  "qb.noMonster": "Monster {0} does not exist in elements.data."
+  "qb.noMonster": "Monster {0} does not exist in elements.data.",
+  "qe.addKill": "+ Kill monsters",
+  "qe.monsters": "Monsters to kill",
+  "qe.monstersHint": "The step ends when the player kills the amount of each monster in the list. Click \"Pick in the world\" and then a monster spawn point, or type the ID.",
+  "qe.monsterCol": "Monster",
+  "qe.notMonster": "(not a monster)",
+  "qe.pickingMonster": "Click a monster point in the world… (Esc cancels)",
+  "qe.pickMonsterCancel": "Monster pick cancelled.",
+  "qe.stepKillLine": "Kill monsters ({0})",
+  "wq.removeMissing": "Remove from NPC",
+  "wq.removeMissingTip": "This quest no longer exists: removes its ID from the NPCs' services (Ctrl+Z undoes).",
+  "qe.missingAsk": "Quest {0} does not exist in tasks.data, but this NPC's service still points to it (in game it would offer a quest that doesn't exist).\n\nRemove ID {0} from the NPCs' services? Ctrl+Z undoes.",
+  "qe.missingDone": "ID {0} removed from the NPCs' services (Ctrl+Z undoes) — click Save in the editor to write it.",
+  "qb.questExists": "Quest {0} exists: use Delete quest.",
+  "qb.histRemoveMissing": "Remove quest {0} (missing) from NPCs",
+  "rule.questSvc": "the NPC's quest service points to quest {0}, which does not exist in tasks.data (field {1})"
 }

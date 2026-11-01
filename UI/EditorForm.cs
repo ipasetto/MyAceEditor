@@ -2916,9 +2916,11 @@ public sealed class EditorForm : Form
         }
         public string? DeleteAsk(int questId) => f.DeleteQuestAsk(questId);
         public string? Delete(int questId) => f.DeleteQuestById(questId);
+        public string? RemoveMissing(int questId) => f.RemoveMissingQuest(questId);
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
         public bool IsNpc(int id) => f.CreatureItem(id) is { Block.Name: "NPC_ESSENCE" };
+        public bool IsMonster(int id) => f.CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" };
         public IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max)
         {
             if (f._tasks is not { FullSchema: true } t) return Array.Empty<(int, string, int)>();
@@ -3098,6 +3100,19 @@ public sealed class EditorForm : Form
                 () => { t.MoveRoot(q, at); MarkTasksDirty(label); });
         }
         RefreshQuests();
+        return null;
+    }
+
+    /// <summary>
+    /// Quest apagada fora do editor (outro programa, ou a exclusão antiga que não limpava os serviços): o NPC continua com o
+    /// ID no serviço de dar/receber e no jogo oferece uma quest que não existe. Tira o ID de todos os serviços.
+    /// </summary>
+    private string? RemoveMissingQuest(int questId)
+    {
+        if (_tasks is not { } t) return Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.");
+        if (t.Index.Find(questId) is not null) return string.Format(Loc.T("qb.questExists", "A quest {0} existe: use Excluir quest."), questId);
+        var label = string.Format(Loc.T("qb.histRemoveMissing", "Tirar dos NPCs a quest {0} (não existe)"), questId);
+        using (_edits.Batch(label)) RemoveQuestFromServices(new HashSet<int> { questId });
         return null;
     }
 

@@ -4224,5 +4224,20 @@
   "qb.stepMonstersMax": "此版本最多 {0} 个怪物。",
   "qb.stepBadMonster": "怪物 {0}：ID和数量必须大于零。",
   "qb.sumStepKill": "  {0}. [{1}]“{2}”：击杀 {3}",
-  "qb.noMonster": "elements.data 中不存在怪物 {0}。"
+  "qb.noMonster": "elements.data 中不存在怪物 {0}。",
+  "qe.addKill": "+ 击杀怪物",
+  "qe.monsters": "要击杀的怪物",
+  "qe.monstersHint": "玩家击杀列表中每种怪物的指定数量后，该步骤完成。点击“在世界中选择”再点击怪物刷新点，或输入ID。",
+  "qe.monsterCol": "怪物",
+  "qe.notMonster": "（不是怪物）",
+  "qe.pickingMonster": "在世界中点击一个怪物点……（Esc 取消）",
+  "qe.pickMonsterCancel": "已取消选择怪物。",
+  "qe.stepKillLine": "击杀怪物（{0}）",
+  "wq.removeMissing": "从NPC移除",
+  "wq.removeMissingTip": "此任务已不存在：从NPC服务中移除其ID（Ctrl+Z 撤销）。",
+  "qe.missingAsk": "tasks.data 中不存在任务 {0}，但此NPC的服务仍指向它（游戏中会发放一个不存在的任务）。\n\n从NPC服务中移除ID {0}？Ctrl+Z 可撤销。",
+  "qe.missingDone": "已从NPC服务中移除ID {0}（Ctrl+Z 撤销）——在编辑器中点击保存以写入。",
+  "qb.questExists": "任务 {0} 存在：请使用“删除任务”。",
+  "qb.histRemoveMissing": "从NPC移除任务 {0}（不存在）",
+  "rule.questSvc": "NPC的任务服务指向任务 {0}，该任务在 tasks.data 中不存在（字段 {1}）"
 }

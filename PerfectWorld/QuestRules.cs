@@ -20,6 +20,16 @@ public static class QuestRules
             list.Add(new("quest-dup", "TASKS", g.Key.ToString(), QName(g.First()),
                 string.Format(UI.Loc.T("rule.questDup", "ID de quest repetido ({0}×): o gs ignora a segunda"), g.Count())));
 
+        // serviço de dar/receber quest do NPC apontando para quest que não existe (quest apagada por fora): no jogo o NPC lista
+        // uma quest que não existe. Limpar: Mundo 3D, painel do NPC → "Tirar do NPC"
+        var questIds = tasks.AllNodes().Select(q => q.Id).ToHashSet();
+        foreach (var block in new[] { "NPC_TASK_OUT_SERVICE", "NPC_TASK_IN_SERVICE" })
+            foreach (var svc in m.FindListByName(block)?.Items ?? new())
+                foreach (var (k, f) in svc.Fields)
+                    if (k.Contains("id_tasks") && !k.Contains("space") && int.TryParse(f.Value, out var qid) && qid > 0 && !questIds.Contains(qid))
+                        list.Add(new("quest-svc", block, svc.Id, svc.Name,
+                            string.Format(UI.Loc.T("rule.questSvc", "o serviço de quests do NPC aponta para a quest {0}, que não existe no tasks.data (campo {1})"), qid, k)));
+
         HashSet<string> Ids(params string[] blocks) => blocks.SelectMany(b => m.FindListByName(b)?.Items ?? new()).Select(i => i.Id).ToHashSet();
         var mobs = Ids("MONSTER_ESSENCE");
         var npcs = Ids("NPC_ESSENCE");

@@ -4,9 +4,10 @@ namespace MyAceEditor.UI;
 
 /// <summary>
 /// O que o painel de criação pede ao Mundo 3D: escolher NPC clicando, marcar área arrastando no chão, mostrar as áreas da quest
-/// (com a selecionada destacada; -1 = nenhuma) e a tag do mapa aberto (0 = não sei).
+/// (com a selecionada destacada; -1 = nenhuma), a tag do mapa aberto (0 = não sei) e escolher monstro clicando num ponto de monstro.
 /// </summary>
-internal sealed record QuestWorld(Action<Action<int>> PickNpc, Action<Action<QuestArea>> PickArea, Action<IReadOnlyList<QuestArea>, int> ShowAreas, Func<int> MapTag);
+internal sealed record QuestWorld(Action<Action<int>> PickNpc, Action<Action<QuestArea>> PickArea, Action<IReadOnlyList<QuestArea>, int> ShowAreas, Func<int> MapTag,
+    Action<Action<int>> PickMonster);
 
 /// <summary>O que o Mundo 3D pede ao editor para criar e ligar quests (elements + tasks carregados, com desfazer).</summary>
 internal interface IQuestHost
@@ -24,9 +25,12 @@ internal interface IQuestHost
     string? DeleteAsk(int questId);
     /// <summary>Exclui a quest (com as subquests) e tira o ID dos serviços dos NPCs, num passo do desfazer. Null = deu certo.</summary>
     string? Delete(int questId);
+    /// <summary>Quest que não existe mais no tasks.data (apagada fora daqui): tira o ID dos serviços dos NPCs, num passo do desfazer. Null = deu certo.</summary>
+    string? RemoveMissing(int questId);
     /// <summary>Nome de NPC, monstro ou item do elements; null se o ID não existe.</summary>
     string? NameOf(int id);
     bool IsNpc(int id);
+    bool IsMonster(int id);
     IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max);
     /// <summary>Esta quest passa a ser dada pelo NPC (serviço do NPC + campo "NPC que dá"). Null = deu certo.</summary>
     string? LinkExisting(int npcId, int questId);

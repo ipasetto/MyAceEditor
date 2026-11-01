@@ -14,8 +14,10 @@ internal static class QuestShotTest
         public QuestDraft? EditDraft(int questId, out string? why) { why = null; return new QuestDraft { Id = questId, Editing = questId }; }
         public string? DeleteAsk(int questId) => "Excluir " + questId;
         public string? Delete(int questId) => null;
-        public string? NameOf(int id) => id == 2001 ? "Ferreiro Wang" : id == 2002 ? "Guarda Li" : $"Item {id}";
+        public string? RemoveMissing(int questId) => null;
+        public string? NameOf(int id) => id == 2001 ? "Ferreiro Wang" : id == 2002 ? "Guarda Li" : id == 3001 ? "Lobo da Colina" : id == 3002 ? "Lobo Alfa" : $"Item {id}";
         public bool IsNpc(int id) => id is 2001 or 2002;
+        public bool IsMonster(int id) => id is 3001 or 3002;
         public IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max) => Array.Empty<(int, string, int)>();
         public string? LinkExisting(int npcId, int questId) => null;
         public IReadOnlyList<QuestOption> Options(bool reward) => Array.Empty<QuestOption>();
@@ -29,13 +31,24 @@ internal static class QuestShotTest
     {
         using var f = new Form { Width = 1100, Height = 760, StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false, BackColor = Color.FromArgb(60, 80, 70) };
         var host = new Stub();
-        var ed = new WorldQuestEditor(host, host.NewDraft(2001, out _)!, new QuestWorld(_ => { }, _ => { }, (_, _) => { }, () => 1));
+        var draft = host.NewDraft(2001, out _)!;
+        // página Etapas: mostra uma etapa "matar monstros" já preenchida (a 2ª, selecionada ao abrir a página)
+        if (page == 1) draft.Steps.AddRange(new[] { new QuestStep { Kind = QuestStepKind.Talk, Npc = 2002 }, new QuestStep { Kind = QuestStepKind.Kill, Name = "Lobos da colina", Monsters = { (3001, 10), (3002, 3) } } });
+        var ed = new WorldQuestEditor(host, draft, new QuestWorld(_ => { }, _ => { }, (_, _) => { }, () => 1, _ => { }));
         var panel = new WorldQuestPanel { CreateQuest = _ => { }, LinkQuest = _ => { }, EditQuest = _ => { }, DeleteQuest = _ => { } };
         f.Controls.Add(ed); f.Controls.Add(panel);
         f.Show();
         typeof(WorldQuestEditor).GetMethod("Show", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, new[] { typeof(int) })!.Invoke(ed, new object[] { page });
+        if (page == 1 && typeof(WorldQuestEditor).GetField("_stepList", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(ed) is ListBox sl)
+        {
+            sl.SelectedIndex = sl.Items.Count - 1;   // etapa de matar selecionada; rola até o bloco dela
+            if (typeof(WorldQuestEditor).GetField("_page", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(ed) is Panel pg) pg.AutoScrollPosition = new Point(0, 700);
+        }
         panel.ShowNpc(new NpcQuestInfo(2001, "Ferreiro Wang", new[] { new NpcQuestRef(1001, "Carta para o ferreiro", true, true), new NpcQuestRef(1002, "Minério raro", false, true) },
-            new[] { new NpcQuestRef(1003, "Espada quebrada", true, true) }));
+            new[] { new NpcQuestRef(1003, "Espada quebrada", true, true), new NpcQuestRef(60100, "", true, false) }));
+        // quest apagada fora daqui (60100): escolhida, o botão vira "Tirar do NPC"
+        if (page == 1 && typeof(WorldQuestPanel).GetField("_takes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(panel) is ListView tk)
+            tk.Items[^1].Selected = true;
         var until = DateTime.Now.AddSeconds(2);
         while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(20); }
         panel.GetType().GetMethod("SetMinimized", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(panel, new object[] { false });

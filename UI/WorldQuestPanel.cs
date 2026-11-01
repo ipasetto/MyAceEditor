@@ -40,8 +40,10 @@ internal sealed class WorldQuestPanel : Panel
     /// <summary>Excluir a quest escolhida na lista (ID da quest). Null = botão desligado.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? DeleteQuest { get => _deleteQuest; set { _deleteQuest = value; ApplyText(); } }
     Action<int>? _deleteQuest;
-    int SelectedQuest => new[] { _gives, _takes }.SelectMany(lv => lv.SelectedItems.Cast<ListViewItem>()).Select(i => i.Tag).OfType<NpcQuestRef>()
-        .FirstOrDefault(q => q.Name.Length > 0)?.Id ?? 0;
+    NpcQuestRef? SelectedRef => new[] { _gives, _takes }.SelectMany(lv => lv.SelectedItems.Cast<ListViewItem>()).Select(i => i.Tag).OfType<NpcQuestRef>().FirstOrDefault();
+    int SelectedQuest => SelectedRef?.Id ?? 0;
+    /// <summary>A quest escolhida não existe no tasks.data (só o serviço do NPC aponta para ela).</summary>
+    bool SelectedMissing => SelectedRef is { Name.Length: 0 };
 
     public WorldQuestPanel()
     {
@@ -132,7 +134,10 @@ internal sealed class WorldQuestPanel : Panel
         _tip.SetToolTip(_edit, _editQuest is null ? Loc.T("wq.soon", "Em construção: próximo passo.")
             : pick ? Loc.T("wq.editTip", "Abre a quest escolhida no assistente, com tudo preenchido, para mudar.") : Loc.T("wq.pickFirst", "Escolha uma quest na lista primeiro (Ver quests)."));
         _tip.SetToolTip(_delete, _deleteQuest is null ? Loc.T("wq.soon", "Em construção: próximo passo.")
-            : pick ? Loc.T("wq.deleteTip", "Exclui a quest escolhida e tira ela dos NPCs (Ctrl+Z desfaz).") : Loc.T("wq.pickFirst", "Escolha uma quest na lista primeiro (Ver quests)."));
+            : !pick ? Loc.T("wq.pickFirst", "Escolha uma quest na lista primeiro (Ver quests).")
+            : SelectedMissing ? Loc.T("wq.removeMissingTip", "Esta quest não existe mais: tira o ID dela do serviço dos NPCs (Ctrl+Z desfaz).")
+            : Loc.T("wq.deleteTip", "Exclui a quest escolhida e tira ela dos NPCs (Ctrl+Z desfaz)."));
+        _delete.Text = pick && SelectedMissing ? Loc.T("wq.removeMissing", "Tirar do NPC") : Loc.T("wq.delete", "Excluir quest");
     }
 
     public void ShowNpc(NpcQuestInfo info)
