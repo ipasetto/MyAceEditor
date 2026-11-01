@@ -116,6 +116,33 @@ public static class BackupStore
         return dest;
     }
 
+    /// <summary>Backups guardados de um arquivo (mais novo primeiro): caminho e data/hora.</summary>
+    public static List<(string Path, DateTime When)> ListFor(string file)
+    {
+        var full = Path.GetFullPath(file);
+        var dir = Path.GetDirectoryName(Target(full, DateTime.Now))!;
+        var list = new List<(string, DateTime)>();
+        if (!Directory.Exists(dir)) return list;
+        var prefix = Path.GetFileName(full) + ".";
+        foreach (var f in Directory.EnumerateFiles(dir, prefix + "*"))
+            if (Regex.Match(Path.GetFileName(f)[prefix.Length..], @"^(\d{8}-\d{6})(?:-\d+)?\.(?:gz|bak)$", RegexOptions.IgnoreCase) is { Success: true } m
+                && DateTime.TryParseExact(m.Groups[1].Value, "yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var when))
+                list.Add((f, when));
+        return list.OrderByDescending(x => x.Item2).ToList();
+    }
+
+    /// <summary>Nome do arquivo original de um backup ("elements.data.20261101-172944.gz" -> "elements.data").</summary>
+    public static string? OriginalName(string bak) =>
+        Regex.Match(Path.GetFileName(bak), @"^(?<n>.+?)\.\d{8}-\d{6}(?:-\d+)?\.(?:gz|bak)$", RegexOptions.IgnoreCase) is { Success: true } m ? m.Groups["n"].Value : null;
+
+    /// <summary>Conteúdo do backup (.gz descompactado; .bak como está).</summary>
+    public static byte[] Read(string bak)
+    {
+        if (!bak.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)) return File.ReadAllBytes(bak);
+        using var gz = new System.IO.Compression.GZipStream(File.OpenRead(bak), System.IO.Compression.CompressionMode.Decompress);
+        using var ms = new MemoryStream(); gz.CopyTo(ms); return ms.ToArray();
+    }
+
     static string Safe(string s) => string.Concat(s.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
 
     static void Prune(string full)

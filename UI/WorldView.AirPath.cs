@@ -8,7 +8,7 @@ namespace MyAceEditor.UI;
 /// Marcador de caminho (usuário 01/11: para TODAS as criaturas). Na ferramenta Caminhos, em patrulha, o modelo da criatura
 /// dá lugar a um CÍRCULO com setas X/Y/Z (como o gizmo de mover): clicar no chão leva o círculo até lá (mantendo a altura),
 /// as setas movem (verde = altura; o gs leva quem voa ou nada até a altura de cada ponto: npcsession.cpp follow_target,
-/// PW-KB §S22) e "Marcar ponto aqui" (Enter) põe o ponto onde ele está: os pontos vão se ligando no caminho; terminar é pelo botão
+/// PW-KB §S22) e "Marcar ponto aqui" (E ou botão direito) põe o ponto onde ele está: os pontos vão se ligando no caminho; terminar é pelo botão
 /// (Espaço é da câmera), depois é só salvar. Clicar num ponto do caminho o escolhe: as setas passam a mover esse ponto. Cada ponto tem uma haste
 /// até o chão, para ver a altura.
 /// </summary>
@@ -43,7 +43,7 @@ internal sealed partial class WorldView
 
     void InitAirPath()
     {
-        _flyMark = SmallButton("", Loc.T("path.flyMark2", "Marcar ponto aqui (Enter)"), FlyMark, main: true);
+        _flyMark = SmallButton("", Loc.T("path.flyMark3", "Marcar ponto aqui (E)"), FlyMark, main: true);
         _toolTip.SetToolTip(_flyMark, Loc.T("path.flyMarkTip3", "Põe um ponto do caminho onde está o círculo; cada ponto se liga ao anterior. Para acabar, clique em Terminar o desenho."));
     }
 
@@ -103,7 +103,7 @@ internal sealed partial class WorldView
         if (len2 < 4) return true;
         float t = MathF.Round(((p.X - _flyDown.X) * sx + (p.Y - _flyDown.Y) * sy) / len2 * L * 10) / 10;
         var np = c + dir * t;
-        if (_flySel >= 0 && SelPath is { } sp && _flySel < sp.Points.Count) { MovePoint(sp, _flySel, np - G(sp.Points[_flySel].Pos)); RebuildPaths(); }
+        if (_flySel >= 0 && SelPath is { } sp && _flySel < sp.Points.Count) { MovePoint(sp, _flySel, np - G(sp.Points[_flySel].Pos)); ResamplePath(sp); }
         else _flyCursor = np;
         float ground = _t.HeightAt(np.X, np.Z) ?? np.Y;
         _status.Text = string.Format(Loc.T("path.flyMoving", "X {0:0.0}   altura {1:0.0} ({2:0.0} m acima do chão)   Z {3:0.0}"), np.X, np.Y, np.Y - ground, np.Z);
@@ -135,7 +135,7 @@ internal sealed partial class WorldView
     {
         if (_tool != Tool.Paths || PathSpawn is null || _pathFile is null) return;
         SyncFlyCursor();
-        if (_drawPts is null) StartDraw();
+        if (_drawPts is null) { var keep = _flyCursor; StartDraw(); _flyFor = PathSpawn; _flyCursor = keep; }   // começa o desenho sem perder o círculo
         if (_drawPts is null || _flyCursor is not { } c) return;
         // quem anda no chão não atravessa nada sólido (pedra, árvore, construção); marcar de novo no mesmo lugar põe assim mesmo
         bool insist = _blockedClick is { } bc && (bc - c).Length < 1.5f;
@@ -148,7 +148,7 @@ internal sealed partial class WorldView
             return;
         }
         _drawPts.Add(c); _flySel = -1;
-        _status.Text = string.Format(Loc.T("path.flyMarked2", "Ponto {0} marcado. Mova o círculo e marque o próximo (Enter); para acabar, clique em Terminar o desenho."), _drawPts.Count);
+        _status.Text = string.Format(Loc.T("path.flyMarked3", "Ponto {0} marcado. Mova o círculo e marque o próximo (E ou botão direito); para acabar, clique em Terminar o desenho."), _drawPts.Count);
         UpdatePathPanel(); _gl.Invalidate();
     }
 
@@ -197,7 +197,7 @@ internal sealed partial class WorldView
         // rótulo da seta de altura e do atalho (textura ligada, cor branca: ver DrawPathEdit)
         GL.Enable(EnableCap.Texture2D); GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.Color4(1f, 1f, 1f, 1f);
         DrawLabel(Loc.T("gizmo.y", "Y · altura"), c + Vector3.UnitY * L * 1.35f, Color.LimeGreen);
-        if (_flySel < 0) DrawLabel(Loc.T("path.flyEnter", "Enter = marcar ponto aqui"), c - Vector3.UnitY * L * 0.45f, Color.FromArgb(150, 230, 255));
+        if (_flySel < 0) DrawLabel(Loc.T("path.flyE", "E ou botão direito = marcar ponto"), c - Vector3.UnitY * L * 0.45f, Color.FromArgb(150, 230, 255));
         GL.BindTexture(TextureTarget.Texture2D, 0); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Blend);
         GL.Enable(EnableCap.DepthTest); GL.Color3(1f, 1f, 1f);
     }

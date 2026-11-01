@@ -32,6 +32,8 @@ internal sealed partial class WorldView
 
     internal void SetPathFile(string file, PathFile pf) { _pathSev = file; _pathFile = pf; _pathSaved = pf.Write(); _pathSavedAt = null; RebuildPaths(); }
     void RebuildPaths() => Paths = _pathFile?.Paths.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.First().Sample());
+    /// <summary>Arrastando um ponto: refaz só a curva desse caminho (refazer as ~560 do mapa a cada movimento travava).</summary>
+    void ResamplePath(SevPath sp) { if (Paths is null) RebuildPaths(); else Paths[sp.Id] = sp.Sample(); }
     DateTime? _pathSavedAt;   // confirmação visível do último Salvar (teste 6, usuário 01/11)
     bool PathDirty => _pathFile is not null && _pathSaved is not null && !_pathFile.Write().AsSpan().SequenceEqual(_pathSaved);
 
@@ -152,6 +154,7 @@ internal sealed partial class WorldView
     void UpdatePathPanel()
     {
         var s = PathSpawn;
+        bool dirty = PathDirty;   // serializa o path.sev inteiro: uma vez por atualização
         _pathPanelFor = s;
         bool drawing = _drawPts is not null, hasPath = SelPath is not null, patrol = PatrolMode;
         var area = s is not null && SelectedMark() is { } m ? AreaOf(m.Tag) : null;
@@ -186,7 +189,7 @@ internal sealed partial class WorldView
         _pathPickRed.Visible = s is null || blocked;
         // sem criatura: nada de botões (só salvar, se ficou caminho sem salvar)
         _pathUndo.Visible = _pathRedo.Visible = s is not null && !blocked;
-        _pathSave.Visible = (s is not null && !blocked) || PathDirty;
+        _pathSave.Visible = (s is not null && !blocked) || dirty;
         _pathState.Visible = !blocked;
         _pathStep1.Visible &= !blocked;
         _pathDone.Visible = _pathCancel.Visible = drawing;
@@ -195,7 +198,7 @@ internal sealed partial class WorldView
         bool cursor = !blocked && patrol && s is not null;
         SyncFlyCursor();
         if (cursor)
-            _pathHint.Text = drawing ? Loc.T("path.cursorDrawing2", "Clique no chão para levar o círculo até lá (ou arraste as setas; verde = altura). A cada parada aperte Enter (ou \"Marcar ponto aqui\"): os pontos vão se ligando. Para acabar, clique em \"Terminar o desenho\"; Esc cancela. Depois é só salvar.")
+            _pathHint.Text = drawing ? Loc.T("path.cursorDrawing3", "Clique no chão para levar o círculo até lá (ou arraste as setas; verde = altura). A cada parada aperte E (ou clique com o botão direito no chão, ou \"Marcar ponto aqui\"): os pontos vão se ligando. Para acabar, clique em \"Terminar o desenho\"; Esc cancela. Depois é só salvar.")
                 : PathAir ? Loc.T("path.flyEdit2", "Esta criatura voa ou nada: ela segue a altura de cada ponto. Clique num ponto e arraste as setas (verde = altura) para mudá-lo.")
                 : Loc.T("path.cursorEdit", "Clique num ponto do caminho e arraste as setas para mudá-lo. O ponto grande é o começo. \"Redesenhar\" começa de novo.");
         _pathAirHint.Visible = false;
@@ -207,10 +210,10 @@ internal sealed partial class WorldView
         _loop2.BackColor = loop is not (0 or 1) ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _pathDel.Visible = hasPath && !drawing;
         _pathState.Text = _pathFile is null ? Loc.T("path.noFile", "Este mapa não tem path.sev no servidor.")
-            : PathDirty ? Loc.T("path.dirty", "● Caminhos não salvos.")
+            : dirty ? Loc.T("path.dirty", "● Caminhos não salvos.")
             : _pathSavedAt is { } at ? string.Format(Loc.T("path.savedAt", "✓ Caminhos salvos às {0:HH:mm:ss}. Reinicie o mapa no servidor."), at)
             : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
-        _pathState.ForeColor = PathDirty ? Color.FromArgb(255, 200, 90) : _pathSavedAt is not null ? Color.FromArgb(120, 220, 120) : Color.Silver;
+        _pathState.ForeColor = dirty ? Color.FromArgb(255, 200, 90) : _pathSavedAt is not null ? Color.FromArgb(120, 220, 120) : Color.Silver;
         if (_tool == Tool.Paths) BeginInvoke(LayoutTools);   // altura do painel acompanha o que está visível
     }
 
@@ -396,7 +399,7 @@ internal sealed partial class WorldView
         if (_dragPt >= 0 && SelPath is { } sp && Ray(p) is { } at)
         {
             MovePoint(sp, _dragPt, at - G(sp.Points[_dragPt].Pos));
-            RebuildPaths(); _gl.Invalidate();
+            ResamplePath(sp); _gl.Invalidate();
             return true;
         }
         if (_drawPts is not null && !_dragging) { _drawHover = AirPatrol ? null : Ray(p); _gl.Invalidate(); }
@@ -416,9 +419,14 @@ internal sealed partial class WorldView
             _dragBefore = null; UpdatePathPanel(); _gl.Invalidate();
             return true;
         }
-        if (_drawPts is null) return false;
         bool click = Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4;
-        if (e.Button == MouseButtons.Right && click) { FinishDraw(); return true; }
+        // botão direito na ferramenta: nunca o menu de contexto; desenhando, marca o ponto onde clicou (usuário 01/11)
+        if (e.Button == MouseButtons.Right && click)
+        {
+            if (_drawPts is not null && PathSpawn is not null && Ray(e.Location) is { } rp) { FlyMoveTo(rp); FlyMark(); }
+            return true;
+        }
+        if (_drawPts is null) return false;
         if (e.Button == MouseButtons.Left && click && AirPatrol && Ray(e.Location) is { } flyTo) { FlyMoveTo(flyTo); return true; }   // o clique leva o círculo
         if (e.Button == MouseButtons.Left && click && Ray(e.Location) is { } at)
         {
@@ -441,8 +449,8 @@ internal sealed partial class WorldView
     /// <summary>Teclas da ferramenta: Enter termina o desenho, Esc cancela. true = tecla usada.</summary>
     bool PathKey(Keys k)
     {
-        // Enter marca o ponto (Espaço é da câmera); terminar é só pelo botão "Terminar o desenho" (usuário 01/11)
-        if (_tool == Tool.Paths && k == Keys.Enter && PatrolMode && PathSpawn is not null) { FlyMark(); return true; }
+        // E marca o ponto enquanto desenha (Espaço é da câmera; E não sobe mais a câmera); terminar é só pelo botão (usuário 01/11)
+        if (_tool == Tool.Paths && k == Keys.E && _drawPts is not null && PathSpawn is not null) { FlyMark(); return true; }
         if (_tool != Tool.Paths || _drawPts is null) return false;
         if (k == Keys.Escape) { CancelDraw(); return true; }
         if (k == Keys.Back && _drawPts.Count > 0) { _drawPts.RemoveAt(_drawPts.Count - 1); _gl.Invalidate(); return true; }

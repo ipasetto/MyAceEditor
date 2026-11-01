@@ -319,9 +319,10 @@ public sealed class ServerAdmin
         return r.Output.Contains("ok") ? null : r.Output.Trim();
     }
 
-    /// <summary>Liga o programa em segundo plano (setsid: não morre quando o comando do WSL termina; PW-KB §S31).</summary>
-    public void PluginsStart() => _srv.Bash($"cd {PluginFiles.Dir} && pgrep -x myaceplugins >/dev/null || (setsid {PluginFiles.Exe} > /dev/null 2>&1 &)", timeoutMs: 30_000);
-    public void PluginsStop() => _srv.Bash("pkill -x myaceplugins; true", timeoutMs: 30_000);
+    /// <summary>Liga o programa em segundo plano; ele também sobe com o "start" do servidor quando está instalado.</summary>
+    /// (pwctl plugins-start: setsid nohup + espera o processo existir; sem isso o WSL matava o programa ao fim do comando)
+    public void PluginsStart() { _srv.EnsureTools(); _srv.Bash("pwctl plugins-start", timeoutMs: 60_000); }
+    public void PluginsStop() { _srv.EnsureTools(); _srv.Bash("pwctl plugins-stop", timeoutMs: 30_000); }
 
     /// <summary>Grava as regras (o programa relê sozinho quando o arquivo muda).</summary>
     public void PluginsSave(IEnumerable<PluginRule> rules) => _srv.Bash($"mkdir -p {PluginFiles.Dir} && cat > {PluginFiles.Config}", stdin: PluginFiles.Write(rules), timeoutMs: 30_000);

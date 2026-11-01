@@ -800,7 +800,9 @@ internal sealed class NpcGenView : UserControl
                 // só o que cai no terreno do cliente: a a26 do servidor tem 8 cópias do mapa de 1 km lado a lado (x a cada
                 // 1024 m) e só a do meio coincide com o mapa do cliente (PW-KB §S22)
                 // filtro do Mundo 3D: tipo do ponto + gatilho (evento agendado / fase ou GM)
-                WorldView.MarkKind TriggerKind(int id) => id == 0 || !triggers.TryGetValue(id, out var tg) ? 0
+                // ponto de plugin (controlador "MyAce plugin", criado pela área Plugins) aparece como monstro normal: senão o
+                // monstro "sumia" do Mundo 3D ao virar evento (usuário 01/11)
+                WorldView.MarkKind TriggerKind(int id) => id == 0 || !triggers.TryGetValue(id, out var tg) || tg.Name.StartsWith("MyAce plugin", StringComparison.Ordinal) ? 0
                     : tg.NoStartSchedule == 0 && tg.Start.Any(x => x > 0) ? WorldView.MarkKind.Event
                     : tg.AutoStart != 0 ? 0 : WorldView.MarkKind.Trigger;
                 WorldView.MarkKind SpawnKind(NpcGenSpawn sp, int id) => _blockOf(id) != "NPC_ESSENCE" ? WorldView.MarkKind.Monster

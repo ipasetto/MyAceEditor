@@ -190,7 +190,14 @@ public sealed class EditorForm : Form
         _autoSave.Tick += (_, _) => SaveAll(quiet: true);
         _autoSave.Enabled = autoSave.Checked;
         Bind(() => autoSave.Text = Loc.T("menu.autoSave", "Salvar &automaticamente (a cada 5 min)"));
-        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, convert, autoSave, new ToolStripSeparator(), exportCsv, exit });
+        // restaurar backup (usuário 01/11): os 5 últimos dos arquivos do jogo aberto, com data e hora; ou um de outro lugar
+        var restore = new ToolStripMenuItem { ForeColor = CFg };
+        restore.DropDownItems.Add(new ToolStripMenuItem("…"));   // a setinha aparece; a lista é feita ao abrir
+        restore.DropDownOpening += (_, _) => FillRestoreMenu(restore);
+        var openBak = new ToolStripMenuItem { ForeColor = CFg }; openBak.Click += (_, _) => OpenBackup();
+        Bind(() => restore.Text = Loc.T("menu.restore", "&Restaurar backup"));
+        Bind(() => openBak.Text = Loc.T("menu.openBackup", "A&brir backup…"));
+        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, convert, autoSave, new ToolStripSeparator(), restore, openBak, new ToolStripSeparator(), exportCsv, exit });
         Bind(() => exportCsv.Text = Loc.T("menu.exportCsv", "&Exportar bloco atual (planilha CSV)…"));
         var newItem = new ToolStripMenuItem { ForeColor = CFg }; newItem.Click += (_, _) => AddItem();
         var removeItem = new ToolStripMenuItem { ForeColor = CFg }; removeItem.Click += (_, _) => RemoveItem();
@@ -4850,6 +4857,60 @@ public sealed class EditorForm : Form
     }
 
     private void MarkTasksDirty(string msg) { _tasksDirty = true; _qStatus.Text = msg + Loc.T("quest.dirty", " — clique em Salvar tasks.data para gravar."); }
+
+    // ---------- restaurar backup (BackupStore) ----------
+    /// <summary>Arquivos do jogo aberto que o editor grava (os backups deles aparecem no menu).</summary>
+    IEnumerable<string> RestorableFiles() => new[] { _dataPath, _tasksPath, _aiView?.FilePath }.OfType<string>().Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase);
+
+    void FillRestoreMenu(ToolStripMenuItem menu)
+    {
+        menu.DropDownItems.Clear();
+        var all = RestorableFiles().SelectMany(f => BackupStore.ListFor(f).Select(b => (File: f, b.Path, b.When))).OrderByDescending(x => x.When).Take(5).ToList();
+        if (all.Count == 0) { menu.DropDownItems.Add(new ToolStripMenuItem(Loc.T("menu.noBackups", "(nenhum backup deste jogo ainda)")) { Enabled = false }); return; }
+        foreach (var (file, bak, when) in all)
+        {
+            var it = new ToolStripMenuItem($"{Path.GetFileName(file)}   ·   {when:dd/MM/yyyy HH:mm:ss}") { ForeColor = CFg, ToolTipText = bak };
+            it.Click += (_, _) => RestoreBackup(bak, file);
+            menu.DropDownItems.Add(it);
+        }
+    }
+
+    void OpenBackup()
+    {
+        using var dlg = new OpenFileDialog { Title = Loc.T("menu.openBackupTitle", "Escolha um backup (.gz ou .bak)"), Filter = Loc.T("menu.backupFilter", "Backups") + " (*.gz;*.bak)|*.gz;*.bak|*.*|*.*",
+            InitialDirectory = Directory.Exists(BackupStore.Root) ? BackupStore.Root : "" };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var name = BackupStore.OriginalName(dlg.FileName) ?? Path.GetFileName(dlg.FileName);
+        // vai para o arquivo de mesmo nome do jogo aberto; senão o usuário escolhe onde
+        var target = RestorableFiles().FirstOrDefault(f => Path.GetFileName(f).Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+        {
+            using var sd = new SaveFileDialog { Title = Loc.T("menu.restoreWhere", "Restaurar para qual arquivo?"), FileName = name };
+            if (sd.ShowDialog(this) != DialogResult.OK) return;
+            target = sd.FileName;
+        }
+        RestoreBackup(dlg.FileName, target);
+    }
+
+    void RestoreBackup(string bak, string target)
+    {
+        var name = Path.GetFileName(target);
+        bool isEl = string.Equals(target, _dataPath, StringComparison.OrdinalIgnoreCase), isTasks = string.Equals(target, _tasksPath, StringComparison.OrdinalIgnoreCase);
+        bool unsaved = isEl && ElementsDirty || isTasks && _tasksDirty;
+        var ask = string.Format(Loc.T("menu.restoreAsk", "Restaurar {0} do backup de {1:dd/MM/yyyy HH:mm:ss}?\n\nO arquivo atual ganha um backup antes (dá para voltar pelo mesmo menu)."), name, File.GetLastWriteTime(bak))
+            + (unsaved ? "\n\n" + Loc.T("menu.restoreUnsaved", "As mudanças não salvas deste arquivo serão perdidas.") : "");
+        if (MessageBox.Show(this, ask, Loc.T("menu.restore", "&Restaurar backup").Replace("&", ""), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        try
+        {
+            AtomicFileSave.Write(target, BackupStore.Read(bak));   // guarda o atual no armazém antes
+            AppLog.Info($"backup restaurado: {bak} -> {target}");
+            if (isEl) LoadElements(target);
+            else if (isTasks) LoadTasks(target);
+            else if (string.Equals(target, _aiView?.FilePath, StringComparison.OrdinalIgnoreCase)) _aiView?.LoadFile(target);
+            Status(string.Format(Loc.T("menu.restored", "{0} restaurado (backup de {1:dd/MM HH:mm}). Para o servidor, use Salvar e enviar."), name, File.GetLastWriteTime(bak)));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or FileSaveException) { Error(Loc.T("menu.restoreFail", "Não consegui restaurar o backup"), ex); }
+    }
 
     private void LoadTasks(string path)
     {

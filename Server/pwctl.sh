@@ -62,11 +62,13 @@ start)
         grep -q "^\[\(World\|Instance\)_$m\]" "$P/gamed/gs.conf" || { echo "##SEM $m"; continue; }
         svc "gs-$m" "gs $m\$" gamed ./gs $m; sleep 5
     done
+    # plugins de evento (docs/PLUGINS.md): sobem junto com o servidor quando estão instalados
+    [ -x $P/gamed/myace/myaceplugins ] && svc myaceplugins "^./myaceplugins" gamed/myace ./myaceplugins
     echo "##OK iniciado"
     ;;
 stop)
     for p in gamedbd uniquenamed; do pkill -USR1 -x $p 2>/dev/null; done; sleep 3
-    for p in glinkd gs gdeliveryd gfactiond gacd gamedbd uniquenamed logservice; do pkill -9 -x $p 2>/dev/null; done
+    for p in myaceplugins glinkd gs gdeliveryd gfactiond gacd gamedbd uniquenamed logservice; do pkill -9 -x $p 2>/dev/null; done
     for d in $P/authd $P/mauthd/build; do [ -x $d/authd.sh ] && (cd $d && ./authd.sh stop >/dev/null 2>&1); done
     pkill -9 -f "authd [^ ]*table.xml" 2>/dev/null
     echo "##OK parado"
@@ -155,6 +157,12 @@ maps)     # mapas em execução: "<tag> <RAM em MB> <pronto 0|1>" + memória do 
         echo "$tag $(( $(awk '/VmRSS/{print $2}' /proc/$pid/status) / 1024 )) $ok"
     done
     free -m | awk '/^Mem:/{print "##RAM", $2, $7}'
+    ;;
+plugins-start) # programa dos plugins de evento (setsid nohup + espera, como os daemons)
+    svc myaceplugins "^./myaceplugins" gamed/myace ./myaceplugins
+    ;;
+plugins-stop)
+    pkill -9 -x myaceplugins 2>/dev/null; echo "##OK parado"
     ;;
 gs-start) # pwctl gs-start <tag>
     tag=$(printf '%s' "$2" | tr -cd 'a-z0-9_')

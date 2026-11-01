@@ -243,7 +243,8 @@ internal sealed class NavBar : Control
     readonly TabControl _tabs;
     readonly ToolTip _tip = new();
     int _hover = -1;
-    const int ItemH = 74;
+    // altura do item acompanha a janela: todas as áreas sempre cabem (com Plugins o Extrator ficava escondido; usuário 01/11)
+    int ItemH => Math.Clamp(Height / Math.Max(1, _items.Count), 50, 74);
     static readonly Color Back = Color.FromArgb(24, 32, 44), Sel = Color.FromArgb(40, 54, 74), Hov = Color.FromArgb(32, 43, 59);
 
     public NavBar(TabControl tabs)
@@ -256,6 +257,8 @@ internal sealed class NavBar : Control
     public void Add(string glyph, Func<string> text, Func<string> tip, TabPage page) { _items.Add(new(glyph, text, tip, page)); Invalidate(); }
 
     int Hit(Point p) => p.Y / ItemH is var i && i >= 0 && i < _items.Count ? i : -1;
+
+    protected override void OnResize(EventArgs e) { base.OnResize(e); Invalidate(); }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
@@ -287,11 +290,13 @@ internal sealed class NavBar : Control
             var r = new Rectangle(0, i * ItemH, Width, ItemH);
             bool sel = _tabs.SelectedTab == it.Page;
             if (sel || i == _hover) using (var b = new SolidBrush(sel ? Sel : Hov)) g.FillRectangle(b, r);
-            if (sel) using (var b = new SolidBrush(UiKit.Accent)) g.FillRectangle(b, 0, r.Y + 8, 4, ItemH - 16);
-            var ic = UiKit.Icon(it.Glyph, sel ? Color.White : Color.FromArgb(170, 182, 198), 28);
-            g.DrawImage(ic, (Width - 28) / 2, r.Y + 9);
-            TextRenderer.DrawText(g, it.Text(), f, new Rectangle(2, r.Y + 40, Width - 4, 32), sel ? Color.White : Color.FromArgb(170, 182, 198),
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            if (sel) using (var b = new SolidBrush(UiKit.Accent)) g.FillRectangle(b, 0, r.Y + 6, 4, ItemH - 12);
+            int h = ItemH, isz = h >= 66 ? 28 : 22;                       // mais apertado: ícone menor e texto numa linha
+            int iy = r.Y + Math.Max(4, (h - isz - 18) / 2);
+            var ic = UiKit.Icon(it.Glyph, sel ? Color.White : Color.FromArgb(170, 182, 198), isz);
+            g.DrawImage(ic, (Width - isz) / 2, iy);
+            TextRenderer.DrawText(g, it.Text(), f, new Rectangle(2, iy + isz + 3, Width - 4, h >= 66 ? 32 : 16), sel ? Color.White : Color.FromArgb(170, 182, 198),
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | (h >= 66 ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine) | TextFormatFlags.EndEllipsis);
         }
     }
 

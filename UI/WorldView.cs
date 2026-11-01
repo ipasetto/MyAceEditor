@@ -383,7 +383,7 @@ internal sealed partial class WorldView : Form
                     _status.Text = _clip is null ? "" : Loc.T("world.copied", "Ponto copiado — Ctrl+V cola onde está o mouse");
                     break;
                 case Keys.V:
-                    if (_clip is not null && CloneHere is not null && (_hover ?? Ray(_gl.PointToClient(Cursor.Position))) is { } at) { CloneHere(_clip, at); RefreshMarkers(); }
+                    if (_tool == Tool.None && _clip is not null && CloneHere is not null && (_hover ?? Ray(_gl.PointToClient(Cursor.Position))) is { } at) { CloneHere(_clip, at); RefreshMarkers(); }
                     break;
             }
             e.Handled = true; return;
@@ -405,8 +405,8 @@ internal sealed partial class WorldView : Form
                 return;
             case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;
             case Keys.L: _nightOn = !_nightOn; _gl.Invalidate(); return;               // dia / noite               // neblina do jogo (por área) ou longe
-            case Keys.Delete:
-                if (_selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
+            case Keys.Delete:   // só sem ferramenta: dentro de uma ferramenta o Delete não apaga a criatura escolhida
+                if (_tool == Tool.None && _selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
                 return;
             case Keys.Space: e.SuppressKeyPress = true; break;
         }
@@ -505,7 +505,7 @@ internal sealed partial class WorldView : Form
             if (_keys.Contains(Keys.S)) _cam -= f * s;
             if (_keys.Contains(Keys.D)) _cam += right * s;
             if (_keys.Contains(Keys.A)) _cam -= right * s;
-            if (_keys.Contains(Keys.E) || _keys.Contains(Keys.Space)) _cam.Y += s;
+            if (_keys.Contains(Keys.Space)) _cam.Y += s;   // E não sobe mais: marca ponto na ferramenta Caminhos (usuário 01/11)
             if (_keys.Contains(Keys.Q) || (_keys.Contains(Keys.Z) && !_keys.Contains(Keys.ControlKey))) _cam.Y -= s;
             ClampCamera();
         }
@@ -1252,7 +1252,16 @@ internal sealed partial class WorldView : Form
     // ---------- setas de mover e anel de girar (ponto selecionado) ----------
     // X = leste, Z = norte (o mapa do jogo cresce para cima com Z), Y = altura; o anel gira o ponto em volta do Y e o
     // traço amarelo mostra para onde ele olha. Só aparecem com um ponto selecionado e visível.
-    Marker? SelectedMark() => _selected() is { } s ? _nearMarks.FirstOrDefault(m => m.Tag == s && Dist2(m) < 400 * 400) : null;
+    // chamado dezenas de vezes por quadro (Caminhos, gizmo, rótulos): guarda o último achado enquanto a escolha e a lista
+    // de perto são as mesmas (antes varria os marcadores a cada chamada: a câmera travava na ferramenta Caminhos)
+    object? _smTag; List<Marker>? _smList; Marker? _smMark;
+    Marker? SelectedMark()
+    {
+        if (_selected() is not { } s) return null;
+        if (ReferenceEquals(s, _smTag) && ReferenceEquals(_nearMarks, _smList) && _smMark is { } cm && Dist2(cm) < 400 * 400) return cm;
+        _smTag = s; _smList = _nearMarks;
+        return _smMark = _nearMarks.FirstOrDefault(m => m.Tag == s && Dist2(m) < 400 * 400);
+    }
 
     float GizmoSize(Vector3 c) => Math.Clamp((Gl(c.X, c.Y, c.Z) - _cam).Length * 0.12f, 1.5f, 40f);
 

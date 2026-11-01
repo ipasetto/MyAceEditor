@@ -15,7 +15,9 @@ internal sealed class PluginsView : Panel
     readonly StatusCard _card = new();
     readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None };
     readonly TextBox _log = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9f), BackColor = Color.FromArgb(24, 28, 34), ForeColor = Color.Gainsboro, BorderStyle = BorderStyle.None };
-    readonly TableLayoutPanel _form = new() { Dock = DockStyle.Fill, ColumnCount = 3, Padding = new Padding(12, 8, 12, 8), AutoScroll = true, BackColor = Color.White };
+    // formulário em blocos verticais (título, campo, explicação embaixo), como as outras telas; a grade de 3 colunas quebrava
+    // as explicações numa palavra por linha (usuário 01/11)
+    readonly FlowLayoutPanel _form = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(20, 10, 20, 16), BackColor = Color.White };
     readonly TextBox _name = new() { Width = 260 };
     readonly CheckBox _enabled = new() { AutoSize = true };
     readonly NumericUpDown _world = N(1, 1, 999), _ctrl = N(0, 0, 9_999_999), _every = N(30, 1, 100_000), _dur = N(20, 1, 100_000);
@@ -58,16 +60,16 @@ internal sealed class PluginsView : Panel
         _runOn = UiKit.Cmd(top, UiKit.Server, "pl.rRunOn", "Ligar programa", () => Work(StartProgram), "pl.rRunOnTip", "Instala (se preciso) e liga o programa dos plugins no servidor local.");
         _runOff = UiKit.Cmd(top, UiKit.Cancel, "pl.rRunOff", "Desligar programa", () => Work(() => { Admin().PluginsStop(); return Loc.T("pl.offDone", "Programa desligado."); }));
 
-        _list.Columns.Add(Loc.T("pl.colName", "Plugin"), 220); _list.Columns.Add(Loc.T("pl.colState", "Agora"), 200);
+        _list.Columns.Add(Loc.T("pl.colName", "Plugin"), 160); _list.Columns.Add(Loc.T("pl.colState", "Agora"), 150);
         _list.SelectedIndexChanged += (_, _) => Bind();
         BuildForm();
-        _empty.Text = Loc.T("pl.empty", "Nenhum plugin escolhido.\n\nClique em \"Monstro raro novo\" para criar um evento que aparece por sorteio.\nAntes, crie o evento (controlador) no NPCGen → Eventos e ligue os pontos do monstro a ele.");
+        _empty.Text = Loc.T("pl.empty2", "Nenhum plugin ainda.\n\nClique em \"Monstro raro novo\" (barra de cima) para criar um monstro que aparece por sorteio.");
 
-        var left = new Panel { Dock = DockStyle.Left, Width = 440, Padding = new Padding(10, 6, 6, 6), BackColor = Bg };
+        var left = new Panel { Dock = DockStyle.Left, Width = 330, Padding = new Padding(10, 6, 6, 6), BackColor = Bg };
         left.Controls.Add(_list);
         var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(6, 6, 10, 6), BackColor = Bg };
         right.Controls.Add(_form); right.Controls.Add(_empty);
-        var logBox = new Panel { Dock = DockStyle.Bottom, Height = 170, Padding = new Padding(10, 0, 10, 8), BackColor = Bg };
+        var logBox = new Panel { Dock = DockStyle.Bottom, Height = 125, Padding = new Padding(10, 0, 10, 8), BackColor = Bg };
         logBox.Controls.Add(_log);
         logBox.Controls.Add(new Label { Dock = DockStyle.Top, Height = 22, Text = Loc.T("pl.history", "Histórico do programa (servidor)"), ForeColor = Muted, Font = new Font("Segoe UI Semibold", 9f) });
         Controls.Add(right); Controls.Add(left); Controls.Add(logBox); Controls.Add(_card); Controls.Add(top);
@@ -79,32 +81,49 @@ internal sealed class PluginsView : Panel
 
     void BuildForm()
     {
-        _form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190)); _form.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); _form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        void Row(string key, string pt, Control c, string noteKey = "", string notePt = "")
+        const int W = 560;
+        Label Section(string key, string pt) => new() { Text = Loc.T(key, pt), AutoSize = true, Font = new Font("Segoe UI Semibold", 11f), ForeColor = UiKit.Accent, Margin = new Padding(0, 14, 0, 2) };
+        Label Note(string key, string pt) => new() { Text = Loc.T(key, pt), AutoSize = true, MaximumSize = new Size(W, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 8) };
+        void Field(string key, string pt, Control c, string noteKey = "", string notePt = "")
         {
-            int r = _form.RowCount++;
-            _form.Controls.Add(new Label { Text = Loc.T(key, pt), AutoSize = true, ForeColor = Fg, Margin = new Padding(3, 7, 6, 3) }, 0, r);
-            c.Margin = new Padding(3, 3, 6, 3); _form.Controls.Add(c, 1, r);
-            if (noteKey.Length > 0) _form.Controls.Add(new Label { Text = Loc.T(noteKey, notePt), AutoSize = true, MaximumSize = new Size(380, 0), ForeColor = Muted, Margin = new Padding(3, 7, 3, 3) }, 2, r);
+            _form.Controls.Add(new Label { Text = Loc.T(key, pt), AutoSize = true, ForeColor = Fg, Font = new Font("Segoe UI Semibold", 9.5f), Margin = new Padding(0, 6, 0, 2) });
+            c.Margin = new Padding(0, 0, 0, noteKey.Length > 0 ? 2 : 8);
+            _form.Controls.Add(c);
+            if (noteKey.Length > 0) _form.Controls.Add(Note(noteKey, notePt));
         }
-        void Title(string key, string pt) { int r = _form.RowCount++; var l = new Label { Text = Loc.T(key, pt), AutoSize = true, Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = UiKit.Accent, Margin = new Padding(3, 12, 3, 4) }; _form.Controls.Add(l, 0, r); _form.SetColumnSpan(l, 3); }
+        FlowLayoutPanel Line(params Control[] cs) { var f = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 8) }; foreach (var c in cs) { c.Margin = new Padding(0, 0, 8, 0); f.Controls.Add(c); } return f; }
+        _name.Width = 320; _startText.Width = W - 180; _endText.Width = W - 180;
         _enabled.Text = Loc.T("pl.enabled", "Ligado (sorteia sozinho)");
-        Title("pl.tWhat", "Monstro raro");
-        Row("pl.name", "Nome", _name);
-        Row("pl.on", "Sorteio", _enabled, "pl.onNote", "Desligado: só aparece quando chamado (aqui ou no painel do GM).");
-        var pick = new Button { Text = Loc.T("pl.usePoint", "Usar o ponto escolhido no NPCGen / Mundo 3D"), AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = UiKit.Accent, ForeColor = Color.White, Height = 30 };
+
+        Field("pl.name", "Nome do plugin", _name);
+
+        _form.Controls.Add(Section("pl.s1", "1. Qual monstro aparece"));
+        _form.Controls.Add(Note("pl.s1Note", "Clique no monstro no NPCGen ou no Mundo 3D e depois no botão abaixo: o editor cria um evento desligado só daquele ponto. Depois use \"Salvar e enviar ao servidor\" (barra de cima) e reinicie o mapa."));
+        var pick = new Button { Text = Loc.T("pl.usePoint", "Usar o ponto escolhido no NPCGen / Mundo 3D"), AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = UiKit.Accent, ForeColor = Color.White, Height = 32, Padding = new Padding(8, 0, 8, 0) };
+        pick.FlatAppearance.BorderColor = UiKit.Accent;
         pick.Click += (_, _) => UsePoint();
-        Row("pl.monster", "Monstro", pick, "pl.monsterNote", "Clique no monstro no NPCGen (ou no Mundo 3D) e depois aqui: o editor cria o evento desligado do ponto e preenche o resto.");
-        Row("pl.point", "Ponto", _point);
-        Row("pl.world", "Mapa (worldtag)", _world, "pl.worldNote", "Preenchido sozinho. 1 = mundo.");
-        Row("pl.ctrl", "Evento do ponto (ID)", _ctrl, "pl.ctrlNote2", "Preenchido sozinho: o controlador que liga e desliga o ponto.");
-        Title("pl.tWhen", "Quando aparece");
-        Row("pl.every", "A cada (min)", _every, "pl.everyNote", "De quanto em quanto tempo o programa sorteia.");
-        Row("pl.chance", "Chance (%)", _chance, "pl.chanceNote", "Ex.: 10 = em média 1 vez a cada 10 sorteios.");
-        Row("pl.dur", "Fica (min)", _dur, "pl.durNote", "Depois disso o evento termina e os monstros que sobraram somem.");
-        Title("pl.tMsg", "Avisos para todos");
-        Row("pl.startCh", "Ao aparecer: canal", _startCh); Row("pl.startText", "Texto", _startText, "pl.textNote", "Vazio = sem aviso.");
-        Row("pl.endCh", "Ao terminar: canal", _endCh); Row("pl.endText", "Texto", _endText);
+        pick.Margin = new Padding(0, 2, 0, 6);
+        _form.Controls.Add(pick);
+        _point.Margin = new Padding(0, 0, 0, 6);
+        _form.Controls.Add(_point);
+
+        _form.Controls.Add(Section("pl.s2", "2. Quando ele aparece"));
+        _enabled.Margin = new Padding(0, 4, 0, 2);
+        _form.Controls.Add(_enabled);
+        _form.Controls.Add(Note("pl.onNote", "Desligado: só aparece quando chamado (aqui ou no painel do GM)."));
+        Field("pl.every", "Sortear a cada (minutos)", _every);
+        Field("pl.chance", "Chance de aparecer em cada sorteio (%)", _chance, "pl.chanceNote", "Ex.: 10 = em média 1 vez a cada 10 sorteios.");
+        Field("pl.dur", "Fica no mapa por (minutos)", _dur, "pl.durNote", "Depois disso o evento termina e os monstros que sobraram somem.");
+
+        _form.Controls.Add(Section("pl.s3", "3. Avisos para todos os jogadores"));
+        _form.Controls.Add(Note("pl.textNote", "Texto vazio = sem aviso."));
+        Field("pl.startText", "Quando aparece", Line(_startCh, _startText));
+        Field("pl.endText", "Quando termina", Line(_endCh, _endText));
+
+        _form.Controls.Add(Section("pl.s4", "Detalhes (preenchidos sozinhos)"));
+        Field("pl.world", "Mapa (número do gs: 1 = mundo)", _world);
+        Field("pl.ctrl", "Evento do ponto (ID no npcgen)", _ctrl, "pl.ctrlNote2", "Preenchido sozinho: o controlador que liga e desliga o ponto.");
+
         foreach (Control c in new Control[] { _name, _startText, _endText }) c.TextChanged += (_, _) => Edited();
         foreach (var n in new[] { _world, _ctrl, _every, _dur, _chance }) n.ValueChanged += (_, _) => Edited();
         foreach (var cb in new[] { _startCh, _endCh }) cb.SelectedIndexChanged += (_, _) => Edited();
@@ -126,6 +145,7 @@ internal sealed class PluginsView : Panel
             _list.Items.Add(it);
             if (r.Id == keep) it.Selected = true;
         }
+        if (_list.SelectedItems.Count == 0 && _list.Items.Count > 0) _list.Items[0].Selected = true;   // já abre num plugin
         _list.EndUpdate();
         Bind();
     }
