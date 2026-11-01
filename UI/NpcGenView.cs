@@ -61,6 +61,15 @@ internal sealed class NpcGenView : UserControl
 
     // editor do ponto
     readonly Panel _edit = new() { Dock = DockStyle.Right, Width = 470, BackColor = Color.White, Padding = new Padding(10), AutoScroll = true };
+
+    // detalhes do monstro/NPC escolhido na tabela (campos do editor oficial, npcgendata.h; semântica em npcgenerator.cpp)
+    readonly ComboBox _cAggr = Combo(), _cLoop = Combo(), _cSpeed = Combo();
+    readonly NumericUpDown _cTerr = Dec(), _cWater = Dec(), _cDied = Int(), _cDead = Int(), _cFaction = Int(), _cHelper = Int(), _cAccept = Int(), _cRefreshLow = Int();
+    readonly CheckBox _cDefFaction = new() { AutoSize = true }, _cNeedHelp = new() { AutoSize = true }, _cDefHelper = new() { AutoSize = true }, _cDefAccept = new() { AutoSize = true };
+    readonly Label _cTitle = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 9.5f) };
+    static ComboBox Combo() => new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210 };
+    static NumericUpDown Dec() => new() { Minimum = -10000, Maximum = 10000, DecimalPlaces = 1, Width = 100 };
+    static NumericUpDown Int() => new() { Minimum = 0, Maximum = int.MaxValue, Width = 100 };
     readonly Label _title = new() { AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Fg };
     readonly NumericUpDown _px = Num(true), _py = Num(true), _pz = Num(true), _sx = Num(true), _sy = Num(true), _sz = Num(true), _trigger = Num(false), _maxNum = Num(false);
     readonly ComboBox _location = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
@@ -305,7 +314,7 @@ internal sealed class NpcGenView : UserControl
         Col("npcgen.colAmount", "Qtde", 55, HorizontalAlignment.Right);
         Col("npcgen.colRespawn", "Renasce (s)", 80, HorizontalAlignment.Right);
         Col("npcgen.colPos", "Posição (X, altura, Z)", 180);
-        Col("npcgen.colSpread", "Raio", 70, HorizontalAlignment.Right);
+        Col("npcgen.colSpread", "Área", 70, HorizontalAlignment.Right);
         Col("npcgen.colTrigger", "Gatilho", 60, HorizontalAlignment.Right);
         Col("npcgen.colIndex", "Nº", 55, HorizontalAlignment.Right);
         _list.RetrieveVirtualItem += (_, e) => e.Item = RowItem(e.ItemIndex);
@@ -403,7 +412,7 @@ internal sealed class NpcGenView : UserControl
         Add(_title, 0); y += 34;
         Add(L("npcgen.pos", "Posição  X / altura / Z"), 0); y += 20;
         Add(_px, 0); Add(_py, 110); Add(_pz, 220); y += 32;
-        Add(L("npcgen.spread", "Raio de nascimento  X / altura / Z"), 0); y += 20;
+        Add(L("npcgen.spread", "Tamanho da área de nascimento  X / altura / Z (m)"), 0); y += 20;
         Add(_sx, 0); Add(_sy, 110); Add(_sz, 220); y += 32;
         Add(L("npcgen.location", "Nasce"), 0); Add(L("npcgen.trigger", "Gatilho"), 160); Add(L("npcgen.maxNum", "Máx. vivos"), 270); y += 20;
         Add(_location, 0); Add(_trigger, 160); Add(_maxNum, 270); y += 32;
@@ -421,6 +430,7 @@ internal sealed class NpcGenView : UserControl
             bar.Controls.Add(b);
             return b;
         }
+        BuildCreatureDetails(y + 40);
         B("npcgen.addMob", "＋ Adicionar", AddCreature, 110);
         B("npcgen.swapMob", "Trocar…", () => SwapCreature(_grid.CurrentRow?.Index ?? -1), 90);
         B("npcgen.delMob", "Remover", RemoveCreature, 90);
@@ -455,6 +465,90 @@ internal sealed class NpcGenView : UserControl
         foreach (var n in new[] { _px, _py, _pz, _sx, _sy, _sz, _trigger, _maxNum }) n.ValueChanged += (_, _) => PointEdited(n);
         _location.SelectedIndexChanged += (_, _) => PointEdited(_location);
         foreach (var c in new[] { _autoRevive, _initGen, _validOnce }) c.CheckedChanged += (_, _) => PointEdited(c);
+    }
+
+    /// <summary>Bloco "Detalhes" abaixo da tabela: o que o editor oficial mostra para cada monstro/NPC do ponto.</summary>
+    void BuildCreatureDetails(int y0)
+    {
+        int y = y0 + 34;   // depois da barra de botões e da dica
+        void Add(Control c, int x) { c.Location = new Point(x + 12, y); _edit.Controls.Add(c); }
+        Label L(string key, string pt) { var l = new Label { AutoSize = true, ForeColor = Muted }; AppLang.Changed += () => l.Text = Loc.T(key, pt); l.Text = Loc.T(key, pt); return l; }
+        void Texts()
+        {
+            _cTitle.Text = Loc.T("npcgen.details", "Detalhes do escolhido na tabela");
+            void Fill(ComboBox c, params string[] items) { int i = c.SelectedIndex; c.Items.Clear(); c.Items.AddRange(items); c.SelectedIndex = Math.Clamp(i, -1, items.Length - 1); }
+            Fill(_cAggr, Loc.T("npcgen.aggrDefault", "Padrão do monstro"), Loc.T("npcgen.aggrYes", "Agressivo (ataca quem passa)"), Loc.T("npcgen.aggrNo", "Passivo (só revida)"));
+            Fill(_cLoop, Loc.T("npcgen.loopStop", "Para no fim do caminho"), Loc.T("npcgen.loopBack", "Volta pelo mesmo caminho"), Loc.T("npcgen.loopRepeat", "Repete o caminho"));
+            Fill(_cSpeed, Loc.T("npcgen.walk", "Andando"), Loc.T("npcgen.run", "Correndo"));
+            _cDefFaction.Text = _cDefHelper.Text = _cDefAccept.Text = Loc.T("npcgen.useDefault", "padrão do monstro");
+            _cNeedHelp.Text = Loc.T("npcgen.needHelp", "Pede ajuda ao ser atacado");
+        }
+        Texts(); AppLang.Changed += Texts;
+        Add(_cTitle, 0); y += 26;
+        Add(L("npcgen.aggr", "Comportamento"), 0); Add(L("npcgen.speed", "No caminho"), 230); y += 20;
+        Add(_cAggr, 0); _cSpeed.Width = 120; Add(_cSpeed, 230); y += 30;
+        Add(L("npcgen.loop", "Ao chegar no fim do caminho"), 0); y += 20; Add(_cLoop, 0); y += 30;
+        Add(L("npcgen.offTerr", "Altura acima do chão (m)"), 0); Add(L("npcgen.offWater", "Acima da água (m)"), 230); y += 20;
+        Add(_cTerr, 0); Add(_cWater, 230); y += 30;
+        Add(L("npcgen.deadTime", "Some depois de morto (s)"), 0); Add(L("npcgen.diedTimes", "Mortes p/ trocar (0 = nunca)"), 230); y += 20;
+        Add(_cDead, 0); Add(_cDied, 230); y += 30;
+        Add(L("npcgen.faction", "Grupo (facção) do monstro"), 0); y += 20; Add(_cFaction, 0); Add(_cDefFaction, 110); y += 30;
+        Add(_cNeedHelp, 0); y += 24;
+        Add(L("npcgen.helper", "Grupo que ele chama"), 0); Add(L("npcgen.accept", "Grupo que ele ajuda"), 230); y += 20;
+        Add(_cHelper, 0); Add(_cDefHelper, 105); Add(_cAccept, 230); Add(_cDefAccept, 335); y += 30;
+        Add(L("npcgen.refreshLow", "Renasce no mínimo (s) — só v11+"), 0); y += 20; Add(_cRefreshLow, 0); y += 30;
+        _edit.Controls.Add(new Label { Location = new Point(12, y), Size = new Size(1, 8) });   // folga no fim da rolagem
+        foreach (var c in new Control[] { _cAggr, _cLoop, _cSpeed }) ((ComboBox)c).SelectedIndexChanged += (_, _) => CreatureEdited();
+        foreach (var n in new[] { _cTerr, _cWater, _cDied, _cDead, _cFaction, _cHelper, _cAccept, _cRefreshLow }) n.ValueChanged += (_, _) => CreatureEdited();
+        foreach (var c in new[] { _cDefFaction, _cNeedHelp, _cDefHelper, _cDefAccept }) c.CheckedChanged += (_, _) => CreatureEdited();
+        _grid.SelectionChanged += (_, _) => ShowCreature();
+    }
+
+    NpcGenCreature? CurCreature => _kind != Kind.Mine && Cur is { } f && SelectedIndex() is { } i && i < f.Spawns.Count && _grid.CurrentRow is { Index: var r } && r >= 0 && r < f.Spawns[i].Creatures.Count
+        ? f.Spawns[i].Creatures[r] : null;
+
+    void ShowCreature()
+    {
+        var c = CurCreature;
+        bool was = _binding; _binding = true;
+        foreach (var ctl in new Control[] { _cAggr, _cLoop, _cSpeed, _cTerr, _cWater, _cDied, _cDead, _cFaction, _cHelper, _cAccept, _cRefreshLow, _cDefFaction, _cNeedHelp, _cDefHelper, _cDefAccept, _cTitle })
+            ctl.Visible = c is not null;
+        if (c is not null)
+        {
+            _cAggr.SelectedIndex = Math.Clamp(c.Aggressive, 0, 2); _cLoop.SelectedIndex = Math.Clamp(c.PathLoop, 0, 2); _cSpeed.SelectedIndex = Math.Clamp(c.Speed, 0, 1);
+            _cTerr.Value = (decimal)Math.Clamp(c.OffsetTerrain, -10000, 10000); _cWater.Value = (decimal)Math.Clamp(c.OffsetWater, -10000, 10000);
+            _cDied.Value = Math.Max(0, c.DiedTimes); _cDead.Value = Math.Max(0, c.DeadTime); _cFaction.Value = Math.Max(0, c.Faction);
+            _cHelper.Value = Math.Max(0, c.FactionHelper); _cAccept.Value = Math.Max(0, c.FactionAccept); _cRefreshLow.Value = Math.Max(0, c.RefreshLower);
+            _cDefFaction.Checked = c.DefFaction != 0; _cNeedHelp.Checked = c.NeedHelp != 0; _cDefHelper.Checked = c.DefFactionHelper != 0; _cDefAccept.Checked = c.DefFactionAccept != 0;
+            _cRefreshLow.Enabled = Cur?.Version >= 11;
+            _cFaction.Enabled = !_cDefFaction.Checked; _cHelper.Enabled = !_cDefHelper.Checked && _cNeedHelp.Checked; _cDefHelper.Enabled = _cNeedHelp.Checked; _cAccept.Enabled = !_cDefAccept.Checked;
+        }
+        _binding = was;
+    }
+
+    void CreatureEdited()
+    {
+        if (_binding || CurCreature is not { } c) return;
+        var n = new NpcGenCreature
+        {
+            Id = c.Id, Amount = c.Amount, Respawn = c.Respawn, PathId = c.PathId,
+            Aggressive = Math.Max(0, _cAggr.SelectedIndex), PathLoop = Math.Max(0, _cLoop.SelectedIndex), Speed = Math.Max(0, _cSpeed.SelectedIndex),
+            OffsetTerrain = (float)_cTerr.Value, OffsetWater = (float)_cWater.Value, DiedTimes = (int)_cDied.Value, DeadTime = (int)_cDead.Value,
+            Faction = (int)_cFaction.Value, FactionHelper = (int)_cHelper.Value, FactionAccept = (int)_cAccept.Value, RefreshLower = (int)_cRefreshLow.Value,
+            DefFaction = (byte)(_cDefFaction.Checked ? 1 : 0), NeedHelp = (byte)(_cNeedHelp.Checked ? 1 : 0), DefFactionHelper = (byte)(_cDefHelper.Checked ? 1 : 0), DefFactionAccept = (byte)(_cDefAccept.Checked ? 1 : 0),
+        };
+        // float que veio do arquivo e não foi mexido fica com os bits originais (NumericUpDown arredonda a 1 casa)
+        if (Math.Abs(n.OffsetTerrain - c.OffsetTerrain) < 0.05f) n.OffsetTerrain = c.OffsetTerrain;
+        if (Math.Abs(n.OffsetWater - c.OffsetWater) < 0.05f) n.OffsetWater = c.OffsetWater;
+        if (n.Aggressive == c.Aggressive && n.PathLoop == c.PathLoop && n.Speed == c.Speed && n.OffsetTerrain == c.OffsetTerrain && n.OffsetWater == c.OffsetWater
+            && n.DiedTimes == c.DiedTimes && n.DeadTime == c.DeadTime && n.Faction == c.Faction && n.FactionHelper == c.FactionHelper && n.FactionAccept == c.FactionAccept
+            && n.RefreshLower == c.RefreshLower && n.DefFaction == c.DefFaction && n.NeedHelp == c.NeedHelp && n.DefFactionHelper == c.DefFactionHelper && n.DefFactionAccept == c.DefFactionAccept) return;
+        Snapshot($"creature:{_grid.CurrentRow?.Index}:{DateTime.Now.Ticks}");
+        c.Aggressive = n.Aggressive; c.PathLoop = n.PathLoop; c.Speed = n.Speed; c.OffsetTerrain = n.OffsetTerrain; c.OffsetWater = n.OffsetWater;
+        c.DiedTimes = n.DiedTimes; c.DeadTime = n.DeadTime; c.Faction = n.Faction; c.FactionHelper = n.FactionHelper; c.FactionAccept = n.FactionAccept;
+        c.RefreshLower = n.RefreshLower; c.DefFaction = n.DefFaction; c.NeedHelp = n.NeedHelp; c.DefFactionHelper = n.DefFactionHelper; c.DefFactionAccept = n.DefFactionAccept;
+        Touch();
+        ShowCreature();   // liga/desliga os campos que dependem das caixas
     }
 
     void ShowPoint()

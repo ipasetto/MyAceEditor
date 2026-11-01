@@ -551,6 +551,7 @@ internal sealed class WorldView : Form
         foreach (var m in noModel) { var mp = PosOf(m); Col(m.Tag == sel ? Color.Yellow : m.Color); GL.Vertex3(Gl(mp.X, mp.Y + 1.2f, mp.Z)); }
         GL.End();
         DrawAreas();
+        DrawSpawnArea();
         DrawGizmo();
 
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
@@ -632,6 +633,38 @@ internal sealed class WorldView : Form
             foreach (var f in new[] { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 }) GL.Vertex3(c[f]);
             GL.End();
         }
+        GL.LineWidth(1); GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color3(1f, 1f, 1f);
+    }
+
+    /// <summary>
+    /// Área de nascimento do ponto selecionado (npcgen vExts / fExtX-fExtZ = tamanho TOTAL da área; o gs usa pos ± metade,
+    /// npcgenerator.cpp): retângulo azul que segue o chão, como o gerador de área do editor oficial.
+    /// </summary>
+    void DrawSpawnArea()
+    {
+        if (SelectedMark() is not { } m) return;
+        var (cx, cz, sx, sz) = m.Tag switch
+        {
+            NpcGenSpawn s => (s.Position.X, s.Position.Z, s.Spread.X, s.Spread.Z),
+            NpcGenResource r => (r.Position.X, r.Position.Z, r.SpreadX, r.SpreadZ),
+            _ => (0f, 0f, 0f, 0f),
+        };
+        sx /= 2; sz /= 2;
+        if (sx < 0.25f && sz < 0.25f) return;
+        float Y(float x, float z) => (_t.HeightAt(x, z) ?? m.Y) + 0.4f;
+        var pts = new List<Vector3>();
+        void Edge(float x0, float z0, float x1, float z1)
+        {
+            int n = Math.Clamp((int)(MathF.Max(MathF.Abs(x1 - x0), MathF.Abs(z1 - z0)) / 2), 1, 400);
+            for (int i = 0; i < n; i++) { float t = i / (float)n, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t; pts.Add(Gl(x, Y(x, z), z)); }
+        }
+        Edge(cx - sx, cz - sz, cx + sx, cz - sz); Edge(cx + sx, cz - sz, cx + sx, cz + sz);
+        Edge(cx + sx, cz + sz, cx - sx, cz + sz); Edge(cx - sx, cz + sz, cx - sx, cz - sz);
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
+        GL.LineWidth(2.5f); GL.Color4(0.35f, 0.75f, 1f, 0.95f);
+        GL.Begin(PrimitiveType.LineLoop);
+        foreach (var p in pts) GL.Vertex3(p);
+        GL.End();
         GL.LineWidth(1); GL.DepthMask(true); GL.Disable(EnableCap.Blend); GL.Color3(1f, 1f, 1f);
     }
 
