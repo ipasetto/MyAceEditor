@@ -84,6 +84,7 @@ internal sealed class PluginsView : Panel
         var top = UiKit.Ribbon();
         _send = UiKit.Cmd(top, UiKit.Upload, "pl.rSend", "Salvar e enviar", () => Work(SaveAndSend), "pl.rSendTip", "Grava os plugins no servidor; o programa relê sozinho.", primary: true);
         UiKit.Sep(top);
+        UiKit.Cmd(top, UiKit.Library, "pl.rInstalled", "Plugins instalados", ShowInstalled, "pl.rInstalledTip", "Abre os plugins que este editor tem; escolha um e ponha em execução (dá para pôr o mesmo várias vezes).");
         _runOn = UiKit.Cmd(top, UiKit.Server, "pl.rRunOn", "Ligar programa", () => Work(StartProgram), "pl.rRunOnTip", "Instala (se preciso) e liga o programa dos plugins no servidor local.");
         _runOff = UiKit.Cmd(top, UiKit.Cancel, "pl.rRunOff", "Desligar programa", () => Work(() => { Admin().PluginsStop(); return Loc.T("pl.offDone", "Programa desligado."); }));
         UiKit.Sep(top);
@@ -135,29 +136,12 @@ internal sealed class PluginsView : Panel
             _list.Cursor = onPlay ? Cursors.Hand : Cursors.Default;
         };
         BuildForm();
-        _empty.Text = Loc.T("pl.empty3", "Nada em execução ainda.\n\nEscolha um plugin em \"Plugins disponíveis\" (à esquerda) e clique em \"Pôr em execução\".");
+        _empty.Text = Loc.T("pl.empty4", "Nada em execução ainda.\n\nClique em \"Plugins instalados\" (barra de cima), escolha um plugin e \"Pôr em execução\".");
 
         var left = new Panel { Dock = DockStyle.Left, Width = 520, Padding = new Padding(10, 6, 6, 6), BackColor = Bg };
-        // 1) plugins disponíveis (catálogo): cada um com o botão de pôr uma cópia em execução
-        var cat = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Bg, Padding = new Padding(0, 0, 0, 6) };
-        cat.Controls.Add(new Label { Text = Loc.T("pl.available", "Plugins disponíveis"), AutoSize = true, Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = Fg, Margin = new Padding(0, 2, 0, 4) });
-        foreach (var c in Catalog)
-        {
-            var tile = new Panel { Width = 496, Height = 86, BackColor = Color.White, Margin = new Padding(0, 0, 0, 6) };
-            tile.Controls.Add(new PictureBox { Image = UiKit.Icon(c.Glyph, UiKit.Accent, 30), Size = new Size(36, 36), Location = new Point(12, 12) });
-            tile.Controls.Add(new Label { Text = Loc.T(c.Key, c.Pt), Font = new Font("Segoe UI Semibold", 11f), ForeColor = Fg, AutoSize = true, Location = new Point(58, 8) });
-            var descLbl = new Label { Text = Loc.T(c.DescKey, c.DescPt), ForeColor = Muted, Location = new Point(58, 32), Size = new Size(270, 50), AutoEllipsis = true };
-            tile.Controls.Add(descLbl); tips.SetToolTip(descLbl, descLbl.Text);
-            var add = Act(UiKit.Add, true);
-            add.Text = Loc.T("pl.addRun", "Pôr em execução"); add.Location = new Point(338, 25);
-            var type = c.Type; add.Click += (_, _) => NewInstance(type);
-            tips.SetToolTip(add, Loc.T("pl.addRunTip", "Cria uma cópia deste plugin na lista \"Em execução no servidor\"; dá para pôr várias, cada uma com seu nome e descrição."));
-            tile.Controls.Add(add);
-            cat.Controls.Add(tile);
-        }
-        // 2) em execução no servidor: as cópias, com ▶ chamar agora em cada linha
+        // em execução no servidor: as cópias, com ▶ chamar agora em cada linha (o catálogo abre por "Plugins instalados")
         var runTitle = new Label { Dock = DockStyle.Top, Height = 26, Text = Loc.T("pl.running", "Em execução no servidor"), Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = Fg, BackColor = Bg, TextAlign = ContentAlignment.BottomLeft };
-        left.Controls.Add(_list); left.Controls.Add(runTitle); left.Controls.Add(cat);
+        left.Controls.Add(_list); left.Controls.Add(runTitle);
         var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(6, 6, 10, 6), BackColor = Bg };
         _cardPanel.Controls.Add(_form); _cardPanel.Controls.Add(_result); _cardPanel.Controls.Add(_head);
         right.Controls.Add(_cardPanel); right.Controls.Add(_empty);
@@ -388,6 +372,33 @@ internal sealed class PluginsView : Panel
     /// <summary>Dá para chamar agora? (programa ligado, nada ativo, fora da espera do renascer, sem mudança por enviar)</summary>
     bool CanCall(PluginRule r) => _running && !_dirty && _state.GetValueOrDefault(r.Id + "#active", "0") != "1"
         && !(DateTime.TryParse(_state.GetValueOrDefault(r.Id + "#ready", ""), out var ready) && ready > DateTime.Now);
+
+    /// <summary>Janela com os plugins instalados (catálogo): cada um com o botão de pôr uma cópia em execução.</summary>
+    void ShowInstalled()
+    {
+        using var dlg = new Form { Text = Loc.T("pl.rInstalled", "Plugins instalados"), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, BackColor = Bg, Font = Font, ClientSize = new Size(580, 400) };
+        var tips = new ToolTip();
+        var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(14, 10, 14, 10), BackColor = Bg };
+        flow.Controls.Add(new Label { Text = Loc.T("pl.installedHint", "Escolha um plugin e ponha em execução. A cópia vai para a lista \"Em execução no servidor\", onde você dá nome, descrição e regras."),
+            ForeColor = Muted, MaximumSize = new Size(520, 0), AutoSize = true, Margin = new Padding(0, 0, 0, 10) });
+        foreach (var c in Catalog)
+        {
+            var tile = new Panel { Width = 520, Height = 92, BackColor = Color.White, Margin = new Padding(0, 0, 0, 8) };
+            tile.Controls.Add(new PictureBox { Image = UiKit.Icon(c.Glyph, UiKit.Accent, 30), Size = new Size(36, 36), Location = new Point(12, 14) });
+            tile.Controls.Add(new Label { Text = Loc.T(c.Key, c.Pt), Font = new Font("Segoe UI Semibold", 11f), ForeColor = Fg, AutoSize = true, Location = new Point(58, 8) });
+            var descLbl = new Label { Text = Loc.T(c.DescKey, c.DescPt), ForeColor = Muted, Location = new Point(58, 32), Size = new Size(290, 54), AutoEllipsis = true };
+            tile.Controls.Add(descLbl); tips.SetToolTip(descLbl, descLbl.Text);
+            var add = Act(UiKit.Add, true);
+            add.Text = Loc.T("pl.addRun", "Pôr em execução"); add.Location = new Point(360, 28);
+            var type = c.Type; add.Click += (_, _) => { NewInstance(type); dlg.Close(); };
+            tips.SetToolTip(add, Loc.T("pl.addRunTip", "Cria uma cópia deste plugin na lista \"Em execução no servidor\"; dá para pôr várias, cada uma com seu nome e descrição."));
+            tile.Controls.Add(add);
+            flow.Controls.Add(tile);
+        }
+        dlg.Controls.Add(flow);
+        dlg.ShowDialog(FindForm());
+    }
 
     void NewInstance(string type)
     {

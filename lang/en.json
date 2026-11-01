@@ -4849,5 +4849,9 @@
   "pl.running": "Running on the server",
   "pl.name2": "Name (this copy only)",
   "pl.desc": "Description (what it does; shown in the list)",
-  "pl.nowLabel": "Now: "
+  "pl.nowLabel": "Now: ",
+  "pl.rInstalled": "Installed plugins",
+  "pl.rInstalledTip": "Opens the plugins this editor has; pick one and run it (you can run the same one several times).",
+  "pl.installedHint": "Pick a plugin and run it. The copy goes to the \"Running on the server\" list, where you give it a name, description and rules.",
+  "pl.empty4": "Nothing running yet.\n\nClick \"Installed plugins\" (top bar), pick a plugin and \"Run it\"."
 }

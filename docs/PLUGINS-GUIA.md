@@ -8,17 +8,18 @@ O desenho completo está em [PLUGINS.md](PLUGINS.md).
 
 ## 1. Usar um plugin (sem programar)
 
-A área **Plugins** do editor tem duas partes:
+A área **Plugins** do editor tem:
 
-- **Plugins disponíveis** — o catálogo. Cada plugin tem um nome próprio fixo (ex.: *Aparição Rara*) e o botão
-  **Pôr em execução**.
-- **Em execução no servidor** — as cópias que você pôs para rodar. Pode haver várias cópias do mesmo plugin, cada uma
-  com nome, descrição e regras próprias. O **▶** na frente de cada linha chama o evento na hora.
+- **Plugins instalados** (botão na barra de cima) — abre a janela com os plugins que o editor tem. Cada plugin tem um
+  nome próprio fixo (ex.: *Aparição Rara*) e o botão **Pôr em execução**.
+- **Em execução no servidor** (lista à esquerda) — as cópias que você pôs para rodar. Pode haver várias cópias do mesmo
+  plugin, cada uma com nome, descrição e regras próprias. O **▶** na frente de cada linha chama o evento na hora.
+- À direita, o cartão da cópia escolhida: o que ela está fazendo agora e as regras dela para editar.
 
 Passos para a *Aparição Rara* (um monstro que aparece por sorteio):
 
 1. Em **NPCGen** ou no **Mundo 3D**, clique no ponto do monstro.
-2. Em **Plugins**, clique em **Pôr em execução** na *Aparição Rara* e depois em **Usar o ponto escolhido**. O editor
+2. Em **Plugins**, clique em **Plugins instalados** → **Pôr em execução** na *Aparição Rara* e depois em **Usar o ponto escolhido**. O editor
    cria um evento (controlador) desligado só para aquele ponto e faz o monstro nascer uma vez por evento.
 3. Na barra de cima do editor: **Salvar e enviar ao servidor** e reinicie o mapa (o npcgen mudou).
 4. Ajuste o sorteio (a cada X minutos, chance %, quanto tempo fica) e os avisos para todos.
