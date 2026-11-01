@@ -30,6 +30,8 @@ internal interface IQuestHost
     /// <summary>Nome de NPC, monstro ou item do elements; null se o ID não existe.</summary>
     string? NameOf(int id);
     bool IsNpc(int id);
+    /// <summary>Ícone de quest sobre o NPC (surfaces\ingame\PateQuest.tga, 14 ícones de 30 px, ordem QI_ do cliente); null se não achou.</summary>
+    Image? QuestIcon(int index);
     bool IsMonster(int id);
     /// <summary>Item de quest (TASKMATTER_ESSENCE: vai para o inventário de quest), não item comum.</summary>
     bool IsQuestItem(int id);

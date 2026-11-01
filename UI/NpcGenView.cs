@@ -27,6 +27,9 @@ internal sealed class NpcGenView : UserControl
     /// <summary>Quests que usam a criatura (painel da criatura no Mundo 3D); null = sem tasks.data. Chamado fora da tela.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<int, IReadOnlyList<QuestUse>?>? CreatureQuests { get; set; }
+    /// <summary>Motivo de a criatura não andar/patrulhar no jogo (null = anda). Ferramenta Caminhos e áreas.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<int, string?>? PatrolProblem { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Action<int>? OpenQuest { get; set; }
     /// <summary>NPC com serviço de venda (filtro "Comerciantes" do Mundo 3D).</summary>
@@ -839,6 +842,8 @@ internal sealed class NpcGenView : UserControl
             return true;
         };
         w.EditCreature = _editItem;
+        var pp = PatrolProblem;
+        w.PatrolBlock = o => o is NpcGenSpawn ps && ps.Creatures.Count > 0 ? pp?.Invoke(ps.Creatures[0].Id) : null;
         w.CloneHere = (o, g) =>
         {
             SelectObject(o);

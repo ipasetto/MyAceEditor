@@ -15,9 +15,9 @@ internal sealed record QuestUse(int Id, string Name, string How);
 internal sealed class CreatureInfoPanel : UserControl
 {
     readonly bool _dark;
-    readonly Label _spawnTitle = Caption(), _questTitle = Caption(), _hint = new() { Dock = DockStyle.Top, Height = 22 };
+    readonly Label _spawnTitle = Caption(), _questTitle = Caption(), _hint = new() { Dock = DockStyle.Bottom, Height = 22 };   // embaixo, junto dos campos
     readonly ListView _spawns = List(), _quests = List();
-    readonly FlowLayoutPanel _edit = new() { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Padding = new Padding(2, 6, 2, 6) };   // quebra em 2 linhas se faltar largura
+    readonly FlowLayoutPanel _edit = new() { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Padding = new Padding(2, 6, 2, 2) };   // uma linha só
     readonly NumericUpDown _amount = Num(1, 1000), _respawn = Num(0, 864000), _died = Num(0, 100000);
     readonly Label _respawnText = new() { AutoSize = true, Margin = new Padding(2, 6, 12, 0) };
     readonly Panel _spawnBox = new() { Dock = DockStyle.Fill }, _questBox = new() { Dock = DockStyle.Fill };
@@ -79,7 +79,7 @@ internal sealed class CreatureInfoPanel : UserControl
 
     static Label Caption() => new() { Dock = DockStyle.Top, Height = 30, Font = new Font("Segoe UI Semibold", 10.5f), TextAlign = ContentAlignment.MiddleLeft };
     static ListView List() => new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None, ShowItemToolTips = true, HeaderStyle = ColumnHeaderStyle.Nonclickable };
-    static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 80, Margin = new Padding(0, 3, 4, 0), ThousandsSeparator = false };
+    static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 64, Margin = new Padding(0, 3, 4, 0), ThousandsSeparator = false };
 
     SpawnRow? Selected => _spawns.SelectedItems.Count > 0 ? _spawns.SelectedItems[0].Tag as SpawnRow : null;
 
@@ -99,6 +99,17 @@ internal sealed class CreatureInfoPanel : UserControl
         _quests.Columns[0].Text = Loc.T("wq.colId", "ID"); _quests.Columns[1].Text = Loc.T("wq.colName", "Quest"); _quests.Columns[2].Text = Loc.T("ci.how", "Como usa");
         _hint.Text = GoTo is null ? Loc.T("ci.hintEdit", "Escolha um ponto e mude abaixo: grava no npcgen do mapa (Ctrl+Z desfaz). Mortes até parar 0 = renasce sempre.")
             : Loc.T("ci.hintGo", "Escolha um ponto e mude abaixo (grava no npcgen, Ctrl+Z desfaz; mortes até parar 0 = sempre); duplo clique leva até ele.");
+    }
+
+    /// <summary>
+    /// Tempo real de renascer: o gs soma 15 s (config.h BASE_REBORN_TIME) ao valor; com "mínimo" (RefreshLower) entre o
+    /// mínimo e o valor, sorteia (npcgenerator.cpp AddSpawnData). Valor negativo = -valor + 3 s.
+    /// </summary>
+    public static string RealRespawn(PerfectWorld.NpcGenCreature g)
+    {
+        int up = g.Respawn >= 0 ? 15 + g.Respawn : -g.Respawn + 3;
+        int low = g.Respawn >= 0 && g.RefreshLower > 0 && g.RefreshLower < g.Respawn ? 15 + g.RefreshLower : up;
+        return "= " + (low < up ? string.Format(Loc.T("ci.realRange", "{0} a {1} no jogo (sorteado)"), Time(low), Time(up)) : string.Format(Loc.T("ci.real", "{0} no jogo"), Time(up)));
     }
 
     /// <summary>Tempo legível: 600 → "10 min".</summary>
@@ -150,7 +161,7 @@ internal sealed class CreatureInfoPanel : UserControl
             _amount.Value = Math.Clamp(r.Group.Amount, (int)_amount.Minimum, (int)_amount.Maximum);
             _respawn.Value = Math.Clamp(r.Group.Respawn, (int)_respawn.Minimum, (int)_respawn.Maximum);
             _died.Value = Math.Clamp(r.Group.DiedTimes, (int)_died.Minimum, (int)_died.Maximum);
-            _respawnText.Text = "= " + Time(r.Group.Respawn);
+            _respawnText.Text = RealRespawn(r.Group);
         }
         finally { _filling = false; }
     }
@@ -161,7 +172,7 @@ internal sealed class CreatureInfoPanel : UserControl
         int a = (int)_amount.Value, s = (int)_respawn.Value, d = (int)_died.Value;
         if (a == r.Group.Amount && s == r.Group.Respawn && d == r.Group.DiedTimes) return;
         Apply(r, a, s, d);
-        _respawnText.Text = "= " + Time(s);
+        _respawnText.Text = RealRespawn(r.Group);
         if (_spawns.SelectedItems.Count > 0)
         {
             var it = _spawns.SelectedItems[0];

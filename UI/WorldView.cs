@@ -809,6 +809,15 @@ internal sealed partial class WorldView : Form
                 }
             }
             GL.End();
+            // circuito (fim = recomeça): mostra a volta do último ao primeiro ponto
+            if (strong && pts.Count > 2 && SelectedMark()?.Tag is NpcGenSpawn ls && ls.Creatures.FirstOrDefault()?.PathLoop is not (0 or 1))
+            {
+                GL.Begin(PrimitiveType.LineStrip);
+                var e0 = pts[^1]; var e1 = pts[0]; float ex = e1.X - e0.X, ez = e1.Z - e0.Z;
+                int en = Math.Clamp((int)(MathF.Sqrt(ex * ex + ez * ez) / 2), 1, 200);
+                for (int k = 0; k <= en; k++) { float t = k / (float)en, x = e0.X + ex * t, z = e0.Z + ez * t; GL.Vertex3(Gl(x, OnGround(x, e0.Y + (e1.Y - e0.Y) * t, z), z)); }
+                GL.End();
+            }
             if (strong && pts.Count > 1)
             {
                 // começo do caminho: ponto grande (o monstro anda daqui para o fim)

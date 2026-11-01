@@ -40,7 +40,42 @@ internal sealed partial class WorldView
 
     // passos da ferramenta (texto em cima de cada parte do painel)
     readonly Label _pathStep1 = SectionLabel(""), _pathStep2 = SectionLabel(""), _pathLoopTitle = SectionLabel("");
-    Button _areaNone = null!, _pathCancel = null!, _loop0 = null!, _loop1 = null!, _loop2 = null!;
+    Button _areaNone = null!, _pathCancel = null!, _loop0 = null!, _loop1 = null!, _loop2 = null!, _pathUndo = null!, _pathRedo = null!, _pathSave = null!;
+    readonly FlowLayoutPanel _loopBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
+    // sem criatura escolhida: só o aviso (vermelho) e a explicação, nenhum botão
+    readonly Label _pathPickRed = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.FromArgb(255, 95, 85), Font = new Font("Segoe UI Semibold", 10.5f), Margin = new Padding(3, 6, 3, 4) };
+    /// <summary>Caminho que o ponto tinha antes de passar a andar na área (voltar a Patrulhar religa, sem redesenhar).</summary>
+    readonly Dictionary<NpcGenSpawn, int> _lastPathOf = new();
+    BhtFile? _pathBht; bool _pathBhtTried; Vector3? _blockedClick;
+    /// <summary>Colisão do servidor (map.bht) para conferir o caminho; null se não há servidor.</summary>
+    BhtFile? PathCollision()
+    {
+        if (_pathBhtTried) return _pathBht;
+        _pathBhtTried = true;
+        try { if (ServerConfigDir is { } sd && Path.Combine(sd, _t.Name, "map.bht") is var f && File.Exists(f)) _pathBht = new BhtFile(File.ReadAllBytes(f)); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Info("map.bht (caminho): " + ex.Message); }
+        return _pathBht;
+    }
+
+    /// <summary>Primeiro ponto do trecho a→b (seguindo o chão, à altura do corpo) que entra num brush sólido; null = livre.</summary>
+    Vector3? BlockedBetween(Vector3 a, Vector3 b)
+    {
+        if (PathCollision() is not { } bht) return null;
+        float dx = b.X - a.X, dz = b.Z - a.Z;
+        int n = Math.Clamp((int)(MathF.Sqrt(dx * dx + dz * dz) / 3), 1, 300);
+        Vector3 P(int k) { float t = k / (float)n, x = a.X + dx * t, z = a.Z + dz * t; return new(x, MathF.Max(a.Y + (b.Y - a.Y) * t, _t.HeightAt(x, z) ?? a.Y) + 1.2f, z); }
+        var prev = P(0);
+        for (int k = 1; k <= n; k++)
+        {
+            var cur = P(k);
+            if (bht.SegmentHit(prev.X, prev.Y, prev.Z, cur.X, cur.Y, cur.Z) >= 0) return cur;
+            prev = cur;
+        }
+        return null;
+    }
+
+    /// <summary>Motivo de o ponto não andar no jogo (NPC comum sem IA); null = anda.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<object, string?>? PatrolBlock { get; set; }
     /// <summary>No fim do caminho (npcgen iLoopType, gs patrol_agent.h): 0 para, 1 volta pelo mesmo caminho, 2 recomeça do início.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Action<object, int>? SetCreaturePathLoop { get; set; }
 
@@ -53,18 +88,23 @@ internal sealed partial class WorldView
             if (SelectedMark() is { } m && AreaOf(m.Tag) is { } ar && (ar.Sx > 0 || ar.Sz > 0)) { ResizeArea?.Invoke(m.Tag, 0, 0); RefreshMarkers(); UpdatePathPanel(); _gl.Invalidate(); }
         });
         _pathDraw = SmallButton("\uE70F", Loc.T("path.draw", "Desenhar caminho novo"), StartDraw);
+        _pathsPage.Controls.Add(_pathPickRed);
         _pathDone = SmallButton("\uE73E", Loc.T("path.done", "Terminar o desenho (Enter)"), FinishDraw, main: true);
         _pathCancel = SmallButton("\uE711", Loc.T("path.cancel", "Cancelar o desenho (Esc)"), CancelDraw);
-        _pathDel = SmallButton("\uE74D", Loc.T("path.delete2", "Apagar o caminho (volta a andar na área)"), DeletePath);
+        _pathDel = SmallButton("\uE74D", Loc.T("path.delete3", "Apagar o caminho"), DeletePath);
+        _toolTip.SetToolTip(_pathDel, Loc.T("path.delete3Tip", "Tira o caminho do ponto (e do path.sev se ninguém mais usa); ele volta a andar na área."));
         _loop0 = SmallButton("\uE71A", Loc.T("path.loop0", "Para no último ponto"), () => SetLoop(0));
-        _loop1 = SmallButton("\uE8AB", Loc.T("path.loop1", "Volta pelo mesmo caminho (vai e volta)"), () => SetLoop(1));
-        _loop2 = SmallButton("\uE8EE", Loc.T("path.loop2", "Recomeça do primeiro ponto (circuito)"), () => SetLoop(2));
+        _loop1 = SmallButton("\uE8AB", Loc.T("path.loop1b", "Vai e volta"), () => SetLoop(1));
+        _loop2 = SmallButton("\uE8EE", Loc.T("path.loop2b", "Circuito (volta ao 1º ponto)"), () => SetLoop(2));
+        _toolTip.SetToolTip(_loop1, Loc.T("path.loop1", "Volta pelo mesmo caminho (vai e volta)"));
+        _toolTip.SetToolTip(_loop2, Loc.T("path.loop2Tip", "Do último ponto anda direto ao primeiro e recomeça. Para fechar o desenho, termine clicando perto do 1º ponto."));
+        _loopBox.Controls.Add(_pathLoopTitle); _loopBox.Controls.Add(_loop0); _loopBox.Controls.Add(_loop1); _loopBox.Controls.Add(_loop2);
+        _pathUndo = SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny());
+        _pathRedo = SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny());
+        _pathSave = SmallButton("\uE74E", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true);
         foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathDraw, _pathDone, _pathCancel,
-                     _pathLoopTitle, _loop0, _loop1, _loop2, _pathDel, _pathState })
+                     _loopBox, _pathDel, _pathState, _pathUndo, _pathRedo, _pathSave })
             _pathsPage.Controls.Add(c);
-        _pathsPage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
-        _pathsPage.Controls.Add(SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
-        _pathsPage.Controls.Add(SmallButton("\uE74E", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true));
         FormClosing += (_, e) =>
         {
             if (!PathDirty) return;
@@ -102,20 +142,29 @@ internal sealed partial class WorldView
         _pathStep1.Text = Loc.T("path.step1", "1. Como ele anda");
         _pathStep2.Text = patrol ? Loc.T("path.step2Path", "2. Caminho de patrulha") : Loc.T("path.step2Area", "2. Área onde anda");
         _pathStep1.Visible = _pathStep2.Visible = s is not null;
-        _pathHint.Text = s is null ? Loc.T("path.pick2", "Primeiro clique num monstro ou NPC no mundo: esta ferramenta só funciona com um deles escolhido.\n\nDepois escolha: andar numa área (azul) OU patrulhar um caminho (laranja). É um ou outro.")
-            : drawing ? Loc.T("path.drawing", "Clique no chão para pôr os pontos, na ordem em que ele anda. Botão direito ou Enter termina; Esc cancela.")
+        _pathHint.Text = s is null ? Loc.T("path.pick3", "no mundo, para escolher quem vai mudar.\n\nDepois você escolhe como ele anda: numa área (azul) OU num caminho de patrulha (laranja). É um ou outro.")
+            : drawing ? Loc.T("path.drawing2", "Clique no chão para pôr os pontos, na ordem em que ele anda. Enter ou botão direito termina; Esc cancela. Terminar perto do 1º ponto fecha um circuito.")
             : hasPath ? Loc.T("path.editHint", "Arraste os quadrados laranja para mudar o caminho. O ponto grande é o começo.")
             : hasArea ? Loc.T("path.areaHint", "Ele anda solto dentro da área azul. Arraste a alça amarela para mudar o tamanho.")
             : Loc.T("path.noAreaHint", "Sem área: ele fica parado no ponto. Para dar uma área, arraste a alça amarela.");
-        _modeArea.Visible = _modePath.Visible = s is not null && !drawing;
+        // NPC comum: o jogo não move, então nada de área/caminho; só o aviso
+        if (s is not null && PatrolBlock?.Invoke(s) is { } why) { _pathHint.Text = why; drawing = false; }
+        bool blocked = s is not null && PatrolBlock?.Invoke(s) is not null;
+        _modeArea.Visible = _modePath.Visible = s is not null && !drawing && !blocked;
         _modeArea.BackColor = s is not null && !patrol ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _modePath.BackColor = patrol ? UiKit.Accent : Color.FromArgb(40, 45, 54);
-        _areaNone.Visible = s is not null && !patrol && hasArea;
-        _pathDraw.Visible = s is not null && patrol && !drawing && _pathFile is not null;
-        _pathDraw.Text = "  " + (hasPath ? Loc.T("path.redraw", "Redesenhar (troca o caminho atual)") : Loc.T("path.draw", "Desenhar caminho novo"));
+        _areaNone.Visible = s is not null && !patrol && hasArea && !blocked;
+        _pathStep2.Visible &= !blocked;
+        _pathDraw.Visible = s is not null && patrol && !drawing && _pathFile is not null && !blocked;
+        _pathDraw.Text = "  " + (hasPath ? Loc.T("path.redraw2", "Redesenhar o caminho") : Loc.T("path.draw", "Desenhar caminho novo"));
+        _pathPickRed.Text = Loc.T("path.pickRed", "Clique em uma criatura ou um NPC");
+        _pathPickRed.Visible = s is null;
+        // sem criatura: nada de botões (só salvar, se ficou caminho sem salvar)
+        _pathUndo.Visible = _pathRedo.Visible = s is not null;
+        _pathSave.Visible = s is not null || PathDirty;
         _pathDone.Visible = _pathCancel.Visible = drawing;
         _pathLoopTitle.Text = Loc.T("path.loopTitle", "3. No fim do caminho");
-        _pathLoopTitle.Visible = _loop0.Visible = _loop1.Visible = _loop2.Visible = hasPath && !drawing;
+        _loopBox.Visible = hasPath && !drawing;
         int loop = s is null ? 0 : LoopOf(s);
         _loop0.BackColor = loop == 0 ? UiKit.Accent : Color.FromArgb(40, 45, 54);
         _loop1.BackColor = loop == 1 ? UiKit.Accent : Color.FromArgb(40, 45, 54);
@@ -130,8 +179,24 @@ internal sealed partial class WorldView
     void SetMode(bool patrol)
     {
         if (PathSpawn is not { } s) return;
-        if (!patrol) { if (_drawPts is not null) CancelDraw(); if (PathIdOf(s) > 0) DeletePath(); return; }
-        if (SelPath is null) StartDraw();
+        if (!patrol)
+        {
+            if (_drawPts is not null) CancelDraw();
+            if (PathIdOf(s) is > 0 and var id)
+            {
+                _lastPathOf[s] = id;
+                LinkPath(s, 0, null);   // só desliga o ponto do caminho; o caminho continua no path.sev
+                _status.Text = string.Format(Loc.T("path.toArea", "Agora anda na área. O caminho {0} ficou guardado: \"Patrulhar um caminho\" volta a ele (Ctrl+Z desfaz)."), id);
+            }
+            return;
+        }
+        if (SelPath is not null) return;
+        if (_lastPathOf.TryGetValue(s, out var last) && _pathFile?.Paths.Any(p => p.Id == last) == true)
+        {
+            LinkPath(s, last, null);
+            _status.Text = string.Format(Loc.T("path.back", "Voltou a patrulhar o caminho {0} (Ctrl+Z desfaz)."), last);
+        }
+        else StartDraw();
     }
 
     void StartDraw() { if (PathSpawn is null || _pathFile is null) return; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
@@ -143,13 +208,18 @@ internal sealed partial class WorldView
     {
         if (_drawPts is not { } pts || PathSpawn is not { } s || _pathFile is null) { CancelDraw(); return; }
         if (pts.Count < 2) { _status.Text = Loc.T("path.needTwo", "Um caminho precisa de pelo menos 2 pontos."); return; }
+        bool circuit = pts.Count >= 3 && new Vector2(pts[^1].X - pts[0].X, pts[^1].Z - pts[0].Z).Length < 5;
+        if (circuit) pts[^1] = pts[0];   // fechou no 1º ponto: o último vira o começo
         int id = _pathFile.Paths.Count == 0 ? 1 : _pathFile.Paths.Max(p => p.Id) + 1;
         var np = BuildPath(id, _pathFile.Paths.FirstOrDefault()?.Version ?? 3, pts);
         _drawPts = null; _drawHover = null;
         // já tinha caminho: o novo toma o lugar (o antigo sai do path.sev se ninguém mais usa) — nada de 2 caminhos no mesmo monstro
         var old = SelPath;
         LinkPath(s, id, np, remove: old is not null && (PathUsers?.Invoke(old.Id) ?? 1) <= 1 ? old : null);
-        _status.Text = string.Format(Loc.T("path.created", "Caminho {0} criado com {1} pontos e ligado ao ponto (Ctrl+Z desfaz). Salve os caminhos e o NPCGen."), id, pts.Count);
+        if (circuit) SetCreaturePathLoop?.Invoke(s, 2);
+        _status.Text = string.Format(Loc.T("path.created", "Caminho {0} criado com {1} pontos e ligado ao ponto (Ctrl+Z desfaz). Salve os caminhos e o NPCGen."), id, pts.Count)
+            + (circuit ? "  " + Loc.T("path.circuit", "Circuito fechado: ele dá voltas.") : "");
+        UpdatePathPanel();
     }
 
     /// <summary>Caminho novo de retas (âncoras a 1/3 e 2/3), versão e IDs globais como os do arquivo.</summary>
@@ -288,7 +358,21 @@ internal sealed partial class WorldView
         if (_drawPts is null) return false;
         bool click = Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4;
         if (e.Button == MouseButtons.Right && click) { FinishDraw(); return true; }
-        if (e.Button == MouseButtons.Left && click && Ray(e.Location) is { } at) { _drawPts.Add(at); _gl.Invalidate(); }
+        if (e.Button == MouseButtons.Left && click && Ray(e.Location) is { } at)
+        {
+            // não atravessa nada sólido (pedra, árvore, construção): o monstro não passaria, igual ao jogador
+            // 2º clique no mesmo lugar põe assim mesmo (chão de construção, ponte: o terreno fica embaixo do brush)
+            bool insist = _blockedClick is { } bc && (bc - at).Length < 1.5f;
+            _blockedClick = null;
+            if (!insist && _drawPts.Count > 0 && BlockedBetween(_drawPts[^1], at) is { } where)
+            {
+                _blockedClick = at;
+                _status.Text = string.Format(Loc.T("path.blocked2", "Esse trecho passa por dentro de algo sólido (perto de {0:0}, {1:0}): ponha um ponto antes, contornando. Se for chão de ponte ou construção, clique de novo no mesmo lugar."), where.X, where.Z);
+                System.Media.SystemSounds.Beep.Play();
+                return true;
+            }
+            _drawPts.Add(at); _gl.Invalidate();
+        }
         return e.Button == MouseButtons.Left;
     }
 
@@ -357,6 +441,12 @@ internal sealed partial class WorldView
             GL.PointSize(10); GL.Begin(PrimitiveType.Points);
             foreach (var q in pts) GL.Vertex3(Gl(q.X, q.Y + 0.5f, q.Z));
             GL.End();
+            // perto do 1º ponto: ele fica maior (soltar ali fecha o circuito)
+            if (pts.Count >= 2 && _drawHover is { } hv && new Vector2(hv.X - pts[0].X, hv.Z - pts[0].Z).Length < 5)
+            { GL.PointSize(18); GL.Color3(1f, 0.9f, 0.3f); GL.Begin(PrimitiveType.Points); GL.Vertex3(Gl(pts[0].X, pts[0].Y + 0.5f, pts[0].Z)); GL.End(); }
+            // aviso sem fundo perto do cursor: confirma com Enter
+            if (_drawHover is { } at)
+                DrawLabel("↵  " + Loc.T("path.enterHint", "Pressione Enter para confirmar"), new Vector3(at.X, at.Y + 3, at.Z), Color.FromArgb(255, 230, 120));
         }
         GL.PointSize(1); GL.LineWidth(1); GL.Enable(EnableCap.DepthTest); GL.Color3(1f, 1f, 1f);
     }

@@ -6,6 +6,8 @@ public sealed class QuestDraft
     public int Id;
     public string Name = "";
     public int Giver, Receiver;
+    /// <summary>Tipo da quest (m_ulType): escolhe o ícone sobre o NPC (cliente EC_NPCServer.cpp). 0 = mantém o do modelo.</summary>
+    public int Type;
     public int MinLevel, MaxLevel;
     public long Gold, Exp, Sp, Reputation;
     public List<(int Id, int Count)> Items = new();
@@ -453,7 +455,7 @@ public static class QuestBuilder
         var rec = ReadRec(q, t.Version);
         var d = new QuestDraft
         {
-            Id = q.Id, Editing = q.Id, Name = q.Name, Giver = (int)rec.Int("m_ulDelvNPC"),
+            Id = q.Id, Editing = q.Id, Name = q.Name, Giver = (int)rec.Int("m_ulDelvNPC"), Type = (int)rec.Int("m_ulType"),
             MinLevel = (int)rec.Int("m_ulPremise_Lev_Min"), MaxLevel = (int)rec.Int("m_ulPremise_Lev_Max"),
             Gold = rec.Int("m_Award_S.m_ulGoldNum"), Exp = rec.Int("m_Award_S.m_ulExp"), Sp = rec.Int("m_Award_S.m_ulSP"), Reputation = rec.Int("m_Award_S.m_lReputation"),
             Description = q.Texts[0] ?? "", OfferText = q.Talks.Length > 0 && q.Talks[0].Windows.Count == 1 ? q.Talks[0].Windows[0].Text : "",
@@ -563,6 +565,7 @@ public static class QuestBuilder
         S("m_ID", d.Id);
         S("m_enumMethod", MethodTalkToNpc); S("m_enumFinishType", FinishByTalk); S("m_ulAwardType_S", 0);
         S("m_ulDelvNPC", d.Giver); S("m_ulAwardNPC", d.Receiver);
+        if (d.Type > 0) S("m_ulType", d.Type);
     }
 
     static void SetParent(TaskRec rec, int version, QuestDraft d, int firstChild)
@@ -571,6 +574,7 @@ public static class QuestBuilder
         S("m_ID", d.Id);
         S("m_enumMethod", MethodNone); S("m_enumFinishType", FinishDirect); S("m_ulAwardType_S", 0);
         S("m_ulDelvNPC", d.Giver); S("m_ulAwardNPC", 0); S("m_ulReachSiteId", 0);
+        if (d.Type > 0) S("m_ulType", d.Type);
         S("m_ulParent", 0); S("m_ulPrevSibling", 0); S("m_ulNextSibling", 0); S("m_ulFirstChild", firstChild);
         foreach (var (k, on) in new[] { ("m_bExeChildInOrder", d.Order == QuestStepOrder.InOrder), ("m_bChooseOne", false), ("m_bRandOne", false), ("m_bParentAlsoFail", false), ("m_bParentAlsoSucc", false) })
             QuestOptions.SetFlag(rec, version, k, on);

@@ -15,6 +15,7 @@ internal sealed class WorldQuestEditor : Panel
     readonly IQuestHost _host;
     readonly QuestWorld _world;
     QuestDraft _d;
+    readonly List<RadioButton> _typeButtons = new();   // tipo da quest = ícone sobre o NPC
     readonly Label _title = new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI", 10.5f, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0) };
     readonly StepperBar _stepper = new();
     readonly Label _sub = new() { Dock = DockStyle.Bottom, Height = 18, ForeColor = Color.Silver, Font = new Font("Segoe UI", 8.5f), Padding = new Padding(36, 0, 0, 0) };
@@ -175,6 +176,19 @@ internal sealed class WorldQuestEditor : Panel
         npcs.Controls.Add(_name);
         Caption(npcs, "qe.giver", "NPC que dá a quest", "qe.giverHint", "Onde o jogador aceita a quest.");
         NpcRow(npcs, _giver, _giverName);
+        // tipo da quest = ícone que aparece sobre o NPC no jogo (cliente EC_NPCServer.cpp UpdateCurQuestIcon)
+        Caption(npcs, "qe.type", "Ícone sobre o NPC (tipo da quest)", "qe.typeHint", "É o símbolo que o jogador vê em cima do NPC quando pode pegar a quest.");
+        var types = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 2, 0, 6) };
+        foreach (var (type, icon, key, pt) in new[] { (101, 0, "qe.tNormal", "Comum"), (102, 12, "qe.tMain", "Principal"), (100, 10, "qe.tDaily", "Diária"),
+                     (104, 10, "qe.tEvent", "Evento"), (106, 6, "qe.tFaction", "Clã"), (105, 8, "qe.tHunt", "Lista de caça") })
+        {
+            var b = new RadioButton { Appearance = Appearance.Button, AutoSize = true, Text = Loc.T(key, pt), Tag = type, Image = _host.QuestIcon(icon), TextImageRelation = TextImageRelation.ImageBeforeText,
+                FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(40, 45, 54), Margin = new Padding(0, 0, 6, 6), Padding = new Padding(4, 2, 8, 2), MinimumSize = new Size(0, 36) };
+            b.FlatAppearance.CheckedBackColor = UiKit.Accent; b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
+            b.CheckedChanged += (_, _) => { if (b.Checked) _d.Type = type; };
+            _typeButtons.Add(b); types.Controls.Add(b);
+        }
+        npcs.Controls.Add(types);
 
         BuildStepsPage();
 
@@ -774,6 +788,7 @@ internal sealed class WorldQuestEditor : Panel
     void Load()
     {
         _id.Value = Math.Max(1, _d.Id); _giver.Value = _d.Giver; _name.Text = _d.Name;
+        foreach (var tb in _typeButtons) tb.Checked = (int)tb.Tag! == (_d.Type is 0 or < 100 ? 101 : _d.Type);
         _order.SelectedIndex = (int)_d.Order;
         RefreshStepList(0);
         _minLv.Value = _d.MinLevel; _maxLv.Value = _d.MaxLevel;

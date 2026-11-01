@@ -419,6 +419,9 @@ public sealed class EditorForm : Form
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
         _npcgen.QuestsOfNpc = NpcQuests;
         // painel da criatura no Mundo 3D: quests que usam o monstro/NPC (roda fora da tela)
+        // NPC comum não tem IA no gs (npcgenerator.cpp: id_type 3214 = normal, aipolicy 0): não anda nem patrulha; só guarda (3216)
+        _npcgen.PatrolProblem = id => CreatureItem(id) is { Block.Name: "NPC_ESSENCE" } c && c.Item.Fields.GetValueOrDefault("id_type")?.Value != "3216"
+            ? Loc.T("path.npcNoAi", "NPC comum fica parado no jogo: o servidor não dá IA a ele, então não anda na área nem patrulha. Só NPC do tipo guarda (tipo 3216) anda.") : null;
         _npcgen.CreatureQuests = id => _tasks is { } tq && CreatureItem(id) is { } ci ? QuestUsesOf(tq, ci.Block.Name == "NPC_ESSENCE" ? 'N' : 'M', id.ToString()) : null;
         _npcgen.DeletedMany += n => Status(string.Format(Loc.T("npcgen.deletedMany", "{0} ponto(s) excluído(s). Ctrl+Z desfaz."), n));
         _npcgen.QuestHost = new QuestHostImpl(this);
@@ -2408,6 +2411,15 @@ public sealed class EditorForm : Form
         bool creature = _owner.TryGetValue(item, out var db) && db.Name is "MONSTER_ESSENCE" or "NPC_ESSENCE" or "MINE_ESSENCE";
         if (creature && _detailTabs.TabPages.Contains(_tabDesc)) _detailTabs.TabPages.Remove(_tabDesc);
         else if (!creature && !_detailTabs.TabPages.Contains(_tabDesc)) _detailTabs.TabPages.Add(_tabDesc);
+        // sobra de antes (cor/descrição de ITEM gravada no ID de uma criatura deixava o nome amarelo no editor): tira, com Ctrl+Z
+        if (creature && _cfgs is { } cc && int.TryParse(item.Id, out var cid) && (cc.ItemColors.ContainsKey(cid) || cc.ItemDescs.ContainsKey(cid)))
+            BeginInvoke(() =>
+            {
+                if (_current != item) return;
+                if (cc.ItemColors.ContainsKey(cid)) { _descBinding = true; _nameColor.SelectedIndex = 0; _descBinding = false; ApplyItemTexts(color: true, target: item); }
+                if (cc.ItemDescs.ContainsKey(cid)) ApplyItemTexts(color: false, remove: true, target: item);
+                Status(Loc.T("desc.creatureCleaned", "Cor/descrição de item tirada desta criatura (monstro/NPC não usa) — Ctrl+Z desfaz; Salvar grava no configs.pck."));
+            });
 
         // sub-abas por grupo (Básico, Habilidades, Queda, Modelo…), mantendo a aba escolhida se existir
         RebuildGroupTabs(item);
@@ -2563,6 +2575,7 @@ public sealed class EditorForm : Form
         var sel = SelectedGroupId;
         bool info = sel is "Spawn" or "Quests";
         _creaturePanel.Visible = info; _grid.Visible = !info;
+        _editorBar.Visible = !info && (_hasAddonEd || _hasDropEd);   // "Editor de drops" ficava por cima da dica do Spawn
         if (info) { FillCreaturePanel(item, sel); return; }
         bool same = ReferenceEquals(_gridItem, item) && sel == _gridGroup;
         int keepTop = same ? _grid.FirstDisplayedScrollingRowIndex : -1;
@@ -2580,17 +2593,37 @@ public sealed class EditorForm : Form
             hidden += fields.Count(f => unused.Contains(f.Key));
             var vis = fields.Where(f => f.Key != "realname" && !unused.Contains(f.Key)
                 && ((gname != "Atributos / Addons" && gname != "Queda" && gname != "Habilidades") || !IsEmpty(f.Value.Value) || sel == gname)).ToList();
+            bool slotted0 = gname is "Queda" or "Habilidades" or "Atributos / Addons";
+            int hiddenSlots = 0;
+            if (slotted0 && sel == gname)
+            {
+                // slots vazios: só o primeiro aparece (para preencher); o resto só enchia a tela
+                static string? SlotOf(string key) => System.Text.RegularExpressions.Regex.Match(key, @"_(\d+)(_|$)") is { Success: true } m ? m.Groups[1].Value : null;
+                var empty = vis.GroupBy(f => SlotOf(f.Key)).Where(g => g.Key is not null && g.All(f => IsEmpty(f.Value.Value))).Select(g => g.Key!).ToList();
+                var drop = empty.Skip(1).ToHashSet();
+                hiddenSlots = drop.Count;
+                if (drop.Count > 0) vis = vis.Where(f => SlotOf(f.Key) is not { } sk || !drop.Contains(sk)).ToList();
+            }
             if (vis.Count == 0) continue;
             {
                 // título da seção (também com uma só seção escolhida: a tela diz onde você está)
                 int hr = _grid.Rows.Add("", "", "");
                 var hrow = _grid.Rows[hr]; hrow.ReadOnly = true; hrow.Height = 36;
-                hrow.Tag = new SectionTag(gname, FieldLabels.GroupName(gname) + SlotCount(item, gname) + "   ·   " + string.Format(Loc.T("grid.fieldsN", "{0} campos"), vis.Count));
+                hrow.Tag = new SectionTag(gname, FieldLabels.GroupName(gname) + SlotCount(item, gname) + "   ·   " + string.Format(Loc.T("grid.fieldsN", "{0} campos"), vis.Count)
+                    + (hiddenSlots > 0 ? "   ·   " + string.Format(Loc.T("grid.emptySlots", "+{0} vazios escondidos"), hiddenSlots) : ""));
             }
+            // listas de slots (drops, habilidades, atributos): cada slot com fundo alternado, para ver onde um termina e o outro começa
+            bool slotted = gname is "Queda" or "Habilidades" or "Atributos / Addons";
+            string? lastSlot = null; bool shade = false;
             foreach (var (k, f) in vis)
             {
                 var desc = Describe(item, k, f.Value);
                 int r = _grid.Rows.Add("  " + FieldLabels.Label(k), f.Value, desc);
+                if (slotted && System.Text.RegularExpressions.Regex.Match(k, @"_(\d+)(_|$)") is { Success: true } sm)
+                {
+                    if (sm.Groups[1].Value != lastSlot) { shade = !shade; lastSlot = sm.Groups[1].Value; }
+                    if (shade) _grid.Rows[r].DefaultCellStyle.BackColor = Color.FromArgb(240, 245, 252);
+                }
                 _grid.Rows[r].Tag = k;
                 if (FieldKinds.IsFlag(_owner.TryGetValue(item, out var ownerBlock) ? ownerBlock.Name : "", k, f.Value))
                 {
@@ -2934,6 +2967,25 @@ public sealed class EditorForm : Form
 
     sealed class QuestHostImpl(EditorForm f) : IQuestHost
     {
+        Bitmap? _pate; bool _pateTried;
+        public Image? QuestIcon(int index)
+        {
+            if (!_pateTried)
+            {
+                _pateTried = true;
+                try
+                {
+                    if (f._dataPath is { } dp && IconAtlas.FindSurfacesPck(dp) is { } sp)
+                    {
+                        using var pck = new PckArchive(sp);
+                        if ((pck.Find(@"surfaces\ingame\pateQuest.tga") ?? pck.Find(@"ingame\pateQuest.tga")) is { } e) _pate = IconLoader.DecodeTga(pck.Read(e));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Info("PateQuest.tga: " + ex.Message); }
+            }
+            if (_pate is null || index < 0 || (index + 1) * 30 > _pate.Width) return null;
+            return _pate.Clone(new Rectangle(index * 30, 0, 30, Math.Min(30, _pate.Height)), _pate.PixelFormat);
+        }
         public QuestDraft? NewDraft(int giverNpc, out string? why) => f.NewQuestDraft(giverNpc, out why);
         public List<string> Validate(QuestDraft d)
         {

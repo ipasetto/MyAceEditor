@@ -56,6 +56,36 @@ public sealed class BhtFile
         return (F(o + 24), F(o + 28), F(o + 32), F(o + 36), F(o + 40), F(o + 44));
     }
 
+    /// <summary>
+    /// O segmento a→b (coordenadas do jogo) entra em algum brush sólido? Brush = sólido convexo (dentro de todos os planos
+    /// normal·p &lt;= dist); recorte de Cyrus-Beck. Devolve o índice do brush ou -1. Caminho de patrulha não pode atravessar
+    /// pedra, árvore ou construção, igual ao jogador (gs trace_manager2).
+    /// </summary>
+    public int SegmentHit(float ax, float ay, float az, float bx, float by, float bz)
+    {
+        float lx = MathF.Min(ax, bx), hx = MathF.Max(ax, bx), ly = MathF.Min(ay, by), hy = MathF.Max(ay, by), lz = MathF.Min(az, bz), hz = MathF.Max(az, bz);
+        float dx = bx - ax, dy = by - ay, dz = bz - az;
+        for (int i = 0; i < _at.Length; i++)
+        {
+            var bb = Box(i);
+            if (bb.X1 < lx || bb.X0 > hx || bb.Y1 < ly || bb.Y0 > hy || bb.Z1 < lz || bb.Z0 > hz) continue;
+            int o = _at[i], sides = I(o + 52);
+            float t0 = 0, t1 = 1; bool hit = true;
+            for (int k = 0; k < sides && hit; k++)
+            {
+                int p = o + 56 + 17 * k;
+                float nx = F(p), ny = F(p + 4), nz = F(p + 8), dist = F(p + 12);
+                float side0 = nx * ax + ny * ay + nz * az - dist, den = nx * dx + ny * dy + nz * dz;
+                if (MathF.Abs(den) < 1e-6f) { if (side0 > 0) hit = false; continue; }
+                float t = -side0 / den;
+                if (den < 0) t0 = MathF.Max(t0, t); else t1 = MathF.Min(t1, t);
+                if (t0 > t1) hit = false;
+            }
+            if (hit) return i;
+        }
+        return -1;
+    }
+
     /// <summary>Brushes inteiros dentro da caixa (coordenadas do jogo) — os de uma construção ficam dentro da caixa dela.</summary>
     public List<int> Inside(float x0, float y0, float z0, float x1, float y1, float z1)
     {

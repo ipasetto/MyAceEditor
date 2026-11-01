@@ -148,7 +148,7 @@ internal sealed class WorldCreaturePanel : Panel
             _amount.Value = Math.Clamp(g.Amount, 1, 1000);
             _respawn.Value = Math.Clamp(g.Respawn, 0, 864000);
             _died.Value = Math.Clamp(g.DiedTimes, 0, 100000);
-            _respawnText.Text = "= " + CreatureInfoPanel.Time(g.Respawn);
+            _respawnText.Text = CreatureInfoPanel.RealRespawn(g);
             _diedText.Text = g.DiedTimes > 0 ? Loc.T("wc.diedN", "depois para") : Loc.T("wc.died0", "0 = renasce sempre");
             _walk.Text = g.PathId > 0
                 ? string.Format(Loc.T("wc.walkPath", "patrulha o caminho {0} · {1}"), g.PathId, g.PathLoop switch

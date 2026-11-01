@@ -7,6 +7,7 @@ internal static class QuestShotTest
 {
     sealed class Stub : IQuestHost
     {
+        public Image? QuestIcon(int index) => null;
         public QuestDraft? NewDraft(int giverNpc, out string? why) { why = null; return new QuestDraft { Id = 40001, Giver = giverNpc }; }
         public List<string> Validate(QuestDraft d) => d.Name.Length == 0 ? new() { "Falta o nome da quest", "Falta o NPC da etapa 1" } : new();
         public string Summary(QuestDraft d) => "Quest " + d.Id;

@@ -9,6 +9,11 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 - drop de monstro (quantos e quantidade): S/npc.cpp OnDeath (drop_times, double_drop) -> template/itemdataman.cpp generate_item_from_monster -> S/worldmanager.cpp case GM_MSG_PRODUCE_MONSTER_DROP -> generate_item_for_drop; quantidade so na aljava: template/generate_item_temp.h (num_min/num_max)
 - nivel "[?]" do alvo: C/DlgTarget.cpp (iLevel == 150 -> "[?] %s"; show_level do MONSTER_ESSENCE)
 - raio de toque do monstro (size): C/EC_Monster.cpp (m_fTouchRad = m_pDBEssence->size)
+- icone de quest sobre o NPC: C/EC_NPCServer.cpp UpdateCurQuestIcon/RenderQuestIcon, C/EC_ImageRes.cpp (IMG_PATEQUEST = InGame\PateQuest.tga)
+- NPC com/sem IA (guarda 3216): S/npcgenerator.cpp (npc.id_type -> NPC_TYPE_GUARD; CreateNPC aipolicy 0 para normal)
+- tempo de renascer (15 s + refresh, sorteio com RefreshLower): S/npcgenerator.cpp AddSpawnData, S/config.h BASE_REBORN_TIME
+- quest de entrega automatica: S/task/TaskTemplMan.cpp CheckAutoDelv (m_AutoDelvMap)
+- dica Perfect Shield na escolha de personagem: C/DlgSelect.cpp OnTick (Win_PwdHint, usbbind), cnet/gdeliveryd/matrixpasswd.hrp (SetUsbUser)
 - limite de quests ativas: S/task/TaskProcess.h TASK_DEFAULT_MAX_SIMULTANEOUS_COUT/GetMaxSimultaneousCount; premio m_iTaskLimit -> TaskProcess.cpp ExpandTaskLimit
 - limite de quests no cliente: C/DlgTask.cpp e C/DlgTaskList.cpp (iMaxTaskCount = GetMaxSimultaneousCount), C/Task/TaskProcess.h (mesmas constantes do gs)
 - patrulha do monstro: S/aipolicy.cpp ai_policy::ChangePath, S/patrol_agent.h base_patrol_agent::Init (GetPathMan().GetPath), S/npcgenerator.cpp (ent.path_id = gen.iPathID, path_type = iLoopType)
