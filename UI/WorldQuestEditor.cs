@@ -27,10 +27,11 @@ internal sealed class WorldQuestEditor : Panel
     // controles do rascunho
     readonly NumericUpDown _id = Num(1, int.MaxValue), _giver = Num(0, int.MaxValue), _stepNpc = Num(0, int.MaxValue),
         _minLv = Num(0, 1000), _maxLv = Num(0, 1000), _gold = Num(0, int.MaxValue), _exp = Num(0, int.MaxValue), _sp = Num(0, int.MaxValue),
-        _rep = Num(0, int.MaxValue), _itemId = Num(0, int.MaxValue), _itemN = Num(1, 99999), _monId = Num(0, int.MaxValue), _monN = Num(1, 99999),
+        _rep = Num(0, int.MaxValue), _itemId = Num(0, int.MaxValue), _itemN = Num(1, 99999), _monId = Num(0, int.MaxValue), _monN = Num(1, 99999), _dropItem = Num(0, int.MaxValue), _dropN = Num(1, 99999), _dropPct = Num(1, 100),
         _wItemId = Num(0, int.MaxValue), _wItemN = Num(1, 99999), _waitSec = Num(0, 30 * 24 * 3600);
     readonly ListView _monList = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Height = 92, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
-    readonly Label _monName = Muted(), _wItemName = Muted(), _waitText = Muted(), _itemsHint = new() { AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Color.Gray, Margin = new Padding(3, 0, 3, 3) };
+    readonly ListView _dropList = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Height = 76, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
+    readonly Label _monName = Muted(), _dropName = Muted(), _wItemName = Muted(), _waitText = Muted(), _itemsHint = new() { AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Color.Gray, Margin = new Padding(3, 0, 3, 3) };
     readonly ListView _wItemList = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Height = 92, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
     readonly TextBox _name = Text(false), _desc = Text(true), _offer = Text(true), _summary = Text(true),
         _stepName = Text(false), _stepDesc = Text(true), _stepText = Text(true);
@@ -311,6 +312,19 @@ internal sealed class WorldQuestEditor : Panel
         mr.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), RemoveMonster));
         _killBox.Controls.Add(mr);
         _killBox.Controls.Add(_monName);
+        // itens que só caem na quest: o monstro escolhido acima deixa cair o item com a chance dada; a etapa conta os itens
+        Caption(_killBox, "qe.drops", "Itens que caem dos monstros (só na quest)", "qe.dropsHint", "Opcional. Escolha o monstro acima (ID ou no mundo), depois o item, quantos juntar e a chance de cair. A etapa conta os itens juntados, não as mortes; ao concluir os itens somem.");
+        _dropList.Columns.Add(Loc.T("qe.monsterCol", "Monstro"), 110); _dropList.Columns.Add(Loc.T("qe.itemCol", "Item"), 130); _dropList.Columns.Add(Loc.T("qe.countCol", "Qtd."), 40); _dropList.Columns.Add("%", 40);
+        _killBox.Controls.Add(_dropList);
+        var dr = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(340, 0), Margin = new Padding(0, 4, 0, 0) };
+        _dropItem.Width = 90; _dropN.Width = 54; _dropPct.Width = 50; _dropPct.Value = 50;
+        dr.Controls.Add(_dropItem); dr.Controls.Add(_dropN); dr.Controls.Add(_dropPct); dr.Controls.Add(new Label { Text = "%", AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(0, 6, 6, 0) });
+        dr.Controls.Add(Btn(Loc.T("qe.addDrop", "Adicionar item que cai"), AddDrop));
+        dr.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), RemoveDrop));
+        _killBox.Controls.Add(dr);
+        _killBox.Controls.Add(_dropName);
+        _dropItem.ValueChanged += (_, _) => _dropName.Text = _dropItem.Value <= 0 ? "" : _host.NameOf((int)_dropItem.Value) is { } dn
+            ? dn + (_host.IsQuestItem((int)_dropItem.Value) ? "  " + Loc.T("qe.questItem", "(item de quest)") : "") : Loc.T("qe.unknown", "(não existe no elements.data)");
         _monId.ValueChanged += (_, _) => _monName.Text = _monId.Value <= 0 ? "" : _host.NameOf((int)_monId.Value) is { } mn
             ? mn + (_host.IsMonster((int)_monId.Value) ? "" : "  " + Loc.T("qe.notMonster", "(não é monstro)")) : Loc.T("qe.unknown", "(não existe no elements.data)");
         _stepBox.Controls.Add(_killBox);
@@ -390,7 +404,8 @@ internal sealed class WorldQuestEditor : Panel
             : s.Kind == QuestStepKind.Wait
             ? string.Format(Loc.T("qe.stepWaitLine", "Esperar {0}"), TimeSpan.FromSeconds(s.WaitSeconds).ToString(@"h\:mm\:ss"))
             : s.Kind == QuestStepKind.Kill
-            ? string.Format(Loc.T("qe.stepKillLine", "Matar monstros ({0})"), s.Monsters.Count == 0 ? "?" : string.Join(", ", s.Monsters.Select(m => $"{m.Count} × {_host.NameOf(m.Id) ?? m.Id.ToString()}")))
+            ? string.Format(Loc.T("qe.stepKillLine", "Matar monstros ({0})"), s.Monsters.Count + s.Drops.Count == 0 ? "?" : string.Join(", ", s.Monsters.Select(m => $"{m.Count} × {_host.NameOf(m.Id) ?? m.Id.ToString()}")
+                .Concat(s.Drops.Select(x => $"{x.Count} × {_host.NameOf(x.Item) ?? x.Item.ToString()}"))))
             : string.Format(Loc.T("qe.stepReachLine", "Ir até um lugar ({0} área(s))"), s.Areas.Count);
         return $"{i + 1}. {what}" + (s.Name.Trim().Length > 0 ? $" — {s.Name.Trim()}" : "");
     }
@@ -449,6 +464,38 @@ internal sealed class WorldQuestEditor : Panel
         RefreshAreas();
         RefreshMonsters();
         RefreshWantedItems();
+        RefreshDrops();
+    }
+
+    void RefreshDrops()
+    {
+        _dropList.BeginUpdate();
+        _dropList.Items.Clear();
+        if (CurStep is { Kind: QuestStepKind.Kill } s)
+            foreach (var x in s.Drops)
+                _dropList.Items.Add(new ListViewItem(new[] { _host.NameOf(x.Monster) ?? x.Monster.ToString(), _host.NameOf(x.Item) ?? x.Item.ToString(), x.Count.ToString(), $"{x.Prob * 100:0}" }));
+        _dropList.EndUpdate();
+    }
+
+    void AddDrop()
+    {
+        int mon = (int)_monId.Value, item = (int)_dropItem.Value;
+        if (CurStep is not { Kind: QuestStepKind.Kill } s) return;
+        if (mon <= 0 || !_host.IsMonster(mon)) { _monName.Text = Loc.T("qe.dropPickMonster", "Escolha o monstro acima (ID ou no mundo) antes do item que cai."); return; }
+        if (item <= 0 || _host.NameOf(item) is null || _host.IsNpc(item) || _host.IsMonster(item)) { _dropName.Text = Loc.T("qe.unknown", "(não existe no elements.data)"); return; }
+        Remember();
+        var d = new QuestDrop(mon, item, (int)_dropN.Value, (float)_dropPct.Value / 100f, !_host.IsQuestItem(item));
+        int at = s.Drops.FindIndex(x => x.Monster == mon && x.Item == item);
+        if (at >= 0) s.Drops[at] = d; else s.Drops.Add(d);   // mesmo monstro e item: troca quantidade e chance
+        RefreshDrops(); RefreshStepText();
+    }
+
+    void RemoveDrop()
+    {
+        if (CurStep is not { Kind: QuestStepKind.Kill } s || _dropList.SelectedIndices.Count == 0) return;
+        Remember();
+        s.Drops.RemoveAt(_dropList.SelectedIndices[0]);
+        RefreshDrops(); RefreshStepText();
     }
 
     void RefreshWantedItems()
@@ -682,7 +729,7 @@ internal sealed class WorldQuestEditor : Panel
     {
         Kind = x.Kind, Name = x.Name, Description = x.Description, Npc = x.Npc, Text = x.Text, MapTag = x.MapTag,
         Areas = x.Areas.Select(a => new QuestArea { X0 = a.X0, Y0 = a.Y0, Z0 = a.Z0, X1 = a.X1, Y1 = a.Y1, Z1 = a.Z1 }).ToList(),
-        Monsters = x.Monsters.ToList(), Items = x.Items.ToList(), WaitSeconds = x.WaitSeconds,
+        Monsters = x.Monsters.ToList(), Drops = x.Drops.ToList(), Items = x.Items.ToList(), WaitSeconds = x.WaitSeconds,
     };
     Snap Take() => new(_d.Steps.Select(CloneStep).ToList(), _items.Items.Cast<ListViewItem>().Select(i => ((int, int))i.Tag!).ToList(), _stepList.SelectedIndex);
     void Remember() { _dUndo.Add(Take()); if (_dUndo.Count > 100) _dUndo.RemoveAt(0); _dRedo.Clear(); }

@@ -4265,5 +4265,13 @@
   "qe.pickMine": "🎯 Gathering in the world",
   "qe.pickingMine": "Click a gathering point (ore, herb…) in the world… (Esc cancels)",
   "qe.pickMineCancel": "Gathering pick cancelled.",
-  "qe.mineGives": "{0} gives: {1}"
+  "qe.mineGives": "{0} gives: {1}",
+  "qb.stepBadDrop": "dropped item {0}: monster, item and count must be greater than zero.",
+  "qb.stepBadProb": "dropped item {0}: the chance must be 1% to 100%.",
+  "qb.sumDrop": "{0} until collecting {1} × {2} ({3:P0})",
+  "qe.drops": "Items dropped by monsters (quest only)",
+  "qe.dropsHint": "Optional. Choose the monster above (ID or in the world), then the item, how many to collect and the drop chance. The step counts the items collected, not the kills; on finishing the items are removed.",
+  "qe.addDrop": "Add dropped item",
+  "qe.questItem": "(quest item)",
+  "qe.dropPickMonster": "Choose the monster above (ID or in the world) before the dropped item."
 }

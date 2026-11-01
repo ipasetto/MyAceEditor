@@ -25,6 +25,8 @@ public sealed class QuestDraft
 }
 
 /// <summary>Falar com NPC, ir até um lugar, matar monstros, obter itens (ficam com o jogador), entregar itens a um NPC (ele fica com eles), esperar um tempo.</summary>
+public sealed record QuestDrop(int Monster, int Item, int Count, float Prob, bool Common);
+
 public enum QuestStepKind { Talk, Reach, Kill, Collect, Deliver, Wait }
 
 /// <summary>Em ordem (uma de cada vez); qualquer ordem (todas ativas, termina quando a última acabar); basta uma.</summary>
@@ -49,6 +51,11 @@ public sealed class QuestStep
     public List<QuestArea> Areas = new();
     /// <summary>Matar monstros: ID do monstro e quantos (m_MonsterWanted; a etapa acaba quando todos estiverem contados).</summary>
     public List<(int Id, int Count)> Monsters = new();
+    /// <summary>
+    /// Matar monstros até juntar itens que só caem na quest (m_MonsterWanted com m_ulDropItemId; TaskProcess conta os itens, não
+    /// as mortes). Common = item comum (inventário) ou item de quest (TASKMATTER_ESSENCE, inventário de quest).
+    /// </summary>
+    public List<QuestDrop> Drops = new();
     /// <summary>Obter / entregar itens: ID do item e quantos (m_ItemsWanted). Entregar usa também Npc e Text (fala ao receber).</summary>
     public List<(int Id, int Count)> Items = new();
     /// <summary>Esperar um tempo: segundos depois de a etapa começar (m_ulWaitTime).</summary>
@@ -274,10 +281,16 @@ public static class QuestBuilder
                     break;
                 case QuestStepKind.Kill:
                     if (tpl.Kill is null) e.Add(at + T("qb.noKillTpl", "não há neste tasks.data uma etapa \"matar monstros\" para servir de modelo."));
-                    if (s.Monsters.Count == 0) e.Add(at + T("qb.stepNoMonster", "escolha pelo menos um monstro."));
-                    else if (s.Monsters.Count > TaskVer.GetMaxMonsterWanted(t.Version)) e.Add(at + string.Format(T("qb.stepMonstersMax", "no máximo {0} monstros nesta versão."), TaskVer.GetMaxMonsterWanted(t.Version)));
+                    if (s.Monsters.Count + s.Drops.Count == 0) e.Add(at + T("qb.stepNoMonster", "escolha pelo menos um monstro."));
+                    else if (s.Monsters.Count + s.Drops.Count > TaskVer.GetMaxMonsterWanted(t.Version)) e.Add(at + string.Format(T("qb.stepMonstersMax", "no máximo {0} monstros nesta versão."), TaskVer.GetMaxMonsterWanted(t.Version)));
                     foreach (var (mid, n) in s.Monsters)
                         if (mid <= 0 || n <= 0) e.Add(at + string.Format(T("qb.stepBadMonster", "monstro {0}: ID e quantidade precisam ser maiores que zero."), mid));
+                    foreach (var dr in s.Drops)
+                    {
+                        if (dr.Monster <= 0 || dr.Item <= 0 || dr.Count <= 0) e.Add(at + string.Format(T("qb.stepBadDrop", "item que cai {0}: monstro, item e quantidade precisam ser maiores que zero."), dr.Item));
+                        else if (!itemExists(dr.Item)) e.Add(at + string.Format(T("qb.noItem", "O item {0} não existe no elements.data."), dr.Item));
+                        if (!(dr.Prob > 0 && dr.Prob <= 1)) e.Add(at + string.Format(T("qb.stepBadProb", "item que cai {0}: a chance precisa ser de 1% a 100%."), dr.Item));
+                    }
                     break;
                 case QuestStepKind.Collect or QuestStepKind.Deliver:
                 {
@@ -480,7 +493,13 @@ public static class QuestBuilder
                 else if (kind == QuestStepKind.Talk) { }
                 else if (kind == QuestStepKind.Kill)
                     for (int m = 0; m < r.Int("m_ulMonsterWanted"); m++)
-                        s.Monsters.Add(((int)r.Int($"m_MonsterWanted[{m}].m_ulMonsterTemplId"), (int)r.Int($"m_MonsterWanted[{m}].m_ulMonsterNum")));
+                    {
+                        var b = $"m_MonsterWanted[{m}].";
+                        if (r.Int(b + "m_ulDropItemId") > 0)
+                            s.Drops.Add(new QuestDrop((int)r.Int(b + "m_ulMonsterTemplId"), (int)r.Int(b + "m_ulDropItemId"), (int)r.Int(b + "m_ulDropItemCount"),
+                                r.V.TryGetValue(b + "m_fDropProb", out var pr) ? Convert.ToSingle(pr) : 0f, r.Int(b + "m_bDropCmnItem") != 0));
+                        else s.Monsters.Add(((int)r.Int(b + "m_ulMonsterTemplId"), (int)r.Int(b + "m_ulMonsterNum")));
+                    }
                 else
                 {
                     s.MapTag = (int)r.Int("m_ulReachSiteId");
@@ -599,12 +618,21 @@ public static class QuestBuilder
             S("m_enumMethod", MethodKillMonster); S("m_enumFinishType", FinishDirect); S("m_ulAwardNPC", 0); S("m_ulReachSiteId", 0);
             // a lista do modelo (drop, nível de quem mata...) não é zerada pelo Clean (chave com ponto): zera e grava a nossa
             foreach (var k in r.V.Keys.Where(k => k.StartsWith("m_MonsterWanted[")).ToList()) r.V[k] = Zero(r.V[k]);
-            S("m_ulMonsterWanted", s.Monsters.Count);
+            S("m_ulMonsterWanted", s.Monsters.Count + s.Drops.Count);
             for (int m = 0; m < s.Monsters.Count; m++)
             {
                 var b = $"m_MonsterWanted[{m}].";
                 S(b + "m_ulMonsterTemplId", s.Monsters[m].Id); S(b + "m_ulMonsterNum", s.Monsters[m].Count);
             }
+            // itens que caem: depois das mortes contadas (a ordem não importa para o gs; o cliente separa pelo m_ulDropItemId)
+            for (int j = 0; j < s.Drops.Count; j++)
+            {
+                var dr = s.Drops[j]; var b = $"m_MonsterWanted[{s.Monsters.Count + j}].";
+                S(b + "m_ulMonsterTemplId", dr.Monster); S(b + "m_ulMonsterNum", 0);
+                S(b + "m_ulDropItemId", dr.Item); S(b + "m_ulDropItemCount", dr.Count); S(b + "m_bDropCmnItem", dr.Common ? 1 : 0); r.V[b + "m_fDropProb"] = dr.Prob;
+            }
+            // itens que caem na quest são tirados ao concluir (m_bClearAcquired, TaskProcess RemoveAcquiredItem)
+            if (r.V.ContainsKey("m_bClearAcquired") || QuestOptions.SwitchIndex(version, "m_bClearAcquired") >= 0) QuestOptions.SetFlag(r, version, "m_bClearAcquired", s.Drops.Count > 0);
             return;
         }
         S("m_enumMethod", MethodReachSite); S("m_enumFinishType", FinishDirect); S("m_ulAwardNPC", 0);

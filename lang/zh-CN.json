@@ -4267,5 +4267,13 @@
   "qe.pickMine": "🎯 在世界中选采集点",
   "qe.pickingMine": "在世界中点击一个采集点（矿石、草药……）（Esc 取消）",
   "qe.pickMineCancel": "已取消选择采集点。",
-  "qe.mineGives": "{0} 产出：{1}"
+  "qe.mineGives": "{0} 产出：{1}",
+  "qb.stepBadDrop": "掉落物品 {0}：怪物、物品和数量必须大于零。",
+  "qb.stepBadProb": "掉落物品 {0}：几率必须在1%到100%之间。",
+  "qb.sumDrop": "{0} 直到收集 {1} × {2}（{3:P0}）",
+  "qe.drops": "怪物掉落的物品（仅任务）",
+  "qe.dropsHint": "可选。先在上面选择怪物（ID或在世界中选），再选物品、收集数量和掉落几率。该步骤统计收集到的物品而不是击杀数；完成时物品会被收走。",
+  "qe.addDrop": "添加掉落物品",
+  "qe.questItem": "（任务物品）",
+  "qe.dropPickMonster": "请先在上面选择怪物（ID或在世界中选）。"
 }

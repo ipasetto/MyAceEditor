@@ -31,6 +31,8 @@ internal interface IQuestHost
     string? NameOf(int id);
     bool IsNpc(int id);
     bool IsMonster(int id);
+    /// <summary>Item de quest (TASKMATTER_ESSENCE: vai para o inventário de quest), não item comum.</summary>
+    bool IsQuestItem(int id);
     /// <summary>O que um item de coleta (MINE_ESSENCE) dá: materiais com chance &gt; 0, do mais provável ao menos; vazio se não é coleta.</summary>
     IReadOnlyList<(int Item, float Prob)> MineProducts(int mineId);
     IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max);

@@ -18,6 +18,7 @@ internal static class QuestShotTest
         public string? NameOf(int id) => id == 2001 ? "Ferreiro Wang" : id == 2002 ? "Guarda Li" : id == 3001 ? "Lobo da Colina" : id == 3002 ? "Lobo Alfa" : $"Item {id}";
         public bool IsNpc(int id) => id is 2001 or 2002;
         public bool IsMonster(int id) => id is 3001 or 3002;
+        public bool IsQuestItem(int id) => id == 4002;
         public IReadOnlyList<(int Item, float Prob)> MineProducts(int mineId) => mineId == 5001 ? new[] { (4001, 0.8f) } : Array.Empty<(int, float)>();
         public IReadOnlyList<(int Id, string Name, int Giver)> SearchQuests(string text, int max) => Array.Empty<(int, string, int)>();
         public string? LinkExisting(int npcId, int questId) => null;
@@ -34,7 +35,7 @@ internal static class QuestShotTest
         var host = new Stub();
         var draft = host.NewDraft(2001, out _)!;
         // página Etapas: mostra uma etapa "matar monstros" já preenchida (a 2ª, selecionada ao abrir a página)
-        if (page == 1) draft.Steps.AddRange(new[] { new QuestStep { Kind = QuestStepKind.Talk, Npc = 2002 }, new QuestStep { Kind = QuestStepKind.Kill, Name = "Lobos da colina", Monsters = { (3001, 10), (3002, 3) } },
+        if (page == 1) draft.Steps.AddRange(new[] { new QuestStep { Kind = QuestStepKind.Talk, Npc = 2002 }, new QuestStep { Kind = QuestStepKind.Kill, Name = "Lobos da colina", Monsters = { (3001, 10) }, Drops = { new QuestDrop(3002, 4002, 5, 0.4f, false) } },
             new QuestStep { Kind = QuestStepKind.Wait, Name = "Espere", WaitSeconds = 90 },
             new QuestStep { Kind = QuestStepKind.Deliver, Name = "Entregue as peles", Npc = 2002, Text = "Belas peles!", Items = { (4001, 10) } } });
         var ed = new WorldQuestEditor(host, draft, new QuestWorld(_ => { }, _ => { }, (_, _) => { }, () => 1, _ => { }, _ => { }));

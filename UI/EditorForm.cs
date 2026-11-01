@@ -2921,6 +2921,7 @@ public sealed class EditorForm : Form
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
         public bool IsNpc(int id) => f.CreatureItem(id) is { Block.Name: "NPC_ESSENCE" };
         public bool IsMonster(int id) => f.CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" };
+        public bool IsQuestItem(int id) => f._store.Current?.FindListByName("TASKMATTER_ESSENCE")?.Items.Any(i => i.Id == id.ToString()) == true;
         public IReadOnlyList<(int Item, float Prob)> MineProducts(int mineId)
         {
             // MINE_ESSENCE: materials_N_id + materials_N_probability (PW-KB, item de coleta)
@@ -2993,7 +2994,8 @@ public sealed class EditorForm : Form
                     : s.Kind == QuestStepKind.Wait
                     ? string.Format(Loc.T("qb.sumStepWait", "  {0}. [{1}] \"{2}\": esperar {3}"), i + 1, d.Id + 1 + i, s.Name, TimeSpan.FromSeconds(s.WaitSeconds).ToString(@"h\:mm\:ss"))
                     : s.Kind == QuestStepKind.Kill
-                    ? string.Format(Loc.T("qb.sumStepKill", "  {0}. [{1}] \"{2}\": matar {3}"), i + 1, d.Id + 1 + i, s.Name, string.Join(", ", s.Monsters.Select(m => $"{m.Count} × {N(m.Id)}")))
+                    ? string.Format(Loc.T("qb.sumStepKill", "  {0}. [{1}] \"{2}\": matar {3}"), i + 1, d.Id + 1 + i, s.Name, string.Join(", ", s.Monsters.Select(m => $"{m.Count} × {N(m.Id)}")
+                        .Concat(s.Drops.Select(x => string.Format(Loc.T("qb.sumDrop", "{0} até juntar {1} × {2} ({3:P0})"), N(x.Monster), x.Count, N(x.Item), x.Prob)))))
                     : string.Format(Loc.T("qb.sumStepReach", "  {0}. [{1}] \"{2}\": chegar a uma de {3} área(s) no mapa {4}"), i + 1, d.Id + 1 + i, s.Name, s.Areas.Count, s.MapTag));
             }
             if (d.Steps.Count > 0 && d.Steps[^1].Kind is not (QuestStepKind.Talk or QuestStepKind.Deliver) || d.Order != QuestStepOrder.InOrder)
