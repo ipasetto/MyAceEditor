@@ -31,6 +31,12 @@ public static class ItemRules
         var list = new List<Problem>();
         string N(Item i) => TasksFile.SplitColor(i.Name).Text;
 
+        // tipo de ataque do monstro: o gs só conhece STRATEGY_MELEE..STRATEGY_FIX_MAGIC (0..7); outro valor = ASSERT e o gs
+        // cai ao carregar (aipolicy.cpp ai_policy::Init; caso real 01/11: o ID da IA foi gravado aqui por engano)
+        foreach (var it in m.FindListByName("MONSTER_ESSENCE")?.Items ?? new())
+            if (it.Fields.TryGetValue("id_strategy", out var st) && long.TryParse(st.Value, out var sv) && sv is < 0 or > 7)
+                list.Add(new("mob-strategy", "MONSTER_ESSENCE", it.Id, N(it), string.Format(UI.Loc.T("rule.mobStrategy", "tipo de ataque (id_strategy) {0} fora de 0..7: o gs cai ao carregar"), sv)));
+
         foreach (var (k, who) in IdRefactor.Duplicates(m))
             foreach (var dup in who.Skip(1))
             {

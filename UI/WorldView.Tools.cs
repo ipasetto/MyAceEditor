@@ -37,7 +37,7 @@ internal sealed partial class WorldView
     Button ToolButton(string glyph, string title, string sub, Action a)
     {
         // ladrilho RETANGULAR, um por linha (regra do usuário 01/11): ícone grande à esquerda, nome e para que serve
-        var b = new Button { Width = 250, Height = 72, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
+        var b = new NoFocusButton { Width = 250, Height = 72, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
             Margin = new Padding(0, 0, 0, 8), Text = "" };
         b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
         b.FlatAppearance.MouseOverBackColor = Color.FromArgb(52, 60, 74);
@@ -56,7 +56,7 @@ internal sealed partial class WorldView
 
     Button SmallButton(string glyph, string text, Action a, bool main = false)
     {
-        var b = new Button { Text = "  " + text, Width = 250, Height = 32, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(40, 45, 54),
+        var b = new NoFocusButton { Text = "  " + text, Width = 250, Height = 32, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(40, 45, 54),
             Image = UiKit.Icon(glyph, Color.White, 16), TextAlign = ContentAlignment.MiddleLeft, ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText,
             Cursor = Cursors.Hand, Margin = new Padding(0, 2, 0, 2) };
         b.FlatAppearance.BorderColor = main ? UiKit.Accent : Color.FromArgb(62, 70, 84);
@@ -198,4 +198,10 @@ internal sealed partial class WorldView
             ? Loc.T("world.sceneDirtyLine", "● Mudanças não salvas — use Salvar cenário.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
         _sceneState.ForeColor = dirty ? Color.FromArgb(255, 200, 90) : Color.Silver;
     }
+}
+
+/// <summary>Botão que não pega o foco: o teclado (W/A/S/D, Espaço, Enter) continua indo para o 3D (usuário 01/11).</summary>
+internal sealed class NoFocusButton : Button
+{
+    public NoFocusButton() { SetStyle(ControlStyles.Selectable, false); TabStop = false; }
 }

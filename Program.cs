@@ -481,6 +481,33 @@ internal static class Program
             File.WriteAllText("new-items.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 5 && args[0] == "--item-set")   // <elements.data> <bloco> <id> <campo=valor,...>: muda e grava com backup (item-set.txt)
+        {
+            var mod = CfgCatalog.Load(args[1]).Module;
+            var it = mod.FindListByName(args[2])?.FindById(args[3]);
+            var log = new StringBuilder();
+            if (it is null) log.Append("item não encontrado");
+            else
+            {
+                foreach (var kv in args[4].Split(','))
+                {
+                    var p = kv.Split('=', 2);
+                    if (p.Length == 2 && it.Fields.TryGetValue(p[0], out var f)) { log.AppendLine($"{p[0]}: {f.Value} -> {p[1]}"); it.Fields[p[0]] = MyAceEditor.Model.Field.Of(f.Type, p[1]); }
+                    else log.AppendLine($"{kv}: campo não existe");
+                }
+                var bk = ElementsWriter.Save(mod, args[1]);
+                log.AppendLine("gravado; backup " + bk);
+            }
+            File.WriteAllText("item-set.txt", log.ToString());
+            return;
+        }
+        if (args.Length >= 5 && args[0] == "--item-field")   // <elements.data> <bloco> <id> <campo,...>: valores dos campos do item (item-field.txt)
+        {
+            var mod = CfgCatalog.Load(args[1]).Module;
+            var it = mod.FindListByName(args[2])?.FindById(args[3]);
+            File.WriteAllText("item-field.txt", it is null ? "item não encontrado" : string.Join("\n", args[4].Split(',').Select(k => $"{k} = {it.Fields.GetValueOrDefault(k)?.Value ?? "(sem campo)"}")));
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--item-diff")   // <elements.data> <id> <id>: campos que diferem entre os dois itens (item-diff.txt)
         {
             var m = CfgCatalog.Load(args[1]).Module;

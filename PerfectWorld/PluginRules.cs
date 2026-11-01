@@ -17,6 +17,8 @@ public sealed class PluginRule
     public double ChancePct = 10;
     public int StartChannel = 9, EndChannel = 9;          // GN_CHAT_CHANNEL: 9 anúncio, 8 sistema, 1 mundo (PW-KB §S31)
     public string StartText = "", EndText = "";
+    /// <summary>Só para mostrar: o ponto do NPCGen ligado ao controlador (mapa · monstro).</summary>
+    public string Point = "";
 }
 
 /// <summary>Arquivos do programa dos plugins no servidor (Linux/WSL) e leitura/gravação das regras em JSON.</summary>
@@ -40,7 +42,7 @@ public static class PluginFiles
                 Enabled = n["enabled"] is not JsonValue e || !e.TryGetValue(out bool b) || b,
                 WorldTag = I("worldTag", 1), Controller = I("controller", 0), EveryMin = I("everyMin", 30), DurationMin = I("durationMin", 20),
                 ChancePct = n["chancePct"] is JsonValue c && c.TryGetValue(out double cp) ? cp : 10,
-                StartChannel = I("startChannel", 9), EndChannel = I("endChannel", 9), StartText = S("startText"), EndText = S("endText"),
+                StartChannel = I("startChannel", 9), EndChannel = I("endChannel", 9), StartText = S("startText"), EndText = S("endText"), Point = S("point"),
             });
         }
         return list;
@@ -54,7 +56,7 @@ public static class PluginFiles
             {
                 ["id"] = r.Id, ["name"] = r.Name, ["type"] = r.Type, ["enabled"] = r.Enabled, ["worldTag"] = r.WorldTag, ["controller"] = r.Controller,
                 ["everyMin"] = r.EveryMin, ["chancePct"] = r.ChancePct, ["durationMin"] = r.DurationMin,
-                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText,
+                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText, ["point"] = r.Point,
             });
         return new JsonObject { ["version"] = 1, ["plugins"] = arr }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }

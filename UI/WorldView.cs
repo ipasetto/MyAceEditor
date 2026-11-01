@@ -586,10 +586,11 @@ internal sealed partial class WorldView : Form
         GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.NormalArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
         GL.Color3(1f, 1f, 1f);
         var noModel = new List<Marker>();
+        var hiddenTag = HiddenModelTag();   // uma vez por quadro (antes, por marcador: travava a câmera)
         foreach (var m in _nearMarks)
         {
             if (Dist2(m) > 300 * 300) continue;
-            if (HideModelFor(m)) continue;   // Caminhos em patrulha: o círculo de marcar fica no lugar do modelo
+            if (hiddenTag is not null && ReferenceEquals(m.Tag, hiddenTag)) continue;   // Caminhos em patrulha: o círculo fica no lugar do modelo
             if (m.Model is null || !_models.Draw(m.Model, PosOf(m), m.Tag == _gizmoTag && _gizmoYaw is { } gy ? gy : m.Yaw)) noModel.Add(m);
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);

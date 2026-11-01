@@ -471,6 +471,8 @@ public sealed class EditorForm : Form
         _tabPlugins = tPl;
         Bind(() => tPl.Text = Loc.T("tab.plugins", "Plugins"));
         tPl.Controls.Add(_pluginsView = new PluginsView());
+        string? pickWhy = null;
+        _pluginsView.PointSource = () => (() => _npcgen?.EventControllerForSelected(out pickWhy), () => pickWhy);
         tabs.TabPages.Add(tPl);
         // Interfaces (janelas do jogo) fica acima do Extrator PCK, que só extrai (usuário 01/11)
         var tUi = new TabPage() { BackColor = CBg };
@@ -3461,7 +3463,7 @@ public sealed class EditorForm : Form
     }
 
     /// <summary>
-    /// Anúncios do monstro (AiAnnounce + AnnounceDialog): política compartilhada vira cópia só dele (id_strategy no elements,
+    /// Anúncios do monstro (AiAnnounce + AnnounceDialog): política compartilhada vira cópia só dele (common_strategy no elements,
     /// par cliente + servidor no Salvar); tudo num passo do Ctrl+Z (usuário 01/11).
     /// </summary>
     private void OpenAnnouncements(IWin32Window owner, int monsterId)
@@ -3469,8 +3471,8 @@ public sealed class EditorForm : Form
         if (CreatureItem(monsterId) is not { Block.Name: "MONSTER_ESSENCE" } ci) { Status(Loc.T("ann.onlyMonster", "Anúncio só para monstro.")); return; }
         if (_aiView?.OpenFile is not { } f) { MessageBox.Show(owner, Loc.T("ann.noAi", "Abra o aipolicy.data na área AI Policy primeiro (ele carrega sozinho ao abrir a pasta do PW)."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         var item = ci.Item;
-        int pid = int.TryParse(item.Fields.GetValueOrDefault("id_strategy")?.Value, out var v) ? v : 0;
-        int users = pid <= 0 ? 0 : ci.Block.Items.Count(i => i.Fields.GetValueOrDefault("id_strategy")?.Value == pid.ToString());
+        int pid = int.TryParse(item.Fields.GetValueOrDefault("common_strategy")?.Value, out var v) ? v : 0;
+        int users = pid <= 0 ? 0 : ci.Block.Items.Count(i => i.Fields.GetValueOrDefault("common_strategy")?.Value == pid.ToString());
         var pol = f.Policies.FirstOrDefault(p => p.Id == pid);
         int ver = pol is null ? AiAnnounce.TriggerVersion(f, new AiPolicy()) : AiAnnounce.TriggerVersion(f, pol);
         using var dlg = new AnnounceDialog(TasksFile.SplitColor(item.Name).Text, pid, users, ver, pol is null ? new List<AiAnnounce.Info>() : AiAnnounce.Find(pol));
@@ -3489,7 +3491,7 @@ public sealed class EditorForm : Form
             _edits.Custom(label,
                 () => { if (cloned && !f.Policies.Contains(target)) f.Policies.Add(target); target.Triggers = after.ToList(); _aiView?.ChangedOutside(_store.Current); },
                 () => { target.Triggers = before.ToList(); if (cloned) f.Policies.Remove(target); _aiView?.ChangedOutside(_store.Current); });
-            if (cloned && item.Fields.TryGetValue("id_strategy", out var fs)) _edits.SetField(item, "id_strategy", Field.Of(fs.Type, target.Id.ToString()), "");
+            if (cloned && item.Fields.TryGetValue("common_strategy", out var fs)) _edits.SetField(item, "common_strategy", Field.Of(fs.Type, target.Id.ToString()), "");
         }
         Status(string.Format(Loc.T("ann.done", "Anúncios de {0} aplicados{1} (Ctrl+Z desfaz). Salve e envie ao servidor."), item.Name,
             cloned ? string.Format(Loc.T("ann.clonedNote", " · IA própria: política {0}"), target.Id) : ""));

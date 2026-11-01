@@ -5,7 +5,7 @@ namespace MyAceEditor.UI;
 /// <summary>
 /// Anúncios de um monstro (usuário 01/11): o que o jogo anuncia quando ele MORRE ou ENTRA EM COMBATE, em qual canal e com
 /// qual texto. Lista os anúncios que ele já tem (gatilhos <see cref="AiAnnounce.Tag"/>), deixa tirar e pôr novos; quem
-/// chama grava (clona a política se for compartilhada e troca o id_strategy do monstro), num passo do Ctrl+Z.
+/// chama grava (clona a política se for compartilhada e troca o common_strategy do monstro), num passo do Ctrl+Z.
 /// </summary>
 internal sealed class AnnounceDialog : Form
 {

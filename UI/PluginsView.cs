@@ -19,6 +19,14 @@ internal sealed class PluginsView : Panel
     readonly TextBox _name = new() { Width = 260 };
     readonly CheckBox _enabled = new() { AutoSize = true };
     readonly NumericUpDown _world = N(1, 1, 999), _ctrl = N(0, 0, 9_999_999), _every = N(30, 1, 100_000), _dur = N(20, 1, 100_000);
+    readonly Label _point = new() { AutoSize = true, MaximumSize = new Size(420, 0), ForeColor = Color.FromArgb(22, 128, 61), Font = new Font("Segoe UI Semibold", 9.5f) };
+
+    /// <summary>
+    /// O ponto escolhido no NPCGen/Mundo 3D vira ponto de evento (EditorForm → NpcGenView.EventControllerForSelected):
+    /// devolve mapa, monstro e o ID do controlador; null + motivo.
+    /// </summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<(Func<(string Map, string Name, int GmId)?> Pick, Func<string?> Why)>? PointSource { get; set; }
     readonly NumericUpDown _chance = new() { Minimum = 0, Maximum = 100, DecimalPlaces = 1, Increment = 1, Width = 100, Value = 10 };
     readonly ComboBox _startCh = Ch(), _endCh = Ch();
     readonly TextBox _startText = new() { Width = 420 }, _endText = new() { Width = 420 };
@@ -84,8 +92,12 @@ internal sealed class PluginsView : Panel
         Title("pl.tWhat", "Monstro raro");
         Row("pl.name", "Nome", _name);
         Row("pl.on", "Sorteio", _enabled, "pl.onNote", "Desligado: só aparece quando chamado (aqui ou no painel do GM).");
-        Row("pl.world", "Mapa (worldtag)", _world, "pl.worldNote", "1 = mundo; instâncias pelo número do gs.conf.");
-        Row("pl.ctrl", "Evento do npcgen (ID)", _ctrl, "pl.ctrlNote", "O ID do jogo do controlador (NPCGen → Eventos). Os pontos do monstro precisam estar ligados a ele.");
+        var pick = new Button { Text = Loc.T("pl.usePoint", "Usar o ponto escolhido no NPCGen / Mundo 3D"), AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = UiKit.Accent, ForeColor = Color.White, Height = 30 };
+        pick.Click += (_, _) => UsePoint();
+        Row("pl.monster", "Monstro", pick, "pl.monsterNote", "Clique no monstro no NPCGen (ou no Mundo 3D) e depois aqui: o editor cria o evento desligado do ponto e preenche o resto.");
+        Row("pl.point", "Ponto", _point);
+        Row("pl.world", "Mapa (worldtag)", _world, "pl.worldNote", "Preenchido sozinho. 1 = mundo.");
+        Row("pl.ctrl", "Evento do ponto (ID)", _ctrl, "pl.ctrlNote2", "Preenchido sozinho: o controlador que liga e desliga o ponto.");
         Title("pl.tWhen", "Quando aparece");
         Row("pl.every", "A cada (min)", _every, "pl.everyNote", "De quanto em quanto tempo o programa sorteia.");
         Row("pl.chance", "Chance (%)", _chance, "pl.chanceNote", "Ex.: 10 = em média 1 vez a cada 10 sorteios.");
@@ -129,6 +141,8 @@ internal sealed class PluginsView : Panel
         _every.Value = Math.Clamp(r.EveryMin, 1, 100_000); _dur.Value = Math.Clamp(r.DurationMin, 1, 100_000); _chance.Value = (decimal)Math.Clamp(r.ChancePct, 0, 100);
         _startCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.StartChannel)); _endCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.EndChannel));
         _startText.Text = r.StartText; _endText.Text = r.EndText;
+        _point.Text = r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)");
+        _point.ForeColor = r.Point.Length > 0 ? Color.FromArgb(22, 128, 61) : Muted;
         _binding = false;
     }
 
@@ -154,6 +168,27 @@ internal sealed class PluginsView : Panel
         if (from.Count == 0) return false;
         to.Push(PluginFiles.Write(_rules)); _rules = PluginFiles.Parse(from.Pop()); _dirty = true; Fill(); Status();
         return true;
+    }
+
+    void UsePoint()
+    {
+        if (Sel is not { } r || PointSource?.Invoke() is not { } src) return;
+        if (src.Pick() is not { } p) { Status("⚠ " + (src.Why() ?? "")); return; }
+        Snapshot();
+        r.Controller = p.GmId; r.Point = $"{p.Map} · {p.Name}";
+        if (r.Name.StartsWith(Loc.T("pl.newName", "Monstro raro {0}").Split('{')[0], StringComparison.Ordinal)) r.Name = p.Name;
+        _dirty = true;
+        var map = p.Map;
+        Work(() =>
+        {
+            // mapa -> worldtag do gs.conf: world = 1; aNN = isNN (docs/kb/MAPAS.md)
+            int tag = map.Equals("world", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            if (tag == 0 && map.Length > 1 && map[0] == 'a')
+                tag = Admin().LiveMapList(null).FirstOrDefault(d => d.Tag.Equals("is" + map[1..], StringComparison.OrdinalIgnoreCase))?.WorldTag ?? 0;
+            if (tag > 0) r.WorldTag = tag;
+            return string.Format(Loc.T("pl.pointDone", "Ponto ligado ao evento {0}. Agora: Salvar e enviar ao servidor (o NPCGen mudou) e reiniciar o mapa; depois Salvar e enviar aqui."), p.GmId)
+                + (tag == 0 ? " " + Loc.T("pl.noTag", "Confira o mapa (worldtag): não achei no gs.conf.") : "");
+        });
     }
 
     void NewRare()

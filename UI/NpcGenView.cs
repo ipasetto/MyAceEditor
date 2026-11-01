@@ -1068,6 +1068,33 @@ internal sealed class NpcGenView : UserControl
         _redo.Clear(); _lastKey = key; _lastPush = now;
     }
 
+    /// <summary>
+    /// Plugins (docs/PLUGINS.md): o ponto de monstro escolhido vira ponto de evento — ganha um controlador DESLIGADO só dele
+    /// (ou usa o que já tem), para o programa dos plugins ligar/desligar. Devolve mapa, nome e o ID do controlador no jogo
+    /// (o que o gs usa em active_npc_generator); null + motivo se não dá. Um passo do Ctrl+Z.
+    /// </summary>
+    public (string Map, string Name, int GmId)? EventControllerForSelected(out string? why)
+    {
+        why = null;
+        if (Cur is not { } f || _cur is null || SelectedIndex() is not { } i || ListOf(f)[i] is not NpcGenSpawn s)
+        { why = Loc.T("pl.pickFirst", "Escolha antes um ponto de monstro no NPCGen ou no Mundo 3D (clique nele)."); return null; }
+        if (f.Version < 7) { why = Loc.T("ev.noVersion", "Este npcgen.data (versão menor que 7) não tem eventos."); return null; }
+        int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
+        var name = $"{NameOf(id0)} ({id0})";
+        if (s.Trigger > 0 && f.Triggers.FirstOrDefault(t => t.Id == s.Trigger) is { } has) return (_cur, name, has.GmId);
+        int batch = Environment.TickCount;
+        Push(_undo, new Op(_cur, false, OpKind.Triggers, 0, f.Triggers.ToList(), batch)); Step(_cur, +1);
+        Push(_undo, new Op(_cur, false, OpKind.Replace, i, CloneOf(s), batch)); Step(_cur, +1);
+        _redo.Clear(); _lastKey = null;
+        int Next(Func<NpcGenTrigger, int> k) => f.Triggers.Count == 0 ? 1 : f.Triggers.Max(k) + 1;
+        var t = new NpcGenTrigger { Id = Next(x => x.Id), GmId = Next(x => x.GmId), AutoStart = 0, NoStartSchedule = 1, NoStopSchedule = 1, Name = $"MyAce plugin {id0}" };
+        for (int k = 0; k < 6; k++) { t.Start[k] = -1; t.Stop[k] = -1; }
+        f.Triggers.Add(t);
+        s.Trigger = t.Id;
+        Touch(); ShowPoint();
+        return (_cur, name, t.GmId);
+    }
+
     /// <summary>Janela dos eventos do mapa (controladores): OK troca a lista inteira num passo do desfazer.</summary>
     void EditEvents()
     {

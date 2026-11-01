@@ -39,7 +39,7 @@ internal sealed partial class WorldView
     readonly Label _pathAirHint = Hint("");
     /// <summary>inhabit_type do monstro (0 terra, 1 água, 2 ar, 3 terra+água, 4 terra+ar, 5 água+ar, 6 todos).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Func<int, int>? InhabitOf { get; set; }
-    bool PathAir => PathSpawn is { Creatures.Count: > 0 } s && (InhabitOf?.Invoke(s.Creatures[0].Id) ?? 0) is 1 or 2 or 4 or 5 or 6;
+    bool PathAir => PathSpawn is { Creatures.Count: > 0 } s && InhabitCached(s) is 1 or 2 or 4 or 5 or 6;
 
     NpcGenSpawn? PathSpawn => _tool == Tool.Paths && SelectedMark()?.Tag is NpcGenSpawn s ? s : null;
     static int PathIdOf(NpcGenSpawn s) => s.Creatures.Select(c => c.PathId).FirstOrDefault(id => id > 0);
@@ -108,7 +108,7 @@ internal sealed partial class WorldView
         });
         _pathDraw = SmallButton("\uE70F", Loc.T("path.draw", "Desenhar caminho novo"), StartDraw);
         _pathsPage.Controls.Add(_pathPickRed);
-        _pathDone = SmallButton("\uE73E", Loc.T("path.done", "Terminar o desenho (Enter)"), FinishDraw, main: true);
+        _pathDone = SmallButton("\uE73E", Loc.T("path.done2", "Terminar o desenho"), FinishDraw, main: true);
         _pathCancel = SmallButton("\uE711", Loc.T("path.cancel", "Cancelar o desenho (Esc)"), CancelDraw);
         _pathDel = SmallButton("\uE74D", Loc.T("path.delete3", "Apagar o caminho"), DeletePath);
         _toolTip.SetToolTip(_pathDel, Loc.T("path.delete3Tip", "Tira o caminho do ponto (e do path.sev se ninguém mais usa); ele volta a andar na área."));
@@ -167,8 +167,8 @@ internal sealed partial class WorldView
             : hasArea ? Loc.T("path.areaHint", "Ele anda solto dentro da área azul. Arraste a alça amarela para mudar o tamanho.")
             : Loc.T("path.noAreaHint", "Sem área: ele fica parado no ponto. Para dar uma área, arraste a alça amarela.");
         // NPC comum: o jogo não move, então nada de área/caminho; só o aviso
-        bool blocked = s is not null && PatrolBlock?.Invoke(s) is not null;
-        if (s is not null && PatrolBlock?.Invoke(s) is { } why)
+        bool blocked = s is not null && BlockOf(s) is not null;
+        if (s is not null && BlockOf(s) is { } why)
         {
             // em destaque (como o aviso de escolher criatura) e sem botões: não há o que fazer aqui
             _pathPickRed.Text = Loc.T("path.npcStill", "Este NPC não anda no jogo");
@@ -195,7 +195,7 @@ internal sealed partial class WorldView
         bool cursor = !blocked && patrol && s is not null;
         SyncFlyCursor();
         if (cursor)
-            _pathHint.Text = drawing ? Loc.T("path.cursorDrawing", "Clique no chão para levar o círculo até lá (ou arraste as setas; verde = altura). A cada parada clique em \"Marcar ponto aqui\" (Espaço): os pontos vão se ligando. Enter termina; Esc cancela. Depois é só salvar.")
+            _pathHint.Text = drawing ? Loc.T("path.cursorDrawing2", "Clique no chão para levar o círculo até lá (ou arraste as setas; verde = altura). A cada parada aperte Enter (ou \"Marcar ponto aqui\"): os pontos vão se ligando. Para acabar, clique em \"Terminar o desenho\"; Esc cancela. Depois é só salvar.")
                 : PathAir ? Loc.T("path.flyEdit2", "Esta criatura voa ou nada: ela segue a altura de cada ponto. Clique num ponto e arraste as setas (verde = altura) para mudá-lo.")
                 : Loc.T("path.cursorEdit", "Clique num ponto do caminho e arraste as setas para mudá-lo. O ponto grande é o começo. \"Redesenhar\" começa de novo.");
         _pathAirHint.Visible = false;
@@ -237,7 +237,8 @@ internal sealed partial class WorldView
         else StartDraw();
     }
 
-    void StartDraw() { if (PathSpawn is null || _pathFile is null) return; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
+    // redesenhar: o círculo volta para onde a criatura nasce (_flyFor = null)
+    void StartDraw() { if (PathSpawn is null || _pathFile is null) return; _flyFor = null; _drawPts = new(); UpdatePathPanel(); _gl.Focus(); _gl.Invalidate(); }
 
     void CancelDraw() { _drawPts = null; _drawHover = null; UpdatePathPanel(); _gl.Invalidate(); }
 
@@ -440,9 +441,9 @@ internal sealed partial class WorldView
     /// <summary>Teclas da ferramenta: Enter termina o desenho, Esc cancela. true = tecla usada.</summary>
     bool PathKey(Keys k)
     {
-        if (_tool == Tool.Paths && k == Keys.Space && PatrolMode && PathSpawn is not null) { FlyMark(); return true; }
+        // Enter marca o ponto (Espaço é da câmera); terminar é só pelo botão "Terminar o desenho" (usuário 01/11)
+        if (_tool == Tool.Paths && k == Keys.Enter && PatrolMode && PathSpawn is not null) { FlyMark(); return true; }
         if (_tool != Tool.Paths || _drawPts is null) return false;
-        if (k == Keys.Enter) { FinishDraw(); return true; }
         if (k == Keys.Escape) { CancelDraw(); return true; }
         if (k == Keys.Back && _drawPts.Count > 0) { _drawPts.RemoveAt(_drawPts.Count - 1); _gl.Invalidate(); return true; }
         return false;

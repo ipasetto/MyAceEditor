@@ -25,6 +25,7 @@
 
 | Regra | O que acontece se quebrar | Fonte |
 |---|---|---|
+| Tipo de ataque do monstro (id_strategy) só 0..7; a IA dele é o campo common_strategy | outro valor em id_strategy derruba o gs ao carregar (ASSERT) | gs aipolicy.cpp ai_policy::Init (STRATEGY_MAX 8); `ItemRules` regra `mob-strategy` |
 | ID único no espaço "essence" (itens, NPCs, monstros, serviços dividem os números) | o gs acha só um dos dois: item que não cai, NPC que some | `generate_item` → `get_data_type(id)` |
 | Item de loja (`proc_type` com 0x8) com ID até **65534** | o gs 1.5.x cai ao iniciar (`world_manager::SetCashItem`, tabela de 65535, ASSERT). O 180 aceita mais: só vale se o arquivo original não tiver item de loja acima disso | `worldmanager.cpp`; gs 1.5.5 `cmp $0xfffe` |
 | Armadura, ornamento, moda e carta: `id_sub_type` existe na lista `*_SUB_TYPE` | o gs não cria o item | `generate_armor/decoration/fashion/poker` |

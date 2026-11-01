@@ -198,7 +198,7 @@ public sealed class AiPolicyView : UserControl
             {
                 if (!int.TryParse(it.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id)) continue;
                 _monsters[id] = it.Name;
-                if (it.Fields.TryGetValue("id_strategy", out var f) &&
+                if (it.Fields.TryGetValue("common_strategy", out var f) &&   // a IA do monstro (id_strategy é o tipo de ataque)
                     int.TryParse(f.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pid) && pid > 0)
                 {
                     if (!_usedBy.TryGetValue(pid, out var users)) _usedBy[pid] = users = new List<(int Id, string Name)>();

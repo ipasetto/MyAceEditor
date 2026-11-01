@@ -85,7 +85,7 @@ public static class AiAnnounce
 
     /// <summary>
     /// Política só deste monstro: se outros monstros usam a mesma, clona com ID novo (maior + 1) e devolve o ID novo
-    /// (quem chama troca o id_strategy do monstro no elements, cliente e servidor). Se só ele usa, devolve a própria.
+    /// (quem chama troca o common_strategy do monstro no elements, cliente e servidor). Se só ele usa, devolve a própria.
     /// </summary>
     public static AiPolicy OwnPolicy(AiPolicyFile f, int policyId, int usersOfPolicy, out bool cloned)
     {

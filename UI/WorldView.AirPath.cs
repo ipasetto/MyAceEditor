@@ -8,8 +8,8 @@ namespace MyAceEditor.UI;
 /// Marcador de caminho (usuário 01/11: para TODAS as criaturas). Na ferramenta Caminhos, em patrulha, o modelo da criatura
 /// dá lugar a um CÍRCULO com setas X/Y/Z (como o gizmo de mover): clicar no chão leva o círculo até lá (mantendo a altura),
 /// as setas movem (verde = altura; o gs leva quem voa ou nada até a altura de cada ponto: npcsession.cpp follow_target,
-/// PW-KB §S22) e "Marcar ponto aqui" (Espaço) põe o ponto onde ele está: os pontos vão se ligando no caminho; Enter termina,
-/// depois é só salvar. Clicar num ponto do caminho o escolhe: as setas passam a mover esse ponto. Cada ponto tem uma haste
+/// PW-KB §S22) e "Marcar ponto aqui" (Enter) põe o ponto onde ele está: os pontos vão se ligando no caminho; terminar é pelo botão
+/// (Espaço é da câmera), depois é só salvar. Clicar num ponto do caminho o escolhe: as setas passam a mover esse ponto. Cada ponto tem uma haste
 /// até o chão, para ver a altura.
 /// </summary>
 internal sealed partial class WorldView
@@ -22,15 +22,29 @@ internal sealed partial class WorldView
     Button _flyMark = null!;
 
     /// <summary>Criatura em patrulha (desenhando ou com caminho): marcador no lugar do modelo.</summary>
-    bool AirPatrol => _tool == Tool.Paths && PathSpawn is { } ps && PatrolBlock?.Invoke(ps) is null && (_drawPts is not null || SelPath is not null);
+    bool AirPatrol => _tool == Tool.Paths && PathSpawn is { } ps && BlockOf(ps) is null && (_drawPts is not null || SelPath is not null);
+
+    // PatrolBlock e InhabitOf procuram a criatura no elements: guardados por ponto, senão o 3D travava (chamados a cada
+    // quadro, para cada marcador, e a cada movimento do mouse; usuário 01/11)
+    NpcGenSpawn? _cacheFor; string? _cacheBlock; int _cacheInhabit;
+    void CacheFor(NpcGenSpawn s)
+    {
+        if (ReferenceEquals(_cacheFor, s)) return;
+        _cacheFor = s; _cacheBlock = PatrolBlock?.Invoke(s);
+        _cacheInhabit = s.Creatures.Count > 0 ? InhabitOf?.Invoke(s.Creatures[0].Id) ?? 0 : 0;
+    }
+    string? BlockOf(NpcGenSpawn s) { CacheFor(s); return _cacheBlock; }
+    int InhabitCached(NpcGenSpawn s) { CacheFor(s); return _cacheInhabit; }
 
     /// <summary>O modelo da criatura some enquanto o marcador está na tela (fica só o nome).</summary>
     bool HideModelFor(Marker m) => AirPatrol && ReferenceEquals(m.Tag, PathSpawn);
+    /// <summary>Uma vez por quadro: o ponto cujo modelo some (null = nenhum).</summary>
+    object? HiddenModelTag() => AirPatrol ? PathSpawn : null;
 
     void InitAirPath()
     {
-        _flyMark = SmallButton("", Loc.T("path.flyMark", "Marcar ponto aqui (Espaço)"), FlyMark, main: true);
-        _toolTip.SetToolTip(_flyMark, Loc.T("path.flyMarkTip2", "Põe um ponto do caminho onde está o círculo; cada ponto se liga ao anterior. Enter termina."));
+        _flyMark = SmallButton("", Loc.T("path.flyMark2", "Marcar ponto aqui (Enter)"), FlyMark, main: true);
+        _toolTip.SetToolTip(_flyMark, Loc.T("path.flyMarkTip3", "Põe um ponto do caminho onde está o círculo; cada ponto se liga ao anterior. Para acabar, clique em Terminar o desenho."));
     }
 
     /// <summary>Outra criatura escolhida: o marcador volta para onde ela nasce.</summary>
@@ -134,7 +148,7 @@ internal sealed partial class WorldView
             return;
         }
         _drawPts.Add(c); _flySel = -1;
-        _status.Text = string.Format(Loc.T("path.flyMarked", "Ponto {0} marcado. Mova o marcador e marque o próximo; Enter termina."), _drawPts.Count);
+        _status.Text = string.Format(Loc.T("path.flyMarked2", "Ponto {0} marcado. Mova o círculo e marque o próximo (Enter); para acabar, clique em Terminar o desenho."), _drawPts.Count);
         UpdatePathPanel(); _gl.Invalidate();
     }
 
@@ -183,7 +197,7 @@ internal sealed partial class WorldView
         // rótulo da seta de altura e do atalho (textura ligada, cor branca: ver DrawPathEdit)
         GL.Enable(EnableCap.Texture2D); GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.Color4(1f, 1f, 1f, 1f);
         DrawLabel(Loc.T("gizmo.y", "Y · altura"), c + Vector3.UnitY * L * 1.35f, Color.LimeGreen);
-        if (_flySel < 0) DrawLabel(Loc.T("path.flySpace", "Espaço = marcar ponto aqui"), c - Vector3.UnitY * L * 0.45f, Color.FromArgb(150, 230, 255));
+        if (_flySel < 0) DrawLabel(Loc.T("path.flyEnter", "Enter = marcar ponto aqui"), c - Vector3.UnitY * L * 0.45f, Color.FromArgb(150, 230, 255));
         GL.BindTexture(TextureTarget.Texture2D, 0); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Blend);
         GL.Enable(EnableCap.DepthTest); GL.Color3(1f, 1f, 1f);
     }
