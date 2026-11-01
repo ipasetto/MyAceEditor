@@ -545,6 +545,9 @@ codificacao: data empacotada (bit31) = [hora,dia,mes,0x80|(ano-2000)] | cor ^RRG
 nomes de NPC/mob/mina = listas elements 38/57/79; titulos 169 (indices sELedit, §S23)
 
 ## §S22 SERVER: npcgen.data + formatos de mapa (fonte: sNPCedit, sMAPtool C++/CLI decompilados; doc sMAPtool-sNPCedit-detalhamento.md) [C-terceiros] (resolve parte de §Q6)
+- [C 01/11 gs npcgenerator.cpp ~3620-3790] o gs 1.5.3 NAO le dwDiedTimes (campo so guardado; 'mortes ate parar' nao faz nada). Le do grupo: dwNum, iRefresh/iRefreshLower (tempo sorteado), fOffsetTrn, iPathID, iLoopType, iSpeedFlag. Area: bAutoRevive -> spawner SetRespawn (0 = nasce e nao renasce ate o controlador reativar); iGroupType 0 mobs_spawner (normal), 1 group_spawner (grupo com lider = 1o grupo, renasce junto), 2 boss_spawner (grupo especial); NPC de servico = server_spawner.
+- [C 01/11 npcgendata.h NPCGENFILECTRL8] controlador: iControllerID, bActived (ja ligado ao abrir), iWaitTime (espera ao ligar), iStopTime (desliga sozinho), ActiveTime/StopTime (agenda), iActiveTimeRange (s). NAO existe chance de nascer no npcgen; aipolicy 1.5.3 nao tem condicao 'ao nascer' nem operacao 'sumir' -> chance de nascer so montando controlador + gatilho com sorteio (Rand) que liga o controlador (operacao Controlador). Anuncio no mundo = operacao Falar com canal (AiChannel).
+- [C 01/11 gs npcsession.cpp patrulha] o NPC anda ate o ponto com path_finding::follow_target criado com _inhabit_mode (ar usa o mapa de voo) e o alvo inclui a altura: voador/nadador patrulha em 3D na altura de cada ponto do path.sev.
 npcgen.data: i32 version | i32 nCreatureSet | i32 nResourceSet | [v>=10] i32 nDynamic, i32 nTrigger | corpo: creatures > resources > dynamics > triggers
  CreatureSet (71B v>=10 + grupos): spawn_mode(0 Ground 1 Free3D) nGroups pos[3f] rot[3f] spread[3f] tipo(Mob/NPC) i32 3bool i32 [v>=10 trigger +2 i32]
  CreatureGroup 60B (64B v>=11): id(=elements) amount respawn(unid [?]) + unknowns
@@ -639,6 +642,7 @@ nomes mob/NPC: npcdb.txt (UTF-16 id<TAB>nome); posicao do player lida da memoria
 - [T] .bmd malha versao 0x10000006: 1 BYTE A MAIS entre nTriangulos e os vertices (o resto igual). 1.4.4: 4.357 de 40.079 .bmd (11%; ex. regiao inicial dos Abissais/Tideborn, pedaco 70 do mundo). Lidas sem esse byte viravam triangulos infinitos (tela preta/azul). Versoes da 1a malha no 1.4.4: 0x10000004 x19229, 0x10000005 x16493, 0x10000006 x4357; todos os 40.079 leem inteiros.
 
 ## §S23 elements.data — visao do sELedit (doc analise_arquivos_pw.md §1) [C-terceiros] (complementa §S3/§S17)
+- [T 01/11 models.pck PWI 1.5.5: 5703 .ecm] tamanho visual do modelo = escala de osso no .ecm (texto GBK): 'BoneNum: n' + por osso 'BoneIndex: i' / 'BoneSclType: t' / 'BoneScale: x, y, z' (709 modelos tem; BoneIndex 0 = osso raiz = modelo inteiro); 'NewScale: 0/1' (4373); 'GfxScale' = escala de efeito. O campo size do MONSTER_ESSENCE e so raio de clique.
 header lido como i16 Version + i16 Signature (= u32 0x3000003C -> versao 60, assinatura 0x3000); bytes fixos antes de cada lista = "listOffset" do .cfg (timestamp entra ai) [I forte]
 .cfg: linha1 = n listas | linha2 = indice da lista de conversa | por lista: nome / tamanho do offset ou AUTO / campos ; / tipos ;. Tipos: int16 int32 int64 float double byte:N string:N(GBK) wstring:N(UTF-16LE). Arquivo: configs\PW_*_v{Version}.cfg
 listas especiais 20 e 100: tag 4B + tamanho N 4B + N bytes (+4B finais so na 20) = blocos de assinatura do exportador (§S17)

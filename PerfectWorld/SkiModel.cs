@@ -142,6 +142,13 @@ public sealed class SkiModel
     }
 
     /// <summary>Junta as malhas de outro skin do mesmo modelo (AddiSkinPath do .ecm); chame depois do PlaceRigid dos dois.</summary>
+    /// <summary>Escala o modelo inteiro em volta da origem (pés no chão): BoneScale do osso 0 no .ecm (WorldModels.ResolveSki).</summary>
+    public void ScaleBy(float sx, float sy, float sz)
+    {
+        foreach (var m in Meshes)
+            for (int i = 0; i + 2 < m.Vertices.Length; i += 8) { m.Vertices[i] *= sx; m.Vertices[i + 1] *= sy; m.Vertices[i + 2] *= sz; }
+    }
+
     public void Append(SkiModel other)
     {
         int t0 = Textures.Count;

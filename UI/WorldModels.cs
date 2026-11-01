@@ -132,6 +132,14 @@ internal sealed class WorldModels : IDisposable
             if (ski is null) ski = s; else ski.Append(s);
             if (fromDir) break;
         }
+        // tamanho do monstro: o .ecm escala o osso 0 (= modelo inteiro) com "BoneIndex: 0" + "BoneScale: x, y, z" (709 de 5703
+        // .ecm do PWI 1.5.5); o campo size do elements é só o raio de clique (PW-KB §S23). Teste 2 do usuário, 01/11.
+        if (ski is not null && Regex.Match(text, @"BoneIndex:\s*0\s+BoneSclType:\s*\d+\s+BoneScale:\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)") is { Success: true } bs
+            && float.TryParse(bs.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sx)
+            && float.TryParse(bs.Groups[2].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sy)
+            && float.TryParse(bs.Groups[3].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sz)
+            && sx is > 0.01f and < 100 && sy is > 0.01f and < 100 && sz is > 0.01f and < 100 && (sx != 1 || sy != 1 || sz != 1))
+            ski.ScaleBy(sx, sy, sz);
         return ski is null ? null : (ski, dir);
     }
 

@@ -442,6 +442,7 @@ public sealed class EditorForm : Form
         _npcgen.CreatureQuests = id => _tasks is { } tq && CreatureItem(id) is { } ci ? QuestUsesOf(tq, ci.Block.Name == "NPC_ESSENCE" ? 'N' : 'M', id.ToString()) : null;
         _npcgen.DeletedMany += n => Status(string.Format(Loc.T("npcgen.deletedMany", "{0} ponto(s) excluído(s). Ctrl+Z desfaz."), n));
         _npcgen.QuestHost = new QuestHostImpl(this);
+        _npcgen.InhabitOf = id => CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" } c && int.TryParse(c.Item.Fields.GetValueOrDefault("inhabit_type")?.Value, out var ih) ? ih : 0;
         _npcgen.IsMerchant = id => CreatureItem(id) is { } c && c.Item.Fields.TryGetValue("id_sell_service", out var sv) && sv.Value is not ("0" or "");
         _npcgen.OpenQuest = id => { GoToQuest(id); Activate(); };
         // servidor escolhido no NPCGen (pasta gamed\config) vira o servidor do programa todo
@@ -3551,7 +3552,7 @@ public sealed class EditorForm : Form
         if (block.Name == "NPC_ESSENCE") ClearNpc(ni);
         SetIdName(ni);
         InsertNewItem(block, ni);
-        Status(string.Format(Loc.T("wiz.done", "{0} criado com ID {1} — ajuste os campos e salve."), ni.Name, ni.Id));
+        Status(string.Format(Loc.T("wiz.done2", "{0} criado com ID {1} — ajuste os campos e salve. Para ele nascer no mundo, ponha um ponto no NPCGen ou no Mundo 3D (quantidade e tempo de renascer; o jogo pode sortear o tempo, mas não tem chance de não nascer)."), ni.Name, ni.Id));
         return int.Parse(ni.Id);
     }
 

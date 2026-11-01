@@ -57,12 +57,12 @@ internal sealed class CreatureInfoPanel : UserControl
         Row(L(() => Loc.T("ci.amount", "Quantidade")), _amount, _amountText);
         Row(L(() => Loc.T("ci.respawn", "Renascer (s)")), _respawn, _respawnText);
         Row(L(() => Loc.T("ci.min", "Mínimo (s)")), _min, _minText);
-        Row(L(() => Loc.T("ci.diedLabel", "Mortes até parar")), _died, _diedText);
+        Row(L(() => Loc.T("ci.diedLabel2", "Mortes até parar (não usado)")), _died, _diedText);
         Bind(() =>
         {
             _amountText.Text = Loc.T("ci.amountNote", "quantos nascem juntos neste ponto");
-            _minText.Text = Loc.T("ci.minNote", "0 = sempre o mesmo tempo; maior = o jogo sorteia entre o mínimo e o renascer");
-            _diedText.Text = Loc.T("ci.diedNote", "0 = renasce sempre; senão para depois de tantas mortes");
+            _minText.Text = Loc.T("ci.minNote2", "0 = sempre o mesmo tempo. Maior (e menor que Renascer) = a cada morte o jogo sorteia um tempo entre 15 s + mínimo e 15 s + renascer.");
+            _diedText.Text = Loc.T("ci.diedNote2", "o servidor 1.5.x não usa este campo (só fica guardado): o ponto renasce sempre");
         });
         if (dark) foreach (var n in new[] { _amount, _respawn, _min, _died }) { n.BackColor = Color.FromArgb(40, 46, 56); n.ForeColor = Color.White; }
         foreach (var n in new[] { _amount, _respawn, _min, _died }) n.ValueChanged += (_, _) => Commit();
@@ -104,8 +104,8 @@ internal sealed class CreatureInfoPanel : UserControl
             Loc.T("ci.diedShort", "Mortes até parar"), Loc.T("ci.extra", "Patrulha / gatilho") };
         for (int i = 0; i < sc.Length; i++) _spawns.Columns[i].Text = sc[i];
         _quests.Columns[0].Text = Loc.T("wq.colId", "ID"); _quests.Columns[1].Text = Loc.T("wq.colName", "Quest"); _quests.Columns[2].Text = Loc.T("ci.how", "Como usa");
-        _hint.Text = GoTo is null ? Loc.T("ci.hintEdit", "Escolha um ponto e mude abaixo: grava no npcgen do mapa (Ctrl+Z desfaz). Mortes até parar 0 = renasce sempre.")
-            : Loc.T("ci.hintGo", "Escolha um ponto e mude abaixo (grava no npcgen, Ctrl+Z desfaz; mortes até parar 0 = sempre); duplo clique leva até ele.");
+        _hint.Text = GoTo is null ? Loc.T("ci.hintEdit2", "Escolha um ponto e mude abaixo: grava no npcgen do mapa (Ctrl+Z desfaz). Não existe chance de nascer: quando o tempo acaba ele sempre nasce; o único sorteio do jogo é o do tempo (Mínimo).")
+            : Loc.T("ci.hintGo2", "Escolha um ponto e mude abaixo (grava no npcgen, Ctrl+Z desfaz); duplo clique leva até ele. Não existe chance de nascer: quando o tempo acaba ele sempre nasce; o único sorteio é o do tempo (Mínimo).");
     }
 
     /// <summary>

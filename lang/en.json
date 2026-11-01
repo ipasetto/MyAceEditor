@@ -4636,5 +4636,17 @@
   "ui.back2": "◀ Back to the start of Interfaces",
   "pck.cardNone": "No package open",
   "pck.cardNoneDetail": "Choose a game package in the box above (or Open another). Then mark the files and click Extract.",
-  "pck.cardOpen": "version {0} · {1:N0} files · extracts to {2}"
+  "pck.cardOpen": "version {0} · {1:N0} files · extracts to {2}",
+  "path.airTitle": "Flight height (m above ground)",
+  "path.airHint": "This creature flies or swims: in the game it follows the height of each point. New points (and the ones you drag) stay at this height.",
+  "path.liftAll": "Put all points at this height",
+  "path.liftedAll": "All points at {0} m above ground (Ctrl+Z undoes).",
+  "ci.minNote2": "0 = always the same time. Higher (and lower than Respawn) = at each death the game rolls a time between 15 s + minimum and 15 s + respawn.",
+  "ci.diedNote2": "the 1.5.x server does not use this field (it is only stored): the point always respawns",
+  "ci.diedLabel2": "Deaths until stop (not used)",
+  "ci.hintEdit2": "Pick a point and change it below: it is written to the map's npcgen (Ctrl+Z undoes). There is no spawn chance: when the time is up it always spawns; the game's only roll is the time (Minimum).",
+  "ci.hintGo2": "Pick a point and change it below (written to npcgen, Ctrl+Z undoes); double-click takes you to it. There is no spawn chance: when the time is up it always spawns; the only roll is the time (Minimum).",
+  "wc.minNote2": "0 = no roll; higher = rolls the time",
+  "wc.diedIgnored": "not used by the server",
+  "wiz.done2": "{0} created with ID {1} — adjust the fields and save. For it to spawn in the world, place a point in NPCGen or World 3D (amount and respawn time; the game can roll the time, but there is no chance of not spawning)."
 }

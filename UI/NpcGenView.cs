@@ -38,6 +38,8 @@ internal sealed class NpcGenView : UserControl
     /// <summary>NPC com serviço de venda (filtro "Comerciantes" do Mundo 3D).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<int, bool>? IsMerchant { get; set; }
+    /// <summary>inhabit_type do monstro (Mundo 3D: patrulha de voador/nadador com altura).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Func<int, int>? InhabitOf { get; set; }
     /// <summary>Criar e ligar quests pelo Mundo 3D.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     internal IQuestHost? QuestHost { get; set; }
@@ -846,6 +848,7 @@ internal sealed class NpcGenView : UserControl
         };
         w.EditCreature = _editItem;
         w.SaveAndSendAll = SaveAndSendAll;
+        w.InhabitOf = InhabitOf;
         var pp = PatrolProblem;
         w.PatrolBlock = o => o is NpcGenSpawn ps && ps.Creatures.Count > 0 ? pp?.Invoke(ps.Creatures[0].Id) : null;
         w.CloneHere = (o, g) =>
