@@ -27,9 +27,11 @@ internal sealed class WorldQuestEditor : Panel
     // controles do rascunho
     readonly NumericUpDown _id = Num(1, int.MaxValue), _giver = Num(0, int.MaxValue), _stepNpc = Num(0, int.MaxValue),
         _minLv = Num(0, 1000), _maxLv = Num(0, 1000), _gold = Num(0, int.MaxValue), _exp = Num(0, int.MaxValue), _sp = Num(0, int.MaxValue),
-        _rep = Num(0, int.MaxValue), _itemId = Num(0, int.MaxValue), _itemN = Num(1, 99999), _monId = Num(0, int.MaxValue), _monN = Num(1, 99999);
+        _rep = Num(0, int.MaxValue), _itemId = Num(0, int.MaxValue), _itemN = Num(1, 99999), _monId = Num(0, int.MaxValue), _monN = Num(1, 99999),
+        _wItemId = Num(0, int.MaxValue), _wItemN = Num(1, 99999), _waitSec = Num(0, 30 * 24 * 3600);
     readonly ListView _monList = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Height = 92, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
-    readonly Label _monName = Muted();
+    readonly Label _monName = Muted(), _wItemName = Muted(), _waitText = Muted(), _itemsHint = new() { AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Color.Gray, Margin = new Padding(3, 0, 3, 3) };
+    readonly ListView _wItemList = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Height = 92, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
     readonly TextBox _name = Text(false), _desc = Text(true), _offer = Text(true), _summary = Text(true),
         _stepName = Text(false), _stepDesc = Text(true), _stepText = Text(true);
     readonly Label _giverName = Muted(), _stepNpcName = Muted(), _itemName = Muted(), _errors = new() { AutoSize = true, ForeColor = Bad, MaximumSize = new Size(330, 0) },
@@ -42,6 +44,8 @@ internal sealed class WorldQuestEditor : Panel
         _talkBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
         _reachBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
         _killBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
+        _itemsBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
+        _waitBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
         _nameBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
     readonly ListView _areaList = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Height = 92, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
     readonly NumericUpDown[] _areaNum = Enumerable.Range(0, 6).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 100, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle }).ToArray();
@@ -241,7 +245,12 @@ internal sealed class WorldQuestEditor : Panel
         p.Controls.Add(add);
         var add2 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
         add2.Controls.Add(Btn(Loc.T("qe.addKill", "+ Matar monstros"), () => AddStep(QuestStepKind.Kill)));
+        add2.Controls.Add(Btn(Loc.T("qe.addCollect", "+ Obter itens"), () => AddStep(QuestStepKind.Collect)));
         p.Controls.Add(add2);
+        var add3 = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
+        add3.Controls.Add(Btn(Loc.T("qe.addDeliver", "+ Entregar itens"), () => AddStep(QuestStepKind.Deliver)));
+        add3.Controls.Add(Btn(Loc.T("qe.addWait", "+ Esperar"), () => AddStep(QuestStepKind.Wait)));
+        p.Controls.Add(add3);
         var move = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 0) };
         move.Controls.Add(Btn("▲", () => MoveStep(-1)));
         move.Controls.Add(Btn("▼", () => MoveStep(1)));
@@ -305,6 +314,34 @@ internal sealed class WorldQuestEditor : Panel
         _monId.ValueChanged += (_, _) => _monName.Text = _monId.Value <= 0 ? "" : _host.NameOf((int)_monId.Value) is { } mn
             ? mn + (_host.IsMonster((int)_monId.Value) ? "" : "  " + Loc.T("qe.notMonster", "(não é monstro)")) : Loc.T("qe.unknown", "(não existe no elements.data)");
         _stepBox.Controls.Add(_killBox);
+
+        // obter / entregar itens: lista (item, quantos); entregar mostra também o NPC e a fala (bloco de falar com NPC)
+        Caption(_itemsBox, "qe.wantItems", "Itens", "qe.wantItemsHint", "Itens que o jogador precisa ter no inventário.");
+        _itemsBox.Controls.Add(_itemsHint);
+        _wItemList.Columns.Add(Loc.T("wq.colId", "ID"), 70); _wItemList.Columns.Add(Loc.T("qe.itemCol", "Item"), 190); _wItemList.Columns.Add(Loc.T("qe.countCol", "Qtd."), 60);
+        _itemsBox.Controls.Add(_wItemList);
+        var ir = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(340, 0), Margin = new Padding(0, 4, 0, 0) };
+        _wItemId.Width = 96; _wItemN.Width = 58;
+        ir.Controls.Add(_wItemId); ir.Controls.Add(_wItemN);
+        ir.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), AddWantedItem));
+        ir.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), RemoveWantedItem));
+        _itemsBox.Controls.Add(ir);
+        _itemsBox.Controls.Add(_wItemName);
+        _wItemId.ValueChanged += (_, _) => _wItemName.Text = _wItemId.Value <= 0 ? "" : _host.NameOf((int)_wItemId.Value) ?? Loc.T("qe.unknown", "(não existe no elements.data)");
+        _stepBox.Controls.Add(_itemsBox);
+
+        // esperar um tempo (segundos depois de a etapa começar)
+        Caption(_waitBox, "qe.wait", "Tempo de espera (segundos)", "qe.waitHint", "A etapa acaba sozinha depois deste tempo. Ex.: 90 = 1 minuto e meio; 3600 = 1 hora.");
+        _waitBox.Controls.Add(_waitSec);
+        _waitBox.Controls.Add(_waitText);
+        _waitSec.ValueChanged += (_, _) =>
+        {
+            var ts = TimeSpan.FromSeconds((double)_waitSec.Value);
+            _waitText.Text = "= " + (ts.Days > 0 ? string.Format(Loc.T("qe.days", "{0} dia(s) e {1}"), ts.Days, ts.ToString(@"hh\:mm\:ss")) : ts.ToString(@"h\:mm\:ss"));
+            if (_loading || CurStep is not { Kind: QuestStepKind.Wait } s || s.WaitSeconds == (int)_waitSec.Value) return;
+            Remember(); s.WaitSeconds = (int)_waitSec.Value; RefreshStepText();
+        };
+        _stepBox.Controls.Add(_waitBox);
         p.Controls.Add(_stepBox);
 
         _stepList.SelectedIndexChanged += (_, _) => LoadStep();
@@ -332,6 +369,11 @@ internal sealed class WorldQuestEditor : Panel
         var s = _d.Steps[i];
         string what = s.Kind == QuestStepKind.Talk
             ? string.Format(Loc.T("qe.stepTalkLine", "Falar com {0}"), s.Npc > 0 ? _host.NameOf(s.Npc) ?? s.Npc.ToString() : "?")
+            : s.Kind is QuestStepKind.Collect or QuestStepKind.Deliver
+            ? string.Format(s.Kind == QuestStepKind.Collect ? Loc.T("qe.stepCollectLine", "Obter itens ({0})") : Loc.T("qe.stepDeliverLine", "Entregar itens ({0}) a {1}"),
+                s.Items.Count == 0 ? "?" : string.Join(", ", s.Items.Select(m => $"{m.Count} × {_host.NameOf(m.Id) ?? m.Id.ToString()}")), s.Npc > 0 ? _host.NameOf(s.Npc) ?? s.Npc.ToString() : "?")
+            : s.Kind == QuestStepKind.Wait
+            ? string.Format(Loc.T("qe.stepWaitLine", "Esperar {0}"), TimeSpan.FromSeconds(s.WaitSeconds).ToString(@"h\:mm\:ss"))
             : s.Kind == QuestStepKind.Kill
             ? string.Format(Loc.T("qe.stepKillLine", "Matar monstros ({0})"), s.Monsters.Count == 0 ? "?" : string.Join(", ", s.Monsters.Select(m => $"{m.Count} × {_host.NameOf(m.Id) ?? m.Id.ToString()}")))
             : string.Format(Loc.T("qe.stepReachLine", "Ir até um lugar ({0} área(s))"), s.Areas.Count);
@@ -375,7 +417,13 @@ internal sealed class WorldQuestEditor : Panel
         if (s is not null)
         {
             _nameBox.Visible = !QuestBuilder.IsRecado(_d);   // recado: nome e descrição são os da quest
-            _talkBox.Visible = s.Kind == QuestStepKind.Talk;
+            _talkBox.Visible = s.Kind is QuestStepKind.Talk or QuestStepKind.Deliver;
+            _itemsBox.Visible = s.Kind is QuestStepKind.Collect or QuestStepKind.Deliver;
+            _waitBox.Visible = s.Kind == QuestStepKind.Wait;
+            _waitSec.Value = Math.Clamp(s.WaitSeconds, 0, (int)_waitSec.Maximum);
+            _itemsHint.Text = s.Kind == QuestStepKind.Deliver
+                ? Loc.T("qe.deliverHint", "O jogador leva estes itens ao NPC escolhido acima e conclui a etapa falando com ele; o NPC fica com os itens.")
+                : Loc.T("qe.collectHint", "A etapa acaba quando o jogador tiver todos estes itens; os itens ficam com ele (uma etapa seguinte pode pedir para entregar).");
             _reachBox.Visible = s.Kind == QuestStepKind.Reach;
             _killBox.Visible = s.Kind == QuestStepKind.Kill;
             _stepName.Text = s.Name; _stepDesc.Text = s.Description; _stepText.Text = s.Text;
@@ -385,6 +433,37 @@ internal sealed class WorldQuestEditor : Panel
         _loading = false;
         RefreshAreas();
         RefreshMonsters();
+        RefreshWantedItems();
+    }
+
+    void RefreshWantedItems()
+    {
+        _wItemList.BeginUpdate();
+        _wItemList.Items.Clear();
+        if (CurStep is { Kind: QuestStepKind.Collect or QuestStepKind.Deliver } s)
+            foreach (var (id, n) in s.Items)
+                _wItemList.Items.Add(new ListViewItem(new[] { id.ToString(), _host.NameOf(id) ?? "?", n.ToString() }) { Tag = (id, n) });
+        _wItemList.EndUpdate();
+    }
+
+    void AddWantedItem()
+    {
+        int id = (int)_wItemId.Value;
+        if (CurStep is not { Kind: QuestStepKind.Collect or QuestStepKind.Deliver } s || id <= 0) return;
+        if (_host.NameOf(id) is null || _host.IsNpc(id) || _host.IsMonster(id)) { _wItemName.Text = Loc.T("qe.unknown", "(não existe no elements.data)"); return; }
+        Remember();
+        int at = s.Items.FindIndex(m => m.Id == id);
+        if (at >= 0) s.Items[at] = (id, (int)_wItemN.Value);   // mesmo item de novo: troca a quantidade
+        else s.Items.Add((id, (int)_wItemN.Value));
+        RefreshWantedItems(); RefreshStepText();
+    }
+
+    void RemoveWantedItem()
+    {
+        if (CurStep is not { Kind: QuestStepKind.Collect or QuestStepKind.Deliver } s || _wItemList.SelectedIndices.Count == 0) return;
+        Remember();
+        s.Items.RemoveAt(_wItemList.SelectedIndices[0]);
+        RefreshWantedItems(); RefreshStepText();
     }
 
     void RefreshMonsters()
@@ -588,7 +667,7 @@ internal sealed class WorldQuestEditor : Panel
     {
         Kind = x.Kind, Name = x.Name, Description = x.Description, Npc = x.Npc, Text = x.Text, MapTag = x.MapTag,
         Areas = x.Areas.Select(a => new QuestArea { X0 = a.X0, Y0 = a.Y0, Z0 = a.Z0, X1 = a.X1, Y1 = a.Y1, Z1 = a.Z1 }).ToList(),
-        Monsters = x.Monsters.ToList(),
+        Monsters = x.Monsters.ToList(), Items = x.Items.ToList(), WaitSeconds = x.WaitSeconds,
     };
     Snap Take() => new(_d.Steps.Select(CloneStep).ToList(), _items.Items.Cast<ListViewItem>().Select(i => ((int, int))i.Tag!).ToList(), _stepList.SelectedIndex);
     void Remember() { _dUndo.Add(Take()); if (_dUndo.Count > 100) _dUndo.RemoveAt(0); _dRedo.Clear(); }

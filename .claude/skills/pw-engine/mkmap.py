@@ -73,6 +73,7 @@ topics = [
     ("comandos de GM do console (d 8888 teleporte)", "S/playercmd.cpp (case 8888) -> LongJump (S/actsession.cpp) / PlaneSwitch (S/player.cpp)"),
     ("instancias e campo de batalha", "S/instance/instance_manager.cpp, battleground_manager.cpp"),
     ("quests no servidor", "S/task/ (grep TaskInterface), S/item/item_taskdice.cpp"),
+    ("objetivos de quest (enum, leitura por metodo, tirar itens ao concluir)", "source_client_153/CElementClient/Task/TaskTempl.h enumTM*, TaskTempl.cpp Unmarshal* (switch m_enumMethod), TaskProcess.cpp RemoveAcquiredItem/m_bClearAcquired; MAX_ITEM_WANTED em TaskInterface.h"),
     ("login/contas/cash/GM (daemon)", "cnet/gdeliveryd (§M7); rpc em cnet/rpcalls.xml"),
     ("imagens de texto da batalha (critico, alma...)", "C/EC_ImageRes.cpp CECImageRes::Init (nomes GBK)"),
     ("mapa da tecla M (mundo/instancia)", "C/DlgWorldMap.cpp GetPixelsByPos; C/EC_Instance.cpp (instance.txt)"),

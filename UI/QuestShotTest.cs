@@ -33,7 +33,9 @@ internal static class QuestShotTest
         var host = new Stub();
         var draft = host.NewDraft(2001, out _)!;
         // página Etapas: mostra uma etapa "matar monstros" já preenchida (a 2ª, selecionada ao abrir a página)
-        if (page == 1) draft.Steps.AddRange(new[] { new QuestStep { Kind = QuestStepKind.Talk, Npc = 2002 }, new QuestStep { Kind = QuestStepKind.Kill, Name = "Lobos da colina", Monsters = { (3001, 10), (3002, 3) } } });
+        if (page == 1) draft.Steps.AddRange(new[] { new QuestStep { Kind = QuestStepKind.Talk, Npc = 2002 }, new QuestStep { Kind = QuestStepKind.Kill, Name = "Lobos da colina", Monsters = { (3001, 10), (3002, 3) } },
+            new QuestStep { Kind = QuestStepKind.Wait, Name = "Espere", WaitSeconds = 90 },
+            new QuestStep { Kind = QuestStepKind.Deliver, Name = "Entregue as peles", Npc = 2002, Text = "Belas peles!", Items = { (4001, 10) } } });
         var ed = new WorldQuestEditor(host, draft, new QuestWorld(_ => { }, _ => { }, (_, _) => { }, () => 1, _ => { }));
         var panel = new WorldQuestPanel { CreateQuest = _ => { }, LinkQuest = _ => { }, EditQuest = _ => { }, DeleteQuest = _ => { } };
         f.Controls.Add(ed); f.Controls.Add(panel);

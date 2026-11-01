@@ -183,6 +183,8 @@ public static class TaskVer
     public static int GetMaxTeamMemWanted(int v) => v < 89 ? 8 : v < 120 ? 10 : v < 147 ? 12 : v < 195 ? 15 : v < 216 ? 16 : v < 240 ? 17 : 18;
     public static int GetMaxPlayerWanted(int v) => v < 135 ? 3 : 6;
     public static int GetMaxMonsterWanted(int v) => v < 135 ? 3 : 6;
+    /// <summary>MAX_ITEM_WANTED (TaskInterface.h, cliente 1.5.3).</summary>
+    public static int GetMaxItemsWanted(int v) => 10;
     public static long GetMaxMonsterUnwanted(int v, long value) => value < 6 ? value : 6;
     public static int GetMaxAwardScales(int v) => v < 140 ? 5 : 6;
     public static int GetMaxMutexTasks(int v) => v < 215 ? 5 : 20;

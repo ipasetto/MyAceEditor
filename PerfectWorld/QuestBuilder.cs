@@ -24,7 +24,8 @@ public sealed class QuestDraft
     public int Editing;
 }
 
-public enum QuestStepKind { Talk, Reach, Kill }
+/// <summary>Falar com NPC, ir até um lugar, matar monstros, obter itens (ficam com o jogador), entregar itens a um NPC (ele fica com eles), esperar um tempo.</summary>
+public enum QuestStepKind { Talk, Reach, Kill, Collect, Deliver, Wait }
 
 /// <summary>Em ordem (uma de cada vez); qualquer ordem (todas ativas, termina quando a última acabar); basta uma.</summary>
 public enum QuestStepOrder { InOrder, AnyOrder, AnyOne }
@@ -48,6 +49,10 @@ public sealed class QuestStep
     public List<QuestArea> Areas = new();
     /// <summary>Matar monstros: ID do monstro e quantos (m_MonsterWanted; a etapa acaba quando todos estiverem contados).</summary>
     public List<(int Id, int Count)> Monsters = new();
+    /// <summary>Obter / entregar itens: ID do item e quantos (m_ItemsWanted). Entregar usa também Npc e Text (fala ao receber).</summary>
+    public List<(int Id, int Count)> Items = new();
+    /// <summary>Esperar um tempo: segundos depois de a etapa começar (m_ulWaitTime).</summary>
+    public int WaitSeconds;
 }
 
 /// <summary>
@@ -59,7 +64,7 @@ public sealed class QuestStep
 public static class QuestBuilder
 {
     /// <summary>Objetivo "falar com NPC" e conclusão ao falar com o NPC que recebe (perfil de 98% dos recados nas v93/v129/v198).</summary>
-    const int MethodTalkToNpc = 3, FinishByTalk = 1, MethodNone = 0, MethodReachSite = 4, FinishDirect = 0, MethodKillMonster = 1;
+    const int MethodTalkToNpc = 3, FinishByTalk = 1, MethodNone = 0, MethodReachSite = 4, FinishDirect = 0, MethodKillMonster = 1, MethodCollectItems = 2, MethodWaitTime = 5;
 
     /// <summary>O rascunho é um recado simples (sem subquests): sem etapas ou só "falar com NPC".</summary>
     public static bool IsRecado(QuestDraft d) => d.Steps.Count == 0 || d.Steps.Count == 1 && d.Steps[0].Kind == QuestStepKind.Talk;
@@ -120,7 +125,7 @@ public static class QuestBuilder
     }
 
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TasksFile, StepTemplates> _stepTpl = new();
-    sealed record StepTemplates(QuestNode? Parent, QuestNode? Reach, QuestNode? Talk, QuestNode? Kill);
+    sealed record StepTemplates(QuestNode? Parent, QuestNode? Reach, QuestNode? Talk, QuestNode? Kill, QuestNode? Collect, QuestNode? Deliver, QuestNode? Wait);
 
     /// <summary>
     /// As opções de quest do diálogo (dar, concluir, entregar item) são exatamente as da própria quest: uma ou mais, todas com
@@ -141,8 +146,8 @@ public static class QuestBuilder
     /// </summary>
     static StepTemplates Templates(TasksFile t)
     {
-        if (_stepTpl.TryGetValue(t, out var c) && new[] { c.Parent, c.Reach, c.Talk, c.Kill }.All(q => q is null || t.Index.Find(q.Id) == q)) return c;
-        QuestNode? parent = null, reach = null, talk = null, kill = null;
+        if (_stepTpl.TryGetValue(t, out var c) && new[] { c.Parent, c.Reach, c.Talk, c.Kill, c.Collect, c.Deliver, c.Wait }.All(q => q is null || t.Index.Find(q.Id) == q)) return c;
+        QuestNode? parent = null, reach = null, talk = null, kill = null, collect = null, deliver = null, wait = null;
         foreach (var q in t.Roots ?? new())
         {
             if (parent is null && q.Children.Count > 0 && q.Talks.Length >= 5 && q.Talks[0].Windows.Count == 1 && OwnOptions(q, 0, TasksFile.NpcGiveTask) && NoTalks(q, 1, 4))
@@ -152,7 +157,7 @@ public static class QuestBuilder
             }
             foreach (var k in q.Descendants())
             {
-                if (reach is not null && talk is not null && kill is not null) break;
+                if (reach is not null && talk is not null && kill is not null && collect is not null && deliver is not null && wait is not null) break;
                 if (k.Children.Count > 0 || k.Talks.Length < 5) continue;
                 if (reach is null && NoTalks(k, 0, 4))
                 {
@@ -164,15 +169,22 @@ public static class QuestBuilder
                     var r = ReadRec(k, t.Version);
                     if (r.Int("m_enumMethod") == MethodKillMonster && r.Int("m_enumFinishType") == FinishDirect && r.Int("m_ulMonsterWanted") >= 1) kill = k;
                 }
-                if (talk is null && NoTalks(k, 0, 3) && k.Talks[4].Windows.Count == 1 && OwnOptions(k, 4, TasksFile.NpcCompleteTask))
+                if ((talk is null || deliver is null) && NoTalks(k, 0, 3) && k.Talks[4].Windows.Count == 1 && OwnOptions(k, 4, TasksFile.NpcCompleteTask))
                 {
                     var r = ReadRec(k, t.Version);
-                    if (r.Int("m_enumMethod") == MethodTalkToNpc && r.Int("m_enumFinishType") == FinishByTalk && r.Int("m_ulAwardNPC") > 0) talk = k;
+                    if (talk is null && r.Int("m_enumMethod") == MethodTalkToNpc && r.Int("m_enumFinishType") == FinishByTalk && r.Int("m_ulAwardNPC") > 0) talk = k;
+                    if (deliver is null && r.Int("m_enumMethod") == MethodCollectItems && r.Int("m_enumFinishType") == FinishByTalk && r.Int("m_ulAwardNPC") > 0 && r.Int("m_ulItemsWanted") >= 1) deliver = k;
+                }
+                if ((collect is null || wait is null) && NoTalks(k, 0, 4))
+                {
+                    var r = ReadRec(k, t.Version);
+                    if (collect is null && r.Int("m_enumMethod") == MethodCollectItems && r.Int("m_enumFinishType") == FinishDirect && r.Int("m_ulItemsWanted") >= 1) collect = k;
+                    if (wait is null && r.Int("m_enumMethod") == MethodWaitTime && r.Int("m_enumFinishType") == FinishDirect && r.Int("m_ulWaitTime") > 0) wait = k;
                 }
             }
-            if (parent is not null && reach is not null && talk is not null && kill is not null) break;
+            if (parent is not null && reach is not null && talk is not null && kill is not null && collect is not null && deliver is not null && wait is not null) break;
         }
-        c = new StepTemplates(parent, reach, talk, kill);
+        c = new StepTemplates(parent, reach, talk, kill, collect, deliver, wait);
         _stepTpl.AddOrUpdate(t, c);
         return c;
     }
@@ -194,7 +206,7 @@ public static class QuestBuilder
         bool recado = IsRecado(d);
         if (d.Giver <= 0 || !isNpc(d.Giver)) e.Add(T("qb.noGiver", "Falta o NPC que dá a quest."));
         if (recado && (d.Receiver <= 0 || !isNpc(d.Receiver))) e.Add(T("qb.noReceiver", "Falta o NPC que recebe a quest."));
-        if (!recado) ValidateSteps(t, d, isNpc, e);
+        if (!recado) ValidateSteps(t, d, isNpc, itemExists, e);
         if (d.MinLevel < 0 || d.MaxLevel < 0 || d.MaxLevel > 0 && d.MaxLevel < d.MinLevel) e.Add(T("qb.levels", "O nível máximo é menor que o mínimo."));
         if (d.Gold < 0 || d.Exp < 0 || d.Sp < 0) e.Add(T("qb.negative", "Ouro, experiência e espírito não podem ser negativos."));
         foreach (var (id, n) in d.Items)
@@ -240,7 +252,7 @@ public static class QuestBuilder
         && !(d.Editing > 0 && t.Index.Find(d.Editing) is QuestNode old && row is QuestNode n && (n == old || old.Descendants().Contains(n)));
 
     /// <summary>Etapas: IDs seguidos livres, cada etapa completa e coerente com a versão, modelos reais no arquivo.</summary>
-    static void ValidateSteps(TasksFile t, QuestDraft d, Func<int, bool> isNpc, List<string> e)
+    static void ValidateSteps(TasksFile t, QuestDraft d, Func<int, bool> isNpc, Func<int, bool> itemExists, List<string> e)
     {
         string T(string k, string pt) => FieldKinds.Translate(k, pt);
         var tpl = Templates(t);
@@ -266,6 +278,27 @@ public static class QuestBuilder
                     else if (s.Monsters.Count > TaskVer.GetMaxMonsterWanted(t.Version)) e.Add(at + string.Format(T("qb.stepMonstersMax", "no máximo {0} monstros nesta versão."), TaskVer.GetMaxMonsterWanted(t.Version)));
                     foreach (var (mid, n) in s.Monsters)
                         if (mid <= 0 || n <= 0) e.Add(at + string.Format(T("qb.stepBadMonster", "monstro {0}: ID e quantidade precisam ser maiores que zero."), mid));
+                    break;
+                case QuestStepKind.Collect or QuestStepKind.Deliver:
+                {
+                    bool give = s.Kind == QuestStepKind.Deliver;
+                    if ((give ? tpl.Deliver : tpl.Collect) is null)
+                        e.Add(at + (give ? T("qb.noDeliverTpl", "não há neste tasks.data uma etapa \"entregar itens a um NPC\" para servir de modelo.")
+                                         : T("qb.noCollectTpl", "não há neste tasks.data uma etapa \"obter itens\" para servir de modelo.")));
+                    if (s.Items.Count == 0) e.Add(at + T("qb.stepNoItems", "escolha pelo menos um item."));
+                    else if (s.Items.Count > TaskVer.GetMaxItemsWanted(t.Version)) e.Add(at + string.Format(T("qb.stepItemsMax", "no máximo {0} itens nesta versão."), TaskVer.GetMaxItemsWanted(t.Version)));
+                    foreach (var (iid, n) in s.Items)
+                    {
+                        if (iid <= 0 || n <= 0) e.Add(at + string.Format(T("qb.stepBadItem", "item {0}: ID e quantidade precisam ser maiores que zero."), iid));
+                        else if (!itemExists(iid)) e.Add(at + string.Format(T("qb.noItem", "O item {0} não existe no elements.data."), iid));
+                    }
+                    if (give && (s.Npc <= 0 || !isNpc(s.Npc))) e.Add(at + T("qb.stepNoNpcDeliver", "falta o NPC que recebe os itens."));
+                    if (give && s.Text.Trim().Length == 0) e.Add(at + T("qb.stepNoText", "falta a fala do NPC ao concluir a etapa."));
+                    break;
+                }
+                case QuestStepKind.Wait:
+                    if (tpl.Wait is null) e.Add(at + T("qb.noWaitTpl", "não há neste tasks.data uma etapa \"esperar um tempo\" para servir de modelo."));
+                    if (s.WaitSeconds <= 0) e.Add(at + T("qb.stepNoWait", "o tempo de espera precisa ser maior que zero."));
                     break;
                 case QuestStepKind.Reach:
                     if (tpl.Reach is null) e.Add(at + T("qb.noReachTpl", "não há neste tasks.data uma etapa \"ir até um lugar\" para servir de modelo."));
@@ -320,7 +353,7 @@ public static class QuestBuilder
         for (int i = 0; i < d.Steps.Count; i++)
         {
             var proto = old is not null && i < old.Children.Count && StepKind(t, old.Children[i]) == d.Steps[i].Kind ? old.Children[i]
-                : d.Steps[i].Kind switch { QuestStepKind.Reach => tpl.Reach, QuestStepKind.Kill => tpl.Kill, _ => tpl.Talk };
+                : d.Steps[i].Kind switch { QuestStepKind.Reach => tpl.Reach, QuestStepKind.Kill => tpl.Kill, QuestStepKind.Collect => tpl.Collect, QuestStepKind.Deliver => tpl.Deliver, QuestStepKind.Wait => tpl.Wait, _ => tpl.Talk };
             kids.Add(t.AddChild(q, proto ?? throw new InvalidOperationException("sem modelo de etapa"), d.Id + 1 + i));
         }
         var rec = ReadRec(q, t.Version);
@@ -341,7 +374,7 @@ public static class QuestBuilder
             WriteRec(k, r, t.Version);
             k.Name = s.Name;
             k.Texts[0] = s.Description; k.Texts[1] = k.Texts[2] = k.Texts[3] = "";
-            if (s.Kind == QuestStepKind.Talk) k.Talks[4].Windows[0].Text = s.Text;
+            if (s.Kind is QuestStepKind.Talk or QuestStepKind.Deliver) k.Talks[4].Windows[0].Text = s.Text;
             k.TextsChanged = true;
         }
         t.InvalidateNpcIndex();
@@ -382,6 +415,10 @@ public static class QuestBuilder
         var r = ReadRec(k, t.Version);
         if (r.Int("m_enumMethod") == MethodReachSite && r.Int("m_enumFinishType") == FinishDirect && NoTalks(k, 0, 4)) return QuestStepKind.Reach;
         if (r.Int("m_enumMethod") == MethodKillMonster && r.Int("m_enumFinishType") == FinishDirect && NoTalks(k, 0, 4)) return QuestStepKind.Kill;
+        if (r.Int("m_enumMethod") == MethodCollectItems && r.Int("m_enumFinishType") == FinishDirect && NoTalks(k, 0, 4)) return QuestStepKind.Collect;
+        if (r.Int("m_enumMethod") == MethodWaitTime && r.Int("m_enumFinishType") == FinishDirect && NoTalks(k, 0, 4)) return QuestStepKind.Wait;
+        if (r.Int("m_enumMethod") == MethodCollectItems && r.Int("m_enumFinishType") == FinishByTalk && NoTalks(k, 0, 3) && k.Talks[4].Windows.Count == 1
+            && OwnOptions(k, 4, TasksFile.NpcCompleteTask)) return QuestStepKind.Deliver;
         if (r.Int("m_enumMethod") == MethodTalkToNpc && r.Int("m_enumFinishType") == FinishByTalk && NoTalks(k, 0, 3) && k.Talks[4].Windows.Count == 1
             && OwnOptions(k, 4, TasksFile.NpcCompleteTask)) return QuestStepKind.Talk;
         return null;
@@ -435,7 +472,12 @@ public static class QuestBuilder
                 if (k.Id != q.Id + 1 + i || StepKind(t, k) is not { } kind || k.Texts.Skip(1).Any(x => !string.IsNullOrEmpty(x))) { shape = false; break; }
                 var r = ReadRec(k, t.Version);
                 var s = new QuestStep { Kind = kind, Name = k.Name, Description = k.Texts[0] ?? "" };
-                if (kind == QuestStepKind.Talk) { s.Npc = (int)r.Int("m_ulAwardNPC"); s.Text = k.Talks[4].Windows[0].Text; }
+                if (kind is QuestStepKind.Talk or QuestStepKind.Deliver) { s.Npc = (int)r.Int("m_ulAwardNPC"); s.Text = k.Talks[4].Windows[0].Text; }
+                if (kind is QuestStepKind.Collect or QuestStepKind.Deliver)
+                    for (int m = 0; m < r.Int("m_ulItemsWanted"); m++)
+                        s.Items.Add(((int)r.Int($"m_ItemsWanted[{m}].m_ulItemTemplId"), (int)r.Int($"m_ItemsWanted[{m}].m_ulItemNum")));
+                else if (kind == QuestStepKind.Wait) s.WaitSeconds = (int)r.Int("m_ulWaitTime");
+                else if (kind == QuestStepKind.Talk) { }
                 else if (kind == QuestStepKind.Kill)
                     for (int m = 0; m < r.Int("m_ulMonsterWanted"); m++)
                         s.Monsters.Add(((int)r.Int($"m_MonsterWanted[{m}].m_ulMonsterTemplId"), (int)r.Int($"m_MonsterWanted[{m}].m_ulMonsterNum")));
@@ -527,6 +569,29 @@ public static class QuestBuilder
         if (s.Kind == QuestStepKind.Talk)
         {
             S("m_enumMethod", MethodTalkToNpc); S("m_enumFinishType", FinishByTalk); S("m_ulAwardNPC", s.Npc); S("m_ulReachSiteId", 0);
+            return;
+        }
+        if (s.Kind is QuestStepKind.Collect or QuestStepKind.Deliver)
+        {
+            bool give = s.Kind == QuestStepKind.Deliver;
+            S("m_enumMethod", MethodCollectItems); S("m_enumFinishType", give ? FinishByTalk : FinishDirect); S("m_ulAwardNPC", give ? s.Npc : 0); S("m_ulReachSiteId", 0);
+            // a lista do modelo não é zerada pelo Clean (chave com ponto): zera e grava a nossa (item comum, chance 1)
+            foreach (var k in r.V.Keys.Where(k => k.StartsWith("m_ItemsWanted[")).ToList()) r.V[k] = Zero(r.V[k]);
+            S("m_ulItemsWanted", s.Items.Count);
+            for (int m = 0; m < s.Items.Count; m++)
+            {
+                var b = $"m_ItemsWanted[{m}].";
+                S(b + "m_ulItemTemplId", s.Items[m].Id); S(b + "m_bCommonItem", 1); S(b + "m_ulItemNum", s.Items[m].Count); r.V[b + "m_fProb"] = 1f;
+            }
+            // m_bClearAcquired (TaskProcess: tira os itens ao concluir): entregar = o NPC fica com eles; obter = ficam com o jogador
+            // (uma etapa seguinte pode pedir os mesmos itens)
+            if (r.V.ContainsKey("m_bClearAcquired") || QuestOptions.SwitchIndex(version, "m_bClearAcquired") >= 0) QuestOptions.SetFlag(r, version, "m_bClearAcquired", give);
+            return;
+        }
+        if (s.Kind == QuestStepKind.Wait)
+        {
+            S("m_enumMethod", MethodWaitTime); S("m_enumFinishType", FinishDirect); S("m_ulAwardNPC", 0); S("m_ulReachSiteId", 0);
+            S("m_ulWaitTime", s.WaitSeconds);
             return;
         }
         if (s.Kind == QuestStepKind.Kill)

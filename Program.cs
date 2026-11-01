@@ -461,6 +461,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--tasks") { TestTasks(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks-recado") { TaskRecado(args[1]); return; }
         if (args.Length >= 2 && args[0] == "--tasks-site") { TaskSite(args[1]); return; }
+        if (args.Length >= 3 && args[0] == "--tasks-method") { foreach (var m in args[2].Split(',')) TaskMethod(args[1], int.Parse(m)); return; }   // <tasks.data> <método[,método]>: perfil do objetivo (tasks-method.txt)
         if (args.Length >= 3 && args[0] == "--tasks-svc") { TaskSvc(args[1], args[2]); return; }   // <elements.data> <tasks.data>: que ID (pai ou filha) os NPCs guardam no serviço de dar/receber   // <tasks.data>: perfil das quests "ir até um lugar" (tasks-site.txt)   // <tasks.data>: perfil das quests de recado (tasks-recado.txt)
         if (args.Length >= 2 && args[0] == "--quest-create") { TestQuestCreate(args[1]); return; }   // <tasks.data>: cria recado, relê e confere (quest-create.txt)
         if (args.Length >= 2 && args[0] == "--scene-models")   // <element\maps> <mapa,mapa...>: modelos EC fixos do .ecwld (scene-models.txt)
@@ -1127,6 +1128,47 @@ internal static class Program
 
     // --tasks-site <tasks.data>: como são as quests "ir até um lugar" reais (m_ulReachSiteCnt > 0, principais e subquests):
     // método/conclusão, posição na árvore (pai em ordem, irmãos), tamanho e mapa das caixas (tasks-site.txt)
+    /// <summary>
+    /// Perfil das quests com um objetivo (m_enumMethod): onde ficam (principal/filha), conclusão, NPCs, diálogos e os campos
+    /// do objetivo — base para o assistente gravar como o jogo grava (tasks-method.txt). Roteiro: docs/MUNDO-3D-EDITOR.md.
+    /// </summary>
+    private static void TaskMethod(string path, int method)
+    {
+        var t = new TasksFile(path);
+        var hist = new SortedDictionary<string, Dictionary<string, int>>();
+        void Add(string k, string v) { var h = hist.TryGetValue(k, out var x) ? x : hist[k] = new(); h[v] = h.GetValueOrDefault(v) + 1; }
+        var samples = new List<string>();
+        int n = 0;
+        foreach (var q in t.Roots!.SelectMany(r => r.Descendants().Prepend(r)))
+        {
+            var rec = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(q.Fixed, false)), t.Version);
+            if (rec.Int("m_enumMethod") != method) continue;
+            n++;
+            Add("conclusão", rec.Int("m_enumFinishType").ToString());
+            Add("subquest", q.Parent is null ? "principal" : "filha");
+            Add("filhas", Math.Min(q.Children.Count, 3).ToString());
+            Add("NPC que dá>0", (rec.Int("m_ulDelvNPC") > 0).ToString());
+            Add("NPC que recebe>0", (rec.Int("m_ulAwardNPC") > 0).ToString());
+            Add("diálogos (janelas por talk)", string.Join(",", q.Talks.Select(tp => tp.Windows.Count)));
+            foreach (var k in new[] { "m_ulItemsWanted", "m_ulGoldWanted", "m_ulMonsterWanted", "m_ulNPCToProtect>0", "m_ulProtectTimeLen", "m_ulNPCMoving>0", "m_ulNPCDestSite>0",
+                         "m_ulGivenItems", "m_ulPremItems", "m_ulReachSiteCnt", "m_ItemsWanted[0].m_bCommonItem", "m_ItemsWanted[0].m_fProb", "m_ulWaitTime" })
+            {
+                var key = k.TrimEnd('>', '0');
+                if (!rec.V.ContainsKey(key)) continue;
+                long v = rec.Int(key);
+                Add(k, k.EndsWith(">0") ? (v > 0).ToString() : key.Contains("Prob") ? Convert.ToSingle(rec.V[key]).ToString("0.##") : Math.Min(v, 9).ToString());
+            }
+            if (samples.Count < 10)
+                samples.Add($"{q.Id} \"{TasksFile.SplitColor(q.Name).Text}\" {(q.Parent is null ? "" : $"filha de {q.Parent.Id} ")}conclusão {rec.Int("m_enumFinishType")} dá {rec.Int("m_ulDelvNPC")} recebe {rec.Int("m_ulAwardNPC")} "
+                    + $"itens {rec.Int("m_ulItemsWanted")} ({rec.Int("m_ItemsWanted[0].m_ulItemTemplId")}×{rec.Int("m_ItemsWanted[0].m_ulItemNum")}) proteger {rec.Int("m_ulNPCToProtect")} {rec.Int("m_ulProtectTimeLen")}s mover {rec.Int("m_ulNPCMoving")}→{rec.Int("m_ulNPCDestSite")} "
+                    + $"talks {string.Join(",", q.Talks.Select(tp => tp.Windows.Count))}");
+        }
+        var sb = new StringBuilder($"v{t.Version} · método {method}: {n} quests\n");
+        foreach (var (k, h) in hist) sb.AppendLine($"{k}: " + string.Join(" | ", h.OrderByDescending(x => x.Value).Take(8).Select(x => $"{x.Key} ({x.Value})")));
+        sb.AppendLine("exemplos:"); foreach (var s in samples) sb.AppendLine("  " + s);
+        File.AppendAllText("tasks-method.txt", sb.ToString() + "\n", new UTF8Encoding(false));
+    }
+
     private static void TaskSite(string path)
     {
         var t = new TasksFile(path);
@@ -1386,6 +1428,46 @@ internal static class Program
                     sb.AppendLine($"  editada: {V(p6.Children[0], "m_MonsterWanted[0].m_ulMonsterNum")} do monstro 1");
                     b6.DeleteRoot(p6);
                     sb.AppendLine($"  sem a quest, regravação: {(b6.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
+                }
+            }
+        }
+
+        // etapas obter itens → esperar → entregar itens a um NPC (roteiro docs/MUNDO-3D-EDITOR.md, passo 1)
+        {
+            var t7 = new TasksFile(original);
+            int npc7 = int.Parse(V(tpl, "m_ulAwardNPC"));
+            var d7 = new QuestDraft
+            {
+                Id = t7.NextFreeId(), Name = "Coleta de teste", Giver = npc7, Exp = 300, OfferText = "Traga os materiais.",
+                Steps =
+                {
+                    new QuestStep { Kind = QuestStepKind.Collect, Name = "Junte madeira", Items = { (11208, 5) } },
+                    new QuestStep { Kind = QuestStepKind.Wait, Name = "Espere secar", WaitSeconds = 90 },
+                    new QuestStep { Kind = QuestStepKind.Deliver, Name = "Entregue", Items = { (11208, 5), (11209, 1) }, Npc = npc7, Text = "Ótimo material!" },
+                },
+            };
+            var err7 = QuestBuilder.Validate(t7, d7, _ => true, _ => true);
+            sb.AppendLine("\n[obter/esperar/entregar] validação: " + (err7.Count == 0 ? "OK" : string.Join("; ", err7)));
+            if (err7.Count == 0)
+            {
+                QuestBuilder.Build(t7, d7);
+                var b7 = new TasksFile(t7.Build());
+                var p7 = (QuestNode)b7.Index.Find(d7.Id)!;
+                string Clear(QuestNode x) => QuestOptions.GetFlag(TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(x.Fixed)), b7.Version), b7.Version, "m_bClearAcquired") ? "tira" : "fica";
+                foreach (var k in p7.Children)
+                    sb.AppendLine($"  {k.Id}: método {V(k, "m_enumMethod")} conclusão {V(k, "m_enumFinishType")} recebe {V(k, "m_ulAwardNPC")} itens {V(k, "m_ulItemsWanted")} "
+                        + $"({V(k, "m_ItemsWanted[0].m_ulItemTemplId")}×{V(k, "m_ItemsWanted[0].m_ulItemNum")}) espera {V(k, "m_ulWaitTime")}s itens ao concluir: {Clear(k)} diálogos {string.Join(",", k.Talks.Select(tp => tp.Windows.Count))}");
+                var e7 = QuestBuilder.FromQuest(b7, p7, out var why7);
+                sb.AppendLine($"  ler para editar: {(e7 is null ? "NÃO — " + why7 : "OK · " + string.Join(" / ", e7.Steps.Select(s => $"{s.Kind} {string.Join(",", s.Items)} {s.WaitSeconds}s {s.Npc}")))}");
+                if (e7 is not null)
+                {
+                    e7.Steps[1].WaitSeconds = 120; e7.Steps[2].Items[0] = (11208, 7);
+                    QuestBuilder.Replace(b7, p7, e7);
+                    var b8 = new TasksFile(b7.Build());
+                    var p8 = (QuestNode)b8.Index.Find(d7.Id)!;
+                    sb.AppendLine($"  editada: espera {V(p8.Children[1], "m_ulWaitTime")}s, entrega {V(p8.Children[2], "m_ItemsWanted[0].m_ulItemNum")}× · fala \"{p8.Children[2].Talks[4].Windows[0].Text}\"");
+                    b8.DeleteRoot(p8);
+                    sb.AppendLine($"  sem a quest, regravação: {(b8.Build().AsSpan().SequenceEqual(original) ? "IDÊNTICA ao original" : "DIFERENTE")}");
                 }
             }
         }

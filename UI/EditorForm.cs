@@ -2900,7 +2900,7 @@ public sealed class EditorForm : Form
             if (QuestBuilder.IsRecado(d)) l.Add((d.Receiver, d.Id, false));
             else
                 for (int i = 0; i < d.Steps.Count; i++)
-                    if (d.Steps[i].Kind == QuestStepKind.Talk) l.Add((d.Steps[i].Npc, d.Id + 1 + i, false));
+                    if (d.Steps[i].Kind is QuestStepKind.Talk or QuestStepKind.Deliver) l.Add((d.Steps[i].Npc, d.Id + 1 + i, false));
             return l;
         }
         public string Summary(QuestDraft d) => f.QuestSummary(d);
@@ -2975,11 +2975,17 @@ public sealed class EditorForm : Form
                 var s = d.Steps[i];
                 sb.AppendLine(s.Kind == QuestStepKind.Talk
                     ? string.Format(Loc.T("qb.sumStepTalk", "  {0}. [{1}] \"{2}\": falar com {3}"), i + 1, d.Id + 1 + i, s.Name, N(s.Npc))
+                    : s.Kind == QuestStepKind.Collect
+                    ? string.Format(Loc.T("qb.sumStepCollect", "  {0}. [{1}] \"{2}\": obter {3}"), i + 1, d.Id + 1 + i, s.Name, string.Join(", ", s.Items.Select(m => $"{m.Count} × {N(m.Id)}")))
+                    : s.Kind == QuestStepKind.Deliver
+                    ? string.Format(Loc.T("qb.sumStepDeliver", "  {0}. [{1}] \"{2}\": entregar {3} a {4}"), i + 1, d.Id + 1 + i, s.Name, string.Join(", ", s.Items.Select(m => $"{m.Count} × {N(m.Id)}")), N(s.Npc))
+                    : s.Kind == QuestStepKind.Wait
+                    ? string.Format(Loc.T("qb.sumStepWait", "  {0}. [{1}] \"{2}\": esperar {3}"), i + 1, d.Id + 1 + i, s.Name, TimeSpan.FromSeconds(s.WaitSeconds).ToString(@"h\:mm\:ss"))
                     : s.Kind == QuestStepKind.Kill
                     ? string.Format(Loc.T("qb.sumStepKill", "  {0}. [{1}] \"{2}\": matar {3}"), i + 1, d.Id + 1 + i, s.Name, string.Join(", ", s.Monsters.Select(m => $"{m.Count} × {N(m.Id)}")))
                     : string.Format(Loc.T("qb.sumStepReach", "  {0}. [{1}] \"{2}\": chegar a uma de {3} área(s) no mapa {4}"), i + 1, d.Id + 1 + i, s.Name, s.Areas.Count, s.MapTag));
             }
-            if (d.Steps.Count > 0 && d.Steps[^1].Kind != QuestStepKind.Talk || d.Order != QuestStepOrder.InOrder)
+            if (d.Steps.Count > 0 && d.Steps[^1].Kind is not (QuestStepKind.Talk or QuestStepKind.Deliver) || d.Order != QuestStepOrder.InOrder)
                 sb.AppendLine(Loc.T("qb.sumAutoAward", "  O prêmio é dado assim que a quest termina (sem voltar a um NPC), a não ser pela etapa de falar com NPC."));
         }
         sb.AppendLine(d.MaxLevel > 0 ? string.Format(Loc.T("qb.sumLevels", "Nível: {0} a {1}"), d.MinLevel, d.MaxLevel) : string.Format(Loc.T("qb.sumLevelMin", "Nível: a partir de {0}"), d.MinLevel));
