@@ -113,6 +113,7 @@ glinkd version = HEX (10404=1.4.4) (PWKB§S5). tasks.data versao divergente = er
 ## §E6 CODIGO (C:\Godot\MyAceEditor)
 UI/WorldView.Tools.cs | menu FLUTUANTE de ferramentas do Mundo 3D (direita, solto; recolhe no cabecalho): botoes grandes Editar cenario / Caminhos de patrulha / Grama; abrir uma ferramenta liga a visao dela e o painel dela toma o lugar do menu (seta voltar): passo a passo, objeto escolhido, Desfazer/Refazer, aviso salvo/nao salvo, Salvar cenario. Filtros Mostrar ficam na barra de cima (_filterDefs); legenda so pelo botao Atalhos
 UI/WorldView.SceneEdit.cs | parte do WorldView: editar efeitos e sons do .ecwld (painel, Ctrl+Z, Salvar cenario, teste SceneSelfTest)
+PerfectWorld/BhtFile.cs | map.bht (colisao do servidor) para editar: le brushes + arvore ate o ultimo byte, Write igual sem mudanca, Box/Inside/Move (desloca brushes); --bht-check (68/68 iguais) | PW-KB §S6
 PerfectWorld/EcwldFile.cs | .ecwld para editar: cabecalho + tabela + blocos item a item (bytes originais) + resto; Write remonta (contagens, offsets dos blocos e dos tipos de arvore/grama); Move/Clone/Delete por ID de exportacao em todos os blocos
 PerfectWorld/PathFile.cs | path.sev (caminhos de patrulha do servidor): leitura/gravacao identica + amostragem das Beziers para desenhar
 UI/NpcGenEventsDialog.cs | janela Eventos do mapa (controladores do npcgen): lista + campos + agenda, desfazer proprio, devolve a lista nova

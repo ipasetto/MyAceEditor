@@ -48,6 +48,32 @@ internal static class Program
             File.WriteAllText("client-plan-report.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--bht-check")   // <pasta config do servidor>: lê todo */map.bht, confere a volta byte a byte e o deslocar de brushes
+        {
+            var sb = new StringBuilder();
+            foreach (var f in Directory.GetFiles(args[1], "map.bht", SearchOption.AllDirectories).OrderBy(x => x))
+            {
+                try
+                {
+                    var raw = File.ReadAllBytes(f); var b = new MyAceEditor.PerfectWorld.BhtFile(raw);
+                    bool same = b.Write().AsSpan().SequenceEqual(raw);
+                    string move = "";
+                    if (b.Count > 0)
+                    {
+                        // desloca os brushes dentro da caixa do 1º (+ 2 m de folga) e confere a caixa e um plano relidos
+                        var c = b.Box(0); var sel = b.Inside(c.X0 - 2, c.Y0 - 2, c.Z0 - 2, c.X1 + 2, c.Y1 + 2, c.Z1 + 2);
+                        b.Move(sel, 3, 0.5f, -2);
+                        var m = new MyAceEditor.PerfectWorld.BhtFile(b.Write()); var c2 = m.Box(0);
+                        bool ok = Math.Abs(c2.X0 - c.X0 - 3) < 1e-3 && Math.Abs(c2.Y1 - c.Y1 - 0.5f) < 1e-3 && Math.Abs(c2.Z0 - c.Z0 + 2) < 1e-3 && m.Count == b.Count;
+                        move = $" · mover {sel.Count} brush(es): {(ok ? "ok" : "ERRO")}";
+                    }
+                    sb.AppendLine($"{Path.GetFileName(Path.GetDirectoryName(f))}: {b.Count} brushes, volta {(same ? "igual" : "DIFERENTE")}{move}");
+                }
+                catch (Exception ex) when (ex is InvalidDataException or IOException) { sb.AppendLine($"{f}: {ex.Message}"); }
+            }
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "bht-check-report.txt"), sb.ToString());
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--ecwld-check")   // <pasta element\maps>: lê todos os .ecwld e confere se cada bloco termina onde o próximo começa (ecwld-check-report.txt)
         {
             var sb = new StringBuilder(); int maps = 0, exactMaps = 0, sameMaps = 0, editOk = 0, editTried = 0;
