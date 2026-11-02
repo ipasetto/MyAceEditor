@@ -44,6 +44,8 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 - numeros/decals sobre a cabeca: C/EC_Decal.cpp
 - inventario e itens no cliente: C/EC_Inventory.cpp, EC_IvtrItem.cpp, EC_IvtrTypes (grep)
 - janelas (AUI: xml, dcf): C/EC_UIManager.cpp; engine AUI em Angelica (§M14)
+- aipolicy no gs: carga cgame/gs/ai/policy_loader.cpp (ConvertCondition/ConvertOperation/ConvertTarget; pula bRun), leitura do arquivo ai/policy.cpp ReadOperationParam, enums ai/policy.h (_e_condition/_e_operation/_e_target_type), execucao cgame/gs/aitrigger.h (policy::AddTrigger, CheckTriggers, OnDeath) + aitrigger.cpp (op_say $B/$S/$A/$I/$X); morte -> aipolicy.cpp ai_policy::OnDeath
+- comandos de fora para o gs: cgame/gs/netmsg.cpp (GMControlGame: active/cancel_npc_generator)
 - arquivo xml -> classe da janela: C/EC_GameUIManDlgs.cpp MAP_FILE_TO_CREATOR / CreateDlgInstance (fora do mapa = CDlgBase); ponteiros Win_X: INIT_DIALOG_POINTER; contrato de cada janela: C/Dlg<X>.cpp DDX_Control (nome+tipo), AUI_ON_COMMAND (Command), AUI_ON_EVENT; comandos genericos: C/DlgBase.cpp (IDCANCEL Btn_Close Btn_Help); DDX_Control = AUIDialog.h (copia em Doc/.../OnScreenModelDisplay/AUInterface2)
 - pacotes .pck: Angelica AngelicaFile (AFilePackage) §M14
 - elements.data (formato/templates): source_client_153/CElementData §M12 (exptypes.h)

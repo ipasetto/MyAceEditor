@@ -45,6 +45,13 @@ internal sealed class PluginsView : Panel
     /// <summary>Liga/desliga o renascer dos pontos do evento no npcgen (EditorForm → NpcGenView.SetEventRespawn): mapa, evento, ligar → null ou motivo.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<string, int, bool, string?>? RespawnSink { get; set; }
+
+    /// <summary>
+    /// Anúncio de morte do plugin na IA do monstro (EditorForm.SetPluginDeathAnnounce): id do plugin, ID do monstro, texto
+    /// (null = tirar) → null ou motivo. Com renascer desligado a "Mensagem ao terminar" sai na morte (usuário 02/11).
+    /// </summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<string, int, string?, string?>? DeathSink { get; set; }
     readonly NumericUpDown _world = N(1, 1, 999), _ctrl = N(0, 0, 9_999_999), _every = N(30, 1, 100_000), _dur = N(20, 1, 100_000), _cool = N(0, 0, 2_592_000);
     readonly Label _point = new() { AutoSize = true, MaximumSize = new Size(420, 0), ForeColor = Color.FromArgb(22, 128, 61), Font = new Font("Segoe UI Semibold", 9.5f) };
 
@@ -172,7 +179,7 @@ internal sealed class PluginsView : Panel
         Dock = DockStyle.Fill; BackColor = Bg;
         // barra de cima: só o que fala com o servidor (o mesmo para qualquer plugin)
         var top = UiKit.Ribbon();
-        _send = UiKit.Cmd(top, UiKit.Upload, "pl.rSend", "Salvar e enviar", () => Work(SaveAndSend), "pl.rSendTip", "Grava os plugins no servidor; o programa relê sozinho.", primary: true);
+        _send = UiKit.Cmd(top, UiKit.Upload, "pl.rSend", "Salvar e enviar", () => { var note = SyncDeathAnnounces(); Work(() => SaveAndSend() + note); }, "pl.rSendTip", "Grava os plugins no servidor; o programa relê sozinho.", primary: true);
         UiKit.Sep(top);
         UiKit.Cmd(top, UiKit.Library, "pl.rInstalled", "Plugins instalados", ShowInstalled, "pl.rInstalledTip", "Abre os plugins que este editor tem; escolha um e ponha em execução (dá para pôr o mesmo várias vezes).");
         _runOn = UiKit.Cmd(top, UiKit.Server, "pl.rRunOn", "Ligar programa", () => Work(StartProgram), "pl.rRunOnTip", "Instala (se preciso) e liga o programa dos plugins no servidor local.");
@@ -316,6 +323,28 @@ internal sealed class PluginsView : Panel
         _enabled.CheckedChanged += (_, _) => Edited();
         _respawn.CheckedChanged += (_, _) => { if (!_binding && Sel is { } r) { Edited(); ApplyRespawn(r); } };
     }
+
+    /// <summary>
+    /// Põe (renascer desligado + mensagem) ou tira o anúncio de morte de cada plugin na IA do monstro. Roda na tela (mexe no
+    /// elements/aipolicy abertos, com Ctrl+Z); vale depois de salvar e enviar o elements e o aipolicy e reiniciar o mapa.
+    /// </summary>
+    string SyncDeathAnnounces()
+    {
+        if (DeathSink is null) return "";
+        int done = 0; var fails = new List<string>();
+        foreach (var r in _rules)
+        {
+            if (MonsterOf(r) is not { } mid) continue;
+            var why = DeathSink(r.Id, mid, !r.Respawn && r.EndText.Length > 0 ? r.EndText : null);
+            if (why is null) done++; else fails.Add($"{r.Name}: {why}");
+        }
+        return (done > 0 ? " · " + Loc.T("pl.deathSynced", "Anúncio de morte atualizado na IA do monstro: salve e envie o elements e o aipolicy (barra principal) e reinicie o mapa.") : "")
+            + (fails.Count > 0 ? " · ⚠ " + string.Join("; ", fails) : "");
+    }
+
+    // ID do monstro do ponto: "mapa · Nome (61648)"
+    static int? MonsterOf(PluginRule r) =>
+        System.Text.RegularExpressions.Regex.Match(PointText(r), @"\((\d+)\)\s*$") is { Success: true } m && int.TryParse(m.Groups[1].Value, out var id) ? id : null;
 
     /// <summary>Leva a opção Renasce para o ponto no npcgen (o gs só renasce pelo bAutoRevive do ponto, PW-KB §S22).</summary>
     void ApplyRespawn(PluginRule r)

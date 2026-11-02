@@ -480,6 +480,7 @@ public sealed class EditorForm : Form
         tPl.Controls.Add(_pluginsView = new PluginsView());
         string? pickWhy = null;
         _pluginsView.PointSource = () => (() => _npcgen?.EventControllerForSelected(out pickWhy), () => pickWhy);
+        _pluginsView.DeathSink = SetPluginDeathAnnounce;
         _pluginsView.RespawnSink = (map, gmId, on) => _npcgen is { } ng ? ng.SetEventRespawn(map, gmId, on) : Loc.T("pl.rsNoNpcgen", "Abra a pasta do PW antes (o NPCGen guarda o ponto).");
         tabs.TabPages.Add(tPl);
         // Interfaces (janelas do jogo) fica acima do Extrator PCK, que só extrai (usuário 01/11)
@@ -3505,6 +3506,46 @@ public sealed class EditorForm : Form
         }
         Status(string.Format(Loc.T("ann.done", "Anúncios de {0} aplicados{1} (Ctrl+Z desfaz). Salve e envie ao servidor."), item.Name,
             cloned ? string.Format(Loc.T("ann.clonedNote", " · IA própria: política {0}"), target.Id) : ""));
+    }
+
+    /// <summary>
+    /// Anúncio de morte de um plugin (tela Plugins, renascer desligado): gatilho "MyAce anuncio plugin &lt;id&gt;" na IA do
+    /// monstro com "$B" + texto; null tira. Mesma montagem do <see cref="OpenAnnouncements"/> (IA própria se a política é
+    /// dividida, Ctrl+Z). Não mexe se já está igual. null = ok; senão o motivo.
+    /// </summary>
+    internal string? SetPluginDeathAnnounce(string pluginId, int monsterId, string? text)
+    {
+        if (CreatureItem(monsterId) is not { Block.Name: "MONSTER_ESSENCE" } ci) return Loc.T("ann.onlyMonster", "Anúncio só para monstro.");
+        if (_aiView?.OpenFile is not { } f) return Loc.T("ann.noAi", "Abra o aipolicy.data na área AI Policy primeiro (ele carrega sozinho ao abrir a pasta do PW).");
+        var item = ci.Item;
+        var name = $"{AiAnnounce.Tag} plugin {pluginId}";
+        int pid = int.TryParse(item.Fields.GetValueOrDefault("common_strategy")?.Value, out var v) ? v : 0;
+        var pol = f.Policies.FirstOrDefault(p => p.Id == pid);
+        var mine = pol is null ? null : AiAnnounce.Find(pol).FirstOrDefault(a => a.Trigger.Name == name);
+        if (text is null ? mine is null : mine is { Prefix: "$B" } && mine.Text == text && mine.Trigger.Run == 0) return null;   // já está como deve
+        if (text is null && pol is null) return null;
+        int users = pid <= 0 ? 0 : ci.Block.Items.Count(i => i.Fields.GetValueOrDefault("common_strategy")?.Value == pid.ToString());
+        var target = AiAnnounce.OwnPolicy(f, pid, pol is null ? 2 : users, out bool cloned);
+        var before = target.Triggers.ToList();
+        target.Triggers.RemoveAll(x => x.Name == name);
+        if (text is not null)
+        {
+            var t = AiAnnounce.Make(f, target, AiAnnounce.When.Died, "$B", text, false);
+            t.Name = name;
+            target.Triggers.Add(t);
+        }
+        var after = target.Triggers.ToList();
+        target.Triggers = before;
+        if (cloned) f.Policies.Remove(target);
+        var label = string.Format(Loc.T("ann.hist", "Anúncios de {0}"), monsterId);
+        using (_edits.Batch(label))
+        {
+            _edits.Custom(label,
+                () => { if (cloned && !f.Policies.Contains(target)) f.Policies.Add(target); target.Triggers = after.ToList(); _aiView?.ChangedOutside(_store.Current); },
+                () => { target.Triggers = before.ToList(); if (cloned) f.Policies.Remove(target); _aiView?.ChangedOutside(_store.Current); });
+            if (cloned && item.Fields.TryGetValue("common_strategy", out var fs)) _edits.SetField(item, "common_strategy", Field.Of(fs.Type, target.Id.ToString()), "");
+        }
+        return null;
     }
 
     private (ItemList Block, Item Item)? CreatureItem(int id)

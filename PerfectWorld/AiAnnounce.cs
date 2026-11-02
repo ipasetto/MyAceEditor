@@ -52,6 +52,17 @@ public static class AiAnnounce
         return list;
     }
 
+    /// <summary>
+    /// Anúncios gravados por versões antigas do editor com Run = 1 (o gs pula esses gatilhos): devolve quantos corrigiu.
+    /// </summary>
+    public static int FixRun(AiPolicyFile f)
+    {
+        int n = 0;
+        foreach (var t in f.Policies.SelectMany(p => p.Triggers))
+            if (t.Name.StartsWith(Tag, StringComparison.Ordinal) && t.Run != 0) { t.Run = 0; n++; }
+        return n;
+    }
+
     /// <summary>Gatilho novo de anúncio (ainda fora da política: quem chama põe em p.Triggers).</summary>
     public static AiTrigger Make(AiPolicyFile f, AiPolicy p, When when, string prefix, string text, bool appendName)
     {
@@ -59,7 +70,9 @@ public static class AiAnnounce
         var lay = AiSchema.Op(2) ?? throw new InvalidOperationException("operação 2 (falar) sem layout");
         var t = new AiTrigger
         {
-            Version = ver, Id = p.Triggers.Count == 0 ? 1 : p.Triggers.Max(x => x.Id) + 1, Active = 1, Run = 1, AttackValid = 1,
+            // Run = 0: com bRun o gs trata o gatilho como subgatilho (só roda chamado por outro) e nem o registra
+            // (policy_loader.cpp "if(pTriggerData->IsRun()) continue;"); era por isso que o anúncio de morte não saía (usuário 02/11)
+            Version = ver, Id = p.Triggers.Count == 0 ? 1 : p.Triggers.Max(x => x.Id) + 1, Active = 1, Run = 0, AttackValid = 1,
             Name = Tag + (when == When.Died ? " morte" : " combate"),
         };
         // parâmetro da condição e do alvo copiados de um exemplo real do mesmo tipo no arquivo (nada de bytes chutados)

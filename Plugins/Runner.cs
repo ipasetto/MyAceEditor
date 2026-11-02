@@ -128,7 +128,9 @@ namespace MyAceEditor.Plugins
             var ok = Controller(r, on: false);
             s.ActiveUntil = null; s.NextRoll = now.AddMinutes(Math.Max(1, r.EveryMin));
             s.ReadyAt = now.AddSeconds(Math.Max(0, r.CooldownSec));   // respeita o renascer do monstro antes do próximo
-            if (r.EndText.Length > 0) Say(r.EndChannel, r.EndText);
+            // renascer desligado: a "Mensagem ao terminar" sai quando o monstro morre, pela IA dele (anúncio de morte que a
+            // tela Plugins põe); aqui não repete (o programa não fica sabendo da morte; usuário 02/11: "avisar só na morte")
+            if (r.EndText.Length > 0 && r.Respawn) Say(r.EndChannel, r.EndText);
             Result(r, s, true, $"terminou ({why}); evento {r.Controller} {(ok ? "desligado" : "não respondeu")}; pode de novo às {s.ReadyAt:HH:mm:ss}");
         }
 

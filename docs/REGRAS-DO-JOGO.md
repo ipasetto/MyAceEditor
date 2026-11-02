@@ -77,6 +77,9 @@ quando regravar o bloco a partir do rascunho dá o mesmo bloco (`QuestBuilder.Fr
 - **configs.pck (cor do nome e descrição):** só a linha do item muda; o arquivo tem de voltar idêntico ao ser relido
   antes de gravar (`ItemTexts`). `.pck` v2 e v3 (`PckWriter`).
 - **aipolicy.data:** versão de gatilhos que o gs da versão lê (o envio converte quando o gs recusa).
+- **aipolicy.data, gatilho que deve disparar sozinho:** `bRun` = 0. Com `bRun` = 1 o gs trata o gatilho como subgatilho
+  (só roda chamado pela operação "executar gatilho") e nem o registra (`policy_loader.cpp`: `if(IsRun()) continue`).
+  Os anúncios do editor nascem com 0 e os antigos são corrigidos ao abrir (`AiAnnounce.FixRun`).
 
 ## 5. Regras de trabalho do projeto
 

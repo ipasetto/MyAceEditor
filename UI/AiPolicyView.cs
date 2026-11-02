@@ -248,6 +248,12 @@ public sealed class AiPolicyView : UserControl
         if (gen != _loadGen) return;
         _file = parsed; _path = path; _dirty = false;
         ShowFile(path, sw.ElapsedMilliseconds, rt);
+        // anúncios de versões antigas do editor não disparavam no servidor (Run = 1): corrige ao abrir e avisa
+        if (_file.Ok && AiAnnounce.FixRun(_file) is var fixedRun and > 0)
+        {
+            MarkDirty();
+            SetStatus(string.Format(Loc.T("ai.fixedRun", "Corrigi {0} anúncio(s) que não disparavam no servidor (gatilho marcado como subgatilho). Salve e envie ao servidor e reinicie o mapa."), fixedRun));
+        }
     }
 
     void ShowFile(string path, long parseMs, bool rt)

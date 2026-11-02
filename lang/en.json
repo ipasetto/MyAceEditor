@@ -4965,5 +4965,7 @@
   "uiD.pickOk": "Check",
   "uiD.empty": "Empty window: pick Elements or Text on the left (or a Template to start from a game window).",
   "uiA.rCreate": "Create interface",
-  "uiA.createSub": "Draw your own window with pieces of the game windows (like Canva) and link it in place of a game window."
+  "uiA.createSub": "Draw your own window with pieces of the game windows (like Canva) and link it in place of a game window.",
+  "ai.fixedRun": "Fixed {0} announcement(s) that did not fire on the server (trigger marked as sub-trigger). Save and send to the server and restart the map.",
+  "pl.deathSynced": "Death announcement updated in the monster's AI: save and send the elements and aipolicy (main bar) and restart the map."
 }
