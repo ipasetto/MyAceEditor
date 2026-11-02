@@ -236,7 +236,7 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 [ ] chance de nascer + mensagem ao nascer (aipolicy do monstro: gatilho ativo no inicio, talk "$B..." e parar; chance precisa de um ajudante)
 [ ] aviso Win_PwdHint ("Lembre-se") e painel "Aviso" do login: texto editavel pelo editor de interfaces; esconder so com patch do cliente
 
-## CRIAR INTERFACE (pedido 02/11, estudado; nao comecado) — PW-KB §S20b
+## CRIAR INTERFACE (pedido 02/11) — FEITO 02/11 (UI/InterfaceDesigner.cs + PerfectWorld/UiDesign.cs; falta testar no jogo) — PW-KB §S20b
 - Tela "Criar interface" no editor de interface: desenhar janela propria copiando controles de outras janelas (mesmas imagens do surfaces).
 - "Vincular a" uma janela do jogo (ex.: gmconsole.xml): o editor grava com o MESMO nome de arquivo e Win_, confere o contrato (todos os nomes+tipos de controle e Commands do XML original; mostra o que falta) antes de salvar, poe no .dcf se preciso, backup + escrita atomica no interfaces.pck.
 - Controles a mais = so enfeite (o exe nao tem codigo para eles); janela com arquivo novo vira CDlgBase (so fechar/ajuda) e nada a abre.
