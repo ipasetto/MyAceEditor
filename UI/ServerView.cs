@@ -131,6 +131,9 @@ public sealed class ServerView : UserControl
         }
         if (_base.Text.Length == 0)
             _base.Text = _load("server_base") ?? (_pkg.Text.Length > 0 ? Path.Combine(Path.GetPathRoot(_pkg.Text)!, "PWServer") : @"C:\PWServer");
+            // pasta renomeada/movida: a gravada não tem mais o disco, mas o WSL sabe onde ele está
+            if (!File.Exists(Path.Combine(_base.Text, "vm", "ext4.vhdx")) && LocalServer.RegisteredBaseDir() is { } reg && File.Exists(Path.Combine(reg, "vm", "ext4.vhdx")))
+                _base.Text = reg;
     }
 
     LocalServer NewServer()

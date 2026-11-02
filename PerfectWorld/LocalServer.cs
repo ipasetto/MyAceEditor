@@ -31,6 +31,29 @@ public sealed class LocalServer
 
     public LocalServer(string baseDir) { BaseDir = baseDir; }
 
+    /// <summary>
+    /// Pasta que o WSL registra para a distro (pai de BasePath em HKCU\...\Lxss), ou null. Usada quando a pasta gravada
+    /// no editor não tem mais o disco (usuário renomeou D:\PWServer -> D:\PWServer155 em 02/11).
+    /// </summary>
+    public static string? RegisteredBaseDir()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        try
+        {
+            using var lx = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Lxss");
+            if (lx is null) return null;
+            foreach (var n in lx.GetSubKeyNames())
+            {
+                using var k = lx.OpenSubKey(n);
+                if (k?.GetValue("DistributionName") as string != Distro || k.GetValue("BasePath") is not string bp) continue;
+                bp = bp.StartsWith(@"\\?\") ? bp[4..] : bp;
+                return Path.GetDirectoryName(bp.TrimEnd('\\'));
+            }
+        }
+        catch (Exception) { }
+        return null;
+    }
+
     // ---------- WSL ----------
     public sealed record RunResult(int Code, string Output);
 
