@@ -57,7 +57,8 @@ tem **Chamar agora** e **Encerrar**.
 | `everyMin`, `chancePct` | de quanto em quanto tempo sorteia e a chance de cada sorteio |
 | `durationMin` | quanto tempo o evento fica ligado; no fim, os monstros que sobraram somem |
 | `cooldownSec` | espera mínima entre um evento e o próximo (o renascer do ponto + 15 s) |
-| `startChannel`/`endChannel` | canal do aviso: 9 anúncio, 8 sistema, 1 mundo, 12 super mundo |
+| `startChannel`/`endChannel` | canal do aviso; a tela grava sempre 9 (anúncio para todos) |
+| `respawn` | renasce enquanto o evento durar (fica no ponto do npcgen). Desligado: a mensagem de fim sai quando o monstro morre, pela IA dele, e o programa não repete no fim do tempo |
 
 Ao importar num servidor diferente, refaça o passo **Usar o ponto escolhido** (o ID do controlador é de cada mapa).
 
