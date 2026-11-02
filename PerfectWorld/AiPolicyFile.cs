@@ -170,7 +170,7 @@ public static class AiSchema
         "random_in_range", "nearest_in_range", "farthest_in_range"
     };
 
-    public const int MaxOpType = 102, MaxTargetType = 20;
+    public const int MaxOpType = 105, MaxTargetType = 20;   // 103..105: servidor 1.7.4/1.7.6 (PW-KB §S18)
 
     public static string CondName(int t) => t >= 0 && t < CondNames.Length ? CondNames[t] : $"cond_{t}";
     public static string OpName(int t) => t >= 0 && t < OpNames.Length ? OpNames[t] : $"op_{t}";
@@ -251,12 +251,13 @@ public static class AiSchema
             [84] = new("", false), [97] = new("", false),
             [94] = new("b:bVal1", false), [95] = new("b:bVal1", false),   // struct { bool } = 1 B
         };
-        // structs sem nome (O_64..O_102): só inteiros, nº de campos = sizeof/4
+        // structs sem nome (O_64..O_105): só inteiros, nº de campos = sizeof/4 (103-105 do fonte 1.7.4 policytype.h)
         var ints = new Dictionary<int, int>
         {
             [64] = 21, [65] = 11, [66] = 8, [67] = 7, [68] = 3, [69] = 2, [70] = 1, [71] = 2, [73] = 2, [74] = 17, [75] = 1,
             [76] = 4, [77] = 6, [78] = 10, [79] = 2, [80] = 6, [81] = 6, [82] = 7, [83] = 11, [85] = 7, [86] = 3, [87] = 11,
             [88] = 3, [89] = 10, [90] = 4, [91] = 6, [92] = 9, [93] = 10, [96] = 2, [98] = 1, [99] = 20, [100] = 2, [101] = 2, [102] = 2,
+            [103] = 3, [104] = 26, [105] = 5,
         };
         foreach (var (k, n) in ints) o[k] = new(Ints("iVal", n), false);
         return o;
