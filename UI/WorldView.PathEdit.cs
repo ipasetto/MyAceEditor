@@ -324,6 +324,21 @@ internal sealed partial class WorldView
             : Loc.T("path.deleted", "Caminho apagado; o ponto volta a andar na área (Ctrl+Z desfaz).");
     }
 
+    /// <summary>
+    /// Antes de QUALQUER mudança nos pontos do caminho escolhido: se outros pontos do npcgen usam o mesmo caminho (comum
+    /// nos dados originais), ele vira uma cópia só desta criatura (ID novo, 1 passo do Ctrl+Z) e só ela muda. Valia só
+    /// para o arrasto aéreo; arrastar no chão mexia na patrulha de vários monstros (usuário 01/11 e 02/11).
+    /// </summary>
+    void OwnPath()
+    {
+        if (SelPath is not { } shared || PathSpawn is not { } ps || _pathFile is null || (PathUsers?.Invoke(shared.Id) ?? 1) <= 1) return;
+        int nid = _pathFile.Paths.Max(p => p.Id) + 1;
+        var copy = new SevPath { Version = shared.Version, Id = nid, GlobalId = -1, NextGlobalId = -1 };
+        copy.Points.AddRange(shared.Points); copy.Segments.AddRange(shared.Segments);   // pontos e segmentos são valores: a cópia não mexe no original
+        LinkPath(ps, nid, copy);
+        _status.Text = string.Format(Loc.T("path.copied", "Este caminho era usado por outros pontos: virou o caminho {0}, só desta criatura (Ctrl+Z desfaz)."), nid);
+    }
+
     /// <summary>Uma ação do usuário = 1 passo: muda o path.sev (adiciona/remove) e liga o monstro ao ID.</summary>
     void LinkPath(NpcGenSpawn s, int id, SevPath? add, SevPath? remove = null)
     {
@@ -405,7 +420,7 @@ internal sealed partial class WorldView
         if (FlyMouseDown(e)) return true;
         if (_drawPts is not null) { _dragging = true; return true; }
         if (AirPatrol) return false;   // os pontos mudam pelas setas do círculo, não arrastando no chão   // desenhando: arrastar gira a câmera, clicar põe ponto
-        if (PathPointAt(e.Location) is >= 0 and var k) { _dragPt = k; _dragBefore = _pathFile!.Write(); return true; }
+        if (PathPointAt(e.Location) is >= 0 and var k) { OwnPath(); _dragPt = k; _dragBefore = _pathFile!.Write(); return true; }
         return false;
     }
 

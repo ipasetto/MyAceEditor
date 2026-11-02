@@ -924,7 +924,9 @@ internal sealed class NpcGenView : UserControl
             foreach (var c in s.Creatures) c.PathLoop = type;
             Touch(); ShowPoint();
         };
-        w.PathUsers = id => Cur?.Spawns.Count(x => x.Creatures.Any(c => c.PathId == id)) ?? 0;
+        // conta no npcgen DESTE mapa (o do path.sev aberto), mesmo que a lista do NPCGen mude de arquivo com o 3D aberto
+        var worldFile = Cur;
+        w.PathUsers = id => worldFile?.Spawns.Count(x => x.Creatures.Any(c => c.PathId == id)) ?? 0;
         w.Maps = _paths.Keys.ToList();
         w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
         if (overview is { } ov)

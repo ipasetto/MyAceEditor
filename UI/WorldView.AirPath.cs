@@ -73,16 +73,7 @@ internal sealed partial class WorldView
         SyncFlyCursor();
         if (FlyHit(e.Location) is > 0 and var ax)
         {
-            // caminho compartilhado por outros pontos (comum nos dados originais): vira uma cópia só desta criatura antes
-            // de mexer — mover um ponto mexia na patrulha de vários monstros (usuário 01/11)
-            if (_flySel >= 0 && SelPath is { } shared && PathSpawn is { } ps && _pathFile is not null && (PathUsers?.Invoke(shared.Id) ?? 1) > 1)
-            {
-                int nid = _pathFile.Paths.Max(p => p.Id) + 1;
-                var copy = new SevPath { Version = shared.Version, Id = nid, GlobalId = -1, NextGlobalId = -1 };
-                copy.Points.AddRange(shared.Points); copy.Segments.AddRange(shared.Segments);
-                LinkPath(ps, nid, copy);
-                _status.Text = string.Format(Loc.T("path.copied", "Este caminho era usado por outros pontos: virou o caminho {0}, só desta criatura (Ctrl+Z desfaz)."), nid);
-            }
+            if (_flySel >= 0) OwnPath();
             _flyAxis = ax; _flyDown = e.Location; _flyStart = FlyAnchor;
             _flyBefore = _flySel >= 0 ? _pathFile?.Write() : null;
             return true;
