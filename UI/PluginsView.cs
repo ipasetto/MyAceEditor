@@ -20,7 +20,8 @@ internal sealed class PluginsView : Panel
     };
     static string TypeName(string type) => Catalog.FirstOrDefault(c => c.Type == type) is { Key: not null } c ? Loc.T(c.Key, c.Pt) : type;
 
-    static readonly (int Ch, string Key, string Pt)[] Channels = { (9, "pl.ch9", "Anúncio (todos)"), (8, "pl.ch8", "Sistema"), (1, "pl.ch1", "Mundo"), (12, "pl.ch12", "Super mundo") };
+    // as mensagens saem sempre como anúncio para todos (canal 9; usuário 02/11 tirou a escolha de canal)
+    const int AnnounceChannel = 9;
 
     readonly StatusCard _card = new();
     readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None, OwnerDraw = true };
@@ -54,7 +55,6 @@ internal sealed class PluginsView : Panel
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<(Func<(string Map, string Name, int GmId, int RespawnSec)?> Pick, Func<string?> Why)>? PointSource { get; set; }
     readonly NumericUpDown _chance = new() { Minimum = 0, Maximum = 100, DecimalPlaces = 1, Increment = 1, Width = 100, Value = 10 };
-    readonly ComboBox _startCh = Ch(), _endCh = Ch();
     readonly TextBox _startText = new() { Width = 420 }, _endText = new() { Width = 420 };
     readonly FlowLayoutPanel _head = new() { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20, 14, 20, 12), BackColor = HeadBg };
     readonly Panel _cardPanel = new() { Dock = DockStyle.Fill, BackColor = Color.White };
@@ -166,7 +166,6 @@ internal sealed class PluginsView : Panel
     }
 
     static NumericUpDown N(int v, int min, int max) => new() { Minimum = min, Maximum = max, Value = v, Width = 100 };
-    static ComboBox Ch() { var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 }; foreach (var x in Channels) c.Items.Add(Loc.T(x.Key, x.Pt)); c.SelectedIndex = 0; return c; }
 
     public PluginsView()
     {
@@ -304,8 +303,8 @@ internal sealed class PluginsView : Panel
 
         _form.Controls.Add(Section("pl.s3", "3. Avisos para todos os jogadores"));
         _form.Controls.Add(Note("pl.textNote", "Texto vazio = sem aviso."));
-        Field("pl.startText", "Quando aparece", Line(_startCh, _startText));
-        Field("pl.endText", "Quando termina", Line(_endCh, _endText));
+        Field("pl.msgStart", "Mensagem ao surgir", _startText);
+        Field("pl.msgEnd", "Mensagem ao terminar", _endText);
 
         _form.Controls.Add(Section("pl.s4", "Detalhes (preenchidos sozinhos)"));
         Field("pl.world", "Mapa (número do gs: 1 = mundo)", _world);
@@ -314,7 +313,6 @@ internal sealed class PluginsView : Panel
 
         foreach (Control c in new Control[] { _name, _startText, _endText }) c.TextChanged += (_, _) => Edited();
         foreach (var n in new[] { _world, _ctrl, _every, _dur, _chance, _cool }) n.ValueChanged += (_, _) => Edited();
-        foreach (var cb in new[] { _startCh, _endCh }) cb.SelectedIndexChanged += (_, _) => Edited();
         _enabled.CheckedChanged += (_, _) => Edited();
         _respawn.CheckedChanged += (_, _) => { if (!_binding && Sel is { } r) { Edited(); ApplyRespawn(r); } };
     }
@@ -362,7 +360,6 @@ internal sealed class PluginsView : Panel
         _binding = true;
         _name.Text = r.Name; _description.Text = r.Description; _enabled.Checked = r.Enabled; _respawn.Checked = r.Respawn; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
         _every.Value = Math.Clamp(r.EveryMin, 1, 100_000); _dur.Value = Math.Clamp(r.DurationMin, 1, 100_000); _chance.Value = (decimal)Math.Clamp(r.ChancePct, 0, 100);
-        _startCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.StartChannel)); _endCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.EndChannel));
         ChanceInfo();
         _startText.Text = r.StartText; _endText.Text = r.EndText; _cool.Value = Math.Clamp(r.CooldownSec, 0, 2_592_000);
         _point.Text = r.Point.Length > 0 ? PointText(r) : Loc.T("pl.noPoint", "(nenhum ponto ainda)");
@@ -376,7 +373,7 @@ internal sealed class PluginsView : Panel
         Snapshot();
         r.Name = _name.Text.Trim(); r.Description = _description.Text.Trim(); r.Enabled = _enabled.Checked; r.Respawn = _respawn.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
         r.EveryMin = (int)_every.Value; r.DurationMin = (int)_dur.Value; r.ChancePct = (double)_chance.Value;
-        r.StartChannel = Channels[Math.Max(0, _startCh.SelectedIndex)].Ch; r.EndChannel = Channels[Math.Max(0, _endCh.SelectedIndex)].Ch;
+        r.StartChannel = r.EndChannel = AnnounceChannel;
         r.StartText = _startText.Text.Trim(); r.EndText = _endText.Text.Trim(); r.CooldownSec = (int)_cool.Value;
         _dirty = true;
         if (_list.SelectedItems.Count > 0) _list.SelectedItems[0].Text = r.Name.Length > 0 ? r.Name : r.Id;
@@ -579,6 +576,7 @@ internal sealed class PluginsView : Panel
     string? SaveAndSend()
     {
         var a = Admin();
+        foreach (var r in _rules) r.StartChannel = r.EndChannel = AnnounceChannel;   // regras antigas podiam ter outro canal
         a.PluginsSave(_rules);
         _dirty = false;
         Refresh();

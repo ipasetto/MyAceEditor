@@ -4868,5 +4868,7 @@
   "pl.respawnDone": "Point changed in NPCGen: save the npcgen (Save and send) and restart the map for it to take effect.",
   "pl.rsNoMap": "The npcgen of map {0} is not open.",
   "pl.rsNoEvent": "This plugin's event is not in the npcgen: pick the point again.",
-  "pl.rsNoNpcgen": "Open the PW folder first (NPCGen holds the point)."
+  "pl.rsNoNpcgen": "Open the PW folder first (NPCGen holds the point).",
+  "pl.msgStart": "Message when it appears",
+  "pl.msgEnd": "Message when it ends"
 }
