@@ -135,6 +135,10 @@ public static class VersionCheck
                 Loc.T("chk.differentNumberOfShopItems", "Quantidade de itens da loja diferente."), CheckLevel.Aviso));
         }
 
+        // 3a) servidor local: o Linux do Windows existe? (sem ele não há servidor local; o Corrigir instala)
+        if (LocalServer.WslProblem() is { } wslProblem)
+            rows.Add(new(Loc.T("chk.localServer", "servidor local — ") + Loc.T("srv.wslTitle", "Linux do Windows (WSL)"), "—", Loc.T("chk.no", "não"), CheckLevel.Aviso, wslProblem));
+
         // 3b) servidor local (WSL): é nele que o "Salvar e enviar" grava, não na pasta do pacote acima
         var live = LocalServer.LiveHome is { } lh ? Path.Combine(lh, "gamed", "config") : null;
         if (live is not null && Directory.Exists(live))

@@ -91,6 +91,9 @@ public sealed class ServerView : UserControl
         };
         Loc.Changed += ApplyTexts;
         _base.TextChanged += (_, _) => LocalServer.Current = new LocalServer(_base.Text.Trim());
+        // pasta trocada à mão em "Pastas" (outro servidor, até da mesma versão): passa a ser a deste cliente
+        _pkg.Leave += (_, _) => { if (_filledFor is { Length: > 0 } c && Directory.Exists(Path.Combine(_pkg.Text.Trim(), "home"))) _save(Key("server_pkg", c), _pkg.Text.Trim()); };
+        _base.Leave += (_, _) => { if (_filledFor is { Length: > 0 } c && Path.IsPathRooted(_base.Text.Trim())) _save(Key("server_base", c), _base.Text.Trim()); };
     }
 
     ToolStripButton Cmd(ToolStrip bar, string glyph, string key, string pt, Action click, string tipKey, string tipPt, bool primary = false)
@@ -216,10 +219,10 @@ public sealed class ServerView : UserControl
         if (_sendBtn is not null) _sendBtn.Enabled = _installed;
     }
 
-    string? SqlDir()
+    /// <summary>Pasta com o SQL do banco do pacote (null = não achei).</summary>
+    static string? SqlDir(string pkg)
     {
         // pasta SQL: ao lado da "server files" (pacote andrey.pw) ou dentro dela
-        var pkg = _pkg.Text.Trim();
         // ou um dump único (.sql com CREATE TABLE): root/pwa.sql do 1.5.5, Sql/dump.sql do 1.5.5v156, pw..sql do 1.3.6
         var parent = Path.GetDirectoryName(pkg) ?? pkg;
         var dirs = new[] { Path.Combine(parent, "SQL"), Path.Combine(pkg, "SQL"), Path.Combine(pkg, "root"), parent };
@@ -230,15 +233,133 @@ public sealed class ServerView : UserControl
         return null;
     }
 
+    /// <summary>Servidor instalado com sucesso (o editor roda a Verificação e oferece o Corrigir).</summary>
+    public event Action? Installed;
+
     void Install()
     {
-        var pkg = _pkg.Text.Trim();
-        if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickThePackageSServer", "Escolha a pasta \"server files\" do pacote (a que tem home, etc e lib).")); return; }
-        if (SqlDir() is not { } sql) { Warn(Loc.T("srv.sqlFolderPwTabelsSql", "Não achei o SQL do banco ao lado do pacote (SQL/PW_tabels.sql, ou um dump .sql único em SQL, root ou ao lado do pacote).")); return; }
+        Fill();
         var client = _client();
         if (!Directory.Exists(Path.Combine(client, "data"))) { Warn(Loc.T("srv.setTheClientElementFolder", "Abra o cliente na aba Verificação (pasta element).")); return; }
-        _save(Key("server_pkg", client), pkg); _save(Key("server_base", client), _base.Text.Trim()); _save("server_pkg", pkg);
-        var opt = new LocalServer.InstallOptions(pkg, sql, client, "", "", false);   // conta: no Administrar, depois
+        if (!EnsureWsl(FindForm() ?? (IWin32Window)this)) return;
+        if (ShowSetup(FindForm() ?? (IWin32Window)this, client) is { } opt) StartInstall(opt);
+    }
+
+    /// <summary>
+    /// O WSL roda o servidor local. Ausente: pergunta se instala (o Windows pede administrador; depois reiniciar o PC).
+    /// true = WSL pronto para seguir agora.
+    /// </summary>
+    public static bool EnsureWsl(IWin32Window owner)
+    {
+        if (!LocalServer.WslMissing()) return true;
+        var title = Loc.T("srv.wslTitle", "Linux do Windows (WSL)");
+        if (MessageBox.Show(owner, Loc.T("srv.wslAsk", "O servidor local roda no Linux do Windows (WSL), que não está instalado neste computador.\n\nInstalar agora? O Windows vai pedir permissão de administrador e, no fim, é preciso reiniciar o computador."),
+                title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return false;
+        bool ok = LocalServer.InstallWsl();
+        MessageBox.Show(owner, ok ? Loc.T("srv.wslInstalled", "WSL instalado. Reinicie o computador e depois clique em Instalar na aba Servidor.")
+                                  : Loc.T("srv.wslFailed", "Não consegui instalar o WSL (permissão recusada ou erro). Tente de novo ou rode \"wsl --install --no-distribution\" como administrador."),
+            title, MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        return false;
+    }
+
+    /// <summary>
+    /// 1ª vez deste cliente (nada gravado e não recusado antes): pergunta se configura o servidor local e, se sim, abre a
+    /// configuração e instala. true = o usuário quis configurar (o editor mostra a aba Servidor).
+    /// </summary>
+    public bool OfferSetup(IWin32Window owner)
+    {
+        var client = _client();
+        if (client.Length == 0 || !Directory.Exists(Path.Combine(client, "data"))) return false;
+        if (_load(Key("server_base", client)) is not null || _load(Key("server_ask", client)) == "no") return false;
+        if (MessageBox.Show(owner, Loc.T("srv.offerSetup", "Esta versão do jogo ainda não tem servidor local.\n\nQuer configurar um agora? Você escolhe o pacote do servidor, a pasta, o disco e a memória; o programa instala tudo."),
+                Loc.T("srv.offerTitle", "Servidor local"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+        {
+            _save(Key("server_ask", client), "no");   // não pergunta de novo para este cliente (botão Instalar continua lá)
+            return false;
+        }
+        Fill();
+        if (EnsureWsl(owner) && ShowSetup(owner, client) is { } opt) StartInstall(opt);
+        return true;
+    }
+
+    /// <summary>
+    /// Configuração do servidor antes de instalar: pacote, pasta (uma pasta = um servidor = uma distro; vários da mesma
+    /// versão = várias pastas), limite de disco desta distro e memória do WSL (vale para todos). null = cancelado.
+    /// </summary>
+    LocalServer.InstallOptions? ShowSetup(IWin32Window owner, string client)
+    {
+        using var f = new Form
+        {
+            Text = Loc.T("srv.setupTitle", "Configurar servidor local"), Width = 760, Height = 400, StartPosition = FormStartPosition.CenterParent,
+            ShowInTaskbar = false, MinimizeBox = false, MaximizeBox = false, FormBorderStyle = FormBorderStyle.FixedDialog, Font = new Font("Segoe UI", 9.5f), Padding = new Padding(14),
+        };
+        var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 150, ColumnCount = 3, RowCount = 4 };
+        for (int r = 0; r < 4; r++) grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 230)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+        Label Lb(string t) => new() { Text = t, AutoSize = true, Anchor = AnchorStyles.Left };
+        var pkg = new TextBox { Dock = DockStyle.Fill, Text = _pkg.Text.Trim() };
+        var bas = new TextBox { Dock = DockStyle.Fill, Text = _base.Text.Trim() };
+        Button Browse(TextBox box) { var b = new Button { Text = Loc.T("srv.browse", "Procurar…"), AutoSize = true }; b.Click += (_, _) => { using var d = new FolderBrowserDialog { SelectedPath = Directory.Exists(box.Text) ? box.Text : "" }; if (d.ShowDialog(f) == DialogResult.OK) box.Text = d.SelectedPath; }; return b; }
+        int machine = Math.Max(2, LocalServer.MachineMemoryGb());
+        var disk = new NumericUpDown { Minimum = 16, Maximum = 2048, Value = 64, Width = 90, Anchor = AnchorStyles.Left };
+        var ram = new NumericUpDown { Minimum = 2, Maximum = machine, Value = Math.Clamp(LocalServer.WslMemoryGb() ?? Math.Max(4, machine / 2), 2, machine), Width = 90, Anchor = AnchorStyles.Left };
+        grid.Controls.Add(Lb(Loc.T("srv.serverPackageServerFiles", "Pacote do servidor (\"server files\")")), 0, 0); grid.Controls.Add(pkg, 1, 0); grid.Controls.Add(Browse(pkg), 2, 0);
+        grid.Controls.Add(Lb(Loc.T("srv.localServerFolder", "Pasta do servidor local")), 0, 1); grid.Controls.Add(bas, 1, 1); grid.Controls.Add(Browse(bas), 2, 1);
+        grid.Controls.Add(Lb(Loc.T("srv.diskLimit", "Disco máximo deste servidor (GB)")), 0, 2); grid.Controls.Add(disk, 1, 2);
+        grid.Controls.Add(Lb(Loc.T("srv.ramLimit", "Memória do Linux (GB)")), 0, 3); grid.Controls.Add(ram, 1, 3);
+        var info = new Label { Dock = DockStyle.Fill, ForeColor = UiKit.Muted, Padding = new Padding(0, 8, 0, 0) };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 42, FlowDirection = FlowDirection.RightToLeft };
+        var ok = new Button { Text = Loc.T("srv.rInstall", "Instalar"), AutoSize = true };
+        var no = new Button { Text = Loc.T("dlg.cancel", "Cancelar"), AutoSize = true, DialogResult = DialogResult.Cancel };
+        buttons.Controls.Add(ok); buttons.Controls.Add(no);
+        f.Controls.Add(info); f.Controls.Add(grid); f.Controls.Add(buttons);
+        f.CancelButton = no;
+
+        // espaço: o pacote é copiado para o Linux + Ubuntu, MariaDB e Java (~2,5 GB); o .vhdx cresce até o limite com o uso
+        long pkgBytes = -1; string measured = "";
+        void Info()
+        {
+            string Gb(long b) => (b / (1024.0 * 1024 * 1024)).ToString("0.0");
+            var root = Path.GetPathRoot(bas.Text.Trim());
+            long free = -1; try { if (root is { Length: > 0 }) free = new DriveInfo(root).AvailableFreeSpace; } catch { }
+            info.Text = (pkgBytes >= 0
+                    ? string.Format(Loc.T("srv.setupSpace", "Espaço que a instalação usa: cerca de {0} GB (pacote {1} GB + Linux, banco e Java ~2,5 GB). Livre no disco {2}: {3} GB."), Gb(pkgBytes + 2_700_000_000L), Gb(pkgBytes), root, free >= 0 ? Gb(free) : "?")
+                    : Loc.T("srv.setupMeasuring", "Medindo o pacote…"))
+                + "\n" + Loc.T("srv.setupDiskNote", "O disco do servidor cresce conforme o uso até o máximo escolhido. Vários servidores, até da mesma versão: uma pasta para cada.")
+                + "\n" + string.Format(Loc.T("srv.setupRamNote", "A memória vale para TODOS os servidores locais (o Linux do Windows é uma máquina só; este PC tem {0} GB). Recomendado: 4 GB ou mais. Mudar desliga o Linux uma vez (servidores no ar param)."), machine);
+        }
+        void Measure()
+        {
+            var p = pkg.Text.Trim();
+            if (p == measured) return;
+            measured = p; pkgBytes = -1; Info();
+            Task.Run(() => LocalServer.FolderSize(p)).ContinueWith(t => { if (!f.IsDisposed && measured == p) f.BeginInvoke(() => { pkgBytes = t.Result; Info(); }); });
+        }
+        pkg.Leave += (_, _) => Measure(); bas.Leave += (_, _) => Info();
+        f.Shown += (_, _) => Measure();
+
+        LocalServer.InstallOptions? result = null;
+        ok.Click += (_, _) =>
+        {
+            var p = pkg.Text.Trim(); var b = bas.Text.Trim();
+            if (!Directory.Exists(Path.Combine(p, "home"))) { MessageBox.Show(f, Loc.T("srv.pickThePackageSServer", "Escolha a pasta \"server files\" do pacote (a que tem home, etc e lib)."), f.Text); return; }
+            if (SqlDir(p) is not { } sql) { MessageBox.Show(f, Loc.T("srv.sqlFolderPwTabelsSql", "Não achei o SQL do banco ao lado do pacote (SQL/PW_tabels.sql, ou um dump .sql único em SQL, root ou ao lado do pacote)."), f.Text); return; }
+            if (b.Length == 0 || !Path.IsPathRooted(b)) { MessageBox.Show(f, Loc.T("srv.pickBase", "Escolha a pasta do servidor local (ex.: D:\\PWServer144v60)."), f.Text); return; }
+            // pasta com um servidor de outra versão: nunca por cima
+            var probe = new LocalServer(b);
+            if (probe.Exists() && probe.VersionMismatch(client) is { } other) { MessageBox.Show(f, other, f.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            _pkg.Text = p; _base.Text = b;
+            _save(Key("server_pkg", client), p); _save(Key("server_base", client), b); _save("server_pkg", p);
+            try { if (LocalServer.SetWslMemoryGb((int)ram.Value)) AppendLog(string.Format(Loc.T("srv.ramSet", "Memória do Linux: {0} GB (.wslconfig)"), (int)ram.Value)); }
+            catch (Exception ex) { AppendLog("⚠ " + ex.Message); }
+            result = new LocalServer.InstallOptions(p, sql, client, "", "", false, (int)disk.Value);   // conta: no Administrar, depois
+            f.DialogResult = DialogResult.OK;
+        };
+        return f.ShowDialog(owner) == DialogResult.OK ? result : null;
+    }
+
+    void StartInstall(LocalServer.InstallOptions opt)
+    {
         var s = NewServer();
         Busy(true, Loc.T("srv.installing", "Instalando…"));
         var prog = new Progress<(string Step, double? Fraction)>(p =>
@@ -249,7 +370,7 @@ public sealed class ServerView : UserControl
         });
         Task.Run(async () =>
         {
-            try { await s.InstallAsync(opt, prog, CancellationToken.None); BeginInvoke(() => { Busy(false, Loc.T("srv.installedClickStart", "Instalado. Clique em Iniciar.")); }); }
+            try { await s.InstallAsync(opt, prog, CancellationToken.None); BeginInvoke(() => { Busy(false, Loc.T("srv.installedClickStart", "Instalado. Clique em Iniciar.")); RefreshStatus(quiet: true); Installed?.Invoke(); }); }
             catch (Exception ex) { BeginInvoke(() => { Busy(false, Loc.T("srv.stopped", "Parou: ") + ex.Message); AppendLog(Loc.T("srv.errorLog", "ERRO: ") + ex.Message); }); }
         });
     }

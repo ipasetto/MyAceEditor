@@ -47,7 +47,12 @@ public sealed class LocalServer
             foreach (var (name, dir) in Registered())
                 if (string.Equals(dir.TrimEnd('\\'), Path.GetFullPath(baseDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return name;
         var n = new string(Path.GetFileName(baseDir.TrimEnd('\\', '/')).Where(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_').ToArray());
-        return n.Length > 0 ? n : "PWServer";
+        if (n.Length == 0) n = "PWServer";
+        // vários servidores (até da mesma versão) = várias pastas; mesmo nome de pasta em outro disco ganha -2, -3…
+        var taken = Registered().Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var cand = n;
+        for (int i = 2; taken.Contains(cand); i++) cand = $"{n}-{i}";
+        return cand;
     }
 
     /// <summary>Distros do WSL com a pasta de cada uma (pai de BasePath em HKCU\...\Lxss).</summary>
@@ -116,10 +121,89 @@ public sealed class LocalServer
             if (t.Contains("virtualiza", StringComparison.OrdinalIgnoreCase) && (t.Contains("não está habilitada") || t.Contains("not enabled") || t.Contains("n\u00e3o est\u00e1")))
                 return Loc.T("ls.wslNoVirt", "O WSL está instalado, mas a virtualização ainda não está ativa. Reinicie o computador (a \"Plataforma de Máquina Virtual\" só vale depois de reiniciar).");
             if (t.Contains("não está instalado") || t.Contains("is not installed"))
-                return Loc.T("ls.wslMissing", "O WSL não está instalado. Rode \"wsl --install --no-distribution\" como administrador e reinicie.");
+                return Loc.T("ls.wslMissing", "O Linux do Windows (WSL) não está instalado. Clique em Instalar (ou use Corrigir na Verificação): o programa instala o WSL; depois reinicie o computador.");
             return null;
         }
         catch (Exception ex) { return Loc.T("ls.wslRunFail", "Não consegui rodar o wsl.exe: ") + ex.Message; }
+    }
+
+    /// <summary>O WSL não está instalado (nem o wsl.exe responde)? Aí o programa oferece instalar.</summary>
+    public static bool WslMissing()
+    {
+        try
+        {
+            var t = Wsl("--status", timeoutMs: 60_000).Output;
+            return t.Contains("não está instalado") || t.Contains("is not installed");
+        }
+        catch (Exception) { return true; }
+    }
+
+    /// <summary>
+    /// Instala o WSL (sem distro): "wsl --install --no-distribution" como administrador (o Windows pede a permissão).
+    /// Depois é preciso reiniciar o computador. false = recusado ou falhou.
+    /// </summary>
+    public static bool InstallWsl()
+    {
+        try
+        {
+            using var p = Process.Start(new ProcessStartInfo("wsl.exe", "--install --no-distribution") { UseShellExecute = true, Verb = "runas" });
+            p!.WaitForExit();
+            return p.ExitCode == 0;
+        }
+        catch (Exception ex) { AppLog.Error("instalar o WSL", ex); return false; }
+    }
+
+    // ---------- disco e memória ----------
+    static string WslConfigPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".wslconfig");
+
+    /// <summary>Memória do WSL em GB gravada no .wslconfig (null = padrão do Windows: metade da RAM do PC).</summary>
+    public static int? WslMemoryGb()
+    {
+        try
+        {
+            if (!File.Exists(WslConfigPath)) return null;
+            foreach (var l in File.ReadAllLines(WslConfigPath))
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(l, @"^\s*memory\s*=\s*(\d+)\s*GB", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (m.Success) return int.Parse(m.Groups[1].Value);
+            }
+        }
+        catch (Exception) { }
+        return null;
+    }
+
+    /// <summary>RAM do PC em GB.</summary>
+    public static int MachineMemoryGb() => (int)Math.Round(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024.0 * 1024 * 1024));
+
+    /// <summary>
+    /// Grava "memory=&lt;n&gt;GB" na seção [wsl2] do .wslconfig (vale para TODAS as distros: o WSL 2 é uma VM só) e desliga o
+    /// WSL para valer. true = mudou.
+    /// </summary>
+    public static bool SetWslMemoryGb(int gb)
+    {
+        if (WslMemoryGb() == gb) return false;
+        var lines = File.Exists(WslConfigPath) ? File.ReadAllLines(WslConfigPath).ToList() : new List<string>();
+        lines.RemoveAll(l => System.Text.RegularExpressions.Regex.IsMatch(l, @"^\s*memory\s*=", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+        int sec = lines.FindIndex(l => l.Trim().Equals("[wsl2]", StringComparison.OrdinalIgnoreCase));
+        if (sec < 0) { lines.Add("[wsl2]"); sec = lines.Count - 1; }
+        lines.Insert(sec + 1, $"memory={gb}GB");
+        File.WriteAllLines(WslConfigPath, lines);
+        Wsl("--shutdown", timeoutMs: 120_000);
+        return true;
+    }
+
+    /// <summary>Limite do disco virtual desta distro (o .vhdx cresce até ele conforme o uso).</summary>
+    public void SetDiskLimitGb(int gb)
+    {
+        var r = Wsl($"--manage {Distro} --resize {gb}GB", line: Log, timeoutMs: 600_000);
+        if (r.Code != 0) Log("##AVISO " + string.Format(Loc.T("ls.resizeFailed", "Não consegui limitar o disco a {0} GB (o WSL deste PC pode não ter essa opção); segue com o padrão."), gb));
+    }
+
+    /// <summary>Tamanho em bytes de uma pasta (0 se não der para ler).</summary>
+    public static long FolderSize(string dir)
+    {
+        try { return new DirectoryInfo(dir).EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }).Sum(f => f.Length); }
+        catch (Exception) { return 0; }
     }
 
     /// <summary>A distro do servidor escolhido (Current) existe?</summary>
@@ -169,7 +253,8 @@ public sealed class LocalServer
     }
 
     // ---------- instalação ----------
-    public sealed record InstallOptions(string ServerFiles, string SqlDir, string ClientElement, string Login, string Password, bool Gm);
+    /// <param name="DiskGb">limite do disco virtual (0 = padrão do WSL)</param>
+    public sealed record InstallOptions(string ServerFiles, string SqlDir, string ClientElement, string Login, string Password, bool Gm, int DiskGb = 0);
 
     /// <summary>Instala ou completa a instalação. Cada etapa vai para Log; exceção = parou (mensagem para o usuário).</summary>
     public async Task InstallAsync(InstallOptions o, IProgress<(string Step, double? Fraction)>? progress, CancellationToken ct)
@@ -185,6 +270,7 @@ public sealed class LocalServer
             Directory.CreateDirectory(vm);
             var r = Wsl($"--import {Distro} \"{vm}\" \"{tar}\" --version 2", line: Log);
             if (r.Code != 0) throw new InvalidOperationException(Loc.T("ls.importFailed", "wsl --import falhou:") + "\n" + r.Output);
+            if (o.DiskGb > 0) { Wsl($"--terminate {Distro}", timeoutMs: 60_000); SetDiskLimitGb(o.DiskGb); }
         }
 
         progress?.Report((Loc.T("ls.preparing", "Preparando a instalação"), null));

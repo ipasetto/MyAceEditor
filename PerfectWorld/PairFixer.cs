@@ -17,6 +17,11 @@ public static class PairFixer
         serverHome = VersionCheck.ServerHome(serverHome);
         string cData = Path.Combine(clientElement, "data"), sCfg = Path.Combine(serverHome, "gamed", "config");
         var fixes = new List<Fix>();
+        // servidor local sem o Linux do Windows: instala o WSL (administrador; depois reiniciar o PC)
+        if (LocalServer.WslMissing())
+            fixes.Add(new(Loc.T("fix.wslTitle", "Instalar o Linux do Windows (WSL) para o servidor local"),
+                Loc.T("fix.wslDetail", "O servidor local roda nele. O Windows pede permissão de administrador; depois reinicie o computador e instale o servidor na aba Servidor."),
+                true, () => { if (!LocalServer.InstallWsl()) throw new InvalidOperationException(Loc.T("srv.wslFailed", "Não consegui instalar o WSL (permissão recusada ou erro). Tente de novo ou rode \"wsl --install --no-distribution\" como administrador.")); }));
         // servidor local de outra versão: não se corrige aqui (cada versão tem a sua pasta/distro; a Verificação avisa)
         // cliente: janelas que o jogo procura e o interfaces.pck não carrega (o jogo cai ao usá-las)
         if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)

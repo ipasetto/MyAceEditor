@@ -461,6 +461,7 @@ public sealed class EditorForm : Form
         tAi.Controls.Add(_aiView);
         tabs.TabPages.Add(tAi);
         var tChk = new TabPage() { BackColor = CBg };
+        _tabCheck = tChk;
         Bind(() => tChk.Text = Loc.T("tab.verify", "Verificação"));
         tChk.Controls.Add(BuildCheckView());
         tabs.TabPages.Add(tChk);
@@ -471,6 +472,15 @@ public sealed class EditorForm : Form
             () => _chkClient.Text.Length > 0 ? VersionCheck.ClientElement(_chkClient.Text)
                 : _dataPath is null ? "" : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "",
             () => _chkServer.Text, LoadSetting, SaveSetting) { AiPolicyPath = () => _aiView?.FilePath });
+        // servidor recém-instalado: Verificação automática e, com erro ou aviso, oferece o Corrigir
+        _serverView.Installed += () => BeginInvoke(() =>
+        {
+            if (_serverView.GameFolderChanged() is { } pkgHome) { _chkServer.Text = pkgHome; SaveSetting("check_server", pkgHome); }
+            if (_tabs is not null && _tabCheck is not null) _tabs.SelectedTab = _tabCheck;
+            var (err, warn) = RunCheck(0);
+            if (err + warn > 0 && MessageBox.Show(this, string.Format(Loc.T("chk.afterInstall", "Servidor instalado. A Verificação achou {0} erro(s) e {1} aviso(s).\n\nCorrigir agora?"), err, warn),
+                    Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) FixPair();
+        });
         _serverView.FilesSent += ok => { if (ok) { _unsent.Clear(); _serverDiff = null; } UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
         tabs.TabPages.Add(tSrv);
         // Plugins de evento (docs/PLUGINS.md): programa do servidor que sorteia/chama eventos (usuário 01/11)
@@ -1206,6 +1216,8 @@ public sealed class EditorForm : Form
             _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do cliente anterior
             // servidor: cada versão tem o seu (pacote + pasta/distro); a Verificação compara com o pacote dele
             if (_serverView?.GameFolderChanged() is { } pkgHome) { _chkServer.Text = pkgHome; SaveSetting("check_server", pkgHome); }
+            // 1ª vez desta versão: pergunta se configura o servidor local
+            if (_serverView?.OfferSetup(this) == true && _tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;
         });
         int items = module.Lists.Sum(l => l.Items.Count);
         Status($"{module.Name} · {module.Lists.Count} {Loc.T("status.blocks", "blocos")} · {items:N0} {Loc.T("status.items", "itens")} · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
@@ -1351,7 +1363,7 @@ public sealed class EditorForm : Form
 
     // "Salvar e enviar ao servidor": grava tudo sem perguntar e leva para o servidor local (aba Servidor mostra o andamento)
     private ServerView? _serverView;
-    private TabPage? _tabServer;
+    private TabPage? _tabServer, _tabCheck;
     private void SaveAndSend()
     {
         if (_gshop?.ServerProblems() is { Count: > 0 } bad)
@@ -5286,11 +5298,14 @@ public sealed class EditorForm : Form
         _npcgen?.ServerFolderChanged(home);
     }
 
-    private void RunCheck()
+    private void RunCheck() => RunCheck(0);
+
+    /// <summary>Roda a Verificação; devolve (erros, avisos), (0, 0) se faltam as pastas.</summary>
+    private (int Err, int Warn) RunCheck(int _)
     {
         if (_chkClient.Text.Length == 0 && _dataPath is not null)
             _chkClient.Text = Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "";
-        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(Loc.T("chk.chooseTheClientAndServer", "Escolha as pastas do cliente e do servidor.")); return; }
+        if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(Loc.T("chk.chooseTheClientAndServer", "Escolha as pastas do cliente e do servidor.")); return (0, 0); }
         // aceita element\data, a pasta do jogo, a raiz dos arquivos do servidor... e mostra a pasta que vale
         _chkClient.Text = VersionCheck.ClientElement(_chkClient.Text); _chkServer.Text = VersionCheck.ServerHome(_chkServer.Text);
         SaveSetting("check_client", _chkClient.Text); SaveSetting("check_server", _chkServer.Text);
@@ -5318,6 +5333,7 @@ public sealed class EditorForm : Form
                          : warn > 0 ? string.Format(Loc.T("chk.noLoginErrors0Warning", "⚠ Sem erros de login · {0} aviso(s)"), warn) : Loc.T("chk.clientAndServerAreCompatible", "✔ Cliente e servidor compatíveis");
         _chkSummary.ForeColor = nothing || err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
         Status(Loc.T("chk.checkFinished", "Verificação concluída"));
+        return (err, warn);
     }
 
     // Correção automática do par (issue #26): o usuário escolhe o que trocar; o cliente é a referência.
