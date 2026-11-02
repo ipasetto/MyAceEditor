@@ -18,6 +18,27 @@ public static class GameConsole
         // rendernofocus:1 = o jogo não para de desenhar sem o foco da janela (usuário 01/11; PW-KB §S31)
         Process.Start(new ProcessStartInfo(Path.Combine(elementDir, Exe), "startbypatcher nocheck console:1 rendernofocus:1") { WorkingDirectory = elementDir, UseShellExecute = false });
 
+    /// <summary>
+    /// Traz o jogo recém-aberto para a frente quando a janela dele aparece (usuário 01/11: abria atrás do painel, sem foco).
+    /// Repete por uns segundos porque o cliente troca de janela entre a abertura e a tela de login.
+    /// </summary>
+    public static void FocusWhenOpen(Process? p)
+    {
+        if (p is null) return;
+        Task.Run(() =>
+        {
+            var until = DateTime.Now.AddSeconds(40);
+            int ok = 0;
+            while (DateTime.Now < until && ok < 3)
+            {
+                Thread.Sleep(700);
+                IntPtr w; try { if (p.HasExited) return; p.Refresh(); w = p.MainWindowHandle; } catch { return; }
+                if (w == IntPtr.Zero) continue;
+                ok = GetForegroundWindow() == w || Front(w) ? ok + 1 : 0;
+            }
+        });
+    }
+
     /// <summary>Janela do jogo aberto (a primeira que tiver janela).</summary>
     public static IntPtr Window() =>
         Process.GetProcessesByName(Path.GetFileNameWithoutExtension(Exe)).Select(p => { try { return p.MainWindowHandle; } catch { return IntPtr.Zero; } })

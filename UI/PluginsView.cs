@@ -24,8 +24,13 @@ internal sealed class PluginsView : Panel
 
     readonly StatusCard _card = new();
     readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None, OwnerDraw = true };
-    readonly Label _desc = new() { AutoSize = true, MaximumSize = new Size(620, 0), ForeColor = Fg, Margin = new Padding(0, 0, 0, 6) };
-    readonly Label _now = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), ForeColor = Color.FromArgb(37, 99, 235), Margin = new Padding(0, 0, 0, 8) };
+    // topo do cartão escuro, como o do Elements / AI Policy / GShop (usuário 01/11)
+    static readonly Color HeadBg = Color.FromArgb(18, 20, 24), HeadFg = Color.FromArgb(214, 219, 226), HeadMuted = Color.FromArgb(140, 148, 160),
+        HeadBlue = Color.FromArgb(96, 165, 250), HeadGreen = Color.FromArgb(74, 222, 128), HeadRed = Color.FromArgb(248, 113, 113);
+    // botão "Chamar": verde = pode chamar; vermelho = esperando o tempo do plugin; cinza = programa desligado ou mudança por enviar
+    static readonly Color CallGreen = Color.FromArgb(22, 163, 74), CallRed = Color.FromArgb(220, 38, 38), CallGray = Color.FromArgb(185, 190, 198);
+    readonly Label _desc = new() { AutoSize = true, MaximumSize = new Size(620, 0), ForeColor = HeadFg, Margin = new Padding(0, 0, 0, 6) };
+    readonly Label _now = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), ForeColor = HeadBlue, Margin = new Padding(0, 0, 0, 8) };
     readonly TextBox _description = new() { Multiline = true, Height = 54, ScrollBars = ScrollBars.Vertical };
     readonly TextBox _log = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9f), BackColor = Color.FromArgb(24, 28, 34), ForeColor = Color.Gainsboro, BorderStyle = BorderStyle.None };
     // formulário em blocos verticais (título, campo, explicação embaixo), como as outras telas; a grade de 3 colunas quebrava
@@ -45,14 +50,14 @@ internal sealed class PluginsView : Panel
     readonly NumericUpDown _chance = new() { Minimum = 0, Maximum = 100, DecimalPlaces = 1, Increment = 1, Width = 100, Value = 10 };
     readonly ComboBox _startCh = Ch(), _endCh = Ch();
     readonly TextBox _startText = new() { Width = 420 }, _endText = new() { Width = 420 };
-    readonly FlowLayoutPanel _head = new() { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20, 14, 20, 10), BackColor = Color.White };
+    readonly FlowLayoutPanel _head = new() { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20, 14, 20, 12), BackColor = HeadBg };
     readonly Panel _cardPanel = new() { Dock = DockStyle.Fill, BackColor = Color.White };
     readonly Label _empty = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Muted, Font = new Font("Segoe UI", 11f), BackColor = Color.White };
     readonly ToolStripButton _send, _runOn, _runOff;
     // ações do plugin ficam no cartão dele (a barra de cima é só do servidor; a tela vai receber outros tipos de plugin)
-    readonly Button _fire = Act(UiKit.Play, true), _stop = Act(UiKit.Stop), _pauseToggle = Act(UiKit.Hide), _delete = Act(UiKit.Delete);
-    readonly Label _title = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 14f), ForeColor = Fg, Margin = new Padding(0, 0, 0, 2) };
-    readonly Label _sub = new() { AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 0, 0, 8) };
+    readonly Button _fire = Act(UiKit.Play, true), _stop = DarkAct(UiKit.Stop), _pauseToggle = DarkAct(UiKit.Hide), _delete = DarkAct(UiKit.Delete);
+    readonly Label _title = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 14f), ForeColor = HeadFg, Margin = new Padding(0, 0, 0, 2) };
+    readonly Label _sub = new() { AutoSize = true, ForeColor = HeadMuted, Margin = new Padding(0, 0, 0, 8) };
     readonly Label _result = new() { AutoSize = false, Height = 34, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 0, 10, 0), Font = new Font("Segoe UI Semibold", 9.5f), Visible = false };
     readonly Label _chanceInfo = new() { AutoSize = true, ForeColor = Color.FromArgb(37, 99, 235), Font = new Font("Segoe UI Semibold", 9.5f), Padding = new Padding(0, 4, 0, 0) };
     void ChanceInfo() => _chanceInfo.Text = _chance.Value <= 0 ? Loc.T("pl.chanceNever", "= nunca (só chamando)")
@@ -71,6 +76,16 @@ internal sealed class PluginsView : Panel
             Image = UiKit.Icon(glyph, main ? Color.White : Fg, 16), TextImageRelation = TextImageRelation.ImageBeforeText,
             BackColor = main ? UiKit.Accent : Color.White, ForeColor = main ? Color.White : Fg, Cursor = Cursors.Hand };
         b.FlatAppearance.BorderColor = main ? UiKit.Accent : Color.FromArgb(203, 213, 225);
+        return b;
+    }
+
+    static Button DarkAct(string glyph)
+    {
+        var b = new Button { AutoSize = true, Height = 34, FlatStyle = FlatStyle.Flat, Padding = new Padding(8, 0, 10, 0), Margin = new Padding(0, 0, 8, 0),
+            Image = UiKit.Icon(glyph, HeadFg, 16), TextImageRelation = TextImageRelation.ImageBeforeText,
+            BackColor = Color.FromArgb(40, 44, 52), ForeColor = HeadFg, Cursor = Cursors.Hand };
+        b.FlatAppearance.BorderColor = Color.FromArgb(60, 66, 76);
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(52, 58, 68);
         return b;
     }
 
@@ -104,34 +119,42 @@ internal sealed class PluginsView : Panel
         actions.Controls.AddRange(new Control[] { _stop, _pauseToggle, _delete, _countdown });   // chamar agora fica na frente de cada linha da lista
         // cartão da cópia: nome, plugin · ponto, descrição, o que ela está fazendo agora (próximo sorteio, ativo...) e ações
         _head.Controls.Add(_title); _head.Controls.Add(_sub); _head.Controls.Add(_desc); _head.Controls.Add(_now); _head.Controls.Add(actions);
-        _tick.Tick += (_, _) => Countdown();
+        _tick.Tick += (_, _) => { Countdown(); if (Visible) foreach (ListViewItem it in _list.Items) _list.Invalidate(it.SubItems[CallCol].Bounds); };
         _tick.Start();
 
         // lista "em execução": ▶ (chamar agora) na frente de cada linha, nome, plugin e descrição
-        _list.Columns.Add("", 34); _list.Columns.Add(Loc.T("pl.colName2", "Nome"), 140); _list.Columns.Add(Loc.T("pl.colPlugin", "Plugin"), 110); _list.Columns.Add(Loc.T("pl.colDesc", "Descrição"), 220);
+        // o botão Chamar fica na direita da linha (usuário 01/11); a descrição ocupa o que sobra
+        _list.Columns.Add(Loc.T("pl.colName2", "Nome"), 140); _list.Columns.Add(Loc.T("pl.colPlugin", "Plugin"), 110); _list.Columns.Add(Loc.T("pl.colDesc", "Descrição"), 160); _list.Columns.Add(Loc.T("pl.colCall", "Chamar"), CallW);
+        _list.Resize += (_, _) => _list.Columns[2].Width = Math.Max(80, _list.ClientSize.Width - CallW - 140 - 110 - 2);
         _list.SelectedIndexChanged += (_, _) => Bind();
         _list.DrawColumnHeader += (_, e) => e.DrawDefault = true;
         _list.DrawItem += (_, e) => { };
         _list.DrawSubItem += (_, e) =>
         {
-            if (e.ColumnIndex != 0) { e.DrawDefault = true; return; }
+            if (e.ColumnIndex != CallCol) { e.DrawDefault = true; return; }
             e.DrawBackground();
             if (e.Item?.Tag is not PluginRule r) return;
-            bool ready = CanCall(r);
-            var ic = UiKit.Icon(UiKit.Play, ready ? Color.FromArgb(22, 128, 61) : Color.FromArgb(185, 190, 198), 18);
-            e.Graphics.DrawImage(ic, e.Bounds.X + (e.Bounds.Width - 18) / 2, e.Bounds.Y + (e.Bounds.Height - 18) / 2);
+            var (color, text) = CallLook(r);
+            var box = Rectangle.Inflate(e.Bounds, -4, -2);
+            using (var b = new SolidBrush(color)) e.Graphics.FillRectangle(b, box);
+            var ic = UiKit.Icon(UiKit.Play, Color.White, 14);
+            var sz = TextRenderer.MeasureText(text, _list.Font);
+            int x = box.X + (box.Width - 14 - 4 - sz.Width) / 2;
+            e.Graphics.DrawImage(ic, x, box.Y + (box.Height - 14) / 2);
+            TextRenderer.DrawText(e.Graphics, text, _list.Font, new Point(x + 18, box.Y + (box.Height - sz.Height) / 2), Color.White);
         };
         _list.MouseClick += (_, e) =>
         {
-            if (_list.HitTest(e.Location) is not { Item.Tag: PluginRule r } h || h.Item.SubItems.IndexOf(h.SubItem) != 0) return;
+            if (_list.HitTest(e.Location) is not { Item.Tag: PluginRule r } h || h.Item.SubItems.IndexOf(h.SubItem) != CallCol) return;
             h.Item.Selected = true;
             if (CanCall(r)) Command("fire"); else Status("⚠ " + Loc.T("pl.notReady", "Ainda não dá para chamar: veja o contador no cartão."));
         };
         var hint = new ToolTip();
         _list.MouseMove += (_, e) =>
         {
-            bool onPlay = _list.HitTest(e.Location) is { Item: not null } h && h.Item.SubItems.IndexOf(h.SubItem) == 0;
-            var t = onPlay ? Loc.T("pl.rFire", "Chamar agora") : "";
+            var h = _list.HitTest(e.Location);
+            bool onPlay = h.Item is not null && h.Item.SubItems.IndexOf(h.SubItem) == CallCol;
+            var t = !onPlay ? "" : h.Item!.Tag is PluginRule pr && !CanCall(pr) ? Loc.T("pl.notReady", "Ainda não dá para chamar: veja o contador no cartão.") : Loc.T("pl.rFire", "Chamar agora");
             if (hint.GetToolTip(_list) != t) hint.SetToolTip(_list, t);
             _list.Cursor = onPlay ? Cursors.Hand : Cursors.Default;
         };
@@ -222,7 +245,7 @@ internal sealed class PluginsView : Panel
         _list.BeginUpdate(); _list.Items.Clear();
         foreach (var r in _rules)
         {
-            var it = new ListViewItem(new[] { "", r.Name.Length > 0 ? r.Name : r.Id, TypeName(r.Type), r.Description }) { Tag = r };
+            var it = new ListViewItem(new[] { r.Name.Length > 0 ? r.Name : r.Id, TypeName(r.Type), r.Description, "" }) { Tag = r };
             if (_state.GetValueOrDefault(r.Id, "").StartsWith("ATIVO", StringComparison.Ordinal)) it.ForeColor = Color.FromArgb(22, 128, 61);
             _list.Items.Add(it);
             if (r.Id == keep) it.Selected = true;
@@ -238,7 +261,7 @@ internal sealed class PluginsView : Panel
         _cardPanel.Visible = r is not null; _empty.Visible = r is null;
         if (r is null) return;
         _title.Text = r.Name.Length > 0 ? r.Name : r.Id;
-        _sub.Text = TypeName(r.Type) + " · " + (r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)"));
+        _sub.Text = TypeName(r.Type) + " · " + (r.Point.Length > 0 ? PointText(r) : Loc.T("pl.noPoint", "(nenhum ponto ainda)"));
         _desc.Text = r.Description; _desc.Visible = r.Description.Length > 0;
         _now.Text = _state.GetValueOrDefault(r.Id, "") is { Length: > 0 } st ? Loc.T("pl.nowLabel", "Agora: ") + st : _dirty ? Loc.T("pl.notSent", "não enviado") : "";
         ShowResult(r);
@@ -248,7 +271,7 @@ internal sealed class PluginsView : Panel
         _startCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.StartChannel)); _endCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.EndChannel));
         ChanceInfo();
         _startText.Text = r.StartText; _endText.Text = r.EndText; _cool.Value = Math.Clamp(r.CooldownSec, 0, 2_592_000);
-        _point.Text = r.Point.Length > 0 ? r.Point : Loc.T("pl.noPoint", "(nenhum ponto ainda)");
+        _point.Text = r.Point.Length > 0 ? PointText(r) : Loc.T("pl.noPoint", "(nenhum ponto ainda)");
         _point.ForeColor = r.Point.Length > 0 ? Color.FromArgb(22, 128, 61) : Muted;
         _binding = false;
     }
@@ -314,7 +337,7 @@ internal sealed class PluginsView : Panel
         }
         bool paused = _state.GetValueOrDefault(r.Id, "") == "pausado";
         _pauseToggle.Text = paused ? Loc.T("pl.rResume", "Retomar") : Loc.T("pl.rPause", "Pausar");
-        _pauseToggle.Image = UiKit.Icon(paused ? UiKit.Refresh : UiKit.Hide, Fg, 16);
+        _pauseToggle.Image = UiKit.Icon(paused ? UiKit.Refresh : UiKit.Hide, HeadFg, 16);
         _pauseToggle.Enabled = r.Enabled;
         Countdown();
     }
@@ -325,17 +348,17 @@ internal sealed class PluginsView : Panel
         if (Sel is not { } r || !Visible) return;
         bool active = _state.GetValueOrDefault(r.Id + "#active", "0") == "1";
         var left = DateTime.TryParse(_state.GetValueOrDefault(r.Id + "#ready", ""), out var ready) ? ready - DateTime.Now : TimeSpan.Zero;
-        if (!_running) { _countdown.Text = Loc.T("pl.cdOff", "Programa desligado"); _countdown.ForeColor = Muted; _fire.Enabled = false; _stop.Enabled = false; return; }
+        if (!_running) { _countdown.Text = Loc.T("pl.cdOff", "Programa desligado"); _countdown.ForeColor = HeadMuted; _fire.Enabled = false; _stop.Enabled = false; return; }
         if (left > TimeSpan.Zero)
         {
             _countdown.Text = string.Format(active ? Loc.T("pl.cdActive", "Ativo agora · termina em {0}") : Loc.T("pl.cdWait", "Pode chamar de novo em {0}"), left.ToString(left.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss"));
-            _countdown.ForeColor = active ? Color.FromArgb(37, 99, 235) : Color.FromArgb(220, 38, 38);
+            _countdown.ForeColor = active ? HeadBlue : HeadRed;
             _fire.Enabled = false;
         }
         else
         {
             _countdown.Text = Loc.T("pl.cdReady", "✓ Pronto para chamar");
-            _countdown.ForeColor = Color.FromArgb(22, 128, 61);
+            _countdown.ForeColor = HeadGreen;
             _fire.Enabled = !_dirty;
         }
         _stop.Enabled = active;
@@ -398,6 +421,21 @@ internal sealed class PluginsView : Panel
         }
         dlg.Controls.Add(flow);
         dlg.ShowDialog(FindForm());
+    }
+
+    const int CallW = 96, CallCol = 3;
+
+    // pontos gravados por versões antigas tinham o ID duas vezes: "Besouro (61648) (61648)"
+    static string PointText(PluginRule r) => System.Text.RegularExpressions.Regex.Replace(r.Point, @"(\(\d+\))(\s*\1)+", "$1");
+
+    /// <summary>Cor e texto do botão Chamar da linha: verde "Chamar"; vermelho com o tempo que falta; cinza desligado.</summary>
+    (Color, string) CallLook(PluginRule r)
+    {
+        if (!_running) return (CallGray, Loc.T("pl.callOff", "Desligado"));
+        if (CanCall(r)) return (CallGreen, Loc.T("pl.colCall", "Chamar"));
+        var left = DateTime.TryParse(_state.GetValueOrDefault(r.Id + "#ready", ""), out var ready) ? ready - DateTime.Now : TimeSpan.Zero;
+        if (left > TimeSpan.Zero) return (CallRed, left.ToString(left.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss"));
+        return (CallGray, Loc.T("pl.colCall", "Chamar"));   // só falta enviar as mudanças
     }
 
     void NewInstance(string type)

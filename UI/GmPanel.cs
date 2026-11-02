@@ -169,7 +169,7 @@ public sealed class GmPanel : Form
     {
         if (!File.Exists(Path.Combine(ElementDir, GameConsole.Exe))) { MessageBox.Show(this, Loc.T("gm.noExe", "Não achei o elementclient.exe nesta pasta."), Text); return; }
         SaveDir();
-        try { GameConsole.Launch(ElementDir); AddLog(Loc.T("gm.launched2", "Jogo aberto com o console ligado (console:1) e sem parar ao perder o foco (rendernofocus:1). Entre com a sua conta GM.")); }
+        try { GameConsole.FocusWhenOpen(GameConsole.Launch(ElementDir)); AddLog(Loc.T("gm.launched2", "Jogo aberto com o console ligado (console:1) e sem parar ao perder o foco (rendernofocus:1). Entre com a sua conta GM.")); }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Text); }
     }
 
@@ -424,7 +424,7 @@ public sealed class GmPanel : Form
     }
 
     // plugins de evento (docs/PLUGINS.md): o GM chama na hora o mesmo evento que o programa sorteia (fica no histórico)
-    sealed record GmPlugin(string Id, string Name) { public override string ToString() => $"{Name} ({Id})"; }
+    sealed record GmPlugin(string Id, string Name) { public override string ToString() => Name.Length > 0 ? Name : Id; }   // o "Nome (só desta cópia)" da tela Plugins
     void FillPlugins()
     {
         Task.Run(() => { try { return LocalAdmin().PluginsLoad(); } catch (Exception) { return new List<PluginRule>(); } }).ContinueWith(t => BeginInvoke(() =>
