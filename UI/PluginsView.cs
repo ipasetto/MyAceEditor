@@ -57,7 +57,9 @@ internal sealed class PluginsView : Panel
     readonly Label _empty = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Muted, Font = new Font("Segoe UI", 11f), BackColor = Color.White };
     readonly ToolStripButton _send, _runOn, _runOff;
     // ações do plugin ficam no cartão dele (a barra de cima é só do servidor; a tela vai receber outros tipos de plugin)
-    readonly Button _fire = Act(UiKit.Play, true), _stop = DarkAct(UiKit.Stop), _pauseToggle = DarkAct(UiKit.Hide), _delete = DarkAct(UiKit.Delete);
+    readonly Button _fire = Act(UiKit.Play, true);
+    readonly HeadButton _stop = new(UiKit.Stop, HeadRed), _pauseToggle = new(PauseGlyph), _delete = new(UiKit.Delete) { Margin = new Padding(16, 0, 4, 0) };   // excluir um pouco afastado
+    const string PauseGlyph = "";   // Segoe MDL2 "Pause"
     readonly Label _title = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 14f), ForeColor = HeadFg, Margin = new Padding(0, 0, 0, 2) };
     readonly Label _sub = new() { AutoSize = true, ForeColor = HeadMuted, Margin = new Padding(0, 0, 0, 8) };
     readonly Label _result = new() { AutoSize = false, Height = 34, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 0, 10, 0), Font = new Font("Segoe UI Semibold", 9.5f), Visible = false };
@@ -81,17 +83,41 @@ internal sealed class PluginsView : Panel
         return b;
     }
 
-    static Button DarkAct(string glyph)
+    /// <summary>
+    /// Botão do topo do cartão no jeito da barra lateral: ícone em cima, nome embaixo, fundo claro ao passar o mouse.
+    /// Desenhado aqui porque o botão desligado do Windows fica com texto escuro (some no fundo azul-escuro, usuário 01/11):
+    /// desligado = ícone e nome apagados, iguais, sem mãozinha. <paramref name="tint"/> = cor do ícone quando dá para usar
+    /// (Encerrar fica vermelho só quando há evento para encerrar).
+    /// </summary>
+    sealed class HeadButton : Button
     {
-        var b = new Button { Size = new Size(84, 58), FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 4, 0),
-            Image = UiKit.Icon(glyph, HeadMuted, 22), TextImageRelation = TextImageRelation.ImageAboveText, ImageAlign = ContentAlignment.TopCenter,
-            TextAlign = ContentAlignment.BottomCenter, Padding = new Padding(0, 6, 0, 4), BackColor = HeadBg, ForeColor = HeadMuted, Cursor = Cursors.Hand };
-        b.FlatAppearance.BorderSize = 0;
-        b.FlatAppearance.MouseOverBackColor = HeadHover;
-        b.FlatAppearance.MouseDownBackColor = HeadPress;
-        b.MouseEnter += (_, _) => { if (b.Enabled) b.ForeColor = Color.White; };
-        b.MouseLeave += (_, _) => b.ForeColor = HeadMuted;
-        return b;
+        static readonly Color Off = Color.FromArgb(78, 92, 110);
+        readonly Color _tint;
+        string _glyph;
+        bool _hover, _down;
+        public HeadButton(string glyph, Color? tint = null)
+        {
+            _glyph = glyph; _tint = tint ?? HeadMuted;
+            Size = new Size(84, 58); Margin = new Padding(0, 0, 4, 0); FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0;
+            BackColor = HeadBg; Cursor = Cursors.Hand;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+        }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string Glyph { get => _glyph; set { _glyph = value; Invalidate(); } }
+        protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Cursor = Enabled ? Cursors.Hand : Cursors.Default; Invalidate(); }
+        protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _hover = true; Invalidate(); }
+        protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hover = _down = false; Invalidate(); }
+        protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); _down = true; Invalidate(); }
+        protected override void OnMouseUp(MouseEventArgs e) { base.OnMouseUp(e); _down = false; Invalidate(); }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Enabled && _down ? HeadPress : Enabled && _hover ? HeadHover : HeadBg);
+            var ic = UiKit.Icon(_glyph, !Enabled ? Off : _hover ? Color.White : _tint, 22);
+            g.DrawImage(ic, (Width - 22) / 2, 8);
+            TextRenderer.DrawText(g, Text, Font, new Rectangle(0, 34, Width, 20), !Enabled ? Off : _hover ? Color.White : HeadMuted,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.EndEllipsis);
+        }
     }
 
     static NumericUpDown N(int v, int min, int max) => new() { Minimum = min, Maximum = max, Value = v, Width = 100 };
@@ -345,7 +371,7 @@ internal sealed class PluginsView : Panel
         }
         bool paused = _state.GetValueOrDefault(r.Id, "") == "pausado";
         _pauseToggle.Text = paused ? Loc.T("pl.rResume", "Retomar") : Loc.T("pl.rPause", "Pausar");
-        _pauseToggle.Image = UiKit.Icon(paused ? UiKit.Refresh : UiKit.Hide, HeadMuted, 22);
+        _pauseToggle.Glyph = paused ? UiKit.Play : PauseGlyph;
         _pauseToggle.Enabled = r.Enabled;
         Countdown();
     }
