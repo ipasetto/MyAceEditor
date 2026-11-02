@@ -44,6 +44,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 - numeros/decals sobre a cabeca: C/EC_Decal.cpp
 - inventario e itens no cliente: C/EC_Inventory.cpp, EC_IvtrItem.cpp, EC_IvtrTypes (grep)
 - janelas (AUI: xml, dcf): C/EC_UIManager.cpp; engine AUI em Angelica (§M14)
+- fonte 1.5.2 do servidor (D:/Perfect World/PW_Server/source_server_152, PW-KB §S33): mesma arvore cgame/cnet + cskill/ (fonte das habilidades: skill, skills, gen, expr); usar para comparar 1.5.2 x 1.5.3
 - aipolicy no gs: carga cgame/gs/ai/policy_loader.cpp (ConvertCondition/ConvertOperation/ConvertTarget; pula bRun), leitura do arquivo ai/policy.cpp ReadOperationParam, enums ai/policy.h (_e_condition/_e_operation/_e_target_type), execucao cgame/gs/aitrigger.h (policy::AddTrigger, CheckTriggers, OnDeath) + aitrigger.cpp (op_say $B/$S/$A/$I/$X); morte -> aipolicy.cpp ai_policy::OnDeath
 - fala de IA no cliente ($name, canais $B/$S): C/Network/EC_GameSession.cpp IsPolicyChat + OnPrtcWorldChat, C/EC_UIHelper.cpp PolicySpecialCharReplace/ReplaceNameInPolicyChat; canais GP_CHAT_* em C/Network/EC_GPDataType.h
 - comandos de fora para o gs: cgame/gs/netmsg.cpp (GMControlGame: active/cancel_npc_generator)
