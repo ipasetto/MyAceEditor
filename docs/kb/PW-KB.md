@@ -878,6 +878,7 @@ Janelas (interfaces.pck, --uid-check 02/11): os 4 clientes tem version01\ + raiz
 - configs/item_ext_desc.txt: UTF-16, "ID<TAB>\"texto\"", cores ^RRGGBB, \r literal = quebra (PKG144: 9.681 descricoes) [A]
 
 ## §Q ABERTOS (proximos passos sugeridos, por valor)
+- [02/11] aipolicy VERSAO 0 (servidor 1.3.6, §S33): conferir se AiPolicyFile le/regrava identico; elements v10 / tasks v55 do 1.3.6 e elements v386 do 1.7.6 ainda sem teste de abrir no editor.
 - interface: qual .dcf o cliente usa por padrao (classica x nova) e onde fica a opcao (SystemSettings.ini?); sentido exato de x/y negativos no .dcf; moldura 9 partes (canto 1/2 ou 1/3?); o parser XML do cliente decodifica &amp;/&quot;? (§S20b/§S20c)
 1 [PARCIAL: lido via uPCK, §S3] falta: confirmar vs AFilePackage oficial/autoangel-rs; chaves por jogo/regiao; campos ignorados da entrada v3; rodape v3 completo; significado do int16 de versao
 2 [parcial: §S17] conteudo dos structs de ExpTypes.h por lista vs declaracoes XML de terceiros
