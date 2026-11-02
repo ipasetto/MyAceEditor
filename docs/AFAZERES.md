@@ -249,7 +249,7 @@ Pendencias achadas nos testes de 02/11 (--roundtrip/--tasks/--aipolicy/--npcgen/
 - [ ] PWSERVER-1.7.6-01.2026-VM.7z ainda nao extraido/inventariado.
 - [x] aipolicy 1.7.6 (operacoes 103-105) — feito 02/11.
 
-Documento a fazer: docs/COMPATIBILIDADE.md — uma tabela POR FERRAMENTA do editor, marcando cada versao testada:
+Documento COMECADO 02/11 (docs/COMPATIBILIDADE.md; preencher os "?"): uma tabela POR FERRAMENTA do editor, marcando cada versao testada:
 - Linhas = TODAS as ferramentas/recursos: Elements, Quests (tasks), GShop, AI Policy, NPCGen, Mundo 3D (e cada ferramenta dele), Verificacao, Servidor, Plugins, Painel do GM, Interfaces (editar janelas, Criar interface, importar, trocar com outro cliente, telas de carregamento), Extrator PCK, tradutores (elements, loja, configs/interfaces), icones, Preferencias (cada opcao que mexe em arquivo do jogo) e o que mais existir no menu.
 - Colunas = versoes do acervo: 1.3.6, 1.4.4 (v60/v61), 1.5.2, 1.5.5 (v156, 162-155, PWI), 1.7.2 (Maori), 1.7.6, 1.8 (180 BR).
 - Celula: OK (testado, regrava identico / funciona) | so leitura | NAO (com o motivo) | nao testado; cada pendencia com link para o item acima ou para o §Q da PW-KB.
