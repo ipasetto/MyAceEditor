@@ -24,11 +24,13 @@ internal sealed class PluginsView : Panel
 
     readonly StatusCard _card = new();
     readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None, OwnerDraw = true };
-    // topo do cartão escuro, como o do Elements / AI Policy / GShop (usuário 01/11)
-    static readonly Color HeadBg = Color.FromArgb(18, 20, 24), HeadFg = Color.FromArgb(214, 219, 226), HeadMuted = Color.FromArgb(140, 148, 160),
+    // topo do cartão nas cores da barra lateral (NavBar), botões no mesmo jeito dela: ícone em cima, nome embaixo (usuário 01/11)
+    static readonly Color HeadBg = Color.FromArgb(24, 32, 44), HeadFg = Color.FromArgb(226, 232, 240), HeadMuted = Color.FromArgb(170, 182, 198),
+        HeadHover = Color.FromArgb(32, 43, 59), HeadPress = Color.FromArgb(40, 54, 74),
         HeadBlue = Color.FromArgb(96, 165, 250), HeadGreen = Color.FromArgb(74, 222, 128), HeadRed = Color.FromArgb(248, 113, 113);
     // botão "Chamar": verde = pode chamar; vermelho = esperando o tempo do plugin; cinza = programa desligado ou mudança por enviar
     static readonly Color CallGreen = Color.FromArgb(22, 163, 74), CallRed = Color.FromArgb(220, 38, 38), CallGray = Color.FromArgb(185, 190, 198);
+    readonly PictureBox _typeIcon = new() { Size = new Size(30, 30), Margin = new Padding(0, 2, 8, 0) };
     readonly Label _desc = new() { AutoSize = true, MaximumSize = new Size(620, 0), ForeColor = HeadFg, Margin = new Padding(0, 0, 0, 6) };
     readonly Label _now = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), ForeColor = HeadBlue, Margin = new Padding(0, 0, 0, 8) };
     readonly TextBox _description = new() { Multiline = true, Height = 54, ScrollBars = ScrollBars.Vertical };
@@ -62,7 +64,7 @@ internal sealed class PluginsView : Panel
     readonly Label _chanceInfo = new() { AutoSize = true, ForeColor = Color.FromArgb(37, 99, 235), Font = new Font("Segoe UI Semibold", 9.5f), Padding = new Padding(0, 4, 0, 0) };
     void ChanceInfo() => _chanceInfo.Text = _chance.Value <= 0 ? Loc.T("pl.chanceNever", "= nunca (só chamando)")
         : string.Format(Loc.T("pl.chanceEvery", "≈ 1 vez a cada {0:0.#} sorteios"), 100m / _chance.Value);
-    readonly Label _countdown = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(12, 9, 0, 0) };
+    readonly Label _countdown = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(12, 20, 0, 0) };
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 1000 };
     readonly System.Windows.Forms.Timer _poll = new() { Interval = 5000 };
     readonly Stack<string> _undo = new(), _redo = new();
@@ -81,11 +83,14 @@ internal sealed class PluginsView : Panel
 
     static Button DarkAct(string glyph)
     {
-        var b = new Button { AutoSize = true, Height = 34, FlatStyle = FlatStyle.Flat, Padding = new Padding(8, 0, 10, 0), Margin = new Padding(0, 0, 8, 0),
-            Image = UiKit.Icon(glyph, HeadFg, 16), TextImageRelation = TextImageRelation.ImageBeforeText,
-            BackColor = Color.FromArgb(40, 44, 52), ForeColor = HeadFg, Cursor = Cursors.Hand };
-        b.FlatAppearance.BorderColor = Color.FromArgb(60, 66, 76);
-        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(52, 58, 68);
+        var b = new Button { Size = new Size(84, 58), FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 4, 0),
+            Image = UiKit.Icon(glyph, HeadMuted, 22), TextImageRelation = TextImageRelation.ImageAboveText, ImageAlign = ContentAlignment.TopCenter,
+            TextAlign = ContentAlignment.BottomCenter, Padding = new Padding(0, 6, 0, 4), BackColor = HeadBg, ForeColor = HeadMuted, Cursor = Cursors.Hand };
+        b.FlatAppearance.BorderSize = 0;
+        b.FlatAppearance.MouseOverBackColor = HeadHover;
+        b.FlatAppearance.MouseDownBackColor = HeadPress;
+        b.MouseEnter += (_, _) => { if (b.Enabled) b.ForeColor = Color.White; };
+        b.MouseLeave += (_, _) => b.ForeColor = HeadMuted;
         return b;
     }
 
@@ -118,7 +123,9 @@ internal sealed class PluginsView : Panel
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0) };
         actions.Controls.AddRange(new Control[] { _stop, _pauseToggle, _delete, _countdown });   // chamar agora fica na frente de cada linha da lista
         // cartão da cópia: nome, plugin · ponto, descrição, o que ela está fazendo agora (próximo sorteio, ativo...) e ações
-        _head.Controls.Add(_title); _head.Controls.Add(_sub); _head.Controls.Add(_desc); _head.Controls.Add(_now); _head.Controls.Add(actions);
+        var titleRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0), BackColor = HeadBg };
+        titleRow.Controls.Add(_typeIcon); titleRow.Controls.Add(_title);
+        _head.Controls.Add(titleRow); _head.Controls.Add(_sub); _head.Controls.Add(_desc); _head.Controls.Add(_now); _head.Controls.Add(actions);
         _tick.Tick += (_, _) => { Countdown(); if (Visible) foreach (ListViewItem it in _list.Items) _list.Invalidate(it.SubItems[CallCol].Bounds); };
         _tick.Start();
 
@@ -261,6 +268,7 @@ internal sealed class PluginsView : Panel
         _cardPanel.Visible = r is not null; _empty.Visible = r is null;
         if (r is null) return;
         _title.Text = r.Name.Length > 0 ? r.Name : r.Id;
+        _typeIcon.Image = UiKit.Icon(Catalog.FirstOrDefault(c => c.Type == r.Type).Glyph ?? UiKit.Play, HeadBlue, 26);
         _sub.Text = TypeName(r.Type) + " · " + (r.Point.Length > 0 ? PointText(r) : Loc.T("pl.noPoint", "(nenhum ponto ainda)"));
         _desc.Text = r.Description; _desc.Visible = r.Description.Length > 0;
         _now.Text = _state.GetValueOrDefault(r.Id, "") is { Length: > 0 } st ? Loc.T("pl.nowLabel", "Agora: ") + st : _dirty ? Loc.T("pl.notSent", "não enviado") : "";
@@ -337,7 +345,7 @@ internal sealed class PluginsView : Panel
         }
         bool paused = _state.GetValueOrDefault(r.Id, "") == "pausado";
         _pauseToggle.Text = paused ? Loc.T("pl.rResume", "Retomar") : Loc.T("pl.rPause", "Pausar");
-        _pauseToggle.Image = UiKit.Icon(paused ? UiKit.Refresh : UiKit.Hide, HeadFg, 16);
+        _pauseToggle.Image = UiKit.Icon(paused ? UiKit.Refresh : UiKit.Hide, HeadMuted, 22);
         _pauseToggle.Enabled = r.Enabled;
         Countdown();
     }
