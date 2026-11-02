@@ -1082,7 +1082,7 @@ internal sealed class NpcGenView : UserControl
     {
         why = null;
         if (Cur is not { } f || _cur is null || SelectedIndex() is not { } i || ListOf(f)[i] is not NpcGenSpawn s)
-        { why = Loc.T("pl.pickFirst", "Escolha antes um ponto de monstro no NPCGen ou no Mundo 3D (clique nele)."); return null; }
+        { why = Loc.T("pl.pickFirst2", "Escolha antes um ponto de monstro ou de NPC no NPCGen ou no Mundo 3D (clique nele)."); return null; }
         if (f.Version < 7) { why = Loc.T("ev.noVersion", "Este npcgen.data (versão menor que 7) não tem eventos."); return null; }
         int id0 = s.Creatures.FirstOrDefault()?.Id ?? 0;
         var name = NameOf(id0) is { Length: > 0 } nm && nm.Contains(id0.ToString()) ? nm : $"{NameOf(id0)} ({id0})";

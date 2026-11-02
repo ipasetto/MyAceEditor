@@ -66,7 +66,8 @@ internal sealed class PluginsView : Panel
     readonly Label _chanceInfo = new() { AutoSize = true, ForeColor = Color.FromArgb(37, 99, 235), Font = new Font("Segoe UI Semibold", 9.5f), Padding = new Padding(0, 4, 0, 0) };
     void ChanceInfo() => _chanceInfo.Text = _chance.Value <= 0 ? Loc.T("pl.chanceNever", "= nunca (só chamando)")
         : string.Format(Loc.T("pl.chanceEvery", "≈ 1 vez a cada {0:0.#} sorteios"), 100m / _chance.Value);
-    readonly Label _countdown = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(12, 20, 0, 0) };
+    // botão Chamar do cartão, igual ao da lista (usuário 02/11): verde = chamar; vermelho = ativo/esperando com o tempo; cinza = desligado
+    readonly CallButton _call = new() { Margin = new Padding(14, 9, 0, 0) };
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 1000 };
     readonly System.Windows.Forms.Timer _poll = new() { Interval = 5000 };
     readonly Stack<string> _undo = new(), _redo = new();
@@ -120,6 +121,46 @@ internal sealed class PluginsView : Panel
         }
     }
 
+    /// <summary>Botão cheio e arredondado com ▶ e texto; a cor diz se dá para chamar (mesmas cores do botão da lista).</summary>
+    sealed class CallButton : Button
+    {
+        Color _fill = CallGray;
+        bool _hover;
+        public CallButton()
+        {
+            Size = new Size(170, 40); FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; BackColor = HeadBg; Cursor = Cursors.Hand;
+            Font = new Font("Segoe UI Semibold", 10f);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+        }
+        public void Look(Color fill, string text, bool canCall)
+        {
+            if (_fill == fill && Text == text) return;
+            _fill = fill; Text = text; Cursor = canCall ? Cursors.Hand : Cursors.Default; Invalidate();
+        }
+        protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _hover = true; Invalidate(); }
+        protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hover = false; Invalidate(); }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(HeadBg);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var box = new Rectangle(0, 0, Width - 1, Height - 1);
+            using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+            {
+                int d = 10;
+                path.AddArc(box.X, box.Y, d, d, 180, 90); path.AddArc(box.Right - d, box.Y, d, d, 270, 90);
+                path.AddArc(box.Right - d, box.Bottom - d, d, d, 0, 90); path.AddArc(box.X, box.Bottom - d, d, d, 90, 90); path.CloseFigure();
+                using var b = new SolidBrush(_hover && Cursor == Cursors.Hand ? ControlPaint.Light(_fill, 0.25f) : _fill);
+                g.FillPath(b, path);
+            }
+            var ic = UiKit.Icon(UiKit.Play, Color.White, 16);
+            var sz = TextRenderer.MeasureText(g, Text, Font);
+            int x = (Width - 16 - 6 - sz.Width) / 2;
+            g.DrawImage(ic, x, (Height - 16) / 2);
+            TextRenderer.DrawText(g, Text, Font, new Point(x + 22, (Height - sz.Height) / 2), Color.White);
+        }
+    }
+
     static NumericUpDown N(int v, int min, int max) => new() { Minimum = min, Maximum = max, Value = v, Width = 100 };
     static ComboBox Ch() { var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 }; foreach (var x in Channels) c.Items.Add(Loc.T(x.Key, x.Pt)); c.SelectedIndex = 0; return c; }
 
@@ -140,14 +181,16 @@ internal sealed class PluginsView : Panel
         // cartão do plugin: título, ações dele, resultado da última ação (verde/vermelho) e quando pode chamar de novo
         _fire.Text = Loc.T("pl.rFire", "Chamar agora"); _stop.Text = Loc.T("pl.rStop", "Encerrar"); _delete.Text = Loc.T("pl.rDelete", "Excluir");
         _fire.Click += (_, _) => Command("fire"); _stop.Click += (_, _) => Command("stop");
+        _call.Click += (_, _) => { if (Sel is { } r && CanCall(r)) Command("fire"); else Status("⚠ " + Loc.T("pl.notReady2", "Ainda não dá para chamar: o botão vermelho mostra quanto falta.")); };
         _pauseToggle.Click += (_, _) => Command(_state.GetValueOrDefault(Sel?.Id ?? "", "") == "pausado" ? "resume" : "pause");
         _delete.Click += (_, _) => DeleteSel();
         var tips = new ToolTip();
+        tips.SetToolTip(_call, Loc.T("pl.callTip", "Verde: chama o evento agora, sem sorteio. Vermelho: ainda ativo ou esperando o tempo do plugin (mostra quanto falta)."));
         tips.SetToolTip(_fire, Loc.T("pl.rFireTip", "Faz o evento acontecer agora, sem sorteio (também pelo painel do GM)."));
         tips.SetToolTip(_stop, Loc.T("pl.rStopTip", "Termina o evento ativo agora: os monstros somem e sai o aviso de fim."));
         tips.SetToolTip(_delete, Loc.T("pl.rDeleteTip", "Tira o plugin escolhido (vale ao Salvar e enviar)."));
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0) };
-        actions.Controls.AddRange(new Control[] { _stop, _pauseToggle, _delete, _countdown });   // chamar agora fica na frente de cada linha da lista
+        actions.Controls.AddRange(new Control[] { _stop, _pauseToggle, _delete, _call });   // chamar agora fica na frente de cada linha da lista
         // cartão da cópia: nome, plugin · ponto, descrição, o que ela está fazendo agora (próximo sorteio, ativo...) e ações
         var titleRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0), BackColor = HeadBg };
         titleRow.Controls.Add(_typeIcon); titleRow.Controls.Add(_title);
@@ -180,14 +223,14 @@ internal sealed class PluginsView : Panel
         {
             if (_list.HitTest(e.Location) is not { Item.Tag: PluginRule r } h || h.Item.SubItems.IndexOf(h.SubItem) != CallCol) return;
             h.Item.Selected = true;
-            if (CanCall(r)) Command("fire"); else Status("⚠ " + Loc.T("pl.notReady", "Ainda não dá para chamar: veja o contador no cartão."));
+            if (CanCall(r)) Command("fire"); else Status("⚠ " + Loc.T("pl.notReady2", "Ainda não dá para chamar: o botão vermelho mostra quanto falta."));
         };
         var hint = new ToolTip();
         _list.MouseMove += (_, e) =>
         {
             var h = _list.HitTest(e.Location);
             bool onPlay = h.Item is not null && h.Item.SubItems.IndexOf(h.SubItem) == CallCol;
-            var t = !onPlay ? "" : h.Item!.Tag is PluginRule pr && !CanCall(pr) ? Loc.T("pl.notReady", "Ainda não dá para chamar: veja o contador no cartão.") : Loc.T("pl.rFire", "Chamar agora");
+            var t = !onPlay ? "" : h.Item!.Tag is PluginRule pr && !CanCall(pr) ? Loc.T("pl.notReady2", "Ainda não dá para chamar: o botão vermelho mostra quanto falta.") : Loc.T("pl.rFire", "Chamar agora");
             if (hint.GetToolTip(_list) != t) hint.SetToolTip(_list, t);
             _list.Cursor = onPlay ? Cursors.Hand : Cursors.Default;
         };
@@ -232,7 +275,7 @@ internal sealed class PluginsView : Panel
         Field("pl.desc", "Descrição (o que ela faz; aparece na lista)", _description);
         _description.TextChanged += (_, _) => Edited();
 
-        _form.Controls.Add(Section("pl.s1", "1. Qual monstro aparece"));
+        _form.Controls.Add(Section("pl.s1b", "1. Qual monstro ou NPC aparece"));
         _form.Controls.Add(Note("pl.s1Note", "Clique no monstro no NPCGen ou no Mundo 3D e depois no botão abaixo: o editor cria um evento desligado só daquele ponto. Depois use \"Salvar e enviar ao servidor\" (barra de cima) e reinicie o mapa."));
         var pick = new Button { Text = Loc.T("pl.usePoint", "Usar o ponto escolhido no NPCGen / Mundo 3D"), AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = UiKit.Accent, ForeColor = Color.White, Height = 32, Padding = new Padding(8, 0, 8, 0) };
         pick.FlatAppearance.BorderColor = UiKit.Accent;
@@ -382,19 +425,14 @@ internal sealed class PluginsView : Panel
         if (Sel is not { } r || !Visible) return;
         bool active = _state.GetValueOrDefault(r.Id + "#active", "0") == "1";
         var left = DateTime.TryParse(_state.GetValueOrDefault(r.Id + "#ready", ""), out var ready) ? ready - DateTime.Now : TimeSpan.Zero;
-        if (!_running) { _countdown.Text = Loc.T("pl.cdOff", "Programa desligado"); _countdown.ForeColor = HeadMuted; _fire.Enabled = false; _stop.Enabled = false; return; }
+        if (!_running) { _call.Look(CallGray, Loc.T("pl.cdOff", "Programa desligado"), false); _fire.Enabled = false; _stop.Enabled = false; return; }
+        bool can = CanCall(r);
         if (left > TimeSpan.Zero)
-        {
-            _countdown.Text = string.Format(active ? Loc.T("pl.cdActive", "Ativo agora · termina em {0}") : Loc.T("pl.cdWait", "Pode chamar de novo em {0}"), left.ToString(left.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss"));
-            _countdown.ForeColor = active ? HeadBlue : HeadRed;
-            _fire.Enabled = false;
-        }
+            _call.Look(CallRed, string.Format(active ? Loc.T("pl.callActive", "Ativo · {0}") : Loc.T("pl.callWait", "Espera · {0}"),
+                left.ToString(left.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss")), false);
         else
-        {
-            _countdown.Text = Loc.T("pl.cdReady", "✓ Pronto para chamar");
-            _countdown.ForeColor = HeadGreen;
-            _fire.Enabled = !_dirty;
-        }
+            _call.Look(can ? CallGreen : CallGray, Loc.T("pl.rFire", "Chamar agora"), can);
+        _fire.Enabled = can;
         _stop.Enabled = active;
     }
 

@@ -4855,5 +4855,11 @@
   "pl.installedHint": "Pick a plugin and run it. The copy goes to the \"Running on the server\" list, where you give it a name, description and rules.",
   "pl.empty4": "Nothing running yet.\n\nClick \"Installed plugins\" (top bar), pick a plugin and \"Run it\".",
   "pl.colCall": "Call",
-  "pl.callOff": "Off"
+  "pl.callOff": "Off",
+  "pl.callActive": "Active · {0}",
+  "pl.callWait": "Wait · {0}",
+  "pl.callTip": "Green: calls the event now, without the roll. Red: still active or waiting for the plugin's time (shows how long is left).",
+  "pl.notReady2": "Can't call yet: the red button shows how long is left.",
+  "pl.pickFirst2": "First pick a monster or NPC point in NPCGen or the 3D World (click it).",
+  "pl.s1b": "1. Which monster or NPC appears"
 }
