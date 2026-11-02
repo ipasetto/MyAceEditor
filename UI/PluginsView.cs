@@ -79,6 +79,8 @@ internal sealed class PluginsView : Panel
         : string.Format(Loc.T("pl.chanceEvery", "≈ 1 vez a cada {0:0.#} sorteios"), 100m / _chance.Value);
     // botão Chamar do cartão, igual ao da lista (usuário 02/11): verde = chamar; vermelho = ativo/esperando com o tempo; cinza = desligado
     readonly CallButton _call = new() { Margin = new Padding(14, 9, 0, 0) };
+    readonly ToggleSwitch _onSwitch = new();
+    readonly Label _onLabel = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 9.5f), Margin = new Padding(6, 4, 0, 0) };
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 1000 };
     readonly System.Windows.Forms.Timer _poll = new() { Interval = 5000 };
     readonly Stack<string> _undo = new(), _redo = new();
@@ -200,7 +202,13 @@ internal sealed class PluginsView : Panel
         tips.SetToolTip(_stop, Loc.T("pl.rStopTip", "Termina o evento ativo agora: os monstros somem e sai o aviso de fim."));
         tips.SetToolTip(_delete, Loc.T("pl.rDeleteTip", "Tira o plugin escolhido (vale ao Salvar e enviar)."));
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0) };
-        actions.Controls.AddRange(new Control[] { _stop, _pauseToggle, _delete, _call });   // chamar agora fica na frente de cada linha da lista
+        // liga/desliga o sorteio: interruptor com o nome ao lado (o mesmo da coluna "Ligado" da lista)
+        var onBox = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(14, 16, 0, 0), BackColor = HeadBg };
+        _onLabel.ForeColor = HeadFg; _onLabel.BackColor = HeadBg;
+        onBox.Controls.Add(_onSwitch); onBox.Controls.Add(_onLabel);
+        _onSwitch.Toggled += on => { if (Sel is { } r) SetEnabled(r, on); };
+        tips.SetToolTip(_onSwitch, Loc.T("pl.onNote2", "Ligado: sorteia sozinho no tempo marcado. Desligado: só aparece quando chamado (aqui ou no painel do GM)."));
+        actions.Controls.AddRange(new Control[] { _stop, _pauseToggle, _delete, _call, onBox });   // chamar agora fica na frente de cada linha da lista
         // cartão da cópia: nome, plugin · ponto, descrição, o que ela está fazendo agora (próximo sorteio, ativo...) e ações
         var titleRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0), BackColor = HeadBg };
         titleRow.Controls.Add(_typeIcon); titleRow.Controls.Add(_title);
@@ -210,13 +218,20 @@ internal sealed class PluginsView : Panel
 
         // lista "em execução": ▶ (chamar agora) na frente de cada linha, nome, plugin e descrição
         // o botão Chamar fica na direita da linha (usuário 01/11); a descrição ocupa o que sobra
-        _list.Columns.Add(Loc.T("pl.colName2", "Nome"), 140); _list.Columns.Add(Loc.T("pl.colPlugin", "Plugin"), 110); _list.Columns.Add(Loc.T("pl.colDesc", "Descrição"), 160); _list.Columns.Add(Loc.T("pl.colCall", "Chamar"), CallW);
-        _list.Resize += (_, _) => _list.Columns[2].Width = Math.Max(80, _list.ClientSize.Width - CallW - 140 - 110 - 2);
+        _list.Columns.Add(Loc.T("pl.colName2", "Nome"), 160); _list.Columns.Add(Loc.T("pl.colPlugin", "Plugin"), 110); _list.Columns.Add(Loc.T("pl.colOn", "Ligado"), OnW); _list.Columns.Add(Loc.T("pl.colCall", "Chamar"), CallW);
+        _list.Resize += (_, _) => _list.Columns[0].Width = Math.Max(100, _list.ClientSize.Width - CallW - OnW - 110 - 2);
         _list.SelectedIndexChanged += (_, _) => Bind();
         _list.DrawColumnHeader += (_, e) => e.DrawDefault = true;
         _list.DrawItem += (_, e) => { };
         _list.DrawSubItem += (_, e) =>
         {
+            if (e.ColumnIndex == OnCol)
+            {
+                e.DrawBackground();
+                if (e.Item?.Tag is not PluginRule pr) return;
+                DrawSwitch(e.Graphics, e.Bounds, pr.Enabled);
+                return;
+            }
             if (e.ColumnIndex != CallCol) { e.DrawDefault = true; return; }
             e.DrawBackground();
             if (e.Item?.Tag is not PluginRule r) return;
@@ -231,7 +246,10 @@ internal sealed class PluginsView : Panel
         };
         _list.MouseClick += (_, e) =>
         {
-            if (_list.HitTest(e.Location) is not { Item.Tag: PluginRule r } h || h.Item.SubItems.IndexOf(h.SubItem) != CallCol) return;
+            if (_list.HitTest(e.Location) is not { Item.Tag: PluginRule r } h) return;
+            int col = h.Item.SubItems.IndexOf(h.SubItem);
+            if (col == OnCol) { h.Item.Selected = true; SetEnabled(r, !r.Enabled); return; }
+            if (col != CallCol) return;
             h.Item.Selected = true;
             if (CanCall(r)) Command("fire"); else Status("⚠ " + Loc.T("pl.notReady2", "Ainda não dá para chamar: o botão vermelho mostra quanto falta."));
         };
@@ -239,10 +257,11 @@ internal sealed class PluginsView : Panel
         _list.MouseMove += (_, e) =>
         {
             var h = _list.HitTest(e.Location);
-            bool onPlay = h.Item is not null && h.Item.SubItems.IndexOf(h.SubItem) == CallCol;
-            var t = !onPlay ? "" : h.Item!.Tag is PluginRule pr && !CanCall(pr) ? Loc.T("pl.notReady2", "Ainda não dá para chamar: o botão vermelho mostra quanto falta.") : Loc.T("pl.rFire", "Chamar agora");
+            int hc = h.Item is null ? -1 : h.Item.SubItems.IndexOf(h.SubItem);
+            bool onPlay = hc == CallCol;
+            var t = hc == OnCol ? Loc.T("pl.onNote2", "Ligado: sorteia sozinho no tempo marcado. Desligado: só aparece quando chamado (aqui ou no painel do GM).") : !onPlay ? "" : h.Item!.Tag is PluginRule pr && !CanCall(pr) ? Loc.T("pl.notReady2", "Ainda não dá para chamar: o botão vermelho mostra quanto falta.") : Loc.T("pl.rFire", "Chamar agora");
             if (hint.GetToolTip(_list) != t) hint.SetToolTip(_list, t);
-            _list.Cursor = onPlay ? Cursors.Hand : Cursors.Default;
+            _list.Cursor = onPlay || hc == OnCol ? Cursors.Hand : Cursors.Default;
         };
         BuildForm();
         _empty.Text = Loc.T("pl.empty4", "Nada em execução ainda.\n\nClique em \"Plugins instalados\" (barra de cima), escolha um plugin e \"Pôr em execução\".");
@@ -281,9 +300,6 @@ internal sealed class PluginsView : Panel
         _enabled.Text = Loc.T("pl.enabled", "Ligado (sorteia sozinho)");
 
         Field("pl.name2", "Nome (só desta cópia)", _name);
-        _description.Width = 520;
-        Field("pl.desc", "Descrição (o que ela faz; aparece na lista)", _description);
-        _description.TextChanged += (_, _) => Edited();
 
         _form.Controls.Add(Section("pl.s1b", "1. Qual monstro ou NPC aparece"));
         _form.Controls.Add(Note("pl.s1Note", "Clique no monstro no NPCGen ou no Mundo 3D e depois no botão abaixo: o editor cria um evento desligado só daquele ponto. Depois use \"Salvar e enviar ao servidor\" (barra de cima) e reinicie o mapa."));
@@ -296,9 +312,6 @@ internal sealed class PluginsView : Panel
         _form.Controls.Add(_point);
 
         _form.Controls.Add(Section("pl.s2", "2. Quando ele aparece"));
-        _enabled.Margin = new Padding(0, 4, 0, 2);
-        _form.Controls.Add(_enabled);
-        _form.Controls.Add(Note("pl.onNote", "Desligado: só aparece quando chamado (aqui ou no painel do GM)."));
         Field("pl.every", "Sortear a cada (minutos)", _every);
         Field("pl.chance", "Chance de aparecer em cada sorteio (%)", Line(_chance, _chanceInfo), "pl.chanceNote2", "Ex.: 10 = em média 1 vez a cada 10 sorteios; 20 = 1 em 5.");
         _chance.ValueChanged += (_, _) => ChanceInfo();
@@ -320,7 +333,6 @@ internal sealed class PluginsView : Panel
 
         foreach (Control c in new Control[] { _name, _startText, _endText }) c.TextChanged += (_, _) => Edited();
         foreach (var n in new[] { _world, _ctrl, _every, _dur, _chance, _cool }) n.ValueChanged += (_, _) => Edited();
-        _enabled.CheckedChanged += (_, _) => Edited();
         _respawn.CheckedChanged += (_, _) => { if (!_binding && Sel is { } r) { Edited(); ApplyRespawn(r); } };
     }
 
@@ -365,7 +377,7 @@ internal sealed class PluginsView : Panel
         _list.BeginUpdate(); _list.Items.Clear();
         foreach (var r in _rules)
         {
-            var it = new ListViewItem(new[] { r.Name.Length > 0 ? r.Name : r.Id, TypeName(r.Type), r.Description, "" }) { Tag = r };
+            var it = new ListViewItem(new[] { r.Name.Length > 0 ? r.Name : r.Id, TypeName(r.Type), "", "" }) { Tag = r };
             if (_state.GetValueOrDefault(r.Id, "").StartsWith("ATIVO", StringComparison.Ordinal)) it.ForeColor = Color.FromArgb(22, 128, 61);
             _list.Items.Add(it);
             if (r.Id == keep) it.Selected = true;
@@ -387,7 +399,7 @@ internal sealed class PluginsView : Panel
         _now.Text = _state.GetValueOrDefault(r.Id, "") is { Length: > 0 } st ? Loc.T("pl.nowLabel", "Agora: ") + st : _dirty ? Loc.T("pl.notSent", "não enviado") : "";
         ShowResult(r);
         _binding = true;
-        _name.Text = r.Name; _description.Text = r.Description; _enabled.Checked = r.Enabled; _respawn.Checked = r.Respawn; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
+        _name.Text = r.Name; _onSwitch.SetQuiet(r.Enabled); _onLabel.Text = Loc.T("pl.onHead", "Sorteio") + ": " + OnText(r.Enabled); _respawn.Checked = r.Respawn; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
         _every.Value = Math.Clamp(r.EveryMin, 1, 100_000); _dur.Value = Math.Clamp(r.DurationMin, 1, 100_000); _chance.Value = (decimal)Math.Clamp(r.ChancePct, 0, 100);
         ChanceInfo();
         _startText.Text = r.StartText; _endText.Text = r.EndText; _cool.Value = Math.Clamp(r.CooldownSec, 0, 2_592_000);
@@ -400,7 +412,7 @@ internal sealed class PluginsView : Panel
     {
         if (_binding || Sel is not { } r) return;
         Snapshot();
-        r.Name = _name.Text.Trim(); r.Description = _description.Text.Trim(); r.Enabled = _enabled.Checked; r.Respawn = _respawn.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
+        r.Name = _name.Text.Trim(); r.Respawn = _respawn.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
         r.EveryMin = (int)_every.Value; r.DurationMin = (int)_dur.Value; r.ChancePct = (double)_chance.Value;
         r.StartChannel = r.EndChannel = AnnounceChannel;
         r.StartText = _startText.Text.Trim(); r.EndText = _endText.Text.Trim(); r.CooldownSec = (int)_cool.Value;
@@ -539,7 +551,36 @@ internal sealed class PluginsView : Panel
         dlg.ShowDialog(FindForm());
     }
 
-    const int CallW = 96, CallCol = 3;
+    const int CallW = 96, CallCol = 3, OnW = 96, OnCol = 2;
+
+    /// <summary>Liga/desliga o sorteio da cópia (interruptor da lista e do cartão), com Ctrl+Z; vale ao Salvar e enviar.</summary>
+    void SetEnabled(PluginRule r, bool on)
+    {
+        if (r.Enabled == on) return;
+        Snapshot();
+        r.Enabled = on; _dirty = true;
+        _list.Invalidate();
+        if (Sel == r) { _onSwitch.SetQuiet(on); _onLabel.Text = Loc.T("pl.onHead", "Sorteio") + ": " + OnText(on); }
+        Status((on ? "✓ " : "") + string.Format(Loc.T("pl.onChanged", "{0}: sorteio {1}. Clique em Salvar e enviar para valer no servidor."), r.Name, OnText(on).ToLowerInvariant()));
+    }
+
+    static string OnText(bool on) => on ? Loc.T("pl.on", "Ligado") : Loc.T("pl.off", "Desligado");
+
+    // interruptor desenhado na célula: trilho verde (ligado) ou cinza, bolinha branca, e o nome ao lado
+    void DrawSwitch(Graphics g, Rectangle cell, bool on)
+    {
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        var track = new Rectangle(cell.X + 6, cell.Y + (cell.Height - 16) / 2, 30, 16);
+        using (var b = new SolidBrush(on ? CallGreen : CallGray))
+        using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+        {
+            path.AddArc(track.X, track.Y, 16, 16, 90, 180); path.AddArc(track.Right - 16, track.Y, 16, 16, 270, 180); path.CloseFigure();
+            g.FillPath(b, path);
+        }
+        g.FillEllipse(Brushes.White, on ? track.Right - 14 : track.X + 2, track.Y + 2, 12, 12);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.Default;
+        TextRenderer.DrawText(g, OnText(on), _list.Font, new Point(track.Right + 6, cell.Y + (cell.Height - _list.Font.Height) / 2), on ? Color.FromArgb(22, 128, 61) : Muted);
+    }
 
     // pontos gravados por versões antigas tinham o ID duas vezes: "Besouro (61648) (61648)"
     static string PointText(PluginRule r) => System.Text.RegularExpressions.Regex.Replace(r.Point, @"(\(\d+\))(\s*\1)+", "$1");

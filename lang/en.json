@@ -4978,5 +4978,12 @@
   "ann.cKill": "When it kills a player",
   "ann.cOther": "Other condition",
   "uiA.createSub2": "Draw a new window.",
-  "ai.fixedAnn": "Fixed {0} announcement(s) saved by old editor versions (they did not fire on the server or had no player name). Save and send to the server and restart the map."
+  "ai.fixedAnn": "Fixed {0} announcement(s) saved by old editor versions (they did not fire on the server or had no player name). Save and send to the server and restart the map.",
+  "ann.nameTip": "To put the name elsewhere in the sentence, write $name in the text.",
+  "pl.onNote2": "On: rolls by itself at the set time. Off: only appears when called (here or in the GM panel).",
+  "pl.colOn": "On",
+  "pl.onChanged": "{0}: roll {1}. Click Save and send for it to take effect on the server.",
+  "pl.on": "On",
+  "pl.off": "Off",
+  "pl.onHead": "Roll"
 }

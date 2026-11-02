@@ -77,9 +77,11 @@ internal sealed class AnnounceDialog : Form
         body.Controls.Add(Note(Loc.T("ann.textLabel", "3. Texto")));
         _text.Text = Loc.T("ann.textDefault", "derrotou um monstro poderoso!");
         body.Controls.Add(_text);
-        _name.Text = Loc.T("ann.name2", "Começar com o nome do jogador (quem matou / o alvo). Para pôr o nome em outro lugar, escreva $name no texto.");
+        _name.Text = Loc.T("ann.name", "Começar com o nome do jogador (quem matou / o alvo)");
         _name.Checked = _canName; _name.Enabled = _canName;
         body.Controls.Add(_name);
+        // dica numa linha própria, que quebra: no rótulo da caixa passava da janela (usuário 02/11)
+        if (_canName) body.Controls.Add(Note(Loc.T("ann.nameTip", "Para pôr o nome em outro lugar da frase, escreva $name no texto.")));
         if (!_canName) body.Controls.Add(Note(Loc.T("ann.noName", "Nesta versão da IA o jogo não põe o nome sozinho: escreva no texto o que quiser mostrar.")));
         body.Controls.Add(_preview);
         body.Controls.Add(Btn(Loc.T("ann.add", "+ Pôr na lista"), () =>
