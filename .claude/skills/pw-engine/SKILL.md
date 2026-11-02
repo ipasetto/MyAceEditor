@@ -74,6 +74,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 - Conferir por captura sem abrir na tela do usuario: --snapshot, --gm-shot, --adm-shot, --wq-shot, --prefs-shot.
 
 ## 5. Protocolo de atualizacao (OBRIGATORIO ao descobrir algo)
+- REGRA DO USUARIO (02/11): docs/COMPATIBILIDADE.md e a tabela ferramenta x versao. Sempre que testar QUALQUER ferramenta em QUALQUER versao, atualizar a celula na mesma sessao (so marcar OK com prova; o que nao foi testado fica "?"). Mexeu numa versao = reconferir as outras e atualizar a tabela. Ferramenta nova no editor = linha nova na tabela.
 - REGRA DO USUARIO: todo CODIGO novo e toda INFORMACAO nova sao registrados na mesma sessao, no lugar certo deste mapa,
   seguindo a mesma estrutura (secao §, linha telegrafica, tag de confianca), para que a proxima consulta seja um pulo e
   nao uma busca:
@@ -87,6 +88,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
   | regra que derruba o gs / item que nao funciona | docs/REGRAS-DO-JOGO.md + checagem em ItemRules/QuestRules |
   | fonte nova em D:/Perfect World/source | rodar mkmap.py (e acrescentar a area em AREAS se for pasta nova) |
   | etapa iniciada/concluida | docs/AFAZERES.md |
+  | qualquer ferramenta testada numa versao (teste de linha de comando, captura ou no jogo) | docs/COMPATIBILIDADE.md: marcar a celula (✅ / 👁 / ❌ com motivo) na mesma sessao; pendencia nova vai na lista do fim + AFAZERES |
   Depois de mudar esta skill ou o SOURCE-MAP, copiar para `~/.claude/skills/pw-engine/` (as duas copias iguais).
 - REGRA DO USUARIO: TODA informacao nova sobre QUALQUER estrutura do PW (formato, campo, struct, protocolo, comando, regra do gs/cliente, config, arquivo) entra na KB na mesma sessao, mesmo pequena. Na duvida: Grep na KB; se nao achar, grave.
 - Fato do JOGO -> PW-KB (secao certa). Fato da ENGINE/codigo -> ENGINE-KB. Achou onde algo fica no codigo C++ do jogo -> acrescentar 1 linha no `§M0` do SOURCE-MAP.md (assunto -> arquivo:simbolo).
