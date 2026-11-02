@@ -4969,5 +4969,16 @@
   "uiA.rCreate": "制作界面",
   "uiA.createSub": "用游戏窗口的部件画出自己的窗口（类似 Canva），并关联替代一个游戏窗口。",
   "ai.fixedRun": "已修复 {0} 条在服务器上不触发的公告（触发器被标记为子触发器）。请保存并发送到服务器，然后重启地图。",
-  "pl.deathSynced": "怪物 AI 中的死亡公告已更新：请保存并发送 elements 和 aipolicy（主工具栏），然后重启地图。"
+  "pl.deathSynced": "怪物 AI 中的死亡公告已更新：请保存并发送 elements 和 aipolicy（主工具栏），然后重启地图。",
+  "ann.chGlobal": "全服消息（聊天）",
+  "ann.name2": "以玩家名字开头（击杀者 / 目标）。要把名字放在别处，请在文字中写 $name。",
+  "ann.fromGame": "（游戏自带）",
+  "ann.fromGameTip": "游戏 AI 原有的喊话。要修改或删除，请到 AI Policy 区域。",
+  "ann.cHp": "血量低于一定值",
+  "ann.cTimer": "时间（计时器）",
+  "ann.cRandom": "随机",
+  "ann.cKill": "杀死玩家时",
+  "ann.cOther": "其他条件",
+  "uiA.createSub2": "绘制一个新窗口。",
+  "ai.fixedAnn": "已修复 {0} 条旧版编辑器保存的公告（在服务器上不触发或没有玩家名字）。请保存并发送到服务器，然后重启地图。"
 }

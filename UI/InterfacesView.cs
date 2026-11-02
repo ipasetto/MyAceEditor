@@ -38,14 +38,14 @@ internal sealed class InterfacesView : Panel
 
         var top = UiKit.Ribbon();
         _edit = UiKit.Cmd(top, UiKit.Edit, "uiA.rEdit", "Editar janelas", OpenEditor, "uiA.editSub", "Mudar posição, tamanho e textos das janelas do jogo, vendo na tela.", primary: true);
-        _create = UiKit.Cmd(top, UiKit.Paint, "uiA.rCreate", "Criar interface", OpenDesigner, "uiA.createSub", "Desenhar uma janela sua com peças das janelas do jogo (como no Canva) e vincular no lugar de uma janela do jogo.");
+        _create = UiKit.Cmd(top, UiKit.Paint, "uiA.rCreate", "Criar interface", OpenDesigner, "uiA.createSub2", "Desenhar uma janela nova.");
         UiKit.Sep(top);
         _import = UiKit.Cmd(top, UiKit.Download, "uiA.rImport", "Importar pasta", Import, "uiA.importSub", "Trazer uma pasta de interface (exportada ou baixada); o programa confere antes de gravar.");
         _swap = UiKit.Cmd(top, UiKit.Swap, "uiA.rSwap", "Trocar com outro cliente", Swap, "uiA.swapSub", "Usar a interface de outro cliente do PW (tudo ou só uma parte, com as imagens).");
         _loading = UiKit.Cmd(top, UiKit.Picture, "uiA.rLoading", "Telas de carregamento", Loading, "uiA.loadingSub", "Trocar as imagens que aparecem enquanto o jogo carrega.");
 
         AddTile(UiKit.Edit, "uiA.rEdit", "Editar janelas", "uiA.editSub", "Mudar posição, tamanho e textos das janelas do jogo, vendo na tela.", OpenEditor);
-        AddTile(UiKit.Paint, "uiA.rCreate", "Criar interface", "uiA.createSub", "Desenhar uma janela sua com peças das janelas do jogo (como no Canva) e vincular no lugar de uma janela do jogo.", OpenDesigner);
+        AddTile(UiKit.Paint, "uiA.rCreate", "Criar interface", "uiA.createSub2", "Desenhar uma janela nova.", OpenDesigner);
         AddTile(UiKit.Download, "uiA.rImport", "Importar pasta", "uiA.importSub", "Trazer uma pasta de interface (exportada ou baixada); o programa confere antes de gravar.", Import);
         AddTile(UiKit.Swap, "uiA.rSwap", "Trocar com outro cliente", "uiA.swapSub", "Usar a interface de outro cliente do PW (tudo ou só uma parte, com as imagens).", Swap);
         AddTile(UiKit.Picture, "uiA.rLoading", "Telas de carregamento", "uiA.loadingSub", "Trocar as imagens que aparecem enquanto o jogo carrega.", Loading);

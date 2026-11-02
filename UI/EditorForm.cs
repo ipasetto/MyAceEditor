@@ -3486,7 +3486,8 @@ public sealed class EditorForm : Form
         int users = pid <= 0 ? 0 : ci.Block.Items.Count(i => i.Fields.GetValueOrDefault("common_strategy")?.Value == pid.ToString());
         var pol = f.Policies.FirstOrDefault(p => p.Id == pid);
         int ver = pol is null ? AiAnnounce.TriggerVersion(f, new AiPolicy()) : AiAnnounce.TriggerVersion(f, pol);
-        using var dlg = new AnnounceDialog(TasksFile.SplitColor(item.Name).Text, pid, users, ver, pol is null ? new List<AiAnnounce.Info>() : AiAnnounce.Find(pol));
+        using var dlg = new AnnounceDialog(TasksFile.SplitColor(item.Name).Text, pid, users, ver, pol is null ? new List<AiAnnounce.Info>() : AiAnnounce.Find(pol),
+            pol is null ? null : AiAnnounce.GameTalks(pol));
         if (dlg.ShowDialog(owner) != DialogResult.OK || dlg.Added.Count + dlg.Removed.Count == 0) return;
 
         var target = AiAnnounce.OwnPolicy(f, pid, pol is null ? 2 : users, out bool cloned);
@@ -3522,7 +3523,8 @@ public sealed class EditorForm : Form
         int pid = int.TryParse(item.Fields.GetValueOrDefault("common_strategy")?.Value, out var v) ? v : 0;
         var pol = f.Policies.FirstOrDefault(p => p.Id == pid);
         var mine = pol is null ? null : AiAnnounce.Find(pol).FirstOrDefault(a => a.Trigger.Name == name);
-        if (text is null ? mine is null : mine is { Prefix: "$B" } && mine.Text == text && mine.Trigger.Run == 0) return null;   // já está como deve
+        // $S = canal 9, o mesmo da "Mensagem ao surgir" do plugin (PublicChat 9)
+        if (text is null ? mine is null : mine is { Prefix: "$S" } && mine.Text == text && mine.Trigger.Run == 0) return null;   // já está como deve
         if (text is null && pol is null) return null;
         int users = pid <= 0 ? 0 : ci.Block.Items.Count(i => i.Fields.GetValueOrDefault("common_strategy")?.Value == pid.ToString());
         var target = AiAnnounce.OwnPolicy(f, pid, pol is null ? 2 : users, out bool cloned);
@@ -3530,7 +3532,7 @@ public sealed class EditorForm : Form
         target.Triggers.RemoveAll(x => x.Name == name);
         if (text is not null)
         {
-            var t = AiAnnounce.Make(f, target, AiAnnounce.When.Died, "$B", text, false);
+            var t = AiAnnounce.Make(f, target, AiAnnounce.When.Died, "$S", text, false);
             t.Name = name;
             target.Triggers.Add(t);
         }

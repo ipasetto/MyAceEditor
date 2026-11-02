@@ -23,7 +23,7 @@ internal sealed class AnnounceDialog : Form
 
     static RadioButton Pill() => new() { Appearance = Appearance.Button, AutoSize = true, FlatStyle = FlatStyle.Flat, Padding = new Padding(10, 4, 10, 4), Margin = new Padding(0, 0, 6, 0) };
 
-    public AnnounceDialog(string monster, int policyId, int users, int triggerVersion, IReadOnlyList<AiAnnounce.Info> existing)
+    public AnnounceDialog(string monster, int policyId, int users, int triggerVersion, IReadOnlyList<AiAnnounce.Info> existing, IReadOnlyList<AiAnnounce.GameTalk>? gameTalks = null)
     {
         _canName = AiAnnounce.CanAppendName(triggerVersion);
         Text = string.Format(Loc.T("ann.title", "Anúncios — {0}"), monster);
@@ -42,6 +42,14 @@ internal sealed class AnnounceDialog : Form
         body.Controls.Add(Title("ann.has", "Anúncios que ele já tem"));
         _list.Columns.Add(Loc.T("ann.colWhen", "Quando"), 150); _list.Columns.Add(Loc.T("ann.colChannel", "Canal"), 200); _list.Columns.Add(Loc.T("ann.colText", "Texto"), 290);
         foreach (var a in existing) _list.Items.Add(Row(a.When, a.Prefix, a.Text, a.AppendName, a.Trigger));
+        // falas que o próprio jogo já pôs na IA (combate, vida baixa...): aparecem em cinza, só para ver (usuário 02/11)
+        foreach (var g in gameTalks ?? Array.Empty<AiAnnounce.GameTalk>())
+        {
+            var ch = AiAnnounce.Channels.FirstOrDefault(c => c.Prefix == g.Prefix);
+            _list.Items.Add(new ListViewItem(new[] { CondName(g.Cond) + Loc.T("ann.fromGame", " (do jogo)"), Loc.T(ch.Key ?? "ann.chNormal", ch.Pt ?? "Fala normal (só quem está perto)"), g.Text })
+                { ForeColor = Color.FromArgb(120, 130, 145), Tag = g, ToolTipText = Loc.T("ann.fromGameTip", "Fala que a IA do jogo já tinha. Para mudar ou tirar, use a área AI Policy.") });
+        }
+        _list.ShowItemToolTips = true;
         var listBox = new Panel { Width = 660, Height = 130, Margin = new Padding(0) };
         listBox.Controls.Add(_list);
         body.Controls.Add(listBox);
@@ -49,6 +57,7 @@ internal sealed class AnnounceDialog : Form
         {
             if (_list.SelectedItems.Count == 0) return;
             var it = _list.SelectedItems[0];
+            if (it.Tag is AiAnnounce.GameTalk) { MessageBox.Show(this, Loc.T("ann.fromGameTip", "Fala que a IA do jogo já tinha. Para mudar ou tirar, use a área AI Policy."), Text); return; }
             if (it.Tag is AiTrigger t) Removed.Add(t); else if (it.Tag is NewAnn n) Added.Remove(n);
             _list.Items.Remove(it);
         });
@@ -68,7 +77,7 @@ internal sealed class AnnounceDialog : Form
         body.Controls.Add(Note(Loc.T("ann.textLabel", "3. Texto")));
         _text.Text = Loc.T("ann.textDefault", "derrotou um monstro poderoso!");
         body.Controls.Add(_text);
-        _name.Text = Loc.T("ann.name", "Começar com o nome do jogador (quem matou / o alvo)");
+        _name.Text = Loc.T("ann.name2", "Começar com o nome do jogador (quem matou / o alvo). Para pôr o nome em outro lugar, escreva $name no texto.");
         _name.Checked = _canName; _name.Enabled = _canName;
         body.Controls.Add(_name);
         if (!_canName) body.Controls.Add(Note(Loc.T("ann.noName", "Nesta versão da IA o jogo não põe o nome sozinho: escreva no texto o que quiser mostrar.")));
@@ -93,6 +102,13 @@ internal sealed class AnnounceDialog : Form
         AcceptButton = ok; CancelButton = cancel;
         Controls.Add(body); Controls.Add(bottom);
     }
+
+    static string CondName(int c) => c switch
+    {
+        8 => Loc.T("ann.died", "Quando ele morre"), 2 => Loc.T("ann.combat", "Quando ele entra em combate"),
+        1 => Loc.T("ann.cHp", "Vida abaixo de um tanto"), 0 => Loc.T("ann.cTimer", "Tempo (temporizador)"), 3 => Loc.T("ann.cRandom", "Por sorteio"),
+        4 => Loc.T("ann.cKill", "Quando mata um jogador"), _ => Loc.T("ann.cOther", "Outra condição"),
+    };
 
     static Button Btn(string text, Action a, bool main = false)
     {

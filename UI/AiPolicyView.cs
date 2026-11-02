@@ -252,7 +252,7 @@ public sealed class AiPolicyView : UserControl
         if (_file.Ok && AiAnnounce.FixRun(_file) is var fixedRun and > 0)
         {
             MarkDirty();
-            SetStatus(string.Format(Loc.T("ai.fixedRun", "Corrigi {0} anúncio(s) que não disparavam no servidor (gatilho marcado como subgatilho). Salve e envie ao servidor e reinicie o mapa."), fixedRun));
+            SetStatus(string.Format(Loc.T("ai.fixedAnn", "Corrigi {0} anúncio(s) gravados por versões antigas do editor (não disparavam no servidor ou ficavam sem o nome do jogador). Salve e envie ao servidor e reinicie o mapa."), fixedRun));
         }
     }
 

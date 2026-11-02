@@ -4967,5 +4967,16 @@
   "uiA.rCreate": "Create interface",
   "uiA.createSub": "Draw your own window with pieces of the game windows (like Canva) and link it in place of a game window.",
   "ai.fixedRun": "Fixed {0} announcement(s) that did not fire on the server (trigger marked as sub-trigger). Save and send to the server and restart the map.",
-  "pl.deathSynced": "Death announcement updated in the monster's AI: save and send the elements and aipolicy (main bar) and restart the map."
+  "pl.deathSynced": "Death announcement updated in the monster's AI: save and send the elements and aipolicy (main bar) and restart the map.",
+  "ann.chGlobal": "Global Message (Chat)",
+  "ann.name2": "Start with the player's name (who killed / the target). To put the name elsewhere, write $name in the text.",
+  "ann.fromGame": " (from the game)",
+  "ann.fromGameTip": "Speech the game's AI already had. To change or remove it, use the AI Policy area.",
+  "ann.cHp": "HP below some amount",
+  "ann.cTimer": "Time (timer)",
+  "ann.cRandom": "By chance",
+  "ann.cKill": "When it kills a player",
+  "ann.cOther": "Other condition",
+  "uiA.createSub2": "Draw a new window.",
+  "ai.fixedAnn": "Fixed {0} announcement(s) saved by old editor versions (they did not fire on the server or had no player name). Save and send to the server and restart the map."
 }
