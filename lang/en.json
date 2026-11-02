@@ -1888,7 +1888,7 @@
   "srv.status": "Status",
   "srv.admin": "🛠 Admin…",
   "srv.pickThePackageSServer": "Pick the package's \"server files\" folder (with home, etc and lib).",
-  "srv.sqlFolderPwTabelsSql": "SQL folder (PW_tabels.sql) not found next to the package.",
+  "srv.sqlFolderPwTabelsSql": "Database SQL not found next to the package (SQL\\PW_tabels.sql, or a single .sql dump in SQL, root or beside the package).",
   "srv.loginAndPasswordLettersAnd": "Login and password: letters and digits only.",
   "srv.setTheClientElementFolder": "Set the client (element folder) in the Verification tab.",
   "srv.installing": "Installing…",
@@ -2715,7 +2715,7 @@
   "ls.backupFailed": "Could not save the current installation; nothing was replaced.",
   "ls.backupAt": "backup in {0}",
   "chk.glinkdInstalled": "glinkd version (this folder × installed)",
-  "chk.glinkdInstalledDiffers": "The local server runs programs of another version: the client gets \"client version is low\" and login is refused. Use Fix (or Send to server): it installs the programs from this folder.",
+  "chk.glinkdInstalledDiffers": "The local server runs programs of another version: the client gets \"client version too low\" and login is refused. Each version has its own server: in the Server tab, choose this version's server folder (or install a new one).",
   "chk.programs": "programs",
   "fix.programsDetail": "The installed programs are another version and login is refused with \"client version is low\". Installs the ones from {0}, sends the client's data and starts. First it asks whether to keep the current installation.",
   "chk.programsMatchClient": "The installed programs match the client's version.",
@@ -4985,5 +4985,7 @@
   "pl.onChanged": "{0}: roll {1}. Click Save and send for it to take effect on the server.",
   "pl.on": "On",
   "pl.off": "Off",
-  "pl.onHead": "Roll"
+  "pl.onHead": "Roll",
+  "ls.stoppingOther": "Stopping the server of another folder ({0}): only one local server runs at a time",
+  "ls.otherVersion": "The local server in folder {0} is v{1} and the client is v{2}. Each version has its own server: in the Server tab, choose a folder of its own for this version (e.g. {3}) and click Install."
 }

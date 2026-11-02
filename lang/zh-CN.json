@@ -1890,7 +1890,7 @@
   "srv.status": "状态",
   "srv.admin": "🛠 管理…",
   "srv.pickThePackageSServer": "请选择服务器包的 \"server files\" 文件夹（含 home、etc 和 lib）。",
-  "srv.sqlFolderPwTabelsSql": "在服务器包旁未找到 SQL 文件夹（PW_tabels.sql）。",
+  "srv.sqlFolderPwTabelsSql": "在服务器包旁未找到数据库 SQL（SQL\\PW_tabels.sql，或 SQL、root 文件夹中或包旁的单个 .sql 转储）。",
   "srv.loginAndPasswordLettersAnd": "账号和密码：只能用字母和数字。",
   "srv.setTheClientElementFolder": "请在“一致性检查”标签页设置客户端（element 文件夹）。",
   "srv.installing": "正在安装…",
@@ -2717,7 +2717,7 @@
   "ls.backupFailed": "无法备份当前安装；未替换任何内容。",
   "ls.backupAt": "备份在 {0}",
   "chk.glinkdInstalled": "glinkd 版本（此文件夹 × 已安装）",
-  "chk.glinkdInstalledDiffers": "本地服务器运行的是其他版本的程序：客户端会提示“客户端版本过低”并拒绝登录。请使用“修复”（或“发送到服务器”）：将安装此文件夹中的程序。",
+  "chk.glinkdInstalledDiffers": "本地服务器运行的是其他版本的程序：客户端会收到“客户端版本过低”，登录被拒绝。每个版本都有自己的服务器：请在“服务器”页选择此版本的服务器文件夹（或安装一个新的）。",
   "chk.programs": "程序",
   "fix.programsDetail": "已安装的程序是其他版本，登录会因“客户端版本过低”被拒绝。将安装 {0} 中的程序、发送客户端数据并启动。之前会询问是否备份当前安装。",
   "chk.programsMatchClient": "已安装的程序与客户端版本一致。",
@@ -4987,5 +4987,7 @@
   "pl.onChanged": "{0}：抽签{1}。点击“保存并发送”后在服务器生效。",
   "pl.on": "已开启",
   "pl.off": "已关闭",
-  "pl.onHead": "抽签"
+  "pl.onHead": "抽签",
+  "ls.stoppingOther": "正在停止其他文件夹的服务器（{0}）：同一时间只运行一个本地服务器",
+  "ls.otherVersion": "文件夹 {0} 中的本地服务器为 v{1}，客户端为 v{2}。每个版本都有自己的服务器：请在“服务器”页为此版本选择单独的文件夹（例如 {3}）并点击“安装”。"
 }

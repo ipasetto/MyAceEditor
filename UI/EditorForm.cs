@@ -1204,6 +1204,8 @@ public sealed class EditorForm : Form
             _aiView?.GameFolderChanged(element);
             _pckView?.GameFolderChanged(); _uiArea?.GameFolderChanged();
             _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do cliente anterior
+            // servidor: cada versão tem o seu (pacote + pasta/distro); a Verificação compara com o pacote dele
+            if (_serverView?.GameFolderChanged() is { } pkgHome) { _chkServer.Text = pkgHome; SaveSetting("check_server", pkgHome); }
         });
         int items = module.Lists.Sum(l => l.Items.Count);
         Status($"{module.Name} · {module.Lists.Count} {Loc.T("status.blocks", "blocos")} · {items:N0} {Loc.T("status.items", "itens")} · {100.0 * r.Position / r.Length:0.0}% · {r.Ms / 1000.0:0.0} s"
@@ -5322,7 +5324,7 @@ public sealed class EditorForm : Form
     private void FixPair()
     {
         if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(Loc.T("chk.pickBothFolders", "Escolha as pastas do cliente e do servidor.")); return; }
-        var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text, _serverView is { } sv ? sv.CreateServer : null);
+        var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text);
         if (fixes.Count == 0) { MessageBox.Show(this, Loc.T("fix.none", "Nada para corrigir: o servidor já está igual ao cliente no que o login exige."), Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         using var f = new Form
         {
@@ -5338,8 +5340,6 @@ public sealed class EditorForm : Form
         if (f.ShowDialog(this) != DialogResult.OK) return;
         var done = new List<string>(); var failed = new List<string>();
         var marked = Enumerable.Range(0, fixes.Count).Where(list.GetItemChecked).ToList();
-        // troca de programas do servidor local: pergunta backup e banco novo; "Agora não" tira o item
-        marked.RemoveAll(i => fixes[i].Swap is { } sw && !ServerView.AskSwap(this, sw));
         // fora da tela: trocar os programas do servidor local leva minutos
         ReadProgressDialog.Run(this, Loc.T("fix.title", "Corrigir o par"), ctx =>
         {

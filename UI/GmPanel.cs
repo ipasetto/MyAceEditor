@@ -135,7 +135,7 @@ public sealed class GmPanel : Form
         catch { return false; }
     }
 
-    static ServerAdmin LocalAdmin() => new(new LocalServer(""));
+    static ServerAdmin LocalAdmin() => new(LocalServer.Current);
 
     void AddLog(string s) { _log.Items.Add($"{DateTime.Now:HH:mm:ss}  {s}"); _log.TopIndex = Math.Max(0, _log.Items.Count - 1); }
 

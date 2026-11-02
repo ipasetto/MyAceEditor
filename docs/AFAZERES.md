@@ -49,6 +49,7 @@
 [ ] futuro (usuario 31/10): trocar o fundo ANIMADO do login — cena maps\login + camera (SceneCtrl.ini / scenectrl.lua), efeito gfx\程序联入\登录界面1.gfx, background.jpg, CG .wmv no 1.7; tudo mapeado em PW-KB §S20e
 [ ] PLUGINS de evento (docs/PLUGINS.md: programa C# no servidor + tela Plugins acima do Extrator; monstro raro, chefe errante, mercador/colheita/rodizio) | [ ] deploy de servidor | editor de mapa (PW-KB §S22) | skills
 
+- [>] 02/11 Servidor local POR VERSAO (prioridade do usuario): codigo pronto (1 distro por pasta, sem instalar versao por cima, so 1 no ar). Distro antiga PWServer155 excluida a pedido. FALTA: usuario instalar 155 (D:\PWServer155, pacote pw_server_162-155) e 144 (D:\PWServer144v60) pela aba Servidor e reportar erros; itens do Testes.txt: 1 (Verificacao com as pastas do Servidor: feito ao abrir cliente), 2/8 (Corrigir resolver tudo, ate sem servidor), 3 (favoritos/3D do 155 aparecendo no 144: configuracoes globais), 4 gshop 144, 5 plugin padrao desativado, 6 botao "zerar" no menu Arquivo, 7 campos de quest sem dado escondidos e icone principal so onde existe.
 ## ONDE PARAMOS (26/10/2026, painel do servidor) - RETOMAR AQUI
 Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor num form (como o iweb)".
 [x] Verificacao: versao do elements compilada no elementclient.exe x gs x arquivos (ProgramVersion.cs)

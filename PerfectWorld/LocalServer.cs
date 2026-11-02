@@ -7,15 +7,21 @@ using System.Text;
 namespace MyAceEditor.PerfectWorld;
 
 /// <summary>
-/// Servidor local sem mão do usuário (ENGINE-KB plano #27, PW-KB §S5 §S30): uma distro WSL própria ("PWServer", Ubuntu
-/// 22.04 oficial importado numa pasta do usuário) recebe o pacote de servidor (pasta "server files" + SQL), instalado por
-/// Server/provision.sh e controlado por pwctl (iniciar/parar/estado/conta). O par cliente × servidor é corrigido na
-/// cópia do servidor (PairFixer) e o cliente ganha a entrada "Local" na lista de servidores. Nada nos arquivos
-/// originais do servidor é alterado.
+/// Servidor local sem mão do usuário (ENGINE-KB plano #27, PW-KB §S5 §S30): cada pasta de servidor (ex.: D:\PWServer155,
+/// D:\PWServer144v60) tem a SUA distro WSL (Ubuntu 22.04 oficial importado em &lt;pasta&gt;\vm, nome = nome da pasta), que
+/// recebe o pacote de servidor (pasta "server files" + SQL), instalado por Server/provision.sh e controlado por pwctl
+/// (iniciar/parar/estado/conta). Uma versão nunca é instalada por cima de outra (regra do usuário 02/11). O par cliente
+/// × servidor é corrigido na cópia do servidor (PairFixer) e o cliente ganha a entrada "Local" na lista de servidores.
+/// Nada nos arquivos originais do servidor é alterado.
 /// </summary>
 public sealed class LocalServer
 {
-    public const string Distro = "PWServer";
+    /// <summary>Distro WSL desta pasta de servidor.</summary>
+    public string Distro { get; }
+
+    /// <summary>Servidor da pasta escolhida na aba Servidor (para quem não tem a aba: Verificação, GM, plugins).</summary>
+    public static LocalServer Current { get; set; } = new("");
+
     const string RootfsUrl = "https://cloud-images.ubuntu.com/wsl/releases/22.04/current/ubuntu-jammy-wsl-amd64-wsl.rootfs.tar.gz";
     const string SumsUrl = "https://cloud-images.ubuntu.com/wsl/releases/22.04/current/SHA256SUMS";
 
@@ -29,30 +35,45 @@ public sealed class LocalServer
         set => _log = value;
     }
 
-    public LocalServer(string baseDir) { BaseDir = baseDir; }
+    public LocalServer(string baseDir) { BaseDir = baseDir; Distro = DistroFor(baseDir); }
 
     /// <summary>
-    /// Pasta que o WSL registra para a distro (pai de BasePath em HKCU\...\Lxss), ou null. Usada quando a pasta gravada
-    /// no editor não tem mais o disco (usuário renomeou D:\PWServer -> D:\PWServer155 em 02/11).
+    /// Distro da pasta: a que o WSL já registra em &lt;pasta&gt;\vm (sobrevive a renomear a distro), senão o nome da pasta
+    /// só com letras, números, ponto, hífen e sublinhado (D:\PWServer144v60 → PWServer144v60).
     /// </summary>
-    public static string? RegisteredBaseDir()
+    public static string DistroFor(string baseDir)
     {
-        if (!OperatingSystem.IsWindows()) return null;
+        if (baseDir.Length > 0)
+            foreach (var (name, dir) in Registered())
+                if (string.Equals(dir.TrimEnd('\\'), Path.GetFullPath(baseDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return name;
+        var n = new string(Path.GetFileName(baseDir.TrimEnd('\\', '/')).Where(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_').ToArray());
+        return n.Length > 0 ? n : "PWServer";
+    }
+
+    /// <summary>Distros do WSL com a pasta de cada uma (pai de BasePath em HKCU\...\Lxss).</summary>
+    public static List<(string Name, string BaseDir)> Registered()
+    {
+        var list = new List<(string, string)>();
+        if (!OperatingSystem.IsWindows()) return list;
         try
         {
             using var lx = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Lxss");
-            if (lx is null) return null;
+            if (lx is null) return list;
             foreach (var n in lx.GetSubKeyNames())
             {
                 using var k = lx.OpenSubKey(n);
-                if (k?.GetValue("DistributionName") as string != Distro || k.GetValue("BasePath") is not string bp) continue;
+                if (k?.GetValue("DistributionName") is not string name || k.GetValue("BasePath") is not string bp) continue;
                 bp = bp.StartsWith(@"\\?\") ? bp[4..] : bp;
-                return Path.GetDirectoryName(bp.TrimEnd('\\'));
+                if (Path.GetDirectoryName(bp.TrimEnd('\\')) is { } dir) list.Add((name, dir));
             }
         }
         catch (Exception) { }
-        return null;
+        return list;
     }
+
+    /// <summary>Distros de servidor deste programa (a pasta tem o db-password.txt que a instalação grava).</summary>
+    public static IEnumerable<(string Name, string BaseDir)> Servers() =>
+        Registered().Where(r => File.Exists(Path.Combine(r.BaseDir, "db-password.txt")));
 
     // ---------- WSL ----------
     public sealed record RunResult(int Code, string Output);
@@ -101,10 +122,50 @@ public sealed class LocalServer
         catch (Exception ex) { return Loc.T("ls.wslRunFail", "Não consegui rodar o wsl.exe: ") + ex.Message; }
     }
 
-    public static bool DistroExists()
+    /// <summary>A distro do servidor escolhido (Current) existe?</summary>
+    public static bool DistroExists() => Current.Exists();
+
+    public bool Exists()
     {
         var r = Wsl("-l -q", timeoutMs: 60_000);
         return r.Output.Split('\n').Any(l => l.Trim().Equals(Distro, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Todas as distros do WSL 2 dividem a mesma rede (portas 29000, 3306…): antes de ligar este servidor, para e desliga
+    /// os servidores das outras pastas. Só um servidor local no ar por vez.
+    /// </summary>
+    void StopOthers()
+    {
+        var running = Wsl("-l --running -q", timeoutMs: 60_000).Output.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, dir) in Servers())
+        {
+            if (name.Equals(Distro, StringComparison.OrdinalIgnoreCase) || !running.Contains(name)) continue;
+            Log("##PASSO " + string.Format(Loc.T("ls.stoppingOther", "Parando o servidor de outra pasta ({0}): só um servidor local fica no ar por vez"), name));
+            new LocalServer(dir) { Log = Log }.Stop();
+            Wsl($"--terminate {name}", timeoutMs: 120_000);
+        }
+    }
+
+    /// <summary>
+    /// null = os programas instalados nesta pasta são da versão do cliente (ou não deu para ler). Senão, o aviso: cada
+    /// versão tem a sua pasta/distro, nunca se instala uma versão por cima de outra.
+    /// </summary>
+    public string? VersionMismatch(string clientElement)
+    {
+        int? client = ProgramVersion.ElementsVersion(Path.Combine(clientElement, "elementclient.exe"));
+        int? installed = Home is { } h ? ProgramVersion.ElementsVersion(Path.Combine(h, "gamed", "gs")) : null;
+        if (client is null || installed is null || client == installed) return null;
+        return string.Format(Loc.T("ls.otherVersion", "O servidor local da pasta {0} é v{1} e o cliente é v{2}. Cada versão tem o seu servidor: na aba Servidor, escolha uma pasta própria para esta versão (ex.: {3}) e clique em Instalar."),
+            BaseDir, installed, client, SuggestedBaseDir(clientElement, Path.GetPathRoot(BaseDir) is { Length: > 0 } r ? r : @"C:\"));
+    }
+
+    /// <summary>Pasta sugerida para o servidor da versão do cliente: &lt;disco&gt;\PWServer&lt;jogo&gt;v&lt;elements&gt; (ex.: D:\PWServer144v60).</summary>
+    public static string SuggestedBaseDir(string clientElement, string root)
+    {
+        int? v = ProgramVersion.ElementsVersion(Path.Combine(clientElement, "elementclient.exe"));
+        var game = v is { } x ? (ProgramVersion.GameFor(x) ?? "").Replace(".", "") : "";
+        return Path.Combine(root, "PWServer" + game + (v is { } y ? $"v{y}" : ""));
     }
 
     // ---------- instalação ----------
@@ -116,7 +177,7 @@ public sealed class LocalServer
         if (WslProblem() is { } problem) throw new InvalidOperationException(problem);
         Directory.CreateDirectory(BaseDir);
 
-        if (!DistroExists())
+        if (!Exists())
         {
             var tar = await DownloadRootfsAsync(progress, ct);
             progress?.Report((string.Format(Loc.T("ls.creatingLinux", "Criando o Linux do servidor ({0})"), Distro), null));
@@ -176,7 +237,10 @@ public sealed class LocalServer
     static readonly string[] Programs = { @"glinkd\glinkd", @"gdeliveryd\gdeliveryd", @"gamedbd\gamedbd", @"gamed\gs" };
 
     /// <summary>A home/ instalada no Linux, vista do Windows (null sem a distro ou sem servidor instalado).</summary>
-    public static string? LiveHome => DistroExists() && Directory.Exists($@"\\wsl.localhost\{Distro}\home\glinkd") ? $@"\\wsl.localhost\{Distro}\home" : null;
+    public static string? LiveHome => Current.Home;
+
+    /// <summary>A home/ instalada na distro desta pasta, vista do Windows (null sem a distro ou sem servidor instalado).</summary>
+    public string? Home => Exists() && Directory.Exists($@"\\wsl.localhost\{Distro}\home\glinkd") ? $@"\\wsl.localhost\{Distro}\home" : null;
 
     /// <summary>Log do gs do mundo (gs01) no servidor local, como está agora (null sem servidor ou sem log).</summary>
     public static string? GsLog()
@@ -230,37 +294,8 @@ public sealed class LocalServer
         catch { return false; }
     }
 
-    /// <summary>
-    /// Troca de programas do servidor local para a versão do cliente (atualizar ou voltar). Backup e Banco novo são
-    /// escolhas do usuário: o banco de personagens de outra versão em geral não abre (o uniquenamed não inicia).
-    /// </summary>
-    public sealed class ProgramSwap
-    {
-        public required string Package { get; init; }   // pasta "server files" com os programas da versão do cliente
-        public int? From { get; init; }                  // versão instalada (elements compilada no gs)
-        public int? To { get; init; }                    // versão do cliente
-        public bool Downgrade => From is { } f && To is { } t && t < f;
-        public bool Backup { get; set; }
-        public bool FreshDatabase { get; set; } = true;
-    }
-
-    /// <summary>
-    /// O que fazer para o servidor local casar com o cliente: null se já casa, se não há servidor instalado ou se não deu
-    /// para ler as versões. Procura o pacote com o gs da versão do cliente: primeiro <paramref name="preferred"/>, depois
-    /// as pastas ao lado dele (ex.: D:\...\PW_Server\*), para cima ou para baixo de versão.
-    /// </summary>
-    public static ProgramSwap? SwapFor(string clientElement, string preferred, out string? missing)
-    {
-        missing = null;
-        int? client = ProgramVersion.ElementsVersion(Path.Combine(clientElement, "elementclient.exe"));
-        int? installed = InstalledVersion();
-        if (client is null || installed is null || client == installed) return null;
-        var pkg = FindPackage(client.Value, preferred);
-        if (pkg is null) { missing = string.Format(Loc.T("ls.noPackageFor", "Nenhuma pasta de servidor com o gs v{0} perto de {1}."), client, preferred); return null; }
-        return new ProgramSwap { Package = pkg, From = installed, To = client };
-    }
-
-    static string? FindPackage(int version, string preferred) => PackagesWith(version, preferred).FirstOrDefault();
+    /// <summary>Pasta "server files" com o gs da versão pedida, perto de <paramref name="preferred"/> (null se não houver).</summary>
+    public static string? FindPackage(int version, string preferred) => PackagesWith(version, preferred).FirstOrDefault();
 
     /// <summary>
     /// Pastas "server files" cujo gs tem a versão pedida: <paramref name="preferred"/> primeiro, depois as pastas ao lado
@@ -291,29 +326,6 @@ public sealed class LocalServer
                 }
                 level = next.Count > 400 ? next.Take(400).ToList() : next;
             }
-        }
-    }
-
-    /// <summary>
-    /// Troca os programas do servidor local pelos do pacote: para, (se pedido) guarda a home/ em /home.bak-&lt;data&gt;,
-    /// roda o provision.sh e (se pedido) recomeça o banco do jogo (as contas de login, no MariaDB, ficam).
-    /// Não inicia: quem chama envia os dados e inicia.
-    /// </summary>
-    public void InstallPrograms(ProgramSwap swap)
-    {
-        Stop();
-        if (swap.Backup)
-        {
-            Log("##PASSO " + Loc.T("ls.backupHome", "Guardando a instalação atual (/home.bak-<data>)"));
-            var bk = Bash("b=/home.bak-$(date +%Y%m%d-%H%M%S) && mkdir -p $b && cd /home && for d in *; do [ $d = logs ] || cp -a $d $b/ || exit 1; done && echo $b", timeoutMs: 1_800_000);
-            if (bk.Code != 0) throw new InvalidOperationException(Loc.T("ls.backupFailed", "Não consegui guardar a instalação atual; nada foi trocado.") + "\n" + bk.Output);
-            Log(string.Format(Loc.T("ls.backupAt", "backup em {0}"), bk.Output.Trim().Split('\n').Last()));
-        }
-        Provision(swap.Package, swap.Package);   // o banco de contas já existe: a pasta SQL não é usada
-        if (swap.FreshDatabase)
-        {
-            Log("##PASSO " + Loc.T("ls.freshDb", "Recomeçando o banco do jogo (personagens e nomes)"));
-            Bash("for d in /home/uniquenamed/uname /home/gamedbd/dbhome /home/gamedbd/dbhomewdb; do [ -d $d ] && rm -rf $d/dbdata/* $d/dblogs/* $d/__db.* ; done; true", Log, timeoutMs: 300_000);
         }
     }
 
@@ -415,12 +427,12 @@ public sealed class LocalServer
     /// (npcgen, mapas, regiões…) e, por cima, os arquivos que vêm do cliente (StagePair). Compara pelo CONTEÚDO (MD5 dos
     /// dois lados, nada de data) e só copia o que difere; sem diferença e com o servidor no ar, nem reinicia.
     /// </summary>
-    public RunResult SendAll(string serverFiles, string clientElement, string? aiPolicy = null, ProgramSwap? swap = null)
+    public RunResult SendAll(string serverFiles, string clientElement, string? aiPolicy = null)
     {
         // "##PCT n etapa": a tela mostra a barra cheia até n% (não vai para o log)
         void Pct(int n, string what) => Log($"##PCT {n} {what}");
-        // programas de outra versão que a do cliente: o glinkd recusaria o login ("versão baixa"); troca antes dos dados
-        if (swap is not null) { Pct(2, Loc.T("ls.pctStop", "Parando o servidor")); Stop(); Pct(8, Loc.T("ls.pctPrograms", "Trocando os programas do servidor")); InstallPrograms(swap); serverFiles = swap.Package; }
+        // programas de outra versão que a do cliente: nada vai (cada versão tem a sua pasta e distro; nunca por cima)
+        if (VersionMismatch(clientElement) is { } other) { Log("##ERRO " + other); return new(1, other); }
         var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
         Pct(12, Loc.T("ls.pctClient", "Enviando elements, tasks, loja e IA do cliente"));
         List<SendFile> diff;
@@ -430,7 +442,7 @@ public sealed class LocalServer
             Pct(20, Loc.T("ls.pctCompare", "Comparando com o que o servidor já tem"));
             diff = ConfigDiff(cfg, stage);
         }
-        bool running = swap is null && Status() is { Count: > 0 } st && st.Values.All(v => v);
+        bool running = Status() is { Count: > 0 } st && st.Values.All(v => v);
         if (diff.Count == 0 && running)
         {
             Log(Loc.T("ls.nothingChanged", "O servidor já tem exatamente estes arquivos: nada enviado, continua no ar."));
@@ -439,7 +451,7 @@ public sealed class LocalServer
         }
         Log(string.Format(Loc.T("ls.filesToSend", "{0} arquivo(s) diferentes: {1}"), diff.Count,
             string.Join(", ", diff.Take(12).Select(d => d.Rel)) + (diff.Count > 12 ? $" … +{diff.Count - 12}" : "")));
-        if (swap is null) { Pct(30, Loc.T("ls.pctStop", "Parando o servidor")); Stop(); }
+        Pct(30, Loc.T("ls.pctStop", "Parando o servidor")); Stop();
         Pct(45, Loc.T("ls.pctConfig", "Copiando os arquivos que mudaram"));
         lock (StageLock) CopyToConfig(diff);
         Pct(72, Loc.T("ls.pctStart", "Iniciando os serviços e os mapas"));
@@ -459,7 +471,7 @@ public sealed class LocalServer
     public List<SendFile>? PendingDiff(string serverFiles, string clientElement, string? aiPolicy = null)
     {
         var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
-        if (!DistroExists() || !Directory.Exists(cfg) || !Directory.Exists(Path.Combine(clientElement, "data"))) return null;
+        if (!Exists() || !Directory.Exists(cfg) || !Directory.Exists(Path.Combine(clientElement, "data"))) return null;
         lock (StageLock) return ConfigDiff(cfg, StagePair(clientElement, aiPolicy, cfg));
     }
     static readonly object StageLock = new();   // a pasta envio é uma só (conferência em segundo plano × envio)
@@ -715,6 +727,7 @@ public sealed class LocalServer
 
     public RunResult Start(IEnumerable<string>? maps = null)
     {
+        StopOthers();
         EnsureTools();
         KeepAlive();
         NameCharset();

@@ -25,6 +25,7 @@ public sealed class ServerView : UserControl
     readonly List<ToolStripItem> _buttons = new();
     ToolStripButton? _startBtn, _stopBtn, _sendBtn, _setupBtn;
     bool _busy, _online, _anyUp, _installed;
+    string? _filledFor;   // cliente (pasta element) para o qual as pastas foram preenchidas
     readonly Color _accent;
     /// <summary>aipolicy.data aberto na aba AI Policy (é o que vai para o servidor ao enviar).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -89,6 +90,7 @@ public sealed class ServerView : UserControl
             RefreshStatus(quiet: true);
         };
         Loc.Changed += ApplyTexts;
+        _base.TextChanged += (_, _) => LocalServer.Current = new LocalServer(_base.Text.Trim());
     }
 
     ToolStripButton Cmd(ToolStrip bar, string glyph, string key, string pt, Action click, string tipKey, string tipPt, bool primary = false)
@@ -115,25 +117,51 @@ public sealed class ServerView : UserControl
         if (d.ShowDialog(this) == DialogResult.OK) box.Text = d.SelectedPath;
     }
 
-    /// <summary>Preenche os caminhos a partir da Verificação (pasta home do servidor → "server files" ao redor dela).</summary>
+    /// <summary>
+    /// Pastas do servidor do cliente aberto: cada versão tem o seu pacote e a sua pasta/distro (regra do usuário 02/11),
+    /// gravados por cliente ("server_pkg@&lt;cliente&gt;"). Sem nada gravado: o pacote com o gs da versão do cliente perto
+    /// do último usado (ou da Verificação) e a pasta sugerida &lt;disco&gt;\PWServer&lt;jogo&gt;v&lt;elements&gt;.
+    /// </summary>
+    (string Pkg, string Base) Paths(string client)
+    {
+        var pkg = _load(Key("server_pkg", client));
+        var bas = _load(Key("server_base", client));
+        int? v = client.Length > 0 ? ProgramVersion.ElementsVersion(Path.Combine(client, "elementclient.exe")) : null;
+        if (pkg is null || !Directory.Exists(Path.Combine(pkg, "home")))
+        {
+            string? hint = _load("server_pkg");
+            if (hint is null && _serverHome() is { Length: > 0 } h && Directory.Exists(h))
+                hint = Path.GetDirectoryName(VersionCheck.ServerHome(h).TrimEnd('\\'));
+            pkg = hint is null ? "" : v is { } x ? LocalServer.FindPackage(x, hint) ?? "" : hint;
+        }
+        bas ??= client.Length > 0 ? LocalServer.SuggestedBaseDir(client, pkg.Length > 0 ? Path.GetPathRoot(pkg)! : @"C:\") : "";
+        return (pkg, bas);
+    }
+
+    static string Key(string k, string client) => client.Length == 0 ? k
+        : k + "@" + Convert.ToHexString(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(client.TrimEnd('\\').ToLowerInvariant())))[..10];
+
+    /// <summary>Preenche as pastas para o cliente aberto (outro cliente = outras pastas: as de cada versão).</summary>
     void Fill()
     {
-        if (_pkg.Text.Length == 0)
-        {
-            var saved = _load("server_pkg");
-            if (saved is not null && Directory.Exists(Path.Combine(saved, "home"))) _pkg.Text = saved;
-            else if (_serverHome() is { Length: > 0 } h && Directory.Exists(h))
-            {
-                var home = VersionCheck.ServerHome(h);
-                var parent = Path.GetDirectoryName(home.TrimEnd('\\'));
-                if (parent is not null && Directory.Exists(Path.Combine(parent, "etc"))) _pkg.Text = parent;
-            }
-        }
-        if (_base.Text.Length == 0)
-            _base.Text = _load("server_base") ?? (_pkg.Text.Length > 0 ? Path.Combine(Path.GetPathRoot(_pkg.Text)!, "PWServer") : @"C:\PWServer");
-            // pasta renomeada/movida: a gravada não tem mais o disco, mas o WSL sabe onde ele está
-            if (!File.Exists(Path.Combine(_base.Text, "vm", "ext4.vhdx")) && LocalServer.RegisteredBaseDir() is { } reg && File.Exists(Path.Combine(reg, "vm", "ext4.vhdx")))
-                _base.Text = reg;
+        var client = _client();
+        if (!string.Equals(client, _filledFor, StringComparison.OrdinalIgnoreCase)) { _pkg.Text = ""; _base.Text = ""; _filledFor = client; }
+        if (_pkg.Text.Length > 0 && _base.Text.Length > 0) return;
+        var (pkg, bas) = Paths(client);
+        if (_pkg.Text.Length == 0) _pkg.Text = pkg;
+        if (_base.Text.Length == 0) _base.Text = bas;
+    }
+
+    /// <summary>
+    /// O editor abriu outro cliente: as pastas do servidor passam para as dessa versão. Devolve a home do pacote (para a
+    /// Verificação comparar com o mesmo servidor), ou null.
+    /// </summary>
+    public string? GameFolderChanged()
+    {
+        Fill();
+        if (Visible) RefreshStatus(quiet: true);
+        var home = Path.Combine(_pkg.Text.Trim(), "home");
+        return _pkg.Text.Length > 0 && Directory.Exists(home) ? home : null;
     }
 
     LocalServer NewServer()
@@ -192,8 +220,13 @@ public sealed class ServerView : UserControl
     {
         // pasta SQL: ao lado da "server files" (pacote andrey.pw) ou dentro dela
         var pkg = _pkg.Text.Trim();
-        foreach (var c in new[] { Path.Combine(Path.GetDirectoryName(pkg) ?? pkg, "SQL"), Path.Combine(pkg, "SQL") })
+        // ou um dump único (.sql com CREATE TABLE): root/pwa.sql do 1.5.5, Sql/dump.sql do 1.5.5v156, pw..sql do 1.3.6
+        var parent = Path.GetDirectoryName(pkg) ?? pkg;
+        var dirs = new[] { Path.Combine(parent, "SQL"), Path.Combine(pkg, "SQL"), Path.Combine(pkg, "root"), parent };
+        foreach (var c in dirs)
             if (File.Exists(Path.Combine(c, "PW_tabels.sql"))) return c;
+        foreach (var c in dirs.Where(Directory.Exists))
+            if (Directory.GetFiles(c, "*.sql").OrderBy(f => f).FirstOrDefault() is { } f && File.ReadLines(f).Take(4000).Any(l => l.Contains("CREATE TABLE", StringComparison.OrdinalIgnoreCase))) return c;
         return null;
     }
 
@@ -201,10 +234,10 @@ public sealed class ServerView : UserControl
     {
         var pkg = _pkg.Text.Trim();
         if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickThePackageSServer", "Escolha a pasta \"server files\" do pacote (a que tem home, etc e lib).")); return; }
-        if (SqlDir() is not { } sql) { Warn(Loc.T("srv.sqlFolderPwTabelsSql", "Não achei a pasta SQL (PW_tabels.sql) ao lado do pacote.")); return; }
+        if (SqlDir() is not { } sql) { Warn(Loc.T("srv.sqlFolderPwTabelsSql", "Não achei o SQL do banco ao lado do pacote (SQL/PW_tabels.sql, ou um dump .sql único em SQL, root ou ao lado do pacote).")); return; }
         var client = _client();
         if (!Directory.Exists(Path.Combine(client, "data"))) { Warn(Loc.T("srv.setTheClientElementFolder", "Abra o cliente na aba Verificação (pasta element).")); return; }
-        _save("server_pkg", pkg); _save("server_base", _base.Text.Trim());
+        _save(Key("server_pkg", client), pkg); _save(Key("server_base", client), _base.Text.Trim()); _save("server_pkg", pkg);
         var opt = new LocalServer.InstallOptions(pkg, sql, client, "", "", false);   // conta: no Administrar, depois
         var s = NewServer();
         Busy(true, Loc.T("srv.installing", "Instalando…"));
@@ -247,21 +280,9 @@ public sealed class ServerView : UserControl
         var pkg = _pkg.Text.Trim(); var client = _client();
         if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickTheServerFilesFolder", "Escolha a pasta \"server files\" na aba Servidor.")); return; }
         var ai = AiPolicyPath?.Invoke();
-        // antes: os programas instalados são da versão do cliente? (lê o gs do Linux, fora da tela)
-        Busy(true, Loc.T("srv.checkingPrograms", "Conferindo a versão dos programas do servidor…"));
-        Task.Run(() =>
-        {
-            string? missing = null; LocalServer.ProgramSwap? sw = null;
-            try { sw = LocalServer.SwapFor(client, pkg, out missing); } catch { }
-            BeginInvoke(() =>
-            {
-                Busy(false);
-                if (missing is not null) AppendLog("⚠ " + missing);
-                if (sw is not null && !AskSwap(this, sw)) { AppendLog("⚠ " + Loc.T("srv.swapSkipped", "Programas de outra versão mantidos: o login continuará recusado.")); sw = null; }
-                // config inteira do servidor + elements/tasks/loja/IA do cliente, comparados pelo conteúdo: só o que difere vai (LocalServer.SendAll)
-                Run(Loc.T("srv.sendingChanged", "Enviando o que mudou e reiniciando…"), s => s.SendAll(pkg, client, ai, sw), ok => FilesSent?.Invoke(ok));
-            });
-        });
+        // config inteira do servidor + elements/tasks/loja/IA do cliente, comparados pelo conteúdo: só o que difere vai
+        // (LocalServer.SendAll); servidor desta pasta de outra versão que o cliente: nada vai e o log diz o que fazer
+        Run(Loc.T("srv.sendingChanged", "Enviando o que mudou e reiniciando…"), s => s.SendAll(pkg, client, ai), ok => FilesSent?.Invoke(ok));
     }
 
     /// <summary>
@@ -283,37 +304,6 @@ public sealed class ServerView : UserControl
         });
     }
 
-    /// <summary>
-    /// Avisa que o servidor local instalado é de outra versão que o cliente e pergunta se troca os programas, se guarda a
-    /// instalação atual e se recomeça o banco do jogo. false = não trocar.
-    /// </summary>
-    public static bool AskSwap(IWin32Window owner, LocalServer.ProgramSwap s)
-    {
-        string V(int? v) => v is null ? "?" : $"v{v}" + (ProgramVersion.GameFor(v.Value) is { Length: > 0 } g ? $" ({g})" : "");
-        using var f = new Form
-        {
-            Text = Loc.T("srv.swapTitle", "Servidor local de outra versão"), Width = 640, Height = 360, StartPosition = FormStartPosition.CenterParent,
-            ShowInTaskbar = false, MinimizeBox = false, MaximizeBox = false, FormBorderStyle = FormBorderStyle.FixedDialog, Font = new Font("Segoe UI", 9.5f), Padding = new Padding(14),
-        };
-        var text = new Label
-        {
-            Dock = DockStyle.Fill,
-            Text = string.Format(Loc.T("srv.swapBody", "O servidor local instalado é {0} e o seu cliente é {1}. Com versões diferentes o jogo recusa o login (\"versão do cliente baixa\").\n\nO MyAceEditor vai {2} os programas do servidor para os de:\n{3}\n\nAs contas de login continuam. Personagens criados em outra versão em geral não abrem nesta."),
-                V(s.From), V(s.To), s.Downgrade ? Loc.T("srv.swapDown", "voltar") : Loc.T("srv.swapUp", "atualizar"), s.Package),
-        };
-        var fresh = new CheckBox { Dock = DockStyle.Bottom, Height = 28, Checked = s.FreshDatabase, Text = Loc.T("srv.swapFreshDb", "Recomeçar o banco do jogo (personagens e nomes) — recomendado ao trocar de versão") };
-        var backup = new CheckBox { Dock = DockStyle.Bottom, Height = 28, Checked = s.Backup, Text = Loc.T("srv.swapBackup", "Guardar a instalação atual antes (/home.bak-<data>, alguns GB)") };
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 42, FlowDirection = FlowDirection.RightToLeft };
-        var ok = new Button { Text = Loc.T("srv.swapOk", "Trocar os programas"), AutoSize = true, DialogResult = DialogResult.OK };
-        var no = new Button { Text = Loc.T("srv.swapNo", "Agora não"), AutoSize = true, DialogResult = DialogResult.Cancel };
-        buttons.Controls.Add(ok); buttons.Controls.Add(no);
-        f.Controls.Add(text); f.Controls.Add(fresh); f.Controls.Add(backup); f.Controls.Add(buttons);
-        f.AcceptButton = ok; f.CancelButton = no;
-        if (f.ShowDialog(owner) != DialogResult.OK) return false;
-        s.Backup = backup.Checked; s.FreshDatabase = fresh.Checked;
-        return true;
-    }
-
     void RefreshStatus() => RefreshStatus(quiet: false);
 
     void RefreshStatus(bool quiet)
@@ -328,7 +318,7 @@ public sealed class ServerView : UserControl
             }
             Dictionary<string, bool> st;
             bool exists = false;
-            try { exists = LocalServer.DistroExists(); st = exists ? NewServer().Status() : new(); } catch { st = new(); }
+            try { var s = NewServer(); exists = s.Exists(); st = exists ? s.Status() : new(); } catch { st = new(); }
             BeginInvoke(() =>
             {
                 if (_busy) return;
@@ -372,7 +362,7 @@ public sealed class ServerView : UserControl
         Fill();
         var pkg = _pkg.Text.Trim();
         if (!Directory.Exists(Path.Combine(pkg, "home"))) { Warn(Loc.T("srv.pickThePackageSServer2", "Escolha a pasta \"server files\" do pacote.")); return; }
-        if (!LocalServer.DistroExists()) { Warn(Loc.T("srv.installTheLocalServerFirst", "Instale o servidor local primeiro.")); return; }
+        if (!NewServer().Exists()) { Warn(Loc.T("srv.installTheLocalServerFirst", "Instale o servidor local primeiro.")); return; }
         var w = new ServerAdminWindow(NewServer(), pkg, _client(), BackColor, ForeColor, _accent);
         w.Show(FindForm());
     }

@@ -116,6 +116,7 @@ gfactiond -29400-> gamedbd ; -29401-> uniquenamed ; iweb -> 29100 29400 29401 29
 gmserver.conf (gs=cliente): PKG144 count=10 (2 fixos: delivery, faction + 8 links 29301-29308; glinkd so define 4). Guia 2007 citava 13.
 
 ## §S5 BOOT, DEPLOY, REDE LÓGICA
+- [T 02/11] WSL 2: todas as distros rodam na MESMA VM e dividem rede/portas (29000, 3306...): dois servidores locais nao ficam no ar juntos; o editor para as outras distros ao Iniciar. Pacote 162-155 nao tem SQL/: o banco e root/pwa.sql (dump MariaDB 10.3: DROP+CREATE DATABASE pw, 13 tabelas, 20 procedures DEFINER root@localhost); PW_ServerFiles_1.5.5v156 = Sql/dump.sql; 1.3.6 = pw..sql; 1.4.4 = SQL/PW_tabels.sql (so cria o db) + PW_procedures.sql (tabelas+procs).
 rede logica: servicos acham-se por APELIDOS de host (/etc/hosts). PKG144 hosts: dbserver database auth audb manager aumanager link1-4 game1-4 delivery gdelivery backup gmserver nfsroot gamedbserver GameDB GameDBClient -> 127.0.0.1. (Zhu Xian: +promote umanager)
 gs.conf usa apelido de MAPA: listen_addr=WORLD01:10901; gsalias.conf [AddrAlias] mapeia WORLD01=game1, INSTANCE06=game2, BATTLEGROUND01=game3...; hosts mapeia game1->IP. Distribuir mapas = editar gsalias.conf+hosts.
 ordem start.sh PKG144: iweb(Tomcat) > logservice > uniquenamed > authd(java mauthd/build/authd.sh) > gamedbd > gacd > gfactiond > gdeliveryd > "glinkd gamesys.conf 1"(1=indice do link; 2-4 comentados) > "gs gs01"(espera 60s; instancias comentadas). Cada um recebe gamesys.conf como arg. Logs /home/logs/<nome>.log.

@@ -84,8 +84,15 @@ step "Banco de dados"
 service mariadb start >/dev/null 2>&1 || service mysql start >/dev/null 2>&1 || fail "não consegui iniciar o MariaDB"
 for i in $(seq 1 20); do mysqladmin ping >/dev/null 2>&1 && break; sleep 1; done
 if ! mysql -e "USE pw" >/dev/null 2>&1; then
-    tr -d '\r' < "$SQL/PW_tabels.sql" | mysql || fail "tabelas (PW_tabels.sql)"
-    tr -d '\r' < "$SQL/PW_procedures.sql" | mysql pw || fail "procedimentos (PW_procedures.sql)"
+    if [ -f "$SQL/PW_tabels.sql" ]; then   # par 1.4.4 (andrey.pw): banco + tabelas/procedimentos
+        tr -d '\r' < "$SQL/PW_tabels.sql" | mysql || fail "tabelas (PW_tabels.sql)"
+        tr -d '\r' < "$SQL/PW_procedures.sql" | mysql pw || fail "procedimentos (PW_procedures.sql)"
+    else                                   # dump único (1.5.5: root/pwa.sql, Sql/dump.sql; 1.3.6: pw..sql)
+        DUMP=$(ls "$SQL"/*.sql 2>/dev/null | head -1)
+        [ -n "$DUMP" ] || fail "nenhum .sql em $SQL"
+        mysql -e "CREATE DATABASE IF NOT EXISTS pw CHARACTER SET utf8 COLLATE utf8_general_ci"
+        tr -d '\r' < "$DUMP" | mysql pw || fail "banco ($(basename "$DUMP"))"
+    fi
 fi
 mysql -e "CREATE USER IF NOT EXISTS 'pw'@'localhost' IDENTIFIED BY '$DBPASS'; ALTER USER 'pw'@'localhost' IDENTIFIED BY '$DBPASS';
           CREATE USER IF NOT EXISTS 'pw'@'127.0.0.1' IDENTIFIED BY '$DBPASS'; ALTER USER 'pw'@'127.0.0.1' IDENTIFIED BY '$DBPASS';

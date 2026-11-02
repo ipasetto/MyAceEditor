@@ -1994,7 +1994,7 @@ internal static class Program
     }
 
     // --local-send <server files> <pasta element do cliente> <pasta do servidor local>: o mesmo "Enviar ao servidor" da aba
-    // Servidor; programas de outra versão que a do cliente são trocados sem perguntar (banco novo, sem backup). Log em local-send.txt.
+    // Servidor; com programas de outra versão que a do cliente nesta pasta, nada é enviado. Log em local-send.txt.
     private static void LocalSend(string serverFiles, string client, string baseDir)
     {
         var log = new StringBuilder();
@@ -2002,9 +2002,7 @@ internal static class Program
         try
         {
             client = VersionCheck.ClientElement(client);
-            var swap = LocalServer.SwapFor(client, serverFiles, out var missing);   // sem perguntar: banco novo, sem backup
-            if (missing is not null) log.AppendLine("== " + missing);
-            var r = s.SendAll(swap?.Package ?? serverFiles, client, null, swap);
+            var r = s.SendAll(serverFiles, client, null);   // outra versão instalada nesta pasta: recusa (cada versão tem a sua distro)
             log.AppendLine($"== código {r.Code}");
         }
         catch (Exception ex) { log.AppendLine("== ERRO " + ex.Message); }

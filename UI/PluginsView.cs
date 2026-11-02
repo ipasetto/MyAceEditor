@@ -367,7 +367,7 @@ internal sealed class PluginsView : Panel
         Status(why is null ? "✓ " + Loc.T("pl.respawnDone", "Ponto mudado no NPCGen: salve o npcgen (Salvar e enviar) e reinicie o mapa para valer.") : "⚠ " + why);
     }
 
-    static ServerAdmin Admin() => new(new LocalServer(""));
+    static ServerAdmin Admin() => new(LocalServer.Current);
     PluginRule? Sel => _list.SelectedItems.Count > 0 ? _list.SelectedItems[0].Tag as PluginRule : null;
 
     // ---------- lista / formulário ----------

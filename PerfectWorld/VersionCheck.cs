@@ -136,7 +136,7 @@ public static class VersionCheck
         }
 
         // 3b) servidor local (WSL): é nele que o "Salvar e enviar" grava, não na pasta do pacote acima
-        var live = LocalServer.DistroExists() ? $@"\\wsl.localhost\{LocalServer.Distro}\home\gamed\config" : null;
+        var live = LocalServer.LiveHome is { } lh ? Path.Combine(lh, "gamed", "config") : null;
         if (live is not null && Directory.Exists(live))
         {
             var why = Loc.T("chk.theLocalServerHasA", "O servidor local está com outro arquivo: use \"Salvar e enviar ao servidor\" (a aba Servidor mostra o envio).");
@@ -162,7 +162,7 @@ public static class VersionCheck
                 ? string.Join(", ", ParseIni(Path.Combine(home, "glinkd", "gamesys.conf")).Where(kv => kv.Key.StartsWith("GLinkServer", StringComparison.OrdinalIgnoreCase))
                     .Select(kv => kv.Value.GetValueOrDefault("version")).Where(v => v is not null).Distinct().Select(HexVersion)) : null;
             rows.Add(Compare(local + Loc.T("chk.glinkdInstalled", "glinkd versão (desta pasta × instalado)"), Versions(serverHome), Versions(liveHome),
-                Loc.T("chk.glinkdInstalledDiffers", "O servidor local roda programas de outra versão: o cliente ouve \"versão do cliente baixa\" e o login é recusado. Use Corrigir (ou Enviar ao servidor): instala os programas desta pasta.")));
+                Loc.T("chk.glinkdInstalledDiffers", "O servidor local roda programas de outra versão: o cliente ouve \"versão do cliente baixa\" e o login é recusado. Cada versão tem o seu servidor: na aba Servidor, escolha a pasta do servidor desta versão (ou instale um novo).")));
             // o gs terminou de carregar? Sem ele a tela de personagens abre, mas entrar no mundo derruba e o login seguinte
             // cai como "versão diferente" (o glinkd responde sem a versão). Ex.: aipolicy.data mais novo que o gs.
             if (LocalServer.GsLog() is { } gsLog)
@@ -180,11 +180,7 @@ public static class VersionCheck
                 rows.Add(cExe == inst
                     ? new(local + Loc.T("chk.programs", "programas"), V(cExe), V(inst), CheckLevel.Ok, Loc.T("chk.programsMatchClient", "Os programas instalados são da versão do cliente."))
                     : new(local + Loc.T("chk.programs", "programas"), V(cExe), V(inst), CheckLevel.Erro,
-                        (LocalServer.SwapFor(clientElement, Path.GetDirectoryName(serverHome.TrimEnd('\\', '/')) ?? serverHome, out var missing) is { } sw
-                            ? string.Format(Loc.T(sw.Downgrade ? "chk.programsDowngrade" : "chk.programsUpgrade",
-                                sw.Downgrade ? "O servidor local é de versão mais nova que o cliente: o login é recusado. Use Corrigir: volta os programas para os de {0}."
-                                             : "O servidor local é de versão mais antiga que o cliente (\"versão do cliente baixa\"): o login é recusado. Use Corrigir: instala os programas de {0}."), sw.Package)
-                            : missing ?? "")));
+                        LocalServer.Current.VersionMismatch(clientElement) ?? ""));
         }
 
         // 4) aipolicy.data
