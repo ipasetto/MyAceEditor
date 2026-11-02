@@ -39,7 +39,11 @@ internal sealed class PluginsView : Panel
     // as explicações numa palavra por linha (usuário 01/11)
     readonly FlowLayoutPanel _form = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(20, 10, 20, 48), BackColor = Color.White };   // sobra embaixo: o último campo não cola na borda
     readonly TextBox _name = new() { Width = 260 };
-    readonly CheckBox _enabled = new() { AutoSize = true };
+    readonly CheckBox _enabled = new() { AutoSize = true }, _respawn = new() { AutoSize = true, Margin = new Padding(0, 8, 0, 2) };
+
+    /// <summary>Liga/desliga o renascer dos pontos do evento no npcgen (EditorForm → NpcGenView.SetEventRespawn): mapa, evento, ligar → null ou motivo.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<string, int, bool, string?>? RespawnSink { get; set; }
     readonly NumericUpDown _world = N(1, 1, 999), _ctrl = N(0, 0, 9_999_999), _every = N(30, 1, 100_000), _dur = N(20, 1, 100_000), _cool = N(0, 0, 2_592_000);
     readonly Label _point = new() { AutoSize = true, MaximumSize = new Size(420, 0), ForeColor = Color.FromArgb(22, 128, 61), Font = new Font("Segoe UI Semibold", 9.5f) };
 
@@ -293,7 +297,10 @@ internal sealed class PluginsView : Panel
         Field("pl.chance", "Chance de aparecer em cada sorteio (%)", Line(_chance, _chanceInfo), "pl.chanceNote2", "Ex.: 10 = em média 1 vez a cada 10 sorteios; 20 = 1 em 5.");
         _chance.ValueChanged += (_, _) => ChanceInfo();
         Field("pl.dur", "Fica no mapa por (minutos)", _dur, "pl.durNote", "Depois disso o evento termina e os monstros que sobraram somem.");
-        Field("pl.cool", "Espera mínima entre um evento e outro (segundos)", _cool, "pl.coolNote", "Vem do Renascer do ponto (+15 s do jogo): nem o sorteio nem o \"Chamar agora\" fazem ele voltar antes. Ele nasce uma vez só por evento.");
+        _respawn.Text = Loc.T("pl.respawn", "Renasce enquanto o evento durar");
+        _form.Controls.Add(_respawn);
+        _form.Controls.Add(Note("pl.respawnNote", "Ligado: quando morre, volta no tempo de Renascer do ponto até o evento acabar. Desligado: nasce uma vez só por evento. Muda o ponto no NPCGen: salve o npcgen e reinicie o mapa."));
+        Field("pl.cool", "Espera mínima entre um evento e outro (segundos)", _cool, "pl.coolNote2", "Vem do Renascer do ponto (+15 s do jogo): nem o sorteio nem o \"Chamar agora\" fazem o evento voltar antes disso.");
 
         _form.Controls.Add(Section("pl.s3", "3. Avisos para todos os jogadores"));
         _form.Controls.Add(Note("pl.textNote", "Texto vazio = sem aviso."));
@@ -309,6 +316,16 @@ internal sealed class PluginsView : Panel
         foreach (var n in new[] { _world, _ctrl, _every, _dur, _chance, _cool }) n.ValueChanged += (_, _) => Edited();
         foreach (var cb in new[] { _startCh, _endCh }) cb.SelectedIndexChanged += (_, _) => Edited();
         _enabled.CheckedChanged += (_, _) => Edited();
+        _respawn.CheckedChanged += (_, _) => { if (!_binding && Sel is { } r) { Edited(); ApplyRespawn(r); } };
+    }
+
+    /// <summary>Leva a opção Renasce para o ponto no npcgen (o gs só renasce pelo bAutoRevive do ponto, PW-KB §S22).</summary>
+    void ApplyRespawn(PluginRule r)
+    {
+        if (r.Controller <= 0 || r.Point.Length == 0 || RespawnSink is null) return;
+        var map = r.Point.Split(" · ")[0].Trim();
+        var why = RespawnSink(map, r.Controller, r.Respawn);
+        Status(why is null ? "✓ " + Loc.T("pl.respawnDone", "Ponto mudado no NPCGen: salve o npcgen (Salvar e enviar) e reinicie o mapa para valer.") : "⚠ " + why);
     }
 
     static ServerAdmin Admin() => new(new LocalServer(""));
@@ -343,7 +360,7 @@ internal sealed class PluginsView : Panel
         _now.Text = _state.GetValueOrDefault(r.Id, "") is { Length: > 0 } st ? Loc.T("pl.nowLabel", "Agora: ") + st : _dirty ? Loc.T("pl.notSent", "não enviado") : "";
         ShowResult(r);
         _binding = true;
-        _name.Text = r.Name; _description.Text = r.Description; _enabled.Checked = r.Enabled; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
+        _name.Text = r.Name; _description.Text = r.Description; _enabled.Checked = r.Enabled; _respawn.Checked = r.Respawn; _world.Value = Math.Clamp(r.WorldTag, 1, 999); _ctrl.Value = Math.Max(0, r.Controller);
         _every.Value = Math.Clamp(r.EveryMin, 1, 100_000); _dur.Value = Math.Clamp(r.DurationMin, 1, 100_000); _chance.Value = (decimal)Math.Clamp(r.ChancePct, 0, 100);
         _startCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.StartChannel)); _endCh.SelectedIndex = Math.Max(0, Array.FindIndex(Channels, c => c.Ch == r.EndChannel));
         ChanceInfo();
@@ -357,7 +374,7 @@ internal sealed class PluginsView : Panel
     {
         if (_binding || Sel is not { } r) return;
         Snapshot();
-        r.Name = _name.Text.Trim(); r.Description = _description.Text.Trim(); r.Enabled = _enabled.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
+        r.Name = _name.Text.Trim(); r.Description = _description.Text.Trim(); r.Enabled = _enabled.Checked; r.Respawn = _respawn.Checked; r.WorldTag = (int)_world.Value; r.Controller = (int)_ctrl.Value;
         r.EveryMin = (int)_every.Value; r.DurationMin = (int)_dur.Value; r.ChancePct = (double)_chance.Value;
         r.StartChannel = Channels[Math.Max(0, _startCh.SelectedIndex)].Ch; r.EndChannel = Channels[Math.Max(0, _endCh.SelectedIndex)].Ch;
         r.StartText = _startText.Text.Trim(); r.EndText = _endText.Text.Trim(); r.CooldownSec = (int)_cool.Value;
@@ -385,6 +402,7 @@ internal sealed class PluginsView : Panel
         r.Controller = p.GmId; r.Point = $"{p.Map} · {p.Name}"; r.CooldownSec = p.RespawnSec;
         if (r.Name.StartsWith(Loc.T("pl.newName", "Monstro raro {0}").Split('{')[0], StringComparison.Ordinal)) r.Name = p.Name;
         _dirty = true;
+        if (r.Respawn) ApplyRespawn(r);   // o ponto novo nasce sem renascer; a opção ligada vale para ele também
         var map = p.Map;
         Work(() =>
         {

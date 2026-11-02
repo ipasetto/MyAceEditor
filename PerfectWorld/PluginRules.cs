@@ -24,6 +24,9 @@ public sealed class PluginRule
     /// <summary>Espera mínima entre um evento e o próximo (s): o tempo de renascer do ponto (+15 s do jogo). Nem sorteio nem
     /// "Chamar agora" fazem ele aparecer antes disso (usuário 01/11).</summary>
     public int CooldownSec;
+    /// <summary>Renasce enquanto o evento estiver ligado (morreu → volta no tempo de renascer do ponto). Fica gravado no
+    /// npcgen (bAutoRevive do ponto, PW-KB §S22); aqui só para mostrar e exportar (usuário 02/11).</summary>
+    public bool Respawn;
 }
 
 /// <summary>Arquivos do programa dos plugins no servidor (Linux/WSL) e leitura/gravação das regras em JSON.</summary>
@@ -48,6 +51,7 @@ public static class PluginFiles
                 WorldTag = I("worldTag", 1), Controller = I("controller", 0), EveryMin = I("everyMin", 30), DurationMin = I("durationMin", 20),
                 ChancePct = n["chancePct"] is JsonValue c && c.TryGetValue(out double cp) ? cp : 10,
                 StartChannel = I("startChannel", 9), EndChannel = I("endChannel", 9), StartText = S("startText"), EndText = S("endText"), Point = S("point"), Description = S("description"), CooldownSec = I("cooldownSec", 0),
+                Respawn = n["respawn"] is JsonValue rv && rv.TryGetValue(out bool rb) && rb,
             });
         }
         return list;
@@ -61,7 +65,7 @@ public static class PluginFiles
             {
                 ["id"] = r.Id, ["name"] = r.Name, ["type"] = r.Type, ["enabled"] = r.Enabled, ["worldTag"] = r.WorldTag, ["controller"] = r.Controller,
                 ["everyMin"] = r.EveryMin, ["chancePct"] = r.ChancePct, ["durationMin"] = r.DurationMin,
-                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText, ["point"] = r.Point, ["description"] = r.Description, ["cooldownSec"] = r.CooldownSec,
+                ["startChannel"] = r.StartChannel, ["startText"] = r.StartText, ["endChannel"] = r.EndChannel, ["endText"] = r.EndText, ["point"] = r.Point, ["description"] = r.Description, ["cooldownSec"] = r.CooldownSec, ["respawn"] = r.Respawn,
             });
         return new JsonObject { ["version"] = 1, ["plugins"] = arr }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }

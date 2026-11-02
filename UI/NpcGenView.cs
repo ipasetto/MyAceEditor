@@ -1108,6 +1108,25 @@ internal sealed class NpcGenView : UserControl
         return (_cur, name, t.GmId, respawn);
     }
 
+    /// <summary>
+    /// Opção "Renasce" do plugin: liga/desliga o renascer automático (bAutoRevive) de todos os pontos do evento
+    /// <paramref name="gmId"/> no mapa <paramref name="map"/>, num passo do desfazer. null = feito; senão o motivo.
+    /// </summary>
+    public string? SetEventRespawn(string map, int gmId, bool on)
+    {
+        if (Load(map) is not { } f) return string.Format(Loc.T("pl.rsNoMap", "O npcgen do mapa {0} não está aberto."), map);
+        if (f.Triggers.FirstOrDefault(t => t.GmId == gmId) is not { } trig) return Loc.T("pl.rsNoEvent", "O evento deste plugin não está no npcgen: escolha o ponto de novo.");
+        byte v = (byte)(on ? 1 : 0);
+        var idx = Enumerable.Range(0, f.Spawns.Count).Where(i => f.Spawns[i].Trigger == trig.Id && f.Spawns[i].AutoRevive != v).ToList();
+        if (idx.Count == 0) return null;
+        int batch = Environment.TickCount;
+        foreach (var i in idx) { Push(_undo, new Op(map, false, OpKind.Replace, i, CloneOf(f.Spawns[i]), batch)); Step(map, +1); f.Spawns[i].AutoRevive = v; }
+        _redo.Clear(); _lastKey = null;
+        _dirty.Add(map); UpdateInfo(); _list.Invalidate(); _world?.MarkDirty();
+        if (map == _cur) ShowPoint();
+        return null;
+    }
+
     /// <summary>Janela dos eventos do mapa (controladores): OK troca a lista inteira num passo do desfazer.</summary>
     void EditEvents()
     {

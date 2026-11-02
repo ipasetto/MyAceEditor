@@ -4863,5 +4863,12 @@
   "pl.callTip": "绿色：立即触发事件，不抽签。红色：仍在进行或在等待插件时间（显示剩余时间）。",
   "pl.notReady2": "暂时无法调用：红色按钮显示剩余时间。",
   "pl.pickFirst2": "请先在 NPCGen 或 3D 世界中选择一个怪物或 NPC 刷新点（点击它）。",
-  "pl.s1b": "1. 出现哪个怪物或 NPC"
+  "pl.s1b": "1. 出现哪个怪物或 NPC",
+  "pl.respawn": "事件期间会重生",
+  "pl.respawnNote": "开启：死亡后按刷新点的重生时间再次出现，直到事件结束。关闭：每次事件只出现一次。会修改 NPCGen 中的刷新点：请保存 npcgen 并重启地图。",
+  "pl.coolNote2": "来自刷新点的重生时间（游戏另加 15 秒）：抽签和“立即调用”都不会让事件提前再来。",
+  "pl.respawnDone": "已在 NPCGen 中修改刷新点：保存 npcgen（保存并发送）并重启地图后生效。",
+  "pl.rsNoMap": "地图 {0} 的 npcgen 未打开。",
+  "pl.rsNoEvent": "npcgen 中没有该插件的事件：请重新选择刷新点。",
+  "pl.rsNoNpcgen": "请先打开 PW 文件夹（刷新点保存在 NPCGen 中）。"
 }

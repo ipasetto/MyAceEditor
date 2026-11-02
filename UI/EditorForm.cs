@@ -480,6 +480,7 @@ public sealed class EditorForm : Form
         tPl.Controls.Add(_pluginsView = new PluginsView());
         string? pickWhy = null;
         _pluginsView.PointSource = () => (() => _npcgen?.EventControllerForSelected(out pickWhy), () => pickWhy);
+        _pluginsView.RespawnSink = (map, gmId, on) => _npcgen is { } ng ? ng.SetEventRespawn(map, gmId, on) : Loc.T("pl.rsNoNpcgen", "Abra a pasta do PW antes (o NPCGen guarda o ponto).");
         tabs.TabPages.Add(tPl);
         // Interfaces (janelas do jogo) fica acima do Extrator PCK, que só extrai (usuário 01/11)
         var tUi = new TabPage() { BackColor = CBg };

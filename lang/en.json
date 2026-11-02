@@ -4861,5 +4861,12 @@
   "pl.callTip": "Green: calls the event now, without the roll. Red: still active or waiting for the plugin's time (shows how long is left).",
   "pl.notReady2": "Can't call yet: the red button shows how long is left.",
   "pl.pickFirst2": "First pick a monster or NPC point in NPCGen or the 3D World (click it).",
-  "pl.s1b": "1. Which monster or NPC appears"
+  "pl.s1b": "1. Which monster or NPC appears",
+  "pl.respawn": "Respawns while the event lasts",
+  "pl.respawnNote": "On: when it dies, it comes back after the point's Respawn time until the event ends. Off: it spawns only once per event. Changes the point in NPCGen: save the npcgen and restart the map.",
+  "pl.coolNote2": "Comes from the point's Respawn (+15 s from the game): neither the roll nor \"Call now\" brings the event back before that.",
+  "pl.respawnDone": "Point changed in NPCGen: save the npcgen (Save and send) and restart the map for it to take effect.",
+  "pl.rsNoMap": "The npcgen of map {0} is not open.",
+  "pl.rsNoEvent": "This plugin's event is not in the npcgen: pick the point again.",
+  "pl.rsNoNpcgen": "Open the PW folder first (NPCGen holds the point)."
 }
