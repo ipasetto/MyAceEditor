@@ -209,6 +209,28 @@ internal static class Program
             File.WriteAllText("pck-diff-report.txt", $"# iguais {same} · só em A {onlyA}\n" + sb, new UTF8Encoding(false));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--uid-check")   // --uid-check <interfaces.pck> <janela.xml>: em branco -> conferir -> trazer -> conferir (Criar interface)
+        {
+            using var pck = new PckArchive(args[1]);
+            var e = pck.Find(args[2]) ?? throw new FileNotFoundException(args[2]);
+            var orig = UiDesign.FromBytes(pck.Read(e));
+            var design = UiDesign.NewXml("Win_Teste", new System.Drawing.Size(300, 200), null);
+            design = UiDesign.Insert(design, UiDesign.LabelBlock("Txt", "oi", 80, 20, 10, false, System.Drawing.Color.White, false));
+            var c1 = UiDesign.Compare(orig, design);
+            design = UiDesign.BringMissing(orig, design, c1);
+            var c2 = UiDesign.Compare(orig, design);
+            design = UiDesign.SetDialog(design, name: c2.WindowWanted, size: new System.Drawing.Size(471, 400), frame: @"x\y.tga");
+            var d = GameDialog.Parse(design);
+            File.WriteAllLines("uid-check.txt", new[]
+            {
+                $"antes: faltam {c1.Missing.Count}, comandos {c1.MissingCommands.Count}",
+                $"depois: ok={c2.Ok} faltam {c2.Missing.Count}",
+                $"janela {d.Name} {d.Size} moldura {d.Frame} controles {d.Controls.Count} (original {GameDialog.Parse(orig).Controls.Count})",
+                $"reordenar: {string.Join(",", UiDesign.Pieces(UiDesign.Reorder(design, "Txt", 0)).Take(3).Select(p => p.Name))}",
+                "", design,
+            });
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--pck-extract")   // --pck-extract <pck> <filtro> <pasta>
         {
             using var pck = new PckArchive(args[1]);

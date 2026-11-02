@@ -2461,6 +2461,7 @@ public sealed class EditorForm : Form
         {
             bool undo = keyData == (Keys.Control | Keys.Z);
             if (_tabs?.SelectedTab == _tabPlugins && _pluginsView is { } pv) { if (!(undo ? pv.Undo() : pv.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
+            if (_tabs?.SelectedTab == _tabUi && _uiArea?.Designer is { } ud) { if (!(undo ? ud.Undo() : ud.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabUi && _uiArea?.Editor is { } ui) { if (!(undo ? ui.Undo() : ui.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabGShop && _gshop is not null) { if (!(undo ? _gshop.Undo() : _gshop.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
             if (_tabs?.SelectedTab == _tabNpcGen && _npcgen is not null) { if (!(undo ? _npcgen.Undo() : _npcgen.Redo())) Status(undo ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer")); return true; }
@@ -2551,6 +2552,7 @@ public sealed class EditorForm : Form
         if (id.Equals("shop", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabShop)) _detailTabs.SelectedTab = _tabShop; return; }
         if (id.Equals("make", StringComparison.OrdinalIgnoreCase)) { if (_detailTabs.TabPages.Contains(_tabMake)) _detailTabs.SelectedTab = _tabMake; return; }
         if (id.Equals("desc", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedIndex = _detailTabs.TabCount - 1; return; }
+        if (id.StartsWith("uicreate", StringComparison.OrdinalIgnoreCase)) { if (_tabs is not null && _tabUi is not null) _tabs.SelectedTab = _tabUi; _uiArea?.OpenDesignerForSnapshot(id.Length > 9 ? id[9..] : null); return; }
         if (id.StartsWith("ui:", StringComparison.OrdinalIgnoreCase)) { if (_tabs is not null && _tabUi is not null) _tabs.SelectedTab = _tabUi; _uiArea?.OpenUiForSnapshot(id[3..]); return; }
         if (id.Equals("picker", StringComparison.OrdinalIgnoreCase)) { ShowBlockPicker(); return; }
         if (id.Equals("links", StringComparison.OrdinalIgnoreCase)) { _detailTabs.SelectedTab = _tabLinks; if (_current is not null) FillLinks(_current); return; }
