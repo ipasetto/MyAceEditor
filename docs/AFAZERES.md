@@ -240,3 +240,18 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - Tela "Criar interface" no editor de interface: desenhar janela propria copiando controles de outras janelas (mesmas imagens do surfaces).
 - "Vincular a" uma janela do jogo (ex.: gmconsole.xml): o editor grava com o MESMO nome de arquivo e Win_, confere o contrato (todos os nomes+tipos de controle e Commands do XML original; mostra o que falta) antes de salvar, poe no .dcf se preciso, backup + escrita atomica no interfaces.pck.
 - Controles a mais = so enfeite (o exe nao tem codigo para eles); janela com arquivo novo vira CDlgBase (so fechar/ajuda) e nada a abre.
+
+## COMPATIBILIDADE ENTRE VERSOES (pedido 02/11) — PW-KB §S33 e §Q
+Pendencias achadas nos testes de 02/11 (--roundtrip/--tasks/--aipolicy/--npcgen/--gshop nos arquivos do acervo):
+- [ ] tasks.data v55 (servidor 1.3.6) TRAVA a leitura (nao termina em 5 min): pôr limite/aviso para nao prender a tela e depois o layout das versoes antigas (< 93).
+- [ ] gshop.data 1.7.x (1.7.6 e Maori 1.7.2) nao abre: layout V3 do item (~1448 B cliente / ~232 B servidor). Usar o par do 1.7.6 (PW_Server/1.7.6/pw_server_1.7.6_2025) e o fonte 1.7.4 (Estudo PW/174Source.zip, cgame/gs/playermall.cpp). Ver memoria gshop-172-pending.
+- [ ] elements.data comprimido MPPC (1.7.x, v386) so leitura: validar a regravacao comprimida.
+- [ ] PWSERVER-1.7.6-01.2026-VM.7z ainda nao extraido/inventariado.
+- [x] aipolicy 1.7.6 (operacoes 103-105) — feito 02/11.
+
+Documento a fazer: docs/COMPATIBILIDADE.md — uma tabela POR FERRAMENTA do editor, marcando cada versao testada:
+- Linhas = TODAS as ferramentas/recursos: Elements, Quests (tasks), GShop, AI Policy, NPCGen, Mundo 3D (e cada ferramenta dele), Verificacao, Servidor, Plugins, Painel do GM, Interfaces (editar janelas, Criar interface, importar, trocar com outro cliente, telas de carregamento), Extrator PCK, tradutores (elements, loja, configs/interfaces), icones, Preferencias (cada opcao que mexe em arquivo do jogo) e o que mais existir no menu.
+- Colunas = versoes do acervo: 1.3.6, 1.4.4 (v60/v61), 1.5.2, 1.5.5 (v156, 162-155, PWI), 1.7.2 (Maori), 1.7.6, 1.8 (180 BR).
+- Celula: OK (testado, regrava identico / funciona) | so leitura | NAO (com o motivo) | nao testado; cada pendencia com link para o item acima ou para o §Q da PW-KB.
+- Base: resultados ja na PW-KB §S33/§Q e ENGINE-KB; preencher rodando os testes de linha de comando em cada pasta de §S33 (sem abrir as pastas do usuario de novo para inventario). Atualizar a tabela sempre que uma versao for mexida (regra: toda funcao em todas as versoes).
+
