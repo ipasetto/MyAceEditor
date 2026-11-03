@@ -5053,5 +5053,6 @@
   "chk.adsOn": "from the internet",
   "chk.adsLocal": "local",
   "chk.adsOnHint": "The game crashes when entering the world (\"Exception occurred in ParsePage thread\"). Use Fix.",
-  "chk.adsLocalHint": "No internet page: does not crash the game."
+  "chk.adsLocalHint": "No internet page: does not crash the game.",
+  "gshop.liveDiff": "The local server's shop ({0}) differs from the client's {1}:\n{2}\n\nUse \"Save and send\" (or Send in the Server tab): the server is rebuilt from the client."
 }

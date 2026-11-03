@@ -125,7 +125,17 @@ internal sealed class GShopView : UserControl
                 var sv = ServerFile(data, i == 0 ? "gshopsev.data" : "gshopsev1.data");
                 _serverPath[i] = sv;
                 var diffs = _shops[i] is { } f && sv is not null ? f.AttachServer(File.ReadAllBytes(sv)) : new();
-                if (diffs.Count > 0)
+                // com servidor local, o que o jogo usa é a loja do servidor NO AR (o pacote original nunca é enviado):
+                // comparar com o pacote dava aviso falso (02/11, 144 BR já igual no WSL e aviso de 9 diferenças)
+                var name = i == 0 ? "gshopsev.data" : "gshopsev1.data";
+                if (_shops[i] is not null && LiveServerFile(name) is { } live)
+                {
+                    var liveDiffs = GShopFile.ReadClient(File.ReadAllBytes(c)).AttachServer(File.ReadAllBytes(live));
+                    if (liveDiffs.Count > 0)
+                        MessageBox.Show(this, string.Format(Loc.T("gshop.liveDiff", "A loja do servidor local ({0}) está diferente do {1} do cliente:\n{2}\n\nUse \"Salvar e enviar\" (ou Enviar na aba Servidor): o servidor é refeito a partir do cliente."),
+                            LocalServer.Current.Distro, Path.GetFileName(c), string.Join("\n", liveDiffs.Take(8))), "GShop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                else if (diffs.Count > 0)
                     MessageBox.Show(this, string.Format(Loc.T("gshop.pairDiff", "{0} e {1} não estão iguais:\n{2}\n\nAo salvar, o servidor é refeito a partir do cliente."), Path.GetFileName(c), Path.GetFileName(sv), string.Join("\n", diffs.Take(8))), "GShop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _dirty[i] = false;
                 _saved[i] = _shops[i]?.WriteClient();
@@ -148,6 +158,18 @@ internal sealed class GShopView : UserControl
     }
 
     static PckArchive? TryPck(string p) { try { return File.Exists(p) ? new PckArchive(p) : null; } catch { return null; } }
+
+    /// <summary>gshopsev do servidor local no ar (WSL) deste cliente, ou null sem servidor local / tipo "outro Linux".</summary>
+    string? LiveServerFile(string name)
+    {
+        try
+        {
+            if (LocalServer.LiveHome is not { } home) return null;
+            var p = Path.Combine(home, "gamed", "config", name);
+            return File.Exists(p) ? p : null;
+        }
+        catch (Exception ex) { AppLog.Error("loja do servidor local", ex); return null; }
+    }
 
     // gshopsev ao lado do cliente; senão a pasta de servidor lembrada (gamed/config)
     string? ServerFile(string clientData, string name)

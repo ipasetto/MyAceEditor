@@ -5055,5 +5055,6 @@
   "chk.adsOn": "来自互联网",
   "chk.adsLocal": "本地",
   "chk.adsOnHint": "进入世界时游戏崩溃（“Exception occurred in ParsePage thread”）。请使用“修复”。",
-  "chk.adsLocalHint": "没有互联网页面：不会导致游戏崩溃。"
+  "chk.adsLocalHint": "没有互联网页面：不会导致游戏崩溃。",
+  "gshop.liveDiff": "本地服务器（{0}）的商城与客户端的 {1} 不同：\n{2}\n\n请使用“保存并发送”（或“服务器”页的“发送”）：服务器会根据客户端重建。"
 }
