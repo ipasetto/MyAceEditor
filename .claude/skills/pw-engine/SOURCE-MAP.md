@@ -6,6 +6,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 
 ## §M0 Indice por assunto -> arquivo:simbolo (servidor S=`source_server_153/cgame/gs`, cliente C=`source_client_153/CElementClient`)
 
+scripts de ajuda do cliente (element\help\script.pck, "Help\Script\" + list.txt) -> source_client_153/CElementClient/ECScriptManInGame.cpp:CECScriptManInGame (Init), ECScriptController.cpp:LoadScriptList, comandos em ECScriptFunctionInGame.cpp:REGISTER_TO_ECSCRIPTFUNCTION_FACTORY; comando desconhecido = ponteiro nulo no build 2305 (PW-KB §S2)
 - drop de monstro (quantos e quantidade): S/npc.cpp OnDeath (drop_times, double_drop) -> template/itemdataman.cpp generate_item_from_monster -> S/worldmanager.cpp case GM_MSG_PRODUCE_MONSTER_DROP -> generate_item_for_drop; quantidade so na aljava: template/generate_item_temp.h (num_min/num_max)
 - quest visivel sobre o NPC: C/EC_NPCServer.cpp CECNPCServer::UpdateCurQuestIcon -> C/Task/TaskTempl.inl ATaskTempl::CanShowTask (CheckFnshLst...); ID de quest 16 bits: S/task/TaskProcess.h TASK_ENTRY_FIXED_DATA, FnshedTaskEntry; task_npc.data: C/Task/TaskTemplMan.cpp LoadNPCInfoFromPack (NPC_INFO id+x,y,z)
 - npcgen no gs (campos lidos, tipo de grupo, renascer): S/npcgenerator.cpp ~3620 (iGroupType -> mobs/group/boss_spawner) e ~3750 (reborn_time, SetRespawn(bAutoRevive)); dwDiedTimes nao lido; controlador: S/template/npcgendata.h NPCGENFILECTRL8; patrulha 3D: S/npcsession.cpp (follow_target + _inhabit_mode, GetNextWayPoint)
