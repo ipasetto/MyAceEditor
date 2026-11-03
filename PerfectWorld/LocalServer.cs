@@ -519,6 +519,10 @@ public sealed class LocalServer
         void Pct(int n, string what) => Log($"##PCT {n} {what}");
         // programas de outra versão que a do cliente: nada vai (cada versão tem a sua pasta e distro; nunca por cima)
         if (VersionMismatch(clientElement) is { } other) { Log("##ERRO " + other); return new(1, other); }
+        // o cliente que joga neste servidor: entrada "Local" e sem a página de anúncios que derruba o jogo ao entrar no
+        // mundo ("Exception occurred in ParsePage thread"). Antes só na instalação, e só no cliente aberto naquela hora.
+        try { AddToServerList(clientElement); FixClientPages(clientElement); }
+        catch (Exception ex) { Log("##AVISO " + Loc.T("ls.clientPrepFailed", "não consegui preparar o cliente (lista de servidores / página de anúncios): ") + ex.Message); }
         var cfg = Path.Combine(serverFiles, "home", "gamed", "config");
         Pct(12, Loc.T("ls.pctClient", "Enviando elements, tasks, loja e IA do cliente"));
         List<SendFile> diff;
@@ -861,6 +865,33 @@ public sealed class LocalServer
     /// </summary>
     public void FixClientPages(string clientElement) => FixClientPages(clientElement, Log);
 
+    /// <summary>
+    /// O cliente ainda abre a página de anúncios da internet (loginpage.ini com URL externa ou cache BBSPages\temp*.htm
+    /// diferente da página local)? Vale para qualquer versão: sem o arquivo, nada a corrigir.
+    /// </summary>
+    public static bool ClientPagesNeedFix(string clientElement)
+    {
+        try
+        {
+            var pck = Path.Combine(clientElement, "configs.pck");
+            if (File.Exists(pck))
+            {
+                byte[]? ini;
+                using (var a = new PckArchive(pck)) ini = a.Find(@"configs\loginpage.ini") is { } e ? a.Read(e) : null;
+                if (ini is not null && System.Text.RegularExpressions.Regex.Match(Encoding.Latin1.GetString(ini), @"(?m)^LoginPage\s*=\s*(https?://\S+)") is { Success: true } m
+                    && !m.Groups[1].Value.StartsWith("http://127.0.0.1:1/") && m.Groups[1].Value.Length >= "http://127.0.0.1:1/".Length) return true;
+            }
+            var bbs = Path.Combine(clientElement, "BBSPages"); var safe = Path.Combine(bbs, "temp0.htm");
+            if (File.Exists(safe))
+            {
+                var ok = File.ReadAllBytes(safe);
+                if (Directory.GetFiles(bbs, "temp*.htm").Any(f => !f.Equals(safe, StringComparison.OrdinalIgnoreCase) && !File.ReadAllBytes(f).AsSpan().SequenceEqual(ok))) return true;
+            }
+        }
+        catch (Exception ex) { AppLog.Error("conferir a página de anúncios do cliente", ex); }
+        return false;
+    }
+
     public static void FixClientPages(string clientElement, Action<string> Log)
     {
         var pck = Path.Combine(clientElement, "configs.pck");
@@ -878,7 +909,7 @@ public sealed class LocalServer
                     var g = m.Groups[1];
                     var fixedText = text[..g.Index] + local.PadRight(g.Length) + text[(g.Index + g.Length)..];
                     PckPatch.ReplaceSameSize(pck, @"configs\loginpage.ini", Encoding.Latin1.GetBytes(fixedText));
-                    Log(string.Format(Loc.T("ls.adsPage", "página de anúncios do login: {0} → {1} (configs.pck, backup ao lado)"), g.Value, local));
+                    Log(string.Format(Loc.T("ls.adsPage", "página de anúncios do login: {0} → {1} (configs.pck; backup em Ferramentas → Backups)"), g.Value, local));
                 }
             }
         }

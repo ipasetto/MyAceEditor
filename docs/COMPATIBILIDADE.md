@@ -58,7 +58,7 @@ Servidores de teste no WSL, um por versão (02/11): 1.4.4 (`D:\PWServer144v60`) 
 | Painel do GM | ? | ? | — | ✅ | ? | ? | ? | |
 | Plugins (Aparição Rara) | ? | ? | — | ✅ | ? | ? | ? | GMControlGame e PublicChat iguais no fonte 1.5.2 e 1.5.3 |
 | Anúncio de morte / combate (IA) | ? | ? | ? | ? | ? | ? | ? | corrigido em 02/11, falta ver no jogo |
-| Verificação (regras do jogo) | ? | ✅ | — | ✅ | ? | ? | ? | 1.4.4: rodou contra o servidor 144 (02/11) |
+| Verificação (regras do jogo) | ? | ✅ | — | ✅ | ? | ? | ✅ | 1.4.4: rodou contra o servidor 144 (02/11); linha da página de anúncios conferida em 144 BR, PWI 155 e 180 BR (02/11) |
 | Login no servidor local (authd) | ? | ✅ | — | ✅ | ? | ? | ? | 1.4.4: authd com {?=call} do jar ("usuário não existe"); corrigido 02/11 (classpath na ordem do pacote), login e criação de personagem OK 02/11; entrar no mundo cai no cliente ([6]) |
 
 ## Preferências
@@ -74,4 +74,4 @@ Servidores de teste no WSL, um por versão (02/11): 1.4.4 (`D:\PWServer144v60`) 
 3. **Loja 1.7.x:** item com tamanho novo (cerca de 1448 B no cliente e 232 B no servidor). Para descobrir o layout: par cliente/servidor do 1.7.6 e o `playermall.cpp` do fonte 1.7.4.
 4. **Tudo que está "?":** testar e preencher. Origem dos dados: PW-KB §S33 e §Q, ENGINE-KB §E7 e `docs/AFAZERES.md`.
 5. **Login 1.4.4 (authd):** o `application.jar` do mauthd chama os procedimentos com `{?=call}` (o conector manda `SELECT`, o MariaDB recusa como FUNCTION); o pacote traz `build/application/procedure/handler.class` com `{call}`, que só vale com `.` antes do jar (como no `authd.sh` original). Falta o usuário logar no 144.
-6. **Entrar no mundo 1.4.4 (cliente PW 144 BR):** login e criação de personagem OK (02/11); o cliente cai ao entrar no mundo (escrita em ponteiro nulo no elementclient). Servidor sem erro. Suspeita: dados do cliente BR convertidos de v61 para v60 (elements, configs.pck) contra o exe v60.
+6. **Entrar no mundo 1.4.4 (cliente PW 144 BR):** login e criação de personagem OK (02/11); o cliente caía ao entrar no mundo por causa da página de anúncios da internet ("ParsePage thread"), que o MyAce só corrigia na instalação e no cliente aberto naquela hora. Corrigido 02/11 (todo envio corrige o cliente usado); falta o usuário entrar.

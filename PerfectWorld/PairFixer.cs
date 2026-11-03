@@ -37,6 +37,11 @@ public static class PairFixer
                 }));
         // servidor local de outra versão: não se corrige aqui (cada versão tem a sua pasta/distro; a Verificação avisa)
         // cliente: janelas que o jogo procura e o interfaces.pck não carrega (o jogo cai ao usá-las)
+        // cliente: página de anúncios da internet (o leitor de 2009 cai com página moderna ao entrar no mundo)
+        if (LocalServer.ClientPagesNeedFix(clientElement))
+            fixes.Add(new(Loc.T("fix.adsTitle", "Cliente: desligar a página de anúncios da internet"),
+                Loc.T("fix.adsDetail", "O jogo cai ao entrar no mundo (\"Exception occurred in ParsePage thread\"): a página baixada é moderna demais. Troca a URL por uma local no configs.pck e o cache BBSPages pela página local. Backup do .pck."),
+                true, () => LocalServer.FixClientPages(clientElement, _ => { })));
         if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)
             fixes.Add(new(string.Format(Loc.T("fix.dialogsTitle", "interfaces.pck: carregar {0} janela(s) que o jogo procura"), dlgs.Count),
                 string.Join(", ", dlgs.Select(d => d.Dialog)) + Loc.T("fix.dialogsDetail", ". Estão no pacote, mas fora da lista (.dcf); sem elas o jogo cai (ex.: fechar o inventário pelo X). Backup do .pck."),

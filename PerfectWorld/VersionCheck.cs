@@ -187,6 +187,15 @@ public static class VersionCheck
                         LocalServer.Current.VersionMismatch(clientElement) ?? ""));
         }
 
+        // 3d) cliente: página de anúncios da internet ligada derruba o jogo ao entrar no mundo (ParsePage thread)
+        if (Directory.Exists(clientElement))
+        {
+            bool ads = LocalServer.ClientPagesNeedFix(clientElement);
+            rows.Add(new(Loc.T("chk.adsPage", "cliente — página de anúncios"), ads ? Loc.T("chk.adsOn", "da internet") : Loc.T("chk.adsLocal", "local"), "—",
+                ads ? CheckLevel.Erro : CheckLevel.Ok,
+                ads ? Loc.T("chk.adsOnHint", "O jogo cai ao entrar no mundo (\"Exception occurred in ParsePage thread\"). Use Corrigir.") : Loc.T("chk.adsLocalHint", "Sem página da internet: não derruba o jogo.")));
+        }
+
         // 4) aipolicy.data
         var ca =Header(Path.Combine(cData, "aipolicy.data"));
         var sa = Header(Path.Combine(sCfg, "aipolicy.data"));

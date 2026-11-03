@@ -2447,7 +2447,7 @@
   "ls.sendingAi": "sending aipolicy.data from {0}",
   "ls.accountFailed": "Could not create the account:",
   "ls.pwctlUpdated": "pwctl updated in Linux",
-  "ls.adsPage": "login ads page: {0} → {1} (configs.pck, backup next to it)",
+  "ls.adsPage": "login ads page: {0} → {1} (configs.pck; backup in Tools → Backups)",
   "ls.pageCache": "page cache replaced with the local page: ",
   "ls.serverList": "server list: ",
   "dlg.allFiles": "All files",
@@ -5045,5 +5045,13 @@
   "chk.rCheck": "Check",
   "chk.rFix": "Fix",
   "fix.sendLocalTitle": "Local server: send the client's elements, tasks, shop and AI and restart",
-  "fix.sendLocalDetail": "Different from the client: {0}. Same send as \"Send and restart\" in the Server tab."
+  "fix.sendLocalDetail": "Different from the client: {0}. Same send as \"Send and restart\" in the Server tab.",
+  "ls.clientPrepFailed": "could not prepare the client (server list / ads page): ",
+  "fix.adsTitle": "Client: turn off the internet ads page",
+  "fix.adsDetail": "The game crashes when entering the world (\"Exception occurred in ParsePage thread\"): the downloaded page is too modern. Swaps the URL for a local one in configs.pck and the BBSPages cache for the local page. Backup of the .pck.",
+  "chk.adsPage": "client — ads page",
+  "chk.adsOn": "from the internet",
+  "chk.adsLocal": "local",
+  "chk.adsOnHint": "The game crashes when entering the world (\"Exception occurred in ParsePage thread\"). Use Fix.",
+  "chk.adsLocalHint": "No internet page: does not crash the game."
 }

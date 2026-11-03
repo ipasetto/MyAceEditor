@@ -2449,7 +2449,7 @@
   "ls.sendingAi": "正在发送来自 {0} 的 aipolicy.data",
   "ls.accountFailed": "无法创建账号：",
   "ls.pwctlUpdated": "已在 Linux 中更新 pwctl",
-  "ls.adsPage": "登录广告页：{0} → {1}（configs.pck，旁边有备份）",
+  "ls.adsPage": "登录广告页：{0} → {1}（configs.pck；备份见“工具 → 备份”）",
   "ls.pageCache": "页面缓存已替换为本地页面：",
   "ls.serverList": "服务器列表：",
   "dlg.allFiles": "所有文件",
@@ -5047,5 +5047,13 @@
   "chk.rCheck": "检查",
   "chk.rFix": "修复",
   "fix.sendLocalTitle": "本地服务器：发送客户端的 elements、tasks、商城和 AI 并重启",
-  "fix.sendLocalDetail": "与客户端不同：{0}。与“服务器”页的“发送并重启”相同。"
+  "fix.sendLocalDetail": "与客户端不同：{0}。与“服务器”页的“发送并重启”相同。",
+  "ls.clientPrepFailed": "无法准备客户端（服务器列表/广告页）：",
+  "fix.adsTitle": "客户端：关闭来自互联网的广告页",
+  "fix.adsDetail": "进入世界时游戏崩溃（“Exception occurred in ParsePage thread”）：下载的页面过新。将 configs.pck 中的网址改为本地地址，并把 BBSPages 缓存换成本地页面。会备份 .pck。",
+  "chk.adsPage": "客户端 — 广告页",
+  "chk.adsOn": "来自互联网",
+  "chk.adsLocal": "本地",
+  "chk.adsOnHint": "进入世界时游戏崩溃（“Exception occurred in ParsePage thread”）。请使用“修复”。",
+  "chk.adsLocalHint": "没有互联网页面：不会导致游戏崩溃。"
 }
