@@ -53,6 +53,8 @@
 - [~] 02/11 noite: 144 instalado pelo usuario sem erros [T]. Feito no codigo (falta testar na tela): pergunta de configurar servidor na 1a abertura, janela Instalar com disco/memoria, WSL ausente (instalar/Verificacao/Corrigir), varios servidores da mesma versao, Verificacao+Corrigir automaticos apos instalar.
 - [~] 02/11: janela "Servidor e pastas" pronta (captura ok); 144 corrigido (envio com o cliente certo, gs no ar, loja ts 1793026156) - falta o usuario confirmar que entra no mundo.
 - [ ] Servidor por IP/SSH (VM, outro PC, hospedagem): tipo "Outro Linux" ja existe em "Servidor e pastas" (so arquivos); falta conectar com ssh.exe/scp.exe do Windows (IP, porta, usuario, CHAVE - nunca senha gravada): Enviar = scp dos arquivos do envio, Iniciar/Parar/Estado/Administrar = ssh + pwctl (levar o pwctl na 1a conexao; conferir se funciona num servidor nao instalado pelo programa).
+- [>] 02/11 crash ao entrar no mundo no 144 (cliente PW 144 BR): servidor ok; suspeita = dados de cliente (elements BR convertido v61->v60, configs.pck BR) x exe v60; teste proposto = usar o "client files" do pacote 1.4.4 (mesmo exe) com backup.
+- [ ] Verificacao ler o log do CLIENTE (element\logs\EC.log + ec_build*.dmp): mostrar crash do jogo (excecao, modulo+offset, ultimo arquivo que faltou) e avisar quando o cliente jogado nao e o aberto no editor (02/11: servidor recebeu "Perfect World 144" e o jogo era "PW 144 BR").
 ## ONDE PARAMOS (26/10/2026, painel do servidor) - RETOMAR AQUI
 Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor num form (como o iweb)".
 [x] Verificacao: versao do elements compilada no elementclient.exe x gs x arquivos (ProgramVersion.cs)
