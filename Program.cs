@@ -357,6 +357,18 @@ internal static class Program
             bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
             return;
         }
+        if (args.Length >= 3 && args[0] == "--ss-shot")   // <png> <pasta element> [página]: janela "Servidor e pastas" fora da tela
+        {
+            var w = new MyAceEditor.UI.ServerSetupWindow(args[2], System.Drawing.Color.FromArgb(231, 236, 242), System.Drawing.Color.FromArgb(30, 39, 51)) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
+            w.Show();
+            if (args.Length >= 4 && w.Controls.OfType<TabControl>().FirstOrDefault() is { } tc && int.Parse(args[3]) < tc.TabCount) tc.SelectedIndex = int.Parse(args[3]);
+            var until = DateTime.Now.AddSeconds(4);
+            while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(20); }
+            using var bmp = new System.Drawing.Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, w.Width, w.Height));
+            bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--wq-shot") { MyAceEditor.UI.QuestShotTest.Run(args[1], args.Length >= 3 ? int.Parse(args[2]) : 0); return; }   // <png>: painel e editor de quest do 3D com dados de exemplo
         if (args.Length >= 3 && args[0] is "--gm-shot" or "--adm-shot")   // <png> <pasta element | pasta do servidor local>: print da janela fora da tela
         {
@@ -1930,6 +1942,8 @@ internal static class Program
         var f = GShopFile.ReadClient(c);
         var sb = new StringBuilder($"{Path.GetFileName(clientPath)}: ts {f.Timestamp}, {f.Items.Count} itens, categorias: {string.Join(" | ", f.Categories.Select(k => $"{k.Name} ({k.Subs.Count})"))}\n");
         sb.AppendLine($"cliente regravado idêntico: {f.WriteClient().AsSpan().SequenceEqual(c)}");
+        var bad = f.ServerProblems();   // o envio ao servidor pula a loja inteira se houver algum
+        sb.AppendLine($"itens que o gs recusa (sem preço): {bad.Count}" + (bad.Count > 0 ? " — " + string.Join("; ", bad.Take(5)) : ""));
         if (File.Exists(serverPath))
         {
             var sv = File.ReadAllBytes(serverPath);

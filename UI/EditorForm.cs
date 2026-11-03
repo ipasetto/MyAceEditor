@@ -381,6 +381,8 @@ public sealed class EditorForm : Form
             foreach (ToolStripMenuItem x in lang.DropDownItems) x.Checked = (string?)x.Tag == AppLang.Current;
         });
         tb.Items.Add(lang);
+        // servidor e pastas do cliente aberto: ao lado da bandeira (à esquerda dela), um lugar só para os caminhos
+        UiKit.Cmd(tb, UiKit.Server, "tb.rServerSetup", "Servidor", OpenServerSetup, "tb.rServerSetupTip", "Servidor e pastas: onde roda o servidor desta versão do jogo, o pacote dele e a máquina do servidor local.").Alignment = ToolStripItemAlignment.Right;
         UiKit.Cmd(tb, UiKit.Globe, "tb.rWorld", "Mundo 3D", () => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); }, "tb.rWorldTip", "Abre o mapa do jogo em 3D com os pontos do NPCGen.");
         return tb;
     }
@@ -481,6 +483,7 @@ public sealed class EditorForm : Form
             if (err + warn > 0 && MessageBox.Show(this, string.Format(Loc.T("chk.afterInstall", "Servidor instalado. A Verificação achou {0} erro(s) e {1} aviso(s).\n\nCorrigir agora?"), err, warn),
                     Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) FixPair();
         });
+        ServerPaths.Changed += _ => BeginInvoke(ApplyServerPaths);
         _serverView.FilesSent += ok => { if (ok) { _unsent.Clear(); _serverDiff = null; } UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
         tabs.TabPages.Add(tSrv);
         // Plugins de evento (docs/PLUGINS.md): programa do servidor que sorteia/chama eventos (usuário 01/11)
@@ -1210,12 +1213,11 @@ public sealed class EditorForm : Form
         // regra: o programa é um só — toda aba que lê arquivos do cliente passa para os da pasta nova
         BeginInvoke(() =>
         {
+            ApplyServerPaths();
             _gshop?.GameFolderChanged();
             _aiView?.GameFolderChanged(element);
             _pckView?.GameFolderChanged(); _uiArea?.GameFolderChanged();
             _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do cliente anterior
-            // servidor: cada versão tem o seu (pacote + pasta/distro); a Verificação compara com o pacote dele
-            if (_serverView?.GameFolderChanged() is { } pkgHome) { _chkServer.Text = pkgHome; SaveSetting("check_server", pkgHome); }
             // 1ª vez desta versão: pergunta se configura o servidor local
             if (_serverView?.OfferSetup(this) == true && _tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;
         });
@@ -5233,12 +5235,12 @@ public sealed class EditorForm : Form
         Label L(Func<string> t) { var l = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CFg }; Bind(() => l.Text = t()); return l; }
         Button B(Func<string> t, Action a) { var b = new Button { Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; UiKit.Decorate(b, t()); b.Click += (_, _) => a(); Bind(() => b.Text = t()); return b; }
         _chkClient.Dock = DockStyle.Fill; _chkServer.Dock = DockStyle.Fill;
+        _chkClient.ReadOnly = true; _chkServer.ReadOnly = true;   // vêm do elements aberto e de "Servidor e pastas"
         _chkClient.Text = LoadSetting("check_client") ?? "";
         _chkServer.Text = LoadSetting("check_server") ?? "";
         form.Controls.Add(L(() => Loc.T("chk.clientElementFolder", "Cliente (pasta element)")), 0, 0); form.Controls.Add(_chkClient, 1, 0);
-        form.Controls.Add(B(() => Loc.T("chk.browse", "Procurar…"), () => PickFolder(_chkClient, Loc.T("chk.clientElementFolder2", "Pasta element do cliente"))), 2, 0);
         form.Controls.Add(L(() => Loc.T("chk.serverHomeFolder", "Servidor (pasta home)")), 0, 1); form.Controls.Add(_chkServer, 1, 1);
-        form.Controls.Add(B(() => Loc.T("chk.browse", "Procurar…"), () => { if (PickFolder(_chkServer, Loc.T("chk.serverHomeFolderContainsGamed", "Pasta home do servidor (contém gamed, glinkd…)"))) SetServerFolder(_chkServer.Text); }), 2, 1);
+        form.Controls.Add(B(() => Loc.T("chk.change", "Alterar…"), OpenServerSetup), 2, 1);
         var run = B(() => Loc.T("chk.check", "✔ Verificar"), RunCheck); UiKit.Decorate(run, "check", primary: true); run.Font = new Font("Segoe UI Semibold", 10);
         var runInfo = L(() => Loc.T("chk.comparesTheVersionsAndTimestamps", "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).")); runInfo.ForeColor = CMuted;
         form.Controls.Add(runInfo, 0, 2);
@@ -5299,6 +5301,28 @@ public sealed class EditorForm : Form
     }
 
     private void RunCheck() => RunCheck(0);
+
+    /// <summary>Cliente aberto (pasta element), o mesmo da aba Servidor.</summary>
+    private string CurrentClient() => _chkClient.Text.Length > 0 ? VersionCheck.ClientElement(_chkClient.Text)
+        : _dataPath is null ? "" : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) ?? "";
+
+    /// <summary>Janela "Servidor e pastas" do cliente aberto; salvar repontua Verificação, Loja, NPCGen e Servidor.</summary>
+    private void OpenServerSetup()
+    {
+        using var w = new ServerSetupWindow(CurrentClient(), CBg, CFg);
+        if (w.ShowDialog(this) == DialogResult.OK) _gshop?.GameFolderChanged();
+    }
+
+    /// <summary>Servidor de cada versão (um por cliente, ServerPaths): a Verificação, o NPCGen e a aba Servidor passam a ele.</summary>
+    private void ApplyServerPaths()
+    {
+        _serverView?.GameFolderChanged();
+        var e = ServerPaths.Get(CurrentClient());
+        if (e.Home.Length == 0) return;
+        _chkServer.Text = e.Home; SaveSetting("check_server", e.Home);
+        if (e.Config.Length > 0) SaveSetting("gshop_server", e.Config);
+        _npcgen?.ServerFolderChanged(e.Home);
+    }
 
     /// <summary>Roda a Verificação; devolve (erros, avisos), (0, 0) se faltam as pastas.</summary>
     private (int Err, int Warn) RunCheck(int _)

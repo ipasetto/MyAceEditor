@@ -154,8 +154,10 @@ internal sealed class GShopView : UserControl
     {
         var here = Path.Combine(clientData, name);
         if (File.Exists(here)) return here;
-        var dir = LoadSetting("gshop_server");
-        return dir is not null && File.Exists(Path.Combine(dir, name)) ? Path.Combine(dir, name) : null;
+        // o servidor do cliente aberto ("Servidor e pastas" -> check_server) vem antes da pasta lembrada aqui
+        foreach (var dir in new[] { LoadSetting("check_server") is { } h ? Path.Combine(VersionCheck.ServerHome(h), "gamed", "config") : null, LoadSetting("gshop_server") })
+            if (dir is not null && File.Exists(Path.Combine(dir, name))) return Path.Combine(dir, name);
+        return null;
     }
 
     void UpdateInfo()
