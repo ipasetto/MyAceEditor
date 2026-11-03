@@ -5037,5 +5037,15 @@
   "srv.otherNoInstall": "此客户端的服务器在其他 Linux 上（“服务器和文件夹”）：不适用本地安装。",
   "chk.change": "更改…",
   "tb.rServerSetup": "服务器",
-  "tb.rServerSetupTip": "服务器和文件夹：此游戏版本的服务器运行位置、服务器包和本地服务器主机。"
+  "tb.rServerSetupTip": "服务器和文件夹：此游戏版本的服务器运行位置、服务器包和本地服务器主机。",
+  "chk.notRun": "尚未检查",
+  "chk.notRunDetail": "点击“检查”：比较已打开的客户端与其服务器在登录要求一致的部分。",
+  "chk.noServer": "无：请在“服务器和文件夹”中选择。",
+  "chk.checkedAt": "检查于 {0}",
+  "chk.useFix": "使用“修复”在服务器上重建登录要求与客户端一致的内容。",
+  "chk.openSetup": "请在“服务器和文件夹”中确认此客户端的服务器。",
+  "chk.rCheck": "检查",
+  "chk.rFix": "修复",
+  "fix.sendLocalTitle": "本地服务器：发送客户端的 elements、tasks、商城和 AI 并重启",
+  "fix.sendLocalDetail": "与客户端不同：{0}。与“服务器”页的“发送并重启”相同。"
 }

@@ -50,15 +50,16 @@ Cada linha é uma ferramenta do MyAceEditor e cada coluna uma versão do Perfect
 
 ## Servidor e jogo ao vivo
 
-Só existe um servidor rodando para teste (o 1.5.5 do WSL). As outras versões ficam **?** até haver servidor delas.
+Servidores de teste no WSL, um por versão (02/11): 1.4.4 (`D:\PWServer144v60`) e 1.5.5 (`D:\PWServer155`, a reinstalar). As outras versões ficam **?** até haver servidor delas.
 
 | Ferramenta | 1.3.6 | 1.4.4 | 1.5.2 | 1.5.5 | 1.7.2 | 1.7.6 | 1.8 | Notas |
 |---|---|---|---|---|---|---|---|---|
-| Servidor (ligar, mapas, enviar arquivos) | ? | ? | — | ✅ | ? | ? | ? | |
+| Servidor (instalar, ligar, mapas, enviar arquivos) | ? | ✅ | — | ✅ | ? | ? | ? | 1.4.4: instalado e no ar 02/11 (gs carrega, envio com o cliente certo). 1.5.5: reinstalar na distro própria |
 | Painel do GM | ? | ? | — | ✅ | ? | ? | ? | |
 | Plugins (Aparição Rara) | ? | ? | — | ✅ | ? | ? | ? | GMControlGame e PublicChat iguais no fonte 1.5.2 e 1.5.3 |
 | Anúncio de morte / combate (IA) | ? | ? | ? | ? | ? | ? | ? | corrigido em 02/11, falta ver no jogo |
-| Verificação (regras do jogo) | ? | ? | — | ✅ | ? | ? | ? | |
+| Verificação (regras do jogo) | ? | ✅ | — | ✅ | ? | ? | ? | 1.4.4: rodou contra o servidor 144 (02/11) |
+| Login no servidor local (authd) | ? | ❌→? | — | ✅ | ? | ? | ? | 1.4.4: authd com {?=call} do jar ("usuário não existe"); corrigido 02/11 (classpath na ordem do pacote), falta logar ([5]) |
 
 ## Preferências
 
@@ -72,3 +73,4 @@ Só existe um servidor rodando para teste (o 1.5.5 do WSL). As outras versões f
 2. **Quests antigas (v55, 1.3.6):** a leitura não termina; falta um limite com aviso, para não prender a tela, e o layout das versões abaixo de 93.
 3. **Loja 1.7.x:** item com tamanho novo (cerca de 1448 B no cliente e 232 B no servidor). Para descobrir o layout: par cliente/servidor do 1.7.6 e o `playermall.cpp` do fonte 1.7.4.
 4. **Tudo que está "?":** testar e preencher. Origem dos dados: PW-KB §S33 e §Q, ENGINE-KB §E7 e `docs/AFAZERES.md`.
+5. **Login 1.4.4 (authd):** o `application.jar` do mauthd chama os procedimentos com `{?=call}` (o conector manda `SELECT`, o MariaDB recusa como FUNCTION); o pacote traz `build/application/procedure/handler.class` com `{call}`, que só vale com `.` antes do jar (como no `authd.sh` original). Falta o usuário logar no 144.

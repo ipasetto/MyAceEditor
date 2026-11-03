@@ -1217,7 +1217,7 @@ public sealed class EditorForm : Form
             _gshop?.GameFolderChanged();
             _aiView?.GameFolderChanged(element);
             _pckView?.GameFolderChanged(); _uiArea?.GameFolderChanged();
-            _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do cliente anterior
+            _chkList.Items.Clear(); CheckNotRun();   // o resultado era do cliente anterior
             // 1ª vez desta versão: pergunta se configura o servidor local
             if (_serverView?.OfferSetup(this) == true && _tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;
         });
@@ -5222,36 +5222,38 @@ public sealed class EditorForm : Form
     private readonly TextBox _chkClient = new() { BorderStyle = BorderStyle.FixedSingle };
     private readonly TextBox _chkServer = new() { BorderStyle = BorderStyle.FixedSingle };
     private readonly ListView _chkList = new() { View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill, HeaderStyle = ColumnHeaderStyle.Nonclickable };
-    private readonly Label _chkSummary = new() { Dock = DockStyle.Top, Height = 34, Font = new Font("Segoe UI Semibold", 11), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 0, 0, 0) };
+    private readonly StatusCard _chkCard = new();   // resumo da Verificação (padrão UiKit: bolinha + título + detalhe)
+
+    /// <summary>Cartão da Verificação antes de verificar (ou depois de trocar de cliente/servidor).</summary>
+    private void CheckNotRun() => _chkCard.Set(StatusCard.Kind.Warn, Loc.T("chk.notRun", "Ainda não verificado"),
+        Loc.T("chk.notRunDetail", "Clique em Verificar: compara o cliente aberto com o servidor dele no que o login exige igual."));
 
     private Control BuildCheckView()
     {
-        var root = new Panel { Dock = DockStyle.Fill, BackColor = CBg, Padding = new Padding(16) };
-        var form = new TableLayoutPanel { Dock = DockStyle.Top, Height = 4 * 38 + 6, ColumnCount = 3, BackColor = CBg };   // 4 linhas: cliente, servidor, verificar, corrigir
-        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
-        form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        // textos ligados ao idioma (Bind): trocar o idioma refaz rótulos, botões, colunas e o resultado já mostrado
-        Label L(Func<string> t) { var l = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = CFg }; Bind(() => l.Text = t()); return l; }
-        Button B(Func<string> t, Action a) { var b = new Button { Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = CSurface, ForeColor = CFg }; UiKit.Decorate(b, t()); b.Click += (_, _) => a(); Bind(() => b.Text = t()); return b; }
-        _chkClient.Dock = DockStyle.Fill; _chkServer.Dock = DockStyle.Fill;
-        _chkClient.ReadOnly = true; _chkServer.ReadOnly = true;   // vêm do elements aberto e de "Servidor e pastas"
+        var root = new Panel { Dock = DockStyle.Fill, BackColor = CBg };
+        // comandos (padrão UiKit): Verificar em azul, Corrigir e o servidor deste cliente ("Servidor e pastas")
+        var rb = UiKit.Ribbon();
+        UiKit.Cmd(rb, UiKit.CheckList, "chk.rCheck", "Verificar", RunCheck, "chk.comparesTheVersionsAndTimestamps", "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).", primary: true);
+        UiKit.Cmd(rb, "\uE90F", "chk.rFix", "Corrigir", FixPair, "chk.fixRebuildsOnTheServer", "Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.");
+        UiKit.Sep(rb);
+        UiKit.Cmd(rb, UiKit.Server, "tb.rServerSetup", "Servidor", OpenServerSetup, "tb.rServerSetupTip", "Servidor e pastas: onde roda o servidor desta versão do jogo, o pacote dele e a máquina do servidor local.");
+        // o que é comparado: nome em destaque + caminho em cinza (os caminhos vêm do elements aberto e de "Servidor e pastas")
         _chkClient.Text = LoadSetting("check_client") ?? "";
         _chkServer.Text = LoadSetting("check_server") ?? "";
-        form.Controls.Add(L(() => Loc.T("chk.clientElementFolder", "Cliente (pasta element)")), 0, 0); form.Controls.Add(_chkClient, 1, 0);
-        form.Controls.Add(L(() => Loc.T("chk.serverHomeFolder", "Servidor (pasta home)")), 0, 1); form.Controls.Add(_chkServer, 1, 1);
-        form.Controls.Add(B(() => Loc.T("chk.change", "Alterar…"), OpenServerSetup), 2, 1);
-        var run = B(() => Loc.T("chk.check", "✔ Verificar"), RunCheck); UiKit.Decorate(run, "check", primary: true); run.Font = new Font("Segoe UI Semibold", 10);
-        var runInfo = L(() => Loc.T("chk.comparesTheVersionsAndTimestamps", "Compara versões e timestamps que o login exige iguais (elements, tasks, loja), cópias por mapa e a criptografia de rede (sem mostrar as chaves).")); runInfo.ForeColor = CMuted;
-        form.Controls.Add(runInfo, 0, 2);
-        form.SetColumnSpan(runInfo, 2);
-        form.Controls.Add(run, 2, 2);
-        var fix = B(() => Loc.T("chk.fix", "Corrigir…"), FixPair); fix.BackColor = Color.FromArgb(255, 244, 214); fix.Font = new Font("Segoe UI Semibold", 10);
-        var fixInfo = L(() => Loc.T("chk.fixRebuildsOnTheServer", "Corrigir: refaz no servidor, a partir do cliente, o que o login exige igual (elements, tasks, loja). Cada arquivo trocado ganha backup.")); fixInfo.ForeColor = CMuted;
-        form.Controls.Add(fixInfo, 0, 3);
-        form.SetColumnSpan(fixInfo, 2);
-        form.Controls.Add(fix, 2, 3);
-        for (int i = 0; i < 4; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        var paths = new TableLayoutPanel { Dock = DockStyle.Top, Height = 66, ColumnCount = 2, RowCount = 2, BackColor = CBg, Padding = new Padding(16, 8, 16, 4) };
+        paths.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); paths.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        void Item(int col, Func<string> title, TextBox source, Func<string> empty)
+        {
+            var t = new Label { AutoSize = true, Font = new Font("Segoe UI Semibold", 10), ForeColor = CFg, Image = UiKit.Icon(col == 0 ? UiKit.Game : UiKit.Server, CMuted, 16), ImageAlign = ContentAlignment.MiddleLeft };
+            var p = new Label { AutoSize = true, ForeColor = CMuted, MaximumSize = new Size(600, 0), Padding = new Padding(22, 2, 0, 0) };
+            void Show() => p.Text = source.Text.Length > 0 ? source.Text : empty();
+            Bind(() => { t.Text = "     " + title(); Show(); });   // espaços: lugar do ícone (como o título do registro na aba Servidor)
+            source.TextChanged += (_, _) => Show();
+            paths.Controls.Add(t, col, 0); paths.Controls.Add(p, col, 1);
+        }
+        Item(0, () => Loc.T("chk.clientElementFolder", "Cliente (pasta element)"), _chkClient, () => Loc.T("ss.noClient", "Nenhum: abra um elements.data primeiro."));
+        Item(1, () => Loc.T("chk.serverHomeFolder", "Servidor (pasta home)"), _chkServer, () => Loc.T("chk.noServer", "Nenhum: escolha em \"Servidor e pastas\"."));
+        CheckNotRun();
 
         _chkList.Columns.Add("", 34);
         _chkList.Columns.Add("", 300);
@@ -5267,13 +5269,13 @@ public sealed class EditorForm : Form
             if (_chkList.Items.Count > 0) RunCheck();   // as linhas do resultado são texto: refaz no idioma novo
         });
         _chkList.BackColor = CSurface; _chkList.ForeColor = CFg;
-        _chkSummary.ForeColor = CFg;
 
-        var listHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0), BackColor = CBg };
+        var listHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 4, 16, 16), BackColor = CBg };
         listHost.Controls.Add(_chkList);
-        listHost.Controls.Add(_chkSummary);
         root.Controls.Add(listHost);
-        root.Controls.Add(form);
+        root.Controls.Add(paths);
+        root.Controls.Add(rb);
+        root.Controls.Add(_chkCard);
         return root;
     }
 
@@ -5296,7 +5298,7 @@ public sealed class EditorForm : Form
         if (string.Equals(home, _chkServer.Text, StringComparison.OrdinalIgnoreCase) && LoadSetting("check_server") == home) return;
         _chkServer.Text = home;
         SaveSetting("check_server", home);
-        _chkList.Items.Clear(); _chkSummary.Text = "";   // o resultado era do servidor anterior
+        _chkList.Items.Clear(); CheckNotRun();   // o resultado era do servidor anterior
         _npcgen?.ServerFolderChanged(home);
     }
 
@@ -5352,10 +5354,12 @@ public sealed class EditorForm : Form
         _chkList.EndUpdate();
         int err = rows.Count(r => r.Nivel == CheckLevel.Erro), warn = rows.Count(r => r.Nivel == CheckLevel.Aviso);
         bool nothing = rows.All(r => r.Cliente == VersionCheck.NotFound && r.Servidor == VersionCheck.NotFound);
-        _chkSummary.Text = nothing ? Loc.T("chk.filesNotFoundCheckThe", "✖ Não achei os arquivos: confira as pastas (cliente = element do jogo; servidor = pasta que tem gamed/)")
-                         : err > 0 ? string.Format(Loc.T("chk.0ErrorSThatBlock", "✖ {0} erro(s) que impedem o login · {1} aviso(s)"), err, warn)
-                         : warn > 0 ? string.Format(Loc.T("chk.noLoginErrors0Warning", "⚠ Sem erros de login · {0} aviso(s)"), warn) : Loc.T("chk.clientAndServerAreCompatible", "✔ Cliente e servidor compatíveis");
-        _chkSummary.ForeColor = nothing || err > 0 ? Color.FromArgb(200, 30, 30) : warn > 0 ? Color.FromArgb(180, 110, 0) : Color.FromArgb(22, 128, 61);
+        var when = string.Format(Loc.T("chk.checkedAt", "Verificado às {0}"), DateTime.Now.ToString("HH:mm:ss"));
+        var fixHint = Loc.T("chk.useFix", "Use Corrigir para refazer no servidor o que o login exige igual ao cliente.");
+        if (nothing) _chkCard.Set(StatusCard.Kind.Off, Loc.T("chk.filesNotFoundCheckThe", "✖ Não achei os arquivos: confira as pastas (cliente = element do jogo; servidor = pasta que tem gamed/)").TrimStart('✖', ' '), Loc.T("chk.openSetup", "Confira o servidor deste cliente em \"Servidor e pastas\"."));
+        else if (err > 0) _chkCard.Set(StatusCard.Kind.Off, string.Format(Loc.T("chk.0ErrorSThatBlock", "✖ {0} erro(s) que impedem o login · {1} aviso(s)"), err, warn).TrimStart('✖', ' '), when + " · " + fixHint);
+        else if (warn > 0) _chkCard.Set(StatusCard.Kind.Warn, string.Format(Loc.T("chk.noLoginErrors0Warning", "⚠ Sem erros de login · {0} aviso(s)"), warn).TrimStart('⚠', ' '), when + " · " + fixHint);
+        else _chkCard.Set(StatusCard.Kind.On, Loc.T("chk.clientAndServerAreCompatible", "✔ Cliente e servidor compatíveis").TrimStart('✔', ' '), when);
         Status(Loc.T("chk.checkFinished", "Verificação concluída"));
         return (err, warn);
     }
@@ -5364,7 +5368,7 @@ public sealed class EditorForm : Form
     private void FixPair()
     {
         if (!Directory.Exists(_chkClient.Text) || !Directory.Exists(_chkServer.Text)) { Status(Loc.T("chk.pickBothFolders", "Escolha as pastas do cliente e do servidor.")); return; }
-        var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text);
+        var fixes = PairFixer.Plan(_chkClient.Text, _chkServer.Text, () => ServerPaths.Get(CurrentClient()) is { Kind: ServerPaths.Kind.Local } e ? e.Package : "");
         if (fixes.Count == 0) { MessageBox.Show(this, Loc.T("fix.none", "Nada para corrigir: o servidor já está igual ao cliente no que o login exige."), Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         using var f = new Form
         {

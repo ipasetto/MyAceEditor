@@ -62,12 +62,23 @@ step "Login (authd em Java)"
 # Um script authd.sh igual para os dois, com o Java do sistema (o Java 6 do pacote perde links ao vir do Windows).
 # O 1.5.x tem outro application.jar (entrega de cash etc.): usar o do 1.4.4 com servidor 1.5.x deixa cash pendente.
 make_authd() {   # pasta, table.xml
-    local dir=$1 tbl=$2 lib
+    local dir=$1 tbl=$2 lib line pre cp
     lib=$(cd "$dir" && { [ -d lib ] && echo "$dir/lib" || echo "$dir/../lib"; })
+    # ordem do classpath do PRÓPRIO pacote: o 1.4.4 (mauthd/build) e o 1.5.5v156 põem "." antes do application.jar
+    # para valer o handler.class solto ({call}); o do jar usa {?=call}, que o conector manda como SELECT e o MariaDB
+    # recusa ("FUNCTION pw.acquireuserpasswd does not exist" = login "usuário não existe"). Sem script do pacote
+    # (162-155): jar antes, como sempre foi. Reinstalar mantém a ordem já escolhida.
+    cp='$(ls '"$lib"'/*.jar | paste -sd: -):.'
+    line=$(grep -m1 '^cp=' "$dir/authd.sh" 2>/dev/null)
+    pre=${line%%application.jar*}
+    case "$line" in
+      cp=.:*) cp='.:$(ls '"$lib"'/*.jar | paste -sd: -)' ;;
+      *application.jar*) case "$pre" in *:.:*|cp=.:*) cp='.:$(ls '"$lib"'/*.jar | paste -sd: -)' ;; esac ;;
+    esac
     cat > "$dir/authd.sh" <<EOF
 #!/bin/sh
 cd $dir
-cp=\$(ls $lib/*.jar | paste -sd: -):.
+cp=$cp
 case \$1 in
   start) setsid nohup java -Dcom.wanmei.au.HitEncoding=GBK -cp \$cp authd $tbl Enthrallment > /home/logs/authd.log 2>&1 < /dev/null & echo \$! > service.pid ;;
   stop) [ -f service.pid ] && kill -9 "\$(cat service.pid)"; rm -f service.pid ;;

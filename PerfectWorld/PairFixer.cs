@@ -11,7 +11,9 @@ public static class PairFixer
 {
     public sealed record Fix(string Title, string Detail, bool Recommended, Action Apply);
 
-    public static List<Fix> Plan(string clientElement, string serverHome)
+    /// <param name="localPackage">pacote "server files" do servidor local deste cliente ("" = sem servidor local): com ele,
+    /// o servidor no WSL que não tem os elements/tasks/loja do cliente ganha o item "enviar e reiniciar"</param>
+    public static List<Fix> Plan(string clientElement, string serverHome, Func<string>? localPackage = null)
     {
         clientElement = VersionCheck.ClientElement(clientElement);
         serverHome = VersionCheck.ServerHome(serverHome);
@@ -22,6 +24,17 @@ public static class PairFixer
             fixes.Add(new(Loc.T("fix.wslTitle", "Instalar o Linux do Windows (WSL) para o servidor local"),
                 Loc.T("fix.wslDetail", "O servidor local roda nele. O Windows pede permissão de administrador; depois reinicie o computador e instale o servidor na aba Servidor."),
                 true, () => { if (!LocalServer.InstallWsl()) throw new InvalidOperationException(Loc.T("srv.wslFailed", "Não consegui instalar o WSL (permissão recusada ou erro). Tente de novo ou rode \"wsl --install --no-distribution\" como administrador.")); }));
+        // servidor local (WSL) sem os arquivos do cliente: o login/entrada no mundo é recusado mesmo com o pacote certo
+        // (o Corrigir do pacote abaixo não chega lá). Mesmo envio da aba Servidor; recusa servidor de outra versão.
+        if (localPackage?.Invoke() is { Length: > 0 } pkg && LocalServer.LiveHome is { } live
+            && LiveDiffers(Path.Combine(clientElement, "data"), Path.Combine(live, "gamed", "config")) is { Count: > 0 } liveStale)
+            fixes.Add(new(Loc.T("fix.sendLocalTitle", "Servidor local: enviar elements, tasks, loja e IA do cliente e reiniciar"),
+                string.Format(Loc.T("fix.sendLocalDetail", "Diferentes do cliente: {0}. Mesmo envio de \"Enviar e reiniciar\" da aba Servidor."), string.Join(", ", liveStale)),
+                true, () =>
+                {
+                    var r = LocalServer.Current.SendAll(pkg, clientElement);
+                    if (r.Code != 0) throw new InvalidOperationException(r.Output.Trim().Split('\n').LastOrDefault() ?? "");
+                }));
         // servidor local de outra versão: não se corrige aqui (cada versão tem a sua pasta/distro; a Verificação avisa)
         // cliente: janelas que o jogo procura e o interfaces.pck não carrega (o jogo cai ao usá-las)
         if (ClientDialogs.Find(clientElement) is { Count: > 0 } dlgs)
@@ -85,6 +98,31 @@ public static class PairFixer
                     false, () => AtomicFileSave.Write(s, File.ReadAllBytes(c))));
         }
         return fixes;
+    }
+
+    /// <summary>Arquivos do par em que o servidor local (config instalada) difere do cliente.</summary>
+    static List<string> LiveDiffers(string clientData, string liveConfig)
+    {
+        var stale = new List<string>();
+        if (!Directory.Exists(clientData) || !Directory.Exists(liveConfig)) return stale;
+        foreach (var n in new[] { "elements.data", "tasks.data" })
+        {
+            string c = Path.Combine(clientData, n), s = Path.Combine(liveConfig, n);
+            if (File.Exists(c) && !(File.Exists(s) && SameContent(c, s))) stale.Add(n);
+        }
+        // loja: o servidor precisa do mesmo timestamp do gshop do cliente (o gshopsev é refeito no envio)
+        foreach (var (cn, sn) in new[] { ("gshop.data", "gshopsev.data"), ("gshop1.data", "gshopsev1.data") })
+        {
+            string c = Path.Combine(clientData, cn), s = Path.Combine(liveConfig, sn);
+            if (File.Exists(c) && (!File.Exists(s) || Stamp(c) != Stamp(s))) stale.Add(sn);
+        }
+        return stale;
+    }
+
+    static int? Stamp(string path)
+    {
+        try { using var f = File.OpenRead(path); var b = new byte[4]; return f.Read(b, 0, 4) == 4 ? BitConverter.ToInt32(b) : null; }
+        catch (IOException) { return null; }
     }
 
     static bool SameContent(string a, string b)

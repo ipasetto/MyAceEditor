@@ -5035,5 +5035,15 @@
   "srv.otherNoInstall": "This client's server is on another Linux (\"Server and folders\"): local installation does not apply.",
   "chk.change": "Change…",
   "tb.rServerSetup": "Server",
-  "tb.rServerSetupTip": "Server and folders: where this game version's server runs, its package and the local server machine."
+  "tb.rServerSetupTip": "Server and folders: where this game version's server runs, its package and the local server machine.",
+  "chk.notRun": "Not checked yet",
+  "chk.notRunDetail": "Click Check: compares the open client with its server in what login requires to be equal.",
+  "chk.noServer": "None: choose it in \"Server and folders\".",
+  "chk.checkedAt": "Checked at {0}",
+  "chk.useFix": "Use Fix to rebuild on the server what login requires to match the client.",
+  "chk.openSetup": "Check this client's server in \"Server and folders\".",
+  "chk.rCheck": "Check",
+  "chk.rFix": "Fix",
+  "fix.sendLocalTitle": "Local server: send the client's elements, tasks, shop and AI and restart",
+  "fix.sendLocalDetail": "Different from the client: {0}. Same send as \"Send and restart\" in the Server tab."
 }
