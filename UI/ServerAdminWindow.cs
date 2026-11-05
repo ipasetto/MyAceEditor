@@ -1,3 +1,4 @@
+using MyAceEditor.Model;
 using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
@@ -36,6 +37,10 @@ public sealed class ServerAdminWindow : Form
     bool _loadingAttrs;
     readonly TextBox _msg = new() { Width = 520 };
     // mapas
+    // drops extras
+    readonly ExtraDropsPanel _drops = new() { Dock = DockStyle.Fill };
+    readonly string _packageConfig;
+    bool _dropsOpen;
     readonly DataGridView _maps = Grid();
     readonly Label _ram = new() { AutoSize = true, Padding = new Padding(8, 8, 0, 0) };
     List<ServerAdmin.MapDef> _mapDefs = new();
@@ -45,6 +50,7 @@ public sealed class ServerAdminWindow : Form
         _srv = srv; _adm = new ServerAdmin(srv); _bg = bg; _fg = fg; _accent = accent;
         _gsConf = Path.Combine(serverFiles, "home", "gamed", "gs.conf");
         _client = clientElement;
+        _packageConfig = Path.Combine(serverFiles, "home", "gamed", "config");
         Text = Loc.T("adm.localServerAdmin", "Administrar servidor local");
         Width = 1100; Height = 720; StartPosition = FormStartPosition.CenterParent; BackColor = bg; ForeColor = fg; Font = new Font("Segoe UI", 9.5f);
         MinimumSize = new Size(800, 500);
@@ -57,9 +63,10 @@ public sealed class ServerAdminWindow : Form
         tabs.TabPages.Add(Page(Loc.T("adm.onlineNow", "No jogo agora"), BuildOnline()));
         tabs.TabPages.Add(Page(Loc.T("adm.world", "Mundo"), BuildWorld()));
         tabs.TabPages.Add(Page(Loc.T("adm.mapsAndInstances", "Mapas e instâncias"), BuildMaps()));
+        tabs.TabPages.Add(Page(Loc.T("adm.extraDrops", "Drops extras"), _drops));
         tabs.SelectedIndexChanged += (_, _) => RefreshTab(tabs.SelectedIndex);
         var nav = new NavBar(tabs);
-        string[] glyphs = { "", "", "", "", "", "" };   // visão geral, contas, personagens, no jogo, mundo, mapas
+        string[] glyphs = { "", "", "", "", "", "", "\uE8CB" };   // visão geral, contas, personagens, no jogo, mundo, mapas
         for (int i = 0; i < tabs.TabPages.Count; i++) { var page = tabs.TabPages[i]; nav.Add(glyphs[i], () => page.Text, () => page.Text, page); }
         Controls.Add(tabs); Controls.Add(nav); Controls.Add(_bar); Controls.Add(_status);
         Shown += (_, _) => Work(Loc.T("adm.preparing", "Preparando…"), () => _srv.EnsureTools(), () => RefreshTab(0));
@@ -127,8 +134,22 @@ public sealed class ServerAdminWindow : Form
         if (InvokeRequired) BeginInvoke(() => _status.Text = text); else _status.Text = text;
     }
 
+    // abre na primeira visita: o arquivo do servidor no ar (senão o do pacote) e os nomes do cliente
+    void OpenDrops()
+    {
+        if (_dropsOpen) return;
+        _dropsOpen = true;
+        var home = _srv.Home;
+        _drops.Open(Path.Combine(home is null ? _packageConfig : Path.Combine(home, "gamed", "config"), "extra_drops.sev"));
+        var elements = Path.Combine(_client, "data", "elements.data");
+        if (!File.Exists(elements)) return;
+        Module? data = null;
+        Work(Loc.T("xd.loadingNames", "Lendo nomes de itens e monstros…"), () => data = CfgCatalog.Load(elements).Module, () => _drops.SetNames(data));
+    }
+
     void RefreshTab(int i)
     {
+        if (i == 6) OpenDrops();
         switch (i)
         {
             case 0: RefreshOverview(); break;

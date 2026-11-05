@@ -370,6 +370,30 @@ internal static class Program
             return;
         }
         if (args.Length >= 2 && args[0] == "--wq-shot") { MyAceEditor.UI.QuestShotTest.Run(args[1], args.Length >= 3 ? int.Parse(args[2]) : 0); return; }   // <png>: painel e editor de quest do 3D com dados de exemplo
+        if (args.Length >= 2 && args[0] == "--xdrop-test")   // <arquivos .sev...>: regrava cada um e confere byte a byte; relatório em xdrop-test.txt
+        {
+            var sb = new StringBuilder();
+            foreach (var f in args.Skip(1))
+            {
+                var bytes = File.ReadAllBytes(f);
+                var x = ExtraDropsFile.Parse(bytes);
+                sb.AppendLine($"{(x.ToBytes().AsSpan().SequenceEqual(bytes) ? "IDENTICO" : "DIFERENTE")} {x.Tables.Count} tabelas {f}");
+            }
+            File.WriteAllText("xdrop-test.txt", sb.ToString());
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--xdrop-shot")   // <png> <extra_drops.sev>: print da aba Drops extras
+        {
+            using var w = new Form { Width = 1000, Height = 640, StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
+            var panel = new MyAceEditor.UI.ExtraDropsPanel { Dock = DockStyle.Fill };
+            w.Controls.Add(panel); w.Show(); panel.Open(args[2]);
+            var until = DateTime.Now.AddSeconds(2);
+            while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
+            using var bmp = new System.Drawing.Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, w.Width, w.Height));
+            bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
         if (args.Length >= 3 && args[0] is "--gm-shot" or "--adm-shot")   // <png> <pasta element | pasta do servidor local>: print da janela fora da tela
         {
             Form w = args[0] == "--gm-shot" ? new MyAceEditor.UI.GmPanel(args[2])
