@@ -824,6 +824,21 @@ public sealed class LocalServer
         return Bash("pwctl start " + string.Join(' ', maps ?? Array.Empty<string>()), Log, timeoutMs: 600_000);   // sem mapas: o pwctl escolhe (mundo + mapa inicial)
     }
 
+    /// <summary>
+    /// Para e apaga este servidor: "wsl --unregister" apaga o Linux dele com programas, banco, contas e personagens.
+    /// Não dá para desfazer. O pacote do servidor e os backups ficam; da pasta sai só o que ficar vazio.
+    /// </summary>
+    public void Delete()
+    {
+        if (!Exists()) return;
+        try { Stop(); } catch (Exception ex) { AppLog.Error("apagar servidor: parar", ex); }
+        Wsl($"--terminate {Distro}", timeoutMs: 120_000);
+        var r = Wsl($"--unregister {Distro}", line: Log, timeoutMs: 600_000);
+        if (r.Code != 0) throw new InvalidOperationException(Loc.T("ls.deleteFailed", "Não consegui apagar o servidor:") + "\n" + r.Output);
+        try { var vm = Path.Combine(BaseDir, "vm"); if (Directory.Exists(vm) && !Directory.EnumerateFileSystemEntries(vm).Any()) Directory.Delete(vm); }
+        catch (Exception ex) { AppLog.Error("apagar servidor: pasta", ex); }
+    }
+
     public RunResult Stop()
     {
         var r = Bash("pwctl stop", Log, timeoutMs: 120_000);

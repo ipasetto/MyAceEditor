@@ -385,6 +385,15 @@ internal static class Program
             img.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
             return;
         }
+        if (args.Length >= 2 && args[0] == "--server-delete-test")   // <pasta MyAceDelTest...>: só para um servidor descartável de teste
+        {
+            if (!Path.GetFileName(args[1].TrimEnd('\\', '/')).StartsWith("MyAceDelTest")) return;
+            var test = new LocalServer(args[1]);
+            bool before = test.Exists();
+            test.Delete();
+            File.WriteAllText("server-delete-test.txt", $"antes={before} depois={test.Exists()} distro={test.Distro}");
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo
         {
             var rows = Enumerable.Range(1, 40).Select(i => (Id: 1000 + i, Name: $"Item de exemplo {i}", Block: i % 3 == 0 ? "Armas" : i % 3 == 1 ? "Armaduras" : "Itens de quest")).ToList();

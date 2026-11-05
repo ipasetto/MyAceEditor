@@ -5129,5 +5129,12 @@
   "qp.noName": "（未命名任务）",
   "qp.gold": "金币 {0:N0}",
   "qp.exp": "经验 {0:N0}",
-  "qp.spirit": "元神 {0:N0}"
+  "qp.spirit": "元神 {0:N0}",
+  "ss.deleteTitle": "删除服务器",
+  "ss.deleteBtn": "删除服务器",
+  "ss.deleteHint": "停止服务器并删除其 Linux，包括账号和角色。服务器包和客户端会保留。",
+  "ss.deleteAsk": "删除本地服务器 {0}？\n\n服务器将被停止，其 Linux 将被删除，包括程序、数据库、账号和角色。\n\n服务器包、客户端和备份会保留在电脑上。此操作无法撤销。",
+  "ss.deleting": "正在删除服务器…",
+  "ss.deleted": "服务器已删除。",
+  "ls.deleteFailed": "无法删除服务器："
 }

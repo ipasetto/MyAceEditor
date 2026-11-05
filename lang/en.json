@@ -5127,5 +5127,12 @@
   "qp.noName": "(unnamed quest)",
   "qp.gold": "Gold {0:N0}",
   "qp.exp": "EXP {0:N0}",
-  "qp.spirit": "Spirit {0:N0}"
+  "qp.spirit": "Spirit {0:N0}",
+  "ss.deleteTitle": "Delete server",
+  "ss.deleteBtn": "Delete server",
+  "ss.deleteHint": "Stops the server and deletes its Linux, with accounts and characters. The server package and the client stay.",
+  "ss.deleteAsk": "Delete the local server {0}?\n\nThe server will be stopped and its Linux deleted, with programs, database, accounts and characters.\n\nThe server package, the client and backups stay on the PC. This cannot be undone.",
+  "ss.deleting": "Deleting the server…",
+  "ss.deleted": "Server deleted.",
+  "ls.deleteFailed": "Could not delete the server:"
 }

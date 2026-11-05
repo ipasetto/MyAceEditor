@@ -20,6 +20,7 @@ internal sealed class ServerSetupWindow : Form
     readonly Label _pkgHint = Hint(), _otherHint = Hint(), _baseHint = Hint(), _diskHint = Hint(), _ramHint = Hint(), _wslHint = Hint();
     readonly NumericUpDown _disk = new() { Minimum = 16, Maximum = 2048, Width = 90 }, _ram = new() { Minimum = 2, Width = 90 };
     readonly Button _installWsl = new() { AutoSize = true };
+    readonly FlowLayoutPanel _deleteBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0), Visible = false };
     readonly int _ramWas;
     readonly Color _bg, _fg;
 
@@ -60,7 +61,16 @@ internal sealed class ServerSetupWindow : Form
             Section(Loc.T("srv.wslTitle", "Linux do Windows (WSL)")), _wslHint, _installWsl,
             Section(Loc.T("srv.localServerFolder", "Pasta do servidor local")), Line(_base, Browse(_base)), _baseHint,
             Section(Loc.T("srv.diskLimit", "Disco máximo deste servidor (GB)")), _disk, _diskHint,
-            Section(Loc.T("srv.ramLimit", "Memória do Linux (GB)")), _ram, _ramHint);
+            Section(Loc.T("srv.ramLimit", "Memória do Linux (GB)")), _ram, _ramHint, _deleteBox);
+
+        _deleteBox.Controls.Add(Section(Loc.T("ss.deleteTitle", "Apagar servidor")));
+        var deleteHint = Hint();
+        deleteHint.Text = Loc.T("ss.deleteHint", "Para o servidor e apaga o Linux dele, com contas e personagens. O pacote do servidor e o cliente ficam.");
+        _deleteBox.Controls.Add(deleteHint);
+        var delete = new Button { Text = Loc.T("ss.deleteBtn", "Apagar servidor"), AutoSize = true, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(196, 43, 28), ForeColor = Color.White, Image = UiKit.Icon("\uE74D", Color.White, 16), TextImageRelation = TextImageRelation.ImageBeforeText, Padding = new Padding(8, 0, 8, 0) };
+        delete.FlatAppearance.BorderSize = 0;
+        delete.Click += (_, _) => DeleteServer(delete);
+        _deleteBox.Controls.Add(delete);
 
         // ---- botões ----
         var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10, 8, 10, 8) };
@@ -145,6 +155,28 @@ internal sealed class ServerSetupWindow : Form
     }
 
     // cartão do topo e estado do WSL (fora da tela: wsl.exe demora)
+    void DeleteServer(Button button)
+    {
+        var server = new LocalServer(_base.Text.Trim());
+        var ask = string.Format(Loc.T("ss.deleteAsk", "Apagar o servidor local {0}?\n\nO servidor será parado e o Linux dele será apagado, com programas, banco de dados, contas e personagens.\n\nO pacote do servidor, o cliente e os backups continuam no PC. Isto não pode ser desfeito."), server.Distro);
+        if (MessageBox.Show(this, ask, Loc.T("ss.deleteTitle", "Apagar servidor"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        button.Enabled = false; UseWaitCursor = true;
+        _card.Set(StatusCard.Kind.Busy, Loc.T("ss.deleting", "Apagando o servidor…"));
+        Task.Run(() =>
+        {
+            Exception? error = null;
+            try { server.Delete(); } catch (Exception ex) { error = ex; AppLog.Error("apagar servidor", ex); }
+            if (IsDisposed || !IsHandleCreated) return;
+            BeginInvoke(() =>
+            {
+                button.Enabled = true; UseWaitCursor = false;
+                if (error is null) MessageBox.Show(this, Loc.T("ss.deleted", "Servidor apagado."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                else MessageBox.Show(this, error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                RefreshState();
+            });
+        });
+    }
+
     void RefreshState()
     {
         if (_other.Checked) { _card.Set(StatusCard.Kind.Off, Loc.T("ss.cardOther", "Servidor em outro Linux"), Loc.T("ss.cardOtherDetail", "O editor trabalha nos arquivos do pacote; a máquina do WSL não é usada.")); return; }
@@ -159,6 +191,7 @@ internal sealed class ServerSetupWindow : Form
             BeginInvoke(() =>
             {
                 _installWsl.Visible = problem is not null;
+                _deleteBox.Visible = installed;
                 _wslHint.Text = problem ?? Loc.T("ss.wslOk", "Instalado.");
                 _wslHint.ForeColor = problem is null ? UiKit.Muted : UiKit.Bad;
                 if (vhdx > 0) _diskHint.Text = string.Format(Loc.T("ss.diskUsed", "Em uso agora: {0:0.0} GB. O máximo só muda numa instalação nova. "), vhdx / (1024.0 * 1024 * 1024)) + Loc.T("srv.setupDiskNote", "O disco do servidor cresce conforme o uso até o máximo escolhido. Vários servidores, até da mesma versão: uma pasta para cada.");
