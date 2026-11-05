@@ -795,6 +795,8 @@ skillstr.txt (configs.pck): UTF-16; skill_translator gera skillstr.tab "ID<TAB>n
 ## §S31 GM: PERMISSOES, COMANDOS E POR ONDE CHEGAM (painel do GM = docs/GM-PAINEL.md, UI/GmPanel.cs)
 - [C pwAdmin, 02/11] GM por socket sem estar no jogo (detalhe §S4): bloquear/mudo conta e personagem = gdeliveryd:29100 opcodes 354/356/360/362 (u32 gm -1, ssid 0, alvo, segundos, motivo); correio do sistema com item/ouro = SysSendMail 4214; chat global = ChatBroadCast 120 em 29300; cash = INSERT em usecashnow; GM = CALL addGM(userid,1).
 REGRA: toda descoberta sobre GM (comando, permissao, caminho, teste) entra AQUI, mesmo pequena; o que ja estiver em outra secao ganha so a referencia.
+- [C 05/11 DlgWorldMap.cpp c2s_CmdGoto + playercmd.cpp GMCommandHandler] Ctrl+clique no mapa M = teleporte no jogo (C2S::GOTO); gs so executa para conta com _gm_auth (ou debug ligado). Nao precisa de item. Nao testado no jogo.
+- [C 05/11 DlgGMConsole.cpp + GMCommandFactory.cpp] comandos do Ctrl+G sao classes CGMCommand no exe; xml so muda a janela. Funcao nova = patch do exe.
 - [T 05/11] comandos d N do gs mudam por versao: lista e diferencas em §S35; 1.4.4 tem 90 e 1.5.5 tem 185.
 - [C 01/11 cliente EC_DlgCmdConsole.cpp CCMD_RENDERNOFOCUS + EC_CommandLine GetRenderWhenNoFocus] d_rendernofocus = liga/desliga desenhar o jogo sem o foco da janela (g_bRenderNoFocus); fixo pela linha de comando do cliente 'rendernofocus:1'. Painel do GM: Mundo > Sua tela.
 - [T 01/11] CORRECAO: aviso para todos de fora do jogo = PublicChat 79 no gdeliveryd {u8 canal, u8 emocao, i32 roleid -1, i32 localsid 0, texto UTF-16LE, dados} (como o iweb; ServerAdmin.Broadcast); o ChatBroadCast 120 mandado ao gdeliveryd e IGNORADO (o plugin mandava 120 e o aviso nao saia). A linha do ChatBroadCast abaixo vale so como caminho gs->glinkd.
@@ -908,6 +910,7 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 - [T 05/11] nome de personagem com "gm" recusado pelo cliente/servidor ("Nao e possivel usar esse nome").
 - [T 05/11] cliente aceita "startbypatcher nocheck console:1 rendernofocus:1 user:<login> pwd:<senha>": entra direto na tela de personagens.
 - [T 05/11] janela de quests do cliente: Win_Quest em interfaces/version01\quest.xml (558x410): Tv_Quest lista, Txt_Content descricao, Txt_QuestItem objetivos, Txt_BaseAward premios, Img_Item0-3 itens. MyAce mostra no Resumo (UI/QuestPreview.cs).
+- [C 05/11 EC_GameSession c2s_CmdGoto] nota geral GM: ver §S31 (Ctrl+clique no mapa).
 ### 1.5.2 / 1.5.3 (so fonte)
 - source_server_152 e 153: base dos nomes (playercmd.cpp, extra_drop_table). 10800 aceita size 6 ou 10 (id, ou id + quantidade).
 ### 1.5.5 (elements v156; tasks v128/129)
@@ -921,6 +924,7 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 - Comandos d_ do console NAO ficam como texto no exe (so d_c2scmd em UTF-16): vem do ingame.stf/console_cmd.txt do configs.pck.
 - Nosso cliente: fonte mais proxima = source_client_153 (1.5.2; ElementClient.dsp VC6 + .vcproj, CElementSkill, CElementData). Nao existe fonte do 144; recompilar 1.5.2 nao gera cliente 144 (protocolo e elements v60 diferentes). Caminho realista: seguir por dados + configs e patch pontual por sequencia de bytes.
 - CheckMapMD5 (ElementClient.cpp) chama lua_glb.check_md5 ao criar mundo: mapa com md5 errado = nao entra. EC.log "CECWorld::LoadWorld: File operation error (line 544)" no 144 sem impedir o login: nao conferido.
+- [T 05/11] 1.5.5v156 instalado pelo usuario (distro PWServerv156): sobe e passa na Verificacao. adduser falhava: dump.sql grava procedimento com sql_mode STRICT_TRANS_TABLES e birthday1 '' nao e data (erro 1292); pwctl account agora manda NULL.
 ### 1.7.6 (elements v386, tasks v191; 64 bits)
 - [T 05/11] VM PWSERVER-1.7.6 (D:/Perfect World/PW_Server/1.7.6/PWSERVER-1.7.6, VMDK monolithicSparse, Debian 13, 20 GB; lida so para leitura, senhas nao lidas nem gravadas): servidor em /root/pwserver; scripts /root/start, stop, server, memory, profile; servicos do sistema apache2, mariadb, php7.4-fpm, ntpsec, usermin; painel /root/pwadmin (Tomcat) e /root/phpiweb.
 - [T 05/11] ordem do /root/start: licenseservice > logservice > gauthd > uniquenamed > gamedbd > gacd > gfactiond > gdeliveryd > "glinkd gamesys.conf 1" > "gs gs01 gsalias.conf gmserver.conf gs.conf" > "gs is61 gsalias.conf gmserver.conf gs.conf". Espera 3-10 s entre eles.

@@ -109,6 +109,7 @@ internal sealed class ServerSetupWindow : Form
     {
         var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(16, 10, 16, 10), BackColor = _bg };
         flow.Controls.AddRange(rows);
+        flow.Controls.Add(new Panel { Size = new Size(1, 24), Margin = new Padding(0) });   // folga depois do último campo
         var p = new TabPage(title) { BackColor = _bg, ForeColor = _fg };
         p.Controls.Add(flow);
         return p;

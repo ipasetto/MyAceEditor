@@ -670,8 +670,6 @@ public sealed class EditorForm : Form
         left.Controls.Add(_typeCombo);
         left.Controls.Add(_blockCombo);
         left.Controls.Add(mode);
-        _favorites.Clear();
-        foreach (var k in LoadFavorites()) _favorites.Add(k);
         _favModeBtn.Text = FavModeText();   // o Bind acima rodou antes de carregar: mostrava "Favoritos (0)"
         _split.Panel1.Controls.Add(left);
 
@@ -1213,6 +1211,7 @@ public sealed class EditorForm : Form
         SaveLast(path);
         _dataPath = path;
         LoadRecent(path);
+        LoadFavoritesFor();
         // volta ao último item em que você estava neste elements.data
         if (_recentKeys.Count > 0 && ResolveRecent(_recentKeys[0]) is { } lastItem) BeginInvoke(() => GoToItem(lastItem));
         // o cliente aberto passa a ser o da aba Verificação (e o que o "Salvar e enviar" leva ao servidor)
@@ -4502,14 +4501,36 @@ public sealed class EditorForm : Form
         RefreshView();
         Status(_favorites.Contains(key) ? Loc.T("status.favAdded", "Adicionado aos favoritos") : Loc.T("status.favRemoved", "Removido dos favoritos"));
     }
-    private static string FavFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "favorites.txt");
+    // cada cliente tem o seu arquivo (mesma chave dos recentes); favorites.txt é o formato antigo, de todos os clientes juntos
+    private string? _favFile;
+    private static string OldFavFile => Path.Combine(SettingsDir, "favorites.txt");
     private void SaveFavorites()
     {
-        try { Directory.CreateDirectory(Path.GetDirectoryName(FavFile)!); File.WriteAllLines(FavFile, _favorites); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Info("favoritos: " + ex.Message); Status(Loc.T("status.favSaveFail", "Não consegui gravar os favoritos: ") + ex.Message); }
+        if (_favFile is null) return;
+        try { Directory.CreateDirectory(SettingsDir); File.WriteAllLines(_favFile, _favorites); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Info("favoritos: " + ex.Message); Status(Loc.T("status.favSaveFail", "Não consegui salvar os favoritos.")); }
     }
-    private static IEnumerable<string> LoadFavorites()
-    { try { return File.Exists(FavFile) ? File.ReadAllLines(FavFile) : Array.Empty<string>(); } catch { return Array.Empty<string>(); } }
+
+    /// <summary>Só as chaves (bloco|id) de itens que existem neste elements.data.</summary>
+    internal static IEnumerable<string> ExistingFavorites(IEnumerable<string> saved, Module? module) => saved.Where(k =>
+    {
+        var part = k.Split('|');
+        return part.Length == 2 && module?.FindListByName(part[0])?.Items.Any(i => i.Id == part[1]) == true;
+    });
+
+    /// <summary>Favoritos do cliente aberto; item que não existe neste elements.data não entra (nem na contagem).</summary>
+    private void LoadFavoritesFor()
+    {
+        _favFile = Path.Combine(SettingsDir, _recentKey.Replace("recent-", "favorites-") + ".txt");
+        var from = File.Exists(_favFile) ? _favFile : OldFavFile;
+        string[] saved = [];
+        try { if (File.Exists(from)) saved = File.ReadAllLines(from); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Info("favoritos: " + ex.Message); }
+        _favorites.Clear();
+        foreach (var k in ExistingFavorites(saved, _store.Current)) _favorites.Add(k);
+        AppLog.Info($"favoritos: {_favorites.Count} de {saved.Length} em {Path.GetFileName(from)}");
+        if (_favModeBtn is not null) _favModeBtn.Text = FavModeText();
+        if (_favMode) RefreshView();
+    }
 
     // ---------- tooltip estilo jogo ----------
     private void OnListHover(object? s, MouseEventArgs e)

@@ -91,7 +91,7 @@ account)
     if [ "$(mysql -N pw -e "SELECT COUNT(*) FROM users WHERE name='$login'")" != "0" ]; then
         mysql pw -e "CALL changePasswd('$login', '$hash')" && echo "##OK senha trocada"
     else
-        mysql pw -e "CALL adduser('$login', '$hash', '0', '0', '0', '0', '', '0', '0', '0', '0', '0', '0', '0', '', '', '$hash')" || { echo "##ERRO adduser"; exit 1; }
+        mysql pw -e "CALL adduser('$login', '$hash', '0', '0', '0', '0', '', '0', '0', '0', '0', '0', '0', '0', NULL, '', '$hash')" || { echo "##ERRO adduser"; exit 1; }
         echo "##OK conta criada"
     fi
     # conta antiga com maiúsculas (a comparação do banco ignora caixa): nome fica em minúsculas

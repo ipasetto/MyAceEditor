@@ -394,6 +394,13 @@ internal static class Program
             File.WriteAllText("server-delete-test.txt", $"antes={before} depois={test.Exists()} distro={test.Distro}");
             return;
         }
+        if (args.Length >= 3 && args[0] == "--fav-test")   // <elements.data> <arquivo de chaves>: conta quantas chaves existem; resultado em fav-test.txt
+        {
+            var keys = File.ReadAllLines(args[2]);
+            var found = MyAceEditor.UI.EditorForm.ExistingFavorites(keys, CfgCatalog.Load(args[1]).Module).ToList();
+            File.WriteAllText("fav-test.txt", $"{found.Count} de {keys.Length}: {string.Join(" ", found)}");
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo
         {
             var rows = Enumerable.Range(1, 40).Select(i => (Id: 1000 + i, Name: $"Item de exemplo {i}", Block: i % 3 == 0 ? "Armas" : i % 3 == 1 ? "Armaduras" : "Itens de quest")).ToList();
