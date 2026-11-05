@@ -60,6 +60,7 @@
 - [~] 05/11 *12 painel GM no 144v60: FUNCIONA (debug_command_mode=active; nivel, moedas, EXP, teleporte testados no jogo); 7 comandos sem suporte somem do painel; falta testar item, ir ate NPC, gm_* e GM 202/204/206/218.
 - [x] 05/11 Editor de extra_drops.sev no Administrar (regrava identico em 5 versoes; falta salvar num servidor no ar e ver o drop no jogo).
 - [x] 05/11 Testes: 15 Servidor+Verificacao em pilulas e fora da lateral, 18 moedas em Economia, 20 aviso apos enviar e titulo da etapa, 21 busca de item nas quests, 27 passos na traducao, 6 Limpar tudo.
+- [x] 05/11 Editor de quests do Mundo 3D: etapas em abas (adicionar nao troca de etapa), itens so pelo botao Adicionar (janela de escolher item), campos em quadros, icones nos premios. Falta testar no app com o elements real.
 ## ONDE PARAMOS (26/10/2026, painel do servidor) - RETOMAR AQUI
 Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor num form (como o iweb)".
 [x] Verificacao: versao do elements compilada no elementclient.exe x gs x arquivos (ProgramVersion.cs)

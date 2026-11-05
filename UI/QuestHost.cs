@@ -34,6 +34,8 @@ internal interface IQuestHost
     string? NameOf(int id);
     /// <summary>Todos os itens do elements.data, para a janela de busca.</summary>
     IReadOnlyList<(int Id, string Name, string Block)> AllItems() => [];
+    /// <summary>Ícone do item, para a janela de escolher item.</summary>
+    Image? ItemIcon(int id) => null;
     bool IsNpc(int id);
     /// <summary>Ícone de quest sobre o NPC (surfaces\ingame\PateQuest.tga, 14 ícones de 30 px, ordem QI_ do cliente); null se não achou.</summary>
     Image? QuestIcon(int index);

@@ -371,6 +371,18 @@ internal static class Program
             return;
         }
         if (args.Length >= 2 && args[0] == "--wq-shot") { MyAceEditor.UI.QuestShotTest.Run(args[1], args.Length >= 3 ? int.Parse(args[2]) : 0); return; }   // <png>: painel e editor de quest do 3D com dados de exemplo
+        if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo
+        {
+            var rows = Enumerable.Range(1, 40).Select(i => (Id: 1000 + i, Name: $"Item de exemplo {i}", Block: i % 3 == 0 ? "Armas" : i % 3 == 1 ? "Armaduras" : "Itens de quest")).ToList();
+            using var w = new MyAceEditor.UI.ItemSearchWindow(rows) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
+            w.Show();
+            var stop = DateTime.Now.AddSeconds(2);
+            while (DateTime.Now < stop) { Application.DoEvents(); Thread.Sleep(30); }
+            using var img = new System.Drawing.Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(img, new System.Drawing.Rectangle(0, 0, w.Width, w.Height));
+            img.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--xdrop-test")   // <arquivos .sev...>: regrava cada um e confere byte a byte; relatório em xdrop-test.txt
         {
             var sb = new StringBuilder();

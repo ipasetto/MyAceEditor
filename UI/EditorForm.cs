@@ -3178,6 +3178,7 @@ public sealed class EditorForm : Form
         public string? RemoveMissing(int questId) => f.RemoveMissingQuest(questId);
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
+        public Image? ItemIcon(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? f.IconFor(h.Item) : null;
         public IReadOnlyList<(int Id, string Name, string Block)> AllItems()
         {
             var rows = new List<(int, string, string)>();

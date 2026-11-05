@@ -48,7 +48,7 @@ internal static class QuestShotTest
         if (page == 1 && typeof(WorldQuestEditor).GetField("_stepList", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(ed) is ListBox sl)
         {
             sl.SelectedIndex = sl.Items.Count - 1;   // etapa de matar selecionada; rola até o bloco dela
-            if (typeof(WorldQuestEditor).GetField("_page", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(ed) is Panel pg) pg.AutoScrollPosition = new Point(0, 700);
+            if (Environment.GetEnvironmentVariable("WQ_TOP") is null && typeof(WorldQuestEditor).GetField("_page", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(ed) is Panel pg) pg.AutoScrollPosition = new Point(0, 700);
         }
         panel.ShowNpc(new NpcQuestInfo(2001, "Ferreiro Wang", new[] { new NpcQuestRef(1001, "Carta para o ferreiro", true, true), new NpcQuestRef(1002, "Minério raro", false, true) },
             new[] { new NpcQuestRef(1003, "Espada quebrada", true, true), new NpcQuestRef(60100, "", true, false) }));
