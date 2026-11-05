@@ -5111,5 +5111,16 @@
   "xd.badItem": "{0}：elements.data 中没有物品 {1}。",
   "tb.rServerTip": "测试服务器：启动、发送文件、文件夹、验证和修复",
   "srv.rVerify": "验证和修复",
-  "srv.rVerifyTip": "检查客户端与服务器是否匹配并显示需修复内容"
+  "srv.rVerifyTip": "检查客户端与服务器是否匹配并显示需修复内容",
+  "srv.sentDone": "所有文件已上传。请重启游戏客户端。",
+  "srv.sentTitle": "上传完成",
+  "is.title": "搜索物品",
+  "is.hint": "物品名称或 ID",
+  "is.name": "名称",
+  "is.block": "类型",
+  "is.count": "{0:N0} 件物品。双击或按 Enter 选择。",
+  "qe.searchItem": "🔍 搜索",
+  "qe.editingStep": "正在编辑第 {0} 步（共 {1} 步）。其他步骤在列表中，点击即可查看。",
+  "tr.step1": "1. 勾选要翻译的内容",
+  "tr.step2": "2. 核对翻译前后"
 }

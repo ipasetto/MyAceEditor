@@ -45,7 +45,8 @@ internal sealed class WorldQuestEditor : Panel
 
     // etapas (tipo 2+): lista, ordem e o detalhe da etapa selecionada
     readonly ComboBox _order = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 330, BackColor = Field, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-    readonly ListBox _stepList = new() { Width = 330, Height = 96, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, IntegralHeight = false };
+    readonly Label _stepEditing = new() { AutoSize = true, MaximumSize = new Size(340, 0), ForeColor = Color.FromArgb(96, 165, 250), Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(3, 10, 3, 4) };
+    readonly ListBox _stepList = new() { Width = 330, Height = 130, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, IntegralHeight = false };
     readonly FlowLayoutPanel _stepBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
         _talkBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
         _reachBox = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) },
@@ -128,6 +129,13 @@ internal sealed class WorldQuestEditor : Panel
     static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 120, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, ThousandsSeparator = true };
     static TextBox Text(bool multi) => new() { Multiline = multi, Width = 330, Height = multi ? 90 : 24, ScrollBars = multi ? ScrollBars.Vertical : ScrollBars.None, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
     static Label Muted() => new() { AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(3, 0, 3, 6) };
+
+    // busca de item por nome/ID com todos os itens do cliente (teste 21)
+    Button SearchBtn(NumericUpDown target) => Btn(Loc.T("qe.searchItem", "🔍 Procurar"), () =>
+    {
+        using var w = new ItemSearchWindow(_host.AllItems());
+        if (w.ShowDialog(this) == DialogResult.OK) target.Value = w.Picked;
+    });
 
     Button Btn(string text, Action a, Color? bg = null)
     {
@@ -236,7 +244,7 @@ internal sealed class WorldQuestEditor : Panel
         award.Controls.Add(_items);
         var addRow = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(460, 0), Margin = new Padding(0, 4, 0, 0) };
         _itemId.Width = 96; _itemN.Width = 58;   // linhas de botões quebram quando não cabem (o Remover cortava; usuário 01/11)
-        addRow.Controls.Add(_itemId); addRow.Controls.Add(_itemN);
+        addRow.Controls.Add(_itemId); addRow.Controls.Add(SearchBtn(_itemId)); addRow.Controls.Add(_itemN);
         addRow.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), AddItem));
         addRow.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), () => { if (_items.SelectedItems.Count == 0) return; Remember(); foreach (ListViewItem it in _items.SelectedItems) _items.Items.Remove(it); }));
         award.Controls.Add(addRow);
@@ -306,6 +314,7 @@ internal sealed class WorldQuestEditor : Panel
         Caption(_nameBox, "qe.stepDesc", "Descrição da etapa (opcional)", "qe.stepDescHint", "Texto do diário para esta etapa. Em branco = só a descrição da quest.");
         _stepDesc.Height = 50;
         _nameBox.Controls.Add(_stepDesc);
+        _stepBox.Controls.Add(_stepEditing);
         _stepBox.Controls.Add(_nameBox);
 
         Caption(_talkBox, "qe.stepNpc", "NPC com quem falar", "qe.stepNpcHint", "O jogador fala com este NPC para concluir a etapa (no recado, é quem recebe e entrega o prêmio).");
@@ -357,7 +366,7 @@ internal sealed class WorldQuestEditor : Panel
         _killBox.Controls.Add(_dropList);
         var dr = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(340, 0), Margin = new Padding(0, 4, 0, 0) };
         _dropItem.Width = 90; _dropN.Width = 54; _dropPct.Width = 50; _dropPct.Value = 50;
-        dr.Controls.Add(_dropItem); dr.Controls.Add(_dropN); dr.Controls.Add(_dropPct); dr.Controls.Add(new Label { Text = "%", AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(0, 6, 6, 0) });
+        dr.Controls.Add(_dropItem); dr.Controls.Add(SearchBtn(_dropItem)); dr.Controls.Add(_dropN); dr.Controls.Add(_dropPct); dr.Controls.Add(new Label { Text = "%", AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(0, 6, 6, 0) });
         dr.Controls.Add(Btn(Loc.T("qe.addDrop", "Adicionar item que cai"), AddDrop));
         dr.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), RemoveDrop));
         _killBox.Controls.Add(dr);
@@ -375,7 +384,7 @@ internal sealed class WorldQuestEditor : Panel
         _itemsBox.Controls.Add(_wItemList);
         var ir = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(340, 0), Margin = new Padding(0, 4, 0, 0) };
         _wItemId.Width = 96; _wItemN.Width = 58;
-        ir.Controls.Add(_wItemId); ir.Controls.Add(_wItemN);
+        ir.Controls.Add(_wItemId); ir.Controls.Add(SearchBtn(_wItemId)); ir.Controls.Add(_wItemN);
         ir.Controls.Add(Btn(Loc.T("qe.add", "Adicionar"), AddWantedItem));
         ir.Controls.Add(Btn(Loc.T("qe.remove", "Remover"), RemoveWantedItem));
         // o item que um ponto de coleta dá (MINE_ESSENCE): clica na mina no mundo e entra o material mais provável
@@ -484,6 +493,7 @@ internal sealed class WorldQuestEditor : Panel
         var s = CurStep;
         _loading = true;
         _stepBox.Visible = s is not null;
+        if (s is not null) _stepEditing.Text = string.Format(Loc.T("qe.editingStep", "Editando a etapa {0} de {1}. As outras continuam na lista: clique nelas para ver."), _stepList.SelectedIndex + 1, _d.Steps.Count);
         if (s is not null)
         {
             _nameBox.Visible = !QuestBuilder.IsRecado(_d);   // recado: nome e descrição são os da quest

@@ -5109,5 +5109,16 @@
   "xd.badItem": "{0}: item {1} does not exist in elements.data.",
   "tb.rServerTip": "Test server: start, send files, folders, verify and fix",
   "srv.rVerify": "Verify and fix",
-  "srv.rVerifyTip": "Checks that client and server match and shows what to fix"
+  "srv.rVerifyTip": "Checks that client and server match and shows what to fix",
+  "srv.sentDone": "All files were uploaded. Restart the game client.",
+  "srv.sentTitle": "Upload finished",
+  "is.title": "Search item",
+  "is.hint": "Item name or ID",
+  "is.name": "Name",
+  "is.block": "Type",
+  "is.count": "{0:N0} items. Double click or Enter picks.",
+  "qe.searchItem": "🔍 Search",
+  "qe.editingStep": "Editing step {0} of {1}. The others stay in the list: click them to see.",
+  "tr.step1": "1. Mark what you want to translate",
+  "tr.step2": "2. Check before and after"
 }

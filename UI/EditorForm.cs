@@ -3168,6 +3168,18 @@ public sealed class EditorForm : Form
         public string? RemoveMissing(int questId) => f.RemoveMissingQuest(questId);
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
+        public IReadOnlyList<(int Id, string Name, string Block)> AllItems()
+        {
+            var rows = new List<(int, string, string)>();
+            if (f._store.Current is not { } module) return rows;
+            foreach (var l in module.Lists)
+            {
+                if (l.Name is "MONSTER_ESSENCE" or "NPC_ESSENCE" || !l.Items.Any(i => i.Fields.ContainsKey("file_icon"))) continue;
+                foreach (var it in l.Items)
+                    if (int.TryParse(it.Id, out var id)) rows.Add((id, TasksFile.SplitColor(it.Name).Text, Pretty(l.Name)));
+            }
+            return rows;
+        }
         public bool IsNpc(int id) => f.CreatureItem(id) is { Block.Name: "NPC_ESSENCE" };
         public bool IsMonster(int id) => f.CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" };
         public bool IsQuestItem(int id) => f._store.Current?.FindListByName("TASKMATTER_ESSENCE")?.Items.Any(i => i.Id == id.ToString()) == true;

@@ -32,6 +32,8 @@ internal interface IQuestHost
     string? RemoveMissing(int questId);
     /// <summary>Nome de NPC, monstro ou item do elements; null se o ID não existe.</summary>
     string? NameOf(int id);
+    /// <summary>Todos os itens do elements.data, para a janela de busca.</summary>
+    IReadOnlyList<(int Id, string Name, string Block)> AllItems() => [];
     bool IsNpc(int id);
     /// <summary>Ícone de quest sobre o NPC (surfaces\ingame\PateQuest.tga, 14 ícones de 30 px, ordem QI_ do cliente); null se não achou.</summary>
     Image? QuestIcon(int index);

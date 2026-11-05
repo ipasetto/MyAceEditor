@@ -317,7 +317,11 @@ public sealed class ServerView : UserControl
         var ai = AiPolicyPath?.Invoke();
         // config inteira do servidor + elements/tasks/loja/IA do cliente, comparados pelo conteúdo: só o que difere vai
         // (LocalServer.SendAll); servidor desta pasta de outra versão que o cliente: nada vai e o log diz o que fazer
-        Run(Loc.T("srv.sendingChanged", "Enviando o que mudou e reiniciando…"), s => s.SendAll(pkg, client, ai), ok => FilesSent?.Invoke(ok));
+        Run(Loc.T("srv.sendingChanged", "Enviando o que mudou e reiniciando…"), s => s.SendAll(pkg, client, ai), ok =>
+        {
+            FilesSent?.Invoke(ok);
+            if (ok) MessageBox.Show(this, Loc.T("srv.sentDone", "Todos os arquivos subiram. Reinicie o cliente do jogo."), Loc.T("srv.sentTitle", "Envio concluído"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        });
     }
 
     /// <summary>

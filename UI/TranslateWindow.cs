@@ -30,22 +30,27 @@ internal sealed class TranslateWindow : Form
         _info.Text = string.Format(Loc.T("tr.winInfo", "{0:N0} textos diferentes do outro arquivo (v{1}). Marque os blocos; a prévia mostra o que vai mudar. Dá para desfazer com Ctrl+Z."), plan.Count, otherVersion);
         _onlyNames.Text = Loc.T("tr.onlyNames", "Só nomes (campo Name)");
         _onlyUntranslated.Text = Loc.T("tr.onlyUntranslated", "Só textos ainda não traduzidos (chinês, russo…)");
-        var opts = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 32, Padding = new Padding(6, 6, 0, 0) };
+        var opts = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 42, Padding = new Padding(6, 6, 0, 0), BackColor = Color.White };
         opts.Controls.Add(_onlyUntranslated); opts.Controls.Add(_onlyNames);
         var all = new Button { Text = Loc.T("tr.all", "Todos"), AutoSize = true, FlatStyle = FlatStyle.Flat };
+        UiKit.Decorate(all, all.Text);
         var none = new Button { Text = Loc.T("tr.noneBtn", "Nenhum"), AutoSize = true, FlatStyle = FlatStyle.Flat };
+        UiKit.Decorate(none, none.Text);
         all.Click += (_, _) => SetAll(true); none.Click += (_, _) => SetAll(false);
         opts.Controls.Add(all); opts.Controls.Add(none);
         _preview.Columns.Add(Loc.T("tr.colBlock", "Bloco"), 170); _preview.Columns.Add("ID", 70); _preview.Columns.Add(Loc.T("list.field", "Campo"), 120);
         _preview.Columns.Add(Loc.T("tr.colBefore", "Antes"), 320); _preview.Columns.Add(Loc.T("tr.colAfter", "Depois"), 320);
         var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1 };
         Load += (_, _) => split.SplitterDistance = 300;   // só depois que a janela tem tamanho
-        split.Panel1.Controls.Add(_blocks); split.Panel2.Controls.Add(_preview);
+        split.Panel1.Controls.Add(_blocks); split.Panel1.Controls.Add(Step(Loc.T("tr.step1", "1. Marque o que quer traduzir")));
+        split.Panel2.Controls.Add(_preview); split.Panel2.Controls.Add(Step(Loc.T("tr.step2", "2. Confira antes e depois")));
         Controls.Add(split); Controls.Add(opts); Controls.Add(_info); Controls.Add(_ok);
         _onlyNames.CheckedChanged += (_, _) => Refill(); _onlyUntranslated.CheckedChanged += (_, _) => Refill();
         _blocks.ItemCheck += (_, _) => { if (IsHandleCreated) BeginInvoke(Update); };   // marcação muda depois do evento
         Refill();
     }
+
+    static Label Step(string text) => new() { Text = text, Dock = DockStyle.Top, Height = 30, Font = new Font("Segoe UI Semibold", 10.5f), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(6, 0, 0, 0) };
 
     IEnumerable<ElementsTranslator.Change> Filtered() => _all.Where(c =>
         (!_onlyNames.Checked || c.Field.Equals("Name", StringComparison.OrdinalIgnoreCase))
