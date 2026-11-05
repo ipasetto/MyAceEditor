@@ -57,8 +57,9 @@
 - [x] 05/11 feito (ClientLogCheck; .dmp real ainda nao testado por falta de amostra): Verificacao ler o log do CLIENTE (element\logs\EC.log + ec_build*.dmp): mostrar crash do jogo (excecao, modulo+offset, ultimo arquivo que faltou) e avisar quando o cliente jogado nao e o aberto no editor (02/11: servidor recebeu "Perfect World 144" e o jogo era "PW 144 BR").
 - [ ] Verificacao: help\script*.pck x elementclient.exe (comandos dos scripts de ajuda que o exe nao registra = crash ao entrar no mundo; 02/11 144 BR). Ideia: nomes de funcao dos scripts presentes como texto no exe.
 - [~] 05/11 Estudo dos links do Testes.txt concluido (PW-KB §S34). Instalar servidor por versao, por ordem: (1) [~] login do 1.5.5v156 em home/auth/build no provision/pwctl, falta instalar; (2) [x] a Verificacao confere o pacote (32/64 bits, login, libs); (3) normalizar 1.3.6 (falta libtask.so e libstdc++.so.5 no pacote); (4) 1.7.6: 64 bits, gauthd, licenseservice, SQL (receita em PW-KB §S35; depende de licenca).
-- [~] 05/11 *12 painel GM no 144v60: 7 comandos que o gs nao tem somem do painel; falta testar no jogo os que ficaram e ver o GM 202/204/206/218.
-- [ ] 05/11 Editor de extra_drops.sev (formato em PW-KB §S34; so servidor; 5 versoes com o mesmo layout; regravar identico antes de editar).
+- [~] 05/11 *12 painel GM no 144v60: FUNCIONA (debug_command_mode=active; nivel, moedas, EXP, teleporte testados no jogo); 7 comandos sem suporte somem do painel; falta testar item, ir ate NPC, gm_* e GM 202/204/206/218.
+- [x] 05/11 Editor de extra_drops.sev no Administrar (regrava identico em 5 versoes; falta salvar num servidor no ar e ver o drop no jogo).
+- [x] 05/11 Testes: 15 Servidor+Verificacao em pilulas e fora da lateral, 18 moedas em Economia, 20 aviso apos enviar e titulo da etapa, 21 busca de item nas quests, 27 passos na traducao, 6 Limpar tudo.
 ## ONDE PARAMOS (26/10/2026, painel do servidor) - RETOMAR AQUI
 Pedido do usuario: "verificacao de versao" + "painel para administrar o servidor num form (como o iweb)".
 [x] Verificacao: versao do elements compilada no elementclient.exe x gs x arquivos (ProgramVersion.cs)

@@ -877,6 +877,7 @@ Licencas: PW-Server-Installer MIT | EDE Apache-2.0 | pw_srvhooks e PW-Helper SEM
 - 162-155: layout padrao, 32 bits, /home/authd, root/pwa.sql. Instalado e no ar [T].
 - 1.7.6 (pw_server_1.7.6_2025): raiz pwserver/ sem home/; TODOS os daemons 64 bits; login nativo gauthd/gauthd (libmariadb.so.3; script.lua) em vez do authd Java; servico novo licenseservice (gamesys.conf, start.sh, stop.sh; mesma lib); sem .sql na pasta extraida (pwserver-1.7.6-01.2026.tgz e PWSERVER-1.7.6-01.2026-VM.7z nao abertos). Pede libpcre.so.3 libcrypto.so.3 libmariadb.so.3 libxml2.so.2 (amd64); maximo GLIBC_2.34 e GLIBCXX_3.4.29 em gs, gauthd e gdeliveryd, compativel com o Ubuntu 22.04 da distro. provision instala so libs i386 e o pwctl nao conhece gauthd/licenseservice.
 - Sem pacote no acervo: 1.3.1, 1.4.5, 1.4.6, 1.4.7, 1.5.1, 1.5.3.
+### (editor pronto: Administrar > Drops extras, ExtraDropsFile regrava identico nos 5 servidores [T 05/11])
 ### root-a/EDE: extra_drops.sev (so servidor; gamed/config; gs.conf DropData=extra_drops.sev)
 - [C fonte 152/153 + T 05/11] u32 versao (=1; outra versao: load_extra_drop_tables retorna -1) + i32 n tabelas; cada tabela: i32 nMonstros + u32 ids[n] + 256 x {u32 item, f32 chance} + char nome[128] GBK + i32 tipo (EDT_TYPE: 1 substitui o drop, 2 soma ao drop) + f32 drop_num_probability[8] (chance de cair 0..7 itens).
 - EDE chama o tipo de "unknown" e drop_num_probability[0] de probability_not; a fonte da os nomes certos.
@@ -902,6 +903,10 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 - [?] GM 202, 204, 206 e 218 existem so aqui; significado nao conferido; pode ser caminho para invocar monstro pelo gm_.
 - [T 05/11 usuario] entrada no mundo no 144 confirmada.
 - Pacote: home/ etc/ lib/ padrao, login mauthd/build, SQL/ ao lado, debug_command_mode=1 no ptemplate.conf. Sem o patch GM-only: conferir.
+- [T 05/11 no jogo, conta de teste] causa do "so mostrar a posicao funcionava": pacote vem com debug_command_mode=1 e o gs compara com "active" (playertemplate.cpp:215). Com active: d 2000, d 1988, d 10889, d 8888 funcionam (1 nivel por d 2000; moedas = nivel x 1 milhao). provision.sh grava active; Verificacao avisa. gs 1.4.4 sem patch GM-only: com active qualquer jogador usa d N, entao vale so para servidor de teste.
+- [T 05/11] janela que abre sozinha ao subir de nivel tira o foco do console: linhas seguintes vao para o chat. GameConsole abre o console 1 vez por linha.
+- [T 05/11] nome de personagem com "gm" recusado pelo cliente/servidor ("Nao e possivel usar esse nome").
+- [T 05/11] cliente aceita "startbypatcher nocheck console:1 rendernofocus:1 user:<login> pwd:<senha>": entra direto na tela de personagens.
 ### 1.5.2 / 1.5.3 (so fonte)
 - source_server_152 e 153: base dos nomes (playercmd.cpp, extra_drop_table). 10800 aceita size 6 ou 10 (id, ou id + quantidade).
 ### 1.5.5 (elements v156; tasks v128/129)
@@ -909,6 +914,12 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 - Tamanhos: 10802 = 0x12, 10857 = 0xe, 10837 10850 10855 1991 = 6, 10822 sem conferencia.
 - [C 05/11] 1.5.5v156: login em home/auth/build com /etc/table.xml; provision e pwctl agora tratam esse caminho (nao instalado ainda).
 - 162-155: /home/authd, root/pwa.sql. Personagem novo precisa do is61.
+### Executaveis do cliente por versao (05/11, leitura do PE; REA ev_54fa7e41 importacoes do 144)
+- Nenhum protegido nem compactado. 144: 7,2 MB, linker 6.0, data 2011, 1502 classes RTTI, caminhos "D:\Angelica SDK 2.0\SDK\ACSDK". 155 BR: 10,4 MB, linker 6.0, 2016, 2486 RTTI, caminhos ..\SDK\acsdk, ElementClient_laa.pdb. PWI 155: 10,3 MB, 2015. 180 BR x86: 17,3 MB, linker 14, 2023, 5418 RTTI, PhysX, ConsoleVariable.ini; 180 x64 18,8 MB linker 9, 2019.
+- 144 importa zlibwapi, ElementSkill.dll (28 funcoes), SpeedTreeRT.dll (40), FTDriver, ImmWrapper, d3d8, DDRAW, DSOUND, WS2_32, WININET. Sem simbolos e sem PDB: REA/Ghidra leva muito tempo; strings e RTTI bastam para mapear.
+- Comandos d_ do console NAO ficam como texto no exe (so d_c2scmd em UTF-16): vem do ingame.stf/console_cmd.txt do configs.pck.
+- Nosso cliente: fonte mais proxima = source_client_153 (1.5.2; ElementClient.dsp VC6 + .vcproj, CElementSkill, CElementData). Nao existe fonte do 144; recompilar 1.5.2 nao gera cliente 144 (protocolo e elements v60 diferentes). Caminho realista: seguir por dados + configs e patch pontual por sequencia de bytes.
+- CheckMapMD5 (ElementClient.cpp) chama lua_glb.check_md5 ao criar mundo: mapa com md5 errado = nao entra. EC.log "CECWorld::LoadWorld: File operation error (line 544)" no 144 sem impedir o login: nao conferido.
 ### 1.7.6 (elements v386, tasks v191; 64 bits)
 - [T 05/11] VM PWSERVER-1.7.6 (D:/Perfect World/PW_Server/1.7.6/PWSERVER-1.7.6, VMDK monolithicSparse, Debian 13, 20 GB; lida so para leitura, senhas nao lidas nem gravadas): servidor em /root/pwserver; scripts /root/start, stop, server, memory, profile; servicos do sistema apache2, mariadb, php7.4-fpm, ntpsec, usermin; painel /root/pwadmin (Tomcat) e /root/phpiweb.
 - [T 05/11] ordem do /root/start: licenseservice > logservice > gauthd > uniquenamed > gamedbd > gacd > gfactiond > gdeliveryd > "glinkd gamesys.conf 1" > "gs gs01 gsalias.conf gmserver.conf gs.conf" > "gs is61 gsalias.conf gmserver.conf gs.conf". Espera 3-10 s entre eles.

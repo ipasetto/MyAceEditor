@@ -17,6 +17,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Contains("--clean")) { MyAceEditor.UI.EditorForm.StartClean = true; args = args.Where(x => x != "--clean").ToArray(); }
         if (args.Contains("--mcp")) { RunMcpMode(args).GetAwaiter().GetResult(); return; }
         if (args.Length >= 2 && args[0] is "--cfg-audit" or "--cfg-match" or "--cfg-batch") { CfgDiagnostic(args); return; }
         if (args.Length >= 2 && args[0] == "--inspect") { InspectElements(args[1]); return; }

@@ -145,7 +145,7 @@ public sealed class EditorForm : Form
         Shown += (_, _) =>
         {
             if (_split is not null) _split.SplitterDistance = 430;
-            var last = _startFile ?? LoadLast();
+            var last = StartClean ? null : _startFile ?? LoadLast();
             if (last is not null && File.Exists(last)) LoadElements(last);
             CheckServer(ask: true);   // o servidor local ficou para trás desde a última vez? (ex.: salvo e não enviado)
         };
@@ -180,6 +180,13 @@ public sealed class EditorForm : Form
         var openEl = new ToolStripMenuItem { ForeColor = CFg }; openEl.Click += (_, _) => OpenElements();
         var save = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.S }; save.Click += (_, _) => SaveCurrent();
         var saveAs = new ToolStripMenuItem { ForeColor = CFg }; saveAs.Click += (_, _) => SaveElementsAs();
+        // volta ao programa limpo, sem nada aberto (teste 6); salvar ou cancelar fica com a pergunta normal de fechar
+        var clean = new ToolStripMenuItem { ForeColor = CFg };
+        clean.Click += (_, _) =>
+        {
+            Close();
+            if (IsDisposed) System.Diagnostics.Process.Start(Environment.ProcessPath!, "--clean");
+        };
         var exit = new ToolStripMenuItem { ForeColor = CFg }; exit.Click += (_, _) => Close();
         var exportCsv = new ToolStripMenuItem { ForeColor = CFg }; exportCsv.Click += (_, _) => ExportBlockCsv();
         var convert = new ToolStripMenuItem { ForeColor = CFg }; convert.Click += (_, _) => SaveOtherVersion();
@@ -197,7 +204,7 @@ public sealed class EditorForm : Form
         var openBak = new ToolStripMenuItem { ForeColor = CFg }; openBak.Click += (_, _) => OpenBackup();
         Bind(() => restore.Text = Loc.T("menu.restore", "&Restaurar backup"));
         Bind(() => openBak.Text = Loc.T("menu.openBackup", "A&brir backup…"));
-        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, convert, autoSave, new ToolStripSeparator(), restore, openBak, new ToolStripSeparator(), exportCsv, exit });
+        arq.DropDownItems.AddRange(new ToolStripItem[] { openPw, openEl, new ToolStripSeparator(), save, saveAs, convert, autoSave, new ToolStripSeparator(), restore, openBak, new ToolStripSeparator(), exportCsv, clean, exit });
         Bind(() => exportCsv.Text = Loc.T("menu.exportCsv", "&Exportar bloco atual (planilha CSV)…"));
         var newItem = new ToolStripMenuItem { ForeColor = CFg }; newItem.Click += (_, _) => AddItem();
         var removeItem = new ToolStripMenuItem { ForeColor = CFg }; removeItem.Click += (_, _) => RemoveItem();
@@ -236,6 +243,7 @@ public sealed class EditorForm : Form
             openEl.Text = Loc.T("menu.openElements", "Abrir &elements.data…");
             save.Text = Loc.T("menu.saveAll", "&Salvar tudo (elements, quests, loja, npcgen)");
             saveAs.Text = Loc.T("menu.saveAs", "Salvar &como…");
+            clean.Text = Loc.T("menu.clean", "&Limpar tudo (começar sem arquivos)");
             exit.Text = Loc.T("menu.exit", "Sa&ir");
             ed.Text = Loc.T("menu.edit", "&Editar");
             newItem.Text = Loc.T("menu.newItem", "&Novo item");
@@ -1374,6 +1382,8 @@ public sealed class EditorForm : Form
     // "Salvar e enviar ao servidor": grava tudo sem perguntar e leva para o servidor local (aba Servidor mostra o andamento)
     private ServerView? _serverView;
     private TabPage? _tabServer, _tabCheck;
+    /// <summary>Aberto com --clean: não reabre o último arquivo.</summary>
+    public static bool StartClean { get; set; }
     private TabControl? _serverPages;
     private void ShowCheck()
     {

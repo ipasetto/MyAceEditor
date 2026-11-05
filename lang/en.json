@@ -5120,5 +5120,6 @@
   "qe.searchItem": "🔍 Search",
   "qe.editingStep": "Editing step {0} of {1}. The others stay in the list: click them to see.",
   "tr.step1": "1. Mark what you want to translate",
-  "tr.step2": "2. Check before and after"
+  "tr.step2": "2. Check before and after",
+  "menu.clean": "&Clear everything (start with no files)"
 }

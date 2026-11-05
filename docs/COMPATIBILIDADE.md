@@ -78,3 +78,5 @@ Servidores de teste no WSL, um por versão (02/11): 1.4.4 (`D:\PWServer144v60`) 
 7. **Instalar servidor (leitura dos pacotes 05/11, PW-KB §S34):** 1.3.6 sem home/ e sem libtask.so; 1.5.5v156 com login em home/auth/build, fora do que o instalador trata; 1.7.6 com 64 bits, gauthd e licenseservice. Células seguem **?** até instalar de verdade.
 8. **Verificação com log do cliente e pacote (05/11):** rodou por --check em 1.3.6, 1.4.4, 1.5.5v156 e 1.7.6; a leitura de .dmp ainda não teve amostra real.
 9. **Painel do GM 1.4.4 (05/11):** comandos sem suporte escondidos pela lista do gs; falta testar no jogo.
+10. **Painel do GM 1.4.4 (05/11):** testado no jogo com conta de teste: nível, moedas, EXP e teleporte OK. Item, ir até NPC e gm_* ainda **?**. 1.5.5: a mudança do console por linha não foi testada no jogo, porque o servidor 155 não está instalado.
+11. **extra_drops.sev (05/11):** regrava idêntico em 1.3.6, 1.4.4, 1.5.5v156, 162-155 e 1.7.6; salvar e ver no jogo ainda **?**.
