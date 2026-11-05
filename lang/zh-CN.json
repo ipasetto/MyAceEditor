@@ -5114,7 +5114,6 @@
   "is.block": "类型",
   "tr.step1": "1. 勾选要翻译的内容",
   "tr.step2": "2. 核对翻译前后",
-  "menu.clean": "清除全部（不打开文件）(&C)",
   "is.title": "选择物品",
   "is.hint": "按名称或 ID 搜索",
   "is.all": "全部物品",
@@ -5125,5 +5124,8 @@
   "qe.addStep": "添加步骤",
   "qe.stepHeader": "第 {0} 步：{1}",
   "qe.points": "金币和点数",
-  "qe.pointsHint": "交付时玩家获得的内容。留空表示无。"
+  "qe.pointsHint": "交付时玩家获得的内容。留空表示无。",
+  "menu.newWindow": "新建 MyAce 窗口(&N)",
+  "qp.noName": "（未命名任务）",
+  "qp.award": "金币 {0:N0}   经验 {1:N0}   元神 {2:N0}"
 }

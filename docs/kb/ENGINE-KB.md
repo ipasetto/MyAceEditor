@@ -157,6 +157,7 @@ UI/UiTools.cs | acoes compartilhadas (Exportar, Importar, Trocar, Telas) do edit
 UI/InterfaceDesigner.cs | tela Criar interface (estilo Canva): barra de icones (Modelos, Elementos, Texto, Molduras, Camadas) + painel com miniaturas, janela no meio (arrastar, esticar, guias), barra de cima conforme a selecao, Vincular ao jogo, Exportar .zip
 PerfectWorld/UiDesign.cs | janela criada = XML de janela do jogo montado com blocos de controle (Pieces/Insert/Rename/Reorder/FreeName/SetDialog), contrato com a janela original (Compare/BringMissing), zip com LEIA-ME
 PerfectWorld/ExtraDropsFile.cs + UI/ExtraDropsPanel.cs | extra_drops.sev: leitura/gravacao identica e aba Drops extras do Administrar (--xdrop-test, --xdrop-shot)
+UI/QuestPreview.cs | janela de quests do jogo (quest.xml) no Resumo do editor de quests, so com a quest em edicao
 UI/ItemSearchWindow.cs | janela de escolher item (tipo, busca nome/ID, icones, quantidade); usar sempre que um campo pedir item, sem campo de ID; WorldQuestEditor.PickItem
 PerfectWorld/GmCommands.cs | comandos d N por versao do jogo; painel do GM esconde o que o gs nao tem (PW-KB §S35)
 PerfectWorld/ClientLogCheck.cs | Verificacao: EC.log (fechou?, arquivos que faltaram) e .dmp (excecao, modulo+offset)

@@ -46,7 +46,7 @@ internal sealed class GShopView : UserControl
     readonly NumericUpDown[] _price = new NumericUpDown[4], _status = new NumericUpDown[4];
     readonly ComboBox[] _dur = new ComboBox[4];
 
-    static NumericUpDown Num(decimal min, decimal max, int dec = 0) => new() { Minimum = min, Maximum = max, DecimalPlaces = dec, Width = 110, ThousandsSeparator = true };
+    static NumericUpDown Num(decimal min, decimal max, int dec = 0) => new() { Minimum = min, Maximum = max, DecimalPlaces = dec, Width = 110 };
 
     public GShopView(Func<string?> elementDir, Func<int, Image?> itemIcon, Func<int, (string, Color)?> itemInfo, Func<IWin32Window, int, int?> pickItem)
     {

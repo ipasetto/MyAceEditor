@@ -65,7 +65,10 @@ internal sealed partial class WorldView
         return b;
     }
 
-    static Label SectionLabel(string text) => new() { Text = text.ToUpperInvariant(), AutoSize = true, ForeColor = Color.FromArgb(140, 150, 165), Font = new Font("Segoe UI Semibold", 8f), Margin = new Padding(3, 8, 3, 3) };
+    static Label SectionLabel(string text) => new() { Text = text, AutoSize = true, ForeColor = Color.FromArgb(96, 165, 250), Font = new Font("Segoe UI Semibold", 8f), Margin = new Padding(3, 8, 3, 3) };
+
+    /// <summary>Quadro de uma ferramenta do Mundo 3D, no mesmo padrão do editor de quests.</summary>
+    static FlowLayoutPanel ToolCard() => new() { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(39, 45, 54), Padding = new Padding(6, 4, 6, 8), Margin = new Padding(0, 0, 0, 8) };
 
     static Label Hint(string text) => new() { Text = text, AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Gainsboro, Margin = new Padding(3, 4, 3, 6) };
 

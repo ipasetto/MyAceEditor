@@ -36,6 +36,10 @@ internal interface IQuestHost
     IReadOnlyList<(int Id, string Name, string Block)> AllItems() => [];
     /// <summary>Ícone do item, para a janela de escolher item.</summary>
     Image? ItemIcon(int id) => null;
+    /// <summary>Linhas da dica do item, como na lista do editor de elements.</summary>
+    List<List<(string Text, Color Color, bool Bold)>>? ItemTip(int id) => null;
+    /// <summary>Pasta element do cliente aberto.</summary>
+    string? ElementDir => null;
     bool IsNpc(int id);
     /// <summary>Ícone de quest sobre o NPC (surfaces\ingame\PateQuest.tga, 14 ícones de 30 px, ordem QI_ do cliente); null se não achou.</summary>
     Image? QuestIcon(int index);

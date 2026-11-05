@@ -92,7 +92,7 @@ public sealed class GmPanel : Form
         foreach (var (command, item) in _versioned) item.Visible = GmCommands.Supported(version, command);
     }
 
-    static NumericUpDown Num(decimal value, decimal min, decimal max, int width = 90) => new() { Minimum = min, Maximum = max, Value = value, Width = width, ThousandsSeparator = true };
+    static NumericUpDown Num(decimal value, decimal min, decimal max, int width = 90) => new() { Minimum = min, Maximum = max, Value = value, Width = width };
 
     static FlowLayoutPanel Row(params Control[] cs)
     {

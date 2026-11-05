@@ -5112,7 +5112,6 @@
   "is.block": "Type",
   "tr.step1": "1. Mark what you want to translate",
   "tr.step2": "2. Check before and after",
-  "menu.clean": "&Clear everything (start with no files)",
   "is.title": "Choose item",
   "is.hint": "Search by name or ID",
   "is.all": "All items",
@@ -5123,5 +5122,8 @@
   "qe.addStep": "Add step",
   "qe.stepHeader": "Step {0}: {1}",
   "qe.points": "Coins and points",
-  "qe.pointsHint": "What the player gets on delivery. Blank means nothing."
+  "qe.pointsHint": "What the player gets on delivery. Blank means nothing.",
+  "menu.newWindow": "&New MyAce window",
+  "qp.noName": "(unnamed quest)",
+  "qp.award": "Gold {0:N0}   EXP {1:N0}   Spirit {2:N0}"
 }

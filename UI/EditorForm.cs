@@ -180,13 +180,9 @@ public sealed class EditorForm : Form
         var openEl = new ToolStripMenuItem { ForeColor = CFg }; openEl.Click += (_, _) => OpenElements();
         var save = new ToolStripMenuItem { ForeColor = CFg, ShortcutKeys = Keys.Control | Keys.S }; save.Click += (_, _) => SaveCurrent();
         var saveAs = new ToolStripMenuItem { ForeColor = CFg }; saveAs.Click += (_, _) => SaveElementsAs();
-        // volta ao programa limpo, sem nada aberto (teste 6); salvar ou cancelar fica com a pergunta normal de fechar
+        // outro MyAce ao lado deste, sem nada aberto: para editar mais de um elements ao mesmo tempo
         var clean = new ToolStripMenuItem { ForeColor = CFg };
-        clean.Click += (_, _) =>
-        {
-            Close();
-            if (IsDisposed) System.Diagnostics.Process.Start(Environment.ProcessPath!, "--clean");
-        };
+        clean.Click += (_, _) => System.Diagnostics.Process.Start(Environment.ProcessPath!, "--clean");
         var exit = new ToolStripMenuItem { ForeColor = CFg }; exit.Click += (_, _) => Close();
         var exportCsv = new ToolStripMenuItem { ForeColor = CFg }; exportCsv.Click += (_, _) => ExportBlockCsv();
         var convert = new ToolStripMenuItem { ForeColor = CFg }; convert.Click += (_, _) => SaveOtherVersion();
@@ -243,7 +239,7 @@ public sealed class EditorForm : Form
             openEl.Text = Loc.T("menu.openElements", "Abrir &elements.data…");
             save.Text = Loc.T("menu.saveAll", "&Salvar tudo (elements, quests, loja, npcgen)");
             saveAs.Text = Loc.T("menu.saveAs", "Salvar &como…");
-            clean.Text = Loc.T("menu.clean", "&Limpar tudo (começar sem arquivos)");
+            clean.Text = Loc.T("menu.newWindow", "&Nova janela do MyAce");
             exit.Text = Loc.T("menu.exit", "Sa&ir");
             ed.Text = Loc.T("menu.edit", "&Editar");
             newItem.Text = Loc.T("menu.newItem", "&Novo item");
@@ -3178,6 +3174,29 @@ public sealed class EditorForm : Form
         public string? RemoveMissing(int questId) => f.RemoveMissingQuest(questId);
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
+        public string? ElementDir => f._dataPath is { } dp ? Path.GetDirectoryName(Path.GetDirectoryName(dp)) : null;
+        public List<List<(string Text, Color Color, bool Bold)>>? ItemTip(int id)
+        {
+            if (f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not { } hit) return null;
+            f.BuildTip(hit.Item);
+            var lines = f._tipRuns.Where(l => l.Count > 0 && l[0].Text != "\u0001").Select(l => l.ToList()).ToList();
+            if (f._cfgs is not null && f._cfgs.ItemDescs.TryGetValue(id, out var desc))
+            {
+                lines.Add([]);
+                var line = new List<(string Text, Color Color, bool Bold)>(); int width = 0;
+                foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg))
+                    foreach (var part in System.Text.RegularExpressions.Regex.Split(t, "(?<=[ \\n])"))
+                    {
+                        bool end = part.EndsWith('\n'), wrap = width + part.Length > 58;
+                        if (wrap && line.Count > 0) { lines.Add(line); line = []; width = 0; }
+                        var text = part.TrimEnd('\n', '\r');
+                        if (text.Length > 0) { line.Add((text, c, false)); width += text.Length; }
+                        if (end) { lines.Add(line); line = []; width = 0; }
+                    }
+                if (line.Count > 0) lines.Add(line);
+            }
+            return lines;
+        }
         public Image? ItemIcon(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? f.IconFor(h.Item) : null;
         public IReadOnlyList<(int Id, string Name, string Block)> AllItems()
         {

@@ -134,6 +134,19 @@ internal sealed partial class WorldView
         foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirHint, _flyMark, _pathDraw, _pathDone, _pathCancel,
                      _loopBox, _pathDel, _pathState, _pathUndo, _pathRedo, _pathSave })
             _pathsPage.Controls.Add(c);
+        // um quadro por assunto: quem anda, como anda, o caminho, salvar
+        FlowLayoutPanel? card = null;
+        foreach (var c in _pathsPage.Controls.Cast<Control>().ToList())
+        {
+            if (card is null || c == _pathStep1 || c == _pathStep2 || c == _pathState)
+            {
+                card = ToolCard();
+                _pathsPage.Controls.Add(card);
+                _pathsPage.Controls.SetChildIndex(card, _pathsPage.Controls.IndexOf(c));
+            }
+            _pathsPage.Controls.Remove(c);
+            card.Controls.Add(c);
+        }
         FormClosing += (_, e) =>
         {
             if (!PathDirty) return;

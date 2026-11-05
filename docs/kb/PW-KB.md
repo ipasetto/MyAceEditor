@@ -907,6 +907,7 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 - [T 05/11] janela que abre sozinha ao subir de nivel tira o foco do console: linhas seguintes vao para o chat. GameConsole abre o console 1 vez por linha.
 - [T 05/11] nome de personagem com "gm" recusado pelo cliente/servidor ("Nao e possivel usar esse nome").
 - [T 05/11] cliente aceita "startbypatcher nocheck console:1 rendernofocus:1 user:<login> pwd:<senha>": entra direto na tela de personagens.
+- [T 05/11] janela de quests do cliente: Win_Quest em interfacesersion01\quest.xml (558x410): Tv_Quest lista, Txt_Content descricao, Txt_QuestItem objetivos, Txt_BaseAward premios, Img_Item0-3 itens. MyAce mostra no Resumo (UI/QuestPreview.cs).
 ### 1.5.2 / 1.5.3 (so fonte)
 - source_server_152 e 153: base dos nomes (playercmd.cpp, extra_drop_table). 10800 aceita size 6 ou 10 (id, ou id + quantidade).
 ### 1.5.5 (elements v156; tasks v128/129)

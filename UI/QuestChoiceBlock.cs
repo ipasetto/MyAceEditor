@@ -27,7 +27,7 @@ internal sealed class QuestChoiceBlock : FlowLayoutPanel
         Controls.Add(head);
         Controls.Add(new Label { Text = o.Tip, AutoSize = true, MaximumSize = new Size(320, 0), ForeColor = Color.Gray, Margin = new Padding(0, 0, 0, 3) });
 
-        NumericUpDown Num(long max = int.MaxValue) => new() { Minimum = 0, Maximum = max, Width = 120, BackColor = Field, ForeColor = Color.White, ThousandsSeparator = true };
+        NumericUpDown Num(long max = int.MaxValue) => new() { Minimum = 0, Maximum = max, Width = 120, BackColor = Field, ForeColor = Color.White };
         Label Small(string text) => new() { Text = text, AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(3, 6, 3, 0) };
         switch (o.Type)
         {

@@ -81,13 +81,13 @@ internal sealed class WorldQuestEditor : Panel
         // quest nova começa SEM etapas: o usuário escolhe (antes vinha "Falar com NPC" e era preciso apagar; usuário 01/11)
         Dock = DockStyle.Right; Width = 400; BackColor = Bg; ForeColor = Fg;
         // cabeçalho: ícone + "Nova quest" e, embaixo, de quem é; X fecha (pergunta antes)
-        var head = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Bg2 };
+        var head = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Bg2 };
         var close = new Button { Dock = DockStyle.Right, Width = 40, FlatStyle = FlatStyle.Flat, Image = UiKit.Icon("\uE711", Color.White, 16), Cursor = Cursors.Hand };
         close.FlatAppearance.BorderSize = 0;
         close.Click += (_, _) => Cancel();
         _tip.SetToolTip(close, Loc.T("qe.cancel", "Cancelar"));
         var icon = new PictureBox { Dock = DockStyle.Left, Width = 34, Image = UiKit.Icon("\uE7C1", Accent, 22), SizeMode = PictureBoxSizeMode.CenterImage };
-        head.Controls.Add(_title); head.Controls.Add(_sub); head.Controls.Add(icon); head.Controls.Add(close);
+        head.Controls.Add(_title); head.Controls.Add(icon); head.Controls.Add(close);
         _title.Padding = new Padding(2, 4, 0, 0); _title.TextAlign = ContentAlignment.BottomLeft;
         // passos: círculos numerados (o atual em azul, os já vistos com ✓); clique pula
         _stepper.Picked += i => Show(i);
@@ -135,14 +135,14 @@ internal sealed class WorldQuestEditor : Panel
 
     // ---------- montagem ----------
 
-    static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 120, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, ThousandsSeparator = true };
+    static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 120, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
     static TextBox Text(bool multi) => new() { Multiline = multi, Width = 330, Height = multi ? 90 : 24, ScrollBars = multi ? ScrollBars.Vertical : ScrollBars.None, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
     static Label Muted() => new() { AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(3, 0, 3, 6) };
 
     // todo campo de item passa por aqui: a janela escolhe o item e a quantidade, o resto vai pelo "adicionar" de cada lista
     void PickItem(NumericUpDown id, NumericUpDown? qty, Action add)
     {
-        using var w = new ItemSearchWindow(_host.AllItems(), _host.ItemIcon, qty is not null);
+        using var w = new ItemSearchWindow(_host.AllItems(), _host.ItemIcon, qty is not null, _host.ItemTip);
         if (w.ShowDialog(this) != DialogResult.OK) return;
         id.Value = w.Picked;
         if (qty is not null) qty.Value = Math.Clamp(w.Quantity, (int)qty.Minimum, (int)qty.Maximum);
@@ -499,7 +499,7 @@ internal sealed class WorldQuestEditor : Panel
     // abas das etapas: número + ícone do tipo + nome; a etapa atual em azul; o último botão cria uma etapa sem sair desta
     void RefreshTabs()
     {
-        if (_tabs.Count != _d.Steps.Count)
+        if (_addStep is null || _tabs.Count != _d.Steps.Count)
         {
             foreach (var old in _stepTabs.Controls.Cast<Control>().ToList()) { _stepTabs.Controls.Remove(old); old.Dispose(); }
             _tabs.Clear();
@@ -970,7 +970,26 @@ internal sealed class WorldQuestEditor : Panel
         _stepper.Current = index;
         _back.Enabled = index > 0; _next.Visible = index < _pages.Count - 1;
         _pages[index].OnShow?.Invoke();
+        ShowPreview(index == _pages.Count - 1);
         _page.Controls.Add(_pages[index].Page);
+    }
+
+    // no Resumo: a janela de quests do jogo à esquerda, só com esta quest
+    QuestPreview? _preview;
+    void ShowPreview(bool on)
+    {
+        if (!on) { if (_preview is not null) _preview.Visible = false; return; }
+        if (_preview is null && Parent is { } host && _host.ElementDir is { } element && QuestPreview.Create(element) is { } p)
+        {
+            _preview = p; p.Location = new Point(12, 12);
+            host.Controls.Add(p);
+            Disposed += (_, _) => p.Dispose();
+        }
+        if (_preview is null) return;
+        var d = Collect();
+        _preview.Set(new QuestPreview.Data(d.Name, d.Description, Enumerable.Range(0, d.Steps.Count).Select(StepText).ToList(), d.Gold, d.Exp, d.Sp,
+            d.Items.Select(i => _host.ItemIcon(i.Id)).ToList()));
+        _preview.Visible = true; _preview.BringToFront();
     }
 
     bool Editing => _d.Editing > 0;

@@ -19,13 +19,16 @@ internal sealed class ItemSearchWindow : Form
     readonly NumericUpDown _qty = new() { Minimum = 1, Maximum = 99999, Value = 1, Width = 90, BackColor = Field, ForeColor = Color.White };
     readonly Label _count = new() { AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(0, 9, 16, 0) };
     List<(int Id, string Name, string Block)> _rows = [];
+    readonly Func<int, List<List<(string Text, Color Color, bool Bold)>>>? _tipOf;
+    ItemTip? _tipForm;
+    int _tipRow = -1;
 
     public int Picked { get; private set; }
     public int Quantity => (int)_qty.Value;
 
-    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true)
+    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, List<List<(string Text, Color Color, bool Bold)>>>? tip = null)
     {
-        _all = items; _icon = icon ?? (_ => null);
+        _all = items; _icon = icon ?? (_ => null); _tipOf = tip;
         Text = Loc.T("is.title", "Escolher item");
         Width = 900; Height = 640; StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; MinimizeBox = false;
         Font = new Font("Segoe UI", 9.5f); BackColor = Bg; ForeColor = Fg; KeyPreview = true;
@@ -42,10 +45,25 @@ internal sealed class ItemSearchWindow : Form
         top.Controls.Add(_search);
 
         _list.Columns.Add("", 44); _list.Columns.Add("ID", 80); _list.Columns.Add(Loc.T("is.name", "Nome"), 320); _list.Columns.Add(Loc.T("is.block", "Tipo"), 190);
-        _list.RetrieveVirtualItem += (_, e) => { var r = _rows[e.ItemIndex]; e.Item = new ListViewItem(["", r.Id.ToString(), r.Name, r.Block]); };
+        _list.RetrieveVirtualItem += (_, e) =>
+        {
+            if (e.ItemIndex >= _rows.Count) { e.Item = new ListViewItem(["", "", "", ""]); return; }
+            var r = _rows[e.ItemIndex];
+            e.Item = new ListViewItem(["", r.Id.ToString(), r.Name, r.Block]);
+        };
         _list.DrawColumnHeader += (_, e) => e.DrawDefault = true;
         _list.DrawSubItem += DrawCell;
         _list.DoubleClick += (_, _) => Accept();
+        _list.MouseMove += (_, e) =>
+        {
+            int i = _list.GetItemAt(e.X, e.Y)?.Index ?? -1;
+            if (i == _tipRow) { _tipForm?.Follow(); return; }
+            _tipRow = i;
+            HideTip();
+            if (i >= 0 && i < _rows.Count && _tipOf?.Invoke(_rows[i].Id) is { Count: > 0 } lines) { _tipForm = new ItemTip(lines); _tipForm.Show(this); _tipForm.Follow(); }
+        };
+        _list.MouseLeave += (_, _) => { _tipRow = -1; HideTip(); };
+        FormClosed += (_, _) => HideTip();
 
         var add = new Button { Text = Loc.T("is.add", "Adicionar"), AutoSize = true, Height = 32, FlatStyle = FlatStyle.Flat, BackColor = UiKit.Accent, ForeColor = Color.White, Margin = new Padding(12, 0, 0, 0) };
         add.FlatAppearance.BorderSize = 0;
@@ -71,6 +89,51 @@ internal sealed class ItemSearchWindow : Form
         };
         Shown += (_, _) => _search.Focus();
         Fill();
+    }
+
+    void HideTip() { _tipForm?.Close(); _tipForm = null; }
+
+    /// <summary>Dica flutuante do item, com os mesmos dados da lista do editor de elements.</summary>
+    sealed class ItemTip : Form
+    {
+        readonly List<List<(string Text, Color Color, bool Bold)>> _lines;
+        static readonly Font Plain = new("Segoe UI", 9f), Strong = new("Segoe UI", 9f, FontStyle.Bold);
+        const TextFormatFlags Flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+
+        public ItemTip(List<List<(string Text, Color Color, bool Bold)>> lines)
+        {
+            _lines = lines;
+            FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual; BackColor = Color.FromArgb(16, 17, 20); DoubleBuffered = true;
+            int w = 120;
+            foreach (var l in lines) w = Math.Max(w, l.Sum(r => TextRenderer.MeasureText(r.Text, r.Bold ? Strong : Plain, Size.Empty, Flags).Width));
+            ClientSize = new Size(w + 22, lines.Count * 18 + 16);
+        }
+
+        protected override bool ShowWithoutActivation => true;
+
+        public void Follow()
+        {
+            var at = Cursor.Position; var area = Screen.FromPoint(at).WorkingArea;
+            Location = new Point(Math.Min(at.X + 18, area.Right - Width - 4), Math.Max(area.Top, Math.Min(at.Y + 12, area.Bottom - Height - 4)));
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            using var pen = new Pen(Color.FromArgb(70, 74, 82));
+            e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+            int y = 8;
+            foreach (var l in _lines)
+            {
+                int x = 10;
+                foreach (var (t, c, bold) in l)
+                {
+                    var f = bold ? Strong : Plain;
+                    TextRenderer.DrawText(e.Graphics, t, f, new Point(x, y), c, Flags);
+                    x += TextRenderer.MeasureText(t, f, Size.Empty, Flags).Width;
+                }
+                y += 18;
+            }
+        }
     }
 
     void DrawBlock(object? s, DrawItemEventArgs e)
@@ -104,9 +167,10 @@ internal sealed class ItemSearchWindow : Form
         var q = _search.Text.Trim();
         bool number = int.TryParse(q, out var id);
         string? block = _blocks.SelectedIndex > 0 ? _blocks.SelectedItem?.ToString() : null;
+        _list.SelectedIndices.Clear();
+        _list.VirtualListSize = 0;   // a lista não pode pedir uma linha que não existe mais
         _rows = _all.Where(r => (block is null || r.Block == block)
             && (q.Length == 0 || (number && r.Id.ToString().StartsWith(q)) || r.Name.Contains(q, StringComparison.OrdinalIgnoreCase))).ToList();
-        _list.SelectedIndices.Clear();
         _list.VirtualListSize = _rows.Count;
         _list.Invalidate();
         _count.Text = string.Format(Loc.T("is.count", "{0:N0} itens"), _rows.Count);
