@@ -56,21 +56,24 @@ public static class GameConsole
         var w = Window();
         if (w == IntPtr.Zero || !Front(w)) return false;
         Thread.Sleep(150);
-        Push(new() { Key(VK_SHIFT, false), Key(VK_OEM_3, false), Key(VK_OEM_3, true), Key(VK_SHIFT, true) });
-        Thread.Sleep(250);
-        if (GetForegroundWindow() != w) return false;
-        Push(new() { Key(VK_BACK, false), Key(VK_BACK, true) });
-        Thread.Sleep(40);
+        // uma abertura do console por linha: janela que sobe no meio (subir de nível, tutorial) tira o foco do console
+        // e as linhas seguintes iam para o chat (PW-KB §S35)
         foreach (var line in lines)
         {
+            Push(new() { Key(VK_SHIFT, false), Key(VK_OEM_3, false), Key(VK_OEM_3, true), Key(VK_SHIFT, true) });
+            Thread.Sleep(250);
+            if (GetForegroundWindow() != w) return false;
+            Push(new() { Key(VK_BACK, false), Key(VK_BACK, true) });
+            Thread.Sleep(40);
             var inputs = new List<INPUT>();
             foreach (var ch in line) { inputs.Add(Unicode(ch, false)); inputs.Add(Unicode(ch, true)); }
             Push(inputs);
             Thread.Sleep(60);
             Push(new() { Key(VK_RETURN, false), Key(VK_RETURN, true) });
-            Thread.Sleep(120);
+            Thread.Sleep(200);
+            Push(new() { Key(VK_ESCAPE, false), Key(VK_ESCAPE, true) });
+            Thread.Sleep(150);
         }
-        Push(new() { Key(VK_ESCAPE, false), Key(VK_ESCAPE, true) });
         return true;
     }
 

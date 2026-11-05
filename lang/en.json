@@ -5068,5 +5068,9 @@
   "chk.pkgLogin": "server — login",
   "chk.pkgLoginNew": "The installer cannot configure this login type yet.",
   "chk.pkgLibs": "server — package libraries",
-  "chk.pkgLibsMissing": "The gs will not start without them and the package does not include them. Copy them from the same server version."
+  "chk.pkgLibsMissing": "The gs will not start without them and the package does not include them. Copy them from the same server version.",
+  "chk.pkgGm": "server — GM panel commands",
+  "chk.pkgGmOn": "on",
+  "chk.pkgGmOff": "off",
+  "chk.pkgGmHint": "The GM panel will not work like this. Installing through MyAce turns it on (debug_command_mode = active in gamed/ptemplate.conf)."
 }
