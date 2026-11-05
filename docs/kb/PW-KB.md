@@ -9,7 +9,7 @@ regra: o que vale p/ 1 pacote = hipotese p/ outras versoes. Layout interno de gs
 nao incluido de proposito: senhas, chaves, bytes de patch, links de download.
 
 ## §0 ÍNDICE
-S1 visao geral | S2 client fs | S3 .pck e formatos | S4 daemons+portas | S5 boot/deploy/rede logica | S6 gs.conf+mapas | S7 arquivos de dados (espelho c/s) | S8 protocolo/login/seguranca | S9 storage gamedbd + tabelas | S10 structs personagem/conta | S11 SQL (authd/MySQL) | S12 debug/classes/rates | S13 codigo-fonte | S14 versoes | S15 ferramentas | S16 IDs (refino/addons/pets) | S17 codigo-fonte do CLIENT (1.5.2) | S18 aipolicy | S19 gshop | S20 UI XML (S20b .dcf, S20c tags/textos, S20d arquivos por versao + telas de carregamento, S20e tela de login e fundo animado) | S21 tasks (sTASKedit) | S22 npcgen+mapas server | S23 elements (sELedit) | S24 operacao/seguranca/erros | S25 constantes em binario + skillstr | S31 GM (permissoes, comandos, caminhos) | S32 acervo "Estudo PW" (fontes 1.7.4/1.5.2/cliente CPW_Dev, gauthd aberto, IDs de mapa, loginmap) | S33 acervo PW_Server/PW_Clientes (servidores 1.3.6, 1.4.4, 1.5.5 x2 e 1.7.6 + cliente 1.7.6 Wine, fonte servidor 1.5.2, clientes 144/155/180 BR e PWI 1.5.5, pares cliente-servidor, versoes dos arquivos) | Z resolvidos | Q abertos | R fontes
+S34 estudo GitHub + instalar servidor por versao + extra_drops.sev | S1 visao geral | S2 client fs | S3 .pck e formatos | S4 daemons+portas | S5 boot/deploy/rede logica | S6 gs.conf+mapas | S7 arquivos de dados (espelho c/s) | S8 protocolo/login/seguranca | S9 storage gamedbd + tabelas | S10 structs personagem/conta | S11 SQL (authd/MySQL) | S12 debug/classes/rates | S13 codigo-fonte | S14 versoes | S15 ferramentas | S16 IDs (refino/addons/pets) | S17 codigo-fonte do CLIENT (1.5.2) | S18 aipolicy | S19 gshop | S20 UI XML (S20b .dcf, S20c tags/textos, S20d arquivos por versao + telas de carregamento, S20e tela de login e fundo animado) | S21 tasks (sTASKedit) | S22 npcgen+mapas server | S23 elements (sELedit) | S24 operacao/seguranca/erros | S25 constantes em binario + skillstr | S31 GM (permissoes, comandos, caminhos) | S32 acervo "Estudo PW" (fontes 1.7.4/1.5.2/cliente CPW_Dev, gauthd aberto, IDs de mapa, loginmap) | S33 acervo PW_Server/PW_Clientes (servidores 1.3.6, 1.4.4, 1.5.5 x2 e 1.7.6 + cliente 1.7.6 Wine, fonte servidor 1.5.2, clientes 144/155/180 BR e PWI 1.5.5, pares cliente-servidor, versoes dos arquivos) | Z resolvidos | Q abertos | R fontes
 
 ## §S1 VISÃO GERAL
 jogo: MMORPG chines; lancamento jan/2006 China [F] (fontes populares dizem 2005 [W]); empresa Perfect World Co. fundada 2004, Pequim.
@@ -861,6 +861,34 @@ CLIENTES (PW_Clientes; todos com config/ element/ launcher/ patcher/):
 - `PWI_en_v1.6.2=v1.5.5/` (+ .rar 14,9 GB): elementclient.exe, eLauncher.bat; elements v156 66.430.908 (= servidor 162-155), tasks v128, aipolicy 4235, gshop (data 1793264741 = gshopsev do 162-155)/gshop1/gshop2; pcks ate 2 GB (building/litmodels/models/textures no limite); version.sw 1.
 Janelas (interfaces.pck, --uid-check 02/11): os 4 clientes tem version01\ + raiz; gmconsole.xml muda por versao (§S20b).
 
+## §S34 ESTUDO DE 4 PROJETOS DO GITHUB + INSTALAR SERVIDOR POR VERSAO (05/11; clones so em pasta temporaria, nada executado)
+Licencas: PW-Server-Installer MIT | EDE Apache-2.0 | pw_srvhooks e PW-Helper SEM licenca (so estudar; nao copiar codigo para o repo GPL-3.0).
+### hrace009/PW-Server-Installer (installpw.sh, 984 linhas, 2020-2022)
+- [C-terceiros] so CentOS 7 como root em maquina limpa; menu 1.3.1 1.3.6 1.4.5 1.4.6 1.4.7 1.5.1 1.5.3 1.5.5. NAO contem o servidor: baixa Core.<versao>.7z de pwdatacore.hrace009.com/new/.
+- [T 05/11] esse host nao resolve mais (curl rc=6, DNS): o script hoje nao instala nada. O laco de download repete para sempre.
+- [C-terceiros] o que ele faz: MariaDB 10.1 + Apache + PHP + Webmin + Tomcat 7 (pwadmin) + java 1.6 + wine; desliga firewall e SELinux; pacote em /home/<usuario>/Core com marcadores (CREATE_USER, DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, TC_PORT) trocados por sed em table.xml, gs.conf, gsalias.conf, gamesys.conf, Start/Stop.
+- [C-terceiros] aliases de /etc/hosts dele: auth aumanager audb manager link1 game1-3 delivery database backup gmserver dbserver gamedbserver GAuth gdelivery GameDB GameDBClient providerserver6-9 linkip1-4. Liga tambem /etc/pkcs11.cfg e /etc/ssl/{private,world2_java_gamemanager.keystore}, libtask.so + libtask.so.2, libstdc++.so.5, libpcre.so.0.
+- Conclusao: provision.sh ja faz o equivalente em Ubuntu 22.04/WSL e com usuario de banco restrito a pw.*. Aproveitar so a lista de aliases (pacote sem etc/hosts) e a ideia de marcadores. Nao embutir o script.
+### Matriz: pacotes do acervo x provision.sh (lido em 05/11; ELF lido direto, DT_NEEDED; nada instalado) [T leitura; resultado da instalacao = inferencia, exceto onde dito]
+- 1.3.6 (Perfect_World_Server_1.3.6): daemons em 136/ sem home/ etc/ lib/ -> tela e provision recusam ("nao achei home"). 32 bits, gs sem simbolos. gs pede libtask.so e libstdc++.so.5 e NENHUM dos dois esta no pacote. Sem etc/hosts; table.xml e authd.conf ficam em 136/authd/. SQL = pw..sql na raiz.
+- 1.4.4v60: layout padrao, 32 bits, mauthd/build, SQL/ ao lado. Instalado e no ar [T 02/11].
+- 1.5.5v156: layout padrao, 32 bits, mas o login fica em home/auth/build. provision (make_authd) e pwctl so tratam /home/authd e /home/mauthd/build: authd.sh nao e regravado e o pwctl procura o caminho errado -> login nao deve subir. Nao testado.
+- 162-155: layout padrao, 32 bits, /home/authd, root/pwa.sql. Instalado e no ar [T].
+- 1.7.6 (pw_server_1.7.6_2025): raiz pwserver/ sem home/; TODOS os daemons 64 bits; login nativo gauthd/gauthd (libmariadb.so.3; script.lua) em vez do authd Java; servico novo licenseservice (gamesys.conf, start.sh, stop.sh; mesma lib); sem .sql na pasta extraida (pwserver-1.7.6-01.2026.tgz e PWSERVER-1.7.6-01.2026-VM.7z nao abertos). Pede libpcre.so.3 libcrypto.so.3 libmariadb.so.3 libxml2.so.2 (amd64); maximo GLIBC_2.34 e GLIBCXX_3.4.29 em gs, gauthd e gdeliveryd, compativel com o Ubuntu 22.04 da distro. provision instala so libs i386 e o pwctl nao conhece gauthd/licenseservice.
+- Sem pacote no acervo: 1.3.1, 1.4.5, 1.4.6, 1.4.7, 1.5.1, 1.5.3.
+### root-a/EDE: extra_drops.sev (so servidor; gamed/config; gs.conf DropData=extra_drops.sev)
+- [C fonte 152/153 + T 05/11] u32 versao (=1; outra versao: load_extra_drop_tables retorna -1) + i32 n tabelas; cada tabela: i32 nMonstros + u32 ids[n] + 256 x {u32 item, f32 chance} + char nome[128] GBK + i32 tipo (EDT_TYPE: 1 substitui o drop, 2 soma ao drop) + f32 drop_num_probability[8] (chance de cair 0..7 itens).
+- EDE chama o tipo de "unknown" e drop_num_probability[0] de probability_not; a fonte da os nomes certos.
+- [T 05/11] layout fecha no byte final nos 5 servidores, soma das chances = 1 em todas as tabelas, todas tipo 2: 1.3.6 15 tabelas/39.352 B; 1.4.4 18/46.448 B; 1.5.5v156, 162-155 e 1.7.6 26/64.568 B.
+### pwmirage/pw_srvhooks (C, LD_PRELOAD em gs, gdeliveryd, gamedbd)
+- [C-terceiros] tecnica: .so carregado por LD_PRELOAD + patch de bytes e trampolins em enderecos FIXOS de um build nao identificado; compila com gcc-5 -m32.
+- [T 05/11] 6 enderecos de funcao do gs conferidos na tabela de simbolos do gs 1.4.4, 1.5.5v156 e 162-155: nenhum e inicio de funcao; 1.7.6 e 64 bits. Nao serve para nossos binarios sem refazer os enderecos.
+- [C-terceiros] o que ele muda no gs (util como mapa de limites): rejeita pacote de movimento com tempo <200 ms e >1000 ms; velocidade maxima original 20 (acima disso teleporta de volta); tempo de invocar/recolher pet; atraso apos mover; empilhar itens com proc_type diferente; validade em itens; tele sem WC; quest que nao remove item ao terminar por filho; kick no lugar de banir. gdeliveryd: mascara de GM em chat privado. gamedbd: dados extras na lista de amigos.
+- Nosso speedcap no pwctl acha o bloco por sequencia de bytes e nao mexe se nao achar: mais seguro entre versoes que endereco fixo. Patch novo de gs segue esse padrao.
+### AnticristoPW/PW-Helper (Electron, multibox; atualizado 10/2026)
+- [C-terceiros] abre cliente com "startbypatcher user:<login> pwd:<senha> role:<nome>" (senha fica na linha de comando do processo); le memoria so para leitura (OpenProcess 0x0410); data/offsets.default.json = 9 perfis de servidores privados (The Classic 1.2.6/1.8.7, Meta PW, LUG, Unlimited, Nirvana, Avalon...) com nivel, hp, mp, xp, chi, amuletos, moedas; sem posicao x/y/z.
+- Nao serve para o MyAce: automacao de varias contas; offsets sao de outros clientes.
+
 ## §Z RESOLVIDOS (use SEMPRE estes; ignore versoes antigas)
 - [31/10] interfaces.pck: a raiz NAO e "antiga, o jogo nao usa". ingame.dcf (interface classica) carrega so a raiz; ingame-v1.dcf (nova) carrega version01\ + 40-110 janelas da raiz. A janela que vale e a que o .dcf cita (§S20b) [T]
 - lancamento: jan/2006 (nao 2005)
@@ -906,6 +934,7 @@ Janelas (interfaces.pck, --uid-check 02/11): os 4 clientes tem version01\ + raiz
 11 forum nao lidos: compat client x CPW, "Замена iweb"(isec/osec), gamedbd cai/fix, debug page 2, Debug поиск, ligar/desligar zonas restritas, copia de dungeons, lista skills/bonus de item/tasks.data edit
 
 ## §R FONTES (curtas)
+github (§S34): hrace009/PW-Server-Installer, pwmirage/pw_srvhooks, AnticristoPW/PW-Helper, root-a/EDE
 forum: mmorpg-devs.ru/forums/perfect-world.15/ (docs 2010-2026; PW Документация, PW Сервер)
 ragezone: PW 1.5.1 Server Setup; PW 1.4.4 Basic Setup; PURE PW 1.5.3 files; client structure (rbb138); elitepvpers guia 2007
 codigo/doc: github Smertig/autoangel-rs (docs/ bloqueado), sourceforge pw-tools (sPCK), lugovov/pw-elements-data-declarations, shadowvzs/pwAdmin (+DeepWiki), SealinRepo/perfectworld (Docker 1.5.5), Kn1fe/*, emudevs/sGSHOPedit, pdaniil/ProjectAtlas, packagist ham/pw-api
