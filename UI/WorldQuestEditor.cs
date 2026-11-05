@@ -979,19 +979,36 @@ internal sealed class WorldQuestEditor : Panel
 
     // no Resumo: a janela de quests do jogo à esquerda, só com esta quest
     QuestPreview? _preview;
+    // no centro do mapa: a maior área ao lado do editor, sem contar as barras
+    void CenterPreview()
+    {
+        if (_preview?.Parent is not { } host) return;
+        var map = host.Controls.Cast<Control>().Where(c => c != this && c != _preview && c.Visible).OrderByDescending(c => c.Width * c.Height).FirstOrDefault()?.Bounds ?? host.ClientRectangle;
+        if (map.Right > Left) map.Width = Math.Max(0, Left - map.Left);
+        _preview.Location = new Point(map.Left + Math.Max(0, (map.Width - _preview.Width) / 2), map.Top + Math.Max(0, (map.Height - _preview.Height) / 2));
+    }
     void ShowPreview(bool on)
     {
         if (!on) { if (_preview is not null) _preview.Visible = false; return; }
         if (_preview is null && Parent is { } host && _host.ElementDir is { } element && QuestPreview.Create(element) is { } p)
         {
-            _preview = p; p.Location = new Point(12, 12);
+            _preview = p;
+            host.Resize += (_, _) => CenterPreview();
             host.Controls.Add(p);
             Disposed += (_, _) => p.Dispose();
         }
         if (_preview is null) return;
         var d = Collect();
-        _preview.Set(new QuestPreview.Data(d.Name, d.Description, Enumerable.Range(0, d.Steps.Count).Select(StepText).ToList(), d.Gold, d.Exp, d.Sp,
-            d.Items.Select(i => _host.ItemIcon(i.Id)).ToList()));
+        string Goal(int i)
+        {
+            var t = StepText(i);
+            t = t[(t.IndexOf(". ") + 2)..];
+            int cut = t.LastIndexOf(" — ");
+            return cut > 0 ? t[..cut] : t;
+        }
+        var steps = Enumerable.Range(0, d.Steps.Count).Select(i => new QuestPreview.Step(d.Steps[i].Name.Trim().Length > 0 ? d.Steps[i].Name.Trim() : KindName(d.Steps[i].Kind), d.Steps[i].Description, Goal(i))).ToList();
+        _preview.Set(new QuestPreview.Data(d.Name, d.Description, steps.Count > 0 ? steps[0].Goal : "", steps, d.Gold, d.Exp, d.Sp, d.Items.Select(i => _host.ItemIcon(i.Id)).ToList()));
+        CenterPreview();
         _preview.Visible = true; _preview.BringToFront();
     }
 

@@ -376,7 +376,7 @@ internal static class Program
             using var w = new Form { Width = 620, Height = 480, StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
             var pv = MyAceEditor.UI.QuestPreview.Create(args[2]);
             if (pv is null) { File.WriteAllText("quest-preview.txt", "sem janela"); return; }
-            pv.Set(new("Carta para o ferreiro", "Leve a carta do guarda até o ferreiro da vila.", new[] { "1. Falar com Ferreiro Wang" }, 5000, 1200, 300, Array.Empty<System.Drawing.Image?>()));
+            pv.Set(new("Carta para o ferreiro", "Leve a carta do guarda até o ferreiro da vila.", "Falar com Guarda Li", new MyAceEditor.UI.QuestPreview.Step[] { new("Falar com o guarda", "", "Falar com Guarda Li"), new("Entregar a carta", "", "Falar com Ferreiro Wang") }, 0, 0, 0, Array.Empty<System.Drawing.Image?>()));
             w.Controls.Add(pv); w.Show();
             var stop = DateTime.Now.AddSeconds(2);
             while (DateTime.Now < stop) { Application.DoEvents(); Thread.Sleep(30); }

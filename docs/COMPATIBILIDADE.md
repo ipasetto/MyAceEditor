@@ -33,7 +33,7 @@ Cada linha é uma ferramenta do MyAceEditor e cada coluna uma versão do Perfect
 |---|---|---|---|---|---|---|---|---|
 | Abrir o mapa e ver | ? | ✅ | — | ✅ | ? | ? | ✅ | testado em 144, 155, PWI e 180 (30/10) |
 | Monstros e NPCs (pôr, mover, área) | ? | ✅ | — | ✅ | ? | ? | ✅ | grava no npcgen |
-| Quests no mundo | ? | ? | — | ✅ | ? | ? | ? | |
+| Quests no mundo | ? | ✅ | — | ✅ | ? | ? | ? | |
 | Demais ferramentas do mundo | ? | ? | — | ? | ? | ? | ? | conferir uma por uma |
 
 ## Interfaces
@@ -55,7 +55,7 @@ Servidores de teste no WSL, um por versão (02/11): 1.4.4 (`D:\PWServer144v60`) 
 | Ferramenta | 1.3.6 | 1.4.4 | 1.5.2 | 1.5.5 | 1.7.2 | 1.7.6 | 1.8 | Notas |
 |---|---|---|---|---|---|---|---|---|
 | Servidor (instalar, ligar, mapas, enviar arquivos) | ? | ✅ | — | ✅ | ? | ? | ? | 1.4.4: instalado e no ar 02/11 (gs carrega, envio com o cliente certo). 1.5.5: reinstalar na distro própria |
-| Painel do GM | ? | ? | — | ✅ | ? | ? | ? | |
+| Painel do GM | ? | ❌ | — | ✅ | ? | ? | ? | |
 | Plugins (Aparição Rara) | ? | ? | — | ✅ | ? | ? | ? | GMControlGame e PublicChat iguais no fonte 1.5.2 e 1.5.3 |
 | Anúncio de morte / combate (IA) | ? | ? | ? | ? | ? | ? | ? | corrigido em 02/11, falta ver no jogo |
 | Verificação (regras do jogo) | ? | ✅ | — | ✅ | ? | ? | ✅ | 1.4.4: rodou contra o servidor 144 (02/11); linha da página de anúncios conferida em 144 BR, PWI 155 e 180 BR (02/11) |
@@ -80,3 +80,4 @@ Servidores de teste no WSL, um por versão (02/11): 1.4.4 (`D:\PWServer144v60`) 
 9. **Painel do GM 1.4.4 (05/11):** comandos sem suporte escondidos pela lista do gs; falta testar no jogo.
 10. **Painel do GM 1.4.4 (05/11):** testado no jogo com conta de teste: nível, moedas, EXP e teleporte OK. Item, ir até NPC e gm_* ainda **?**. 1.5.5: a mudança do console por linha não foi testada no jogo, porque o servidor 155 não está instalado.
 11. **extra_drops.sev (05/11):** regrava idêntico em 1.3.6, 1.4.4, 1.5.5v156, 162-155 e 1.7.6; salvar e ver no jogo ainda **?**.
+12. **Painel do GM 1.4.4:** ❌ desde 05/11: o `active` foi retirado a pedido do usuário; volta com o plugin do GM.

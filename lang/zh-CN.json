@@ -5127,5 +5127,7 @@
   "qe.pointsHint": "交付时玩家获得的内容。留空表示无。",
   "menu.newWindow": "新建 MyAce 窗口(&N)",
   "qp.noName": "（未命名任务）",
-  "qp.award": "金币 {0:N0}   经验 {1:N0}   元神 {2:N0}"
+  "qp.gold": "金币 {0:N0}",
+  "qp.exp": "经验 {0:N0}",
+  "qp.spirit": "元神 {0:N0}"
 }
