@@ -23,17 +23,6 @@ public static class ServerPackageCheck
         yield return new(Loc.T("chk.pkgLogin", "servidor — login"), "—", login, known ? CheckLevel.Ok : CheckLevel.Aviso,
             known ? "" : Loc.T("chk.pkgLoginNew", "Tipo de login que o instalador ainda não sabe configurar."));
 
-        // o gs só aceita os comandos "d N" do painel do GM com debug_command_mode = active (PW-KB §S35)
-        var ptemplate = Path.Combine(serverHome, "gamed", "ptemplate.conf");
-        if (File.Exists(ptemplate))
-        {
-            var mode = File.ReadLines(ptemplate, Encoding.Latin1).FirstOrDefault(l => l.TrimStart().StartsWith("debug_command_mode"))?.Split('=').Last().Trim();
-            bool on = mode == "active";
-            yield return new(Loc.T("chk.pkgGm", "servidor — comandos do painel do GM"), "—", on ? Loc.T("chk.pkgGmOn", "ligados") : Loc.T("chk.pkgGmOff", "desligados"),
-                on ? CheckLevel.Ok : CheckLevel.Aviso,
-                on ? "" : Loc.T("chk.pkgGmHint", "O painel do GM não funciona assim. A instalação pelo MyAce liga sozinha (debug_command_mode = active em gamed/ptemplate.conf)."));
-        }
-
         if (serverHome.StartsWith(@"\\")) yield break;   // instalado: as bibliotecas já estão no Linux
         var parent = Path.GetDirectoryName(serverHome.TrimEnd('\\', '/')) ?? serverHome;
         var missing = needed.Where(FromPackage).Where(l => !File.Exists(Path.Combine(parent, "lib", l))

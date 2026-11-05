@@ -57,8 +57,6 @@ grep -rl -E "192\.168\.[0-9]+\.[0-9]+" /home --include=*.conf 2>/dev/null | whil
 # português/inglês). UTF-8 aceita qualquer letra; o nome continua gravado em UTF-16.
 sed -i -E 's/^(name_charset[[:space:]]*=[[:space:]]*)GB2312/\1UTF-8/' /home/gdeliveryd/gamesys.conf
 
-# console do GM: o gs so aceita "d N" com debug_command_mode = active (o pacote 1.4.4 vem com =1, comandos ignorados; PW-KB §S35)
-sed -i -E "s/^(debug_command_mode[[:space:]]*=[[:space:]]*).*/\1active/" /home/gamed/ptemplate.conf
 
 step "Login (authd em Java)"
 # o authd do próprio pacote: /home/authd (1.5.x: java direto + table.xml ao lado) ou /home/mauthd/build (1.4.4).

@@ -82,3 +82,8 @@
 - Bug corrigido: d 8888 ia com 3 números; o gs exige 4 (tag x z ctrl_id) e descartava em silêncio.
 - Organização: abas com ícone, na ordem Meu personagem → Mapa e teleporte → Itens → NPCs → Jogadores → Mundo e eventos;
   cada aba diz no topo do que precisa (jogo com console / servidor neste PC).
+
+## Decisões de 05/11/2026 (conversa com o usuário)
+- `debug_command_mode = active` foi retirado do instalador e do servidor 144: vale para o servidor inteiro e deixa qualquer jogador usar comandos `d N`. Não ligar de novo.
+- O GM vai ser usado também por pessoas contratadas, em outro PC.
+- Direção: fazer tudo por um plugin no servidor (conta conferida na tabela `auth`), com janela própria do GM. Proposta aguardando confirmação do usuário.
