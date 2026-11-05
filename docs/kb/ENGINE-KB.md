@@ -156,6 +156,9 @@ UI/LoadingScreensDialog.cs | miniaturas das telas, trocar/acrescentar/exportar, 
 UI/UiTools.cs | acoes compartilhadas (Exportar, Importar, Trocar, Telas) do editor de interface e do Extrator PCK
 UI/InterfaceDesigner.cs | tela Criar interface (estilo Canva): barra de icones (Modelos, Elementos, Texto, Molduras, Camadas) + painel com miniaturas, janela no meio (arrastar, esticar, guias), barra de cima conforme a selecao, Vincular ao jogo, Exportar .zip
 PerfectWorld/UiDesign.cs | janela criada = XML de janela do jogo montado com blocos de controle (Pieces/Insert/Rename/Reorder/FreeName/SetDialog), contrato com a janela original (Compare/BringMissing), zip com LEIA-ME
+PerfectWorld/GmCommands.cs | comandos d N por versao do jogo; painel do GM esconde o que o gs nao tem (PW-KB §S35)
+PerfectWorld/ClientLogCheck.cs | Verificacao: EC.log (fechou?, arquivos que faltaram) e .dmp (excecao, modulo+offset)
+PerfectWorld/ServerPackageCheck.cs | Verificacao: pacote de servidor (32/64 bits via ELF, tipo de login, libs que faltam)
 PerfectWorld/ProgramVersion.cs | versao do elements compilada no elementclient.exe e no gs (imediato 0x300000vv em push+cmp / mov+cmp); usada na Verificacao
 PerfectWorld/LocalServer.cs + UI/ServerView.cs + Server/provision.sh + Server/pwctl.sh | servidor local no WSL (UMA distro por pasta de servidor, nome = nome da pasta ou o registrado em <pasta>m; LocalServer.Current = a da aba Servidor; pastas gravadas por cliente "server_pkg@<md5>"; sem troca de programas por cima; Iniciar para as outras distros): instala, inicia/para, estado, conta, par corrigido na copia, entrada Local no serverlist
 PerfectWorld/TerrainFile.cs | alturas do terreno do cliente (.trn2 + .t2bk sob demanda), HeightAt interpolado

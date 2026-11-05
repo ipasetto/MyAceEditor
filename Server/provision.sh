@@ -90,6 +90,7 @@ EOF
 }
 if [ -f /home/authd/authd.class ]; then dos2unix -q /home/authd/table.xml 2>/dev/null; make_authd /home/authd /home/authd/table.xml; fi
 if [ -d /home/mauthd/build ]; then make_authd /home/mauthd/build /etc/table.xml; fi
+if [ -d /home/auth/build ]; then make_authd /home/auth/build /etc/table.xml; fi   # 1.5.5v156
 
 step "Banco de dados"
 service mariadb start >/dev/null 2>&1 || service mysql start >/dev/null 2>&1 || fail "não consegui iniciar o MariaDB"

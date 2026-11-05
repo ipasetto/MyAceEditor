@@ -60,7 +60,7 @@ public sealed class GmPanel : Form
         }
         Controls.Add(_tabs); Controls.Add(nav); Controls.Add(_log); Controls.Add(_card); Controls.Add(top);
         _poll.Tick += (_, _) => UpdateState(); _poll.Start();
-        Shown += (_, _) => { UpdateState(); LoadData(); };
+        Shown += (_, _) => { ApplyCommandSet(); UpdateState(); LoadData(); };
         FormClosed += (_, _) => _poll.Dispose();
     }
 
@@ -80,6 +80,16 @@ public sealed class GmPanel : Form
         UiKit.Decorate(b, text, primary: blue);
         b.Click += (_, _) => click();
         return b;
+    }
+
+    // comando que nem todo servidor tem: some quando a versão do jogo aberto não aceita (PW-KB §S35)
+    readonly List<(int Command, Control Item)> _versioned = [];
+    T Need<T>(int command, T item) where T : Control { _versioned.Add((command, item)); return item; }
+    void ApplyCommandSet()
+    {
+        var exe = Path.Combine(ElementDir, GameConsole.Exe);
+        int? version = File.Exists(exe) ? ProgramVersion.ElementsVersion(exe) : null;
+        foreach (var (command, item) in _versioned) item.Visible = GmCommands.Supported(version, command);
     }
 
     static NumericUpDown Num(decimal value, decimal min, decimal max, int width = 90) => new() { Minimum = min, Maximum = max, Value = value, Width = width, ThousandsSeparator = true };
@@ -158,7 +168,7 @@ public sealed class GmPanel : Form
     {
         using var d = new FolderBrowserDialog { Description = Loc.T("gm.pickFolder", "Pasta element do cliente (a que tem elementclient.exe)"), SelectedPath = _dir.Text };
         if (d.ShowDialog(this) != DialogResult.OK) return;
-        _dir.Text = d.SelectedPath; SaveDir(); _data = null; _icons = null; foreach (var m in _maps.Values) m?.Image.Dispose(); _maps.Clear(); _map = null; _mapPic.Image = null; _mapPick.Items.Clear(); LoadData();
+        _dir.Text = d.SelectedPath; SaveDir(); ApplyCommandSet(); _data = null; _icons = null; foreach (var m in _maps.Values) m?.Image.Dispose(); _maps.Clear(); _map = null; _mapPic.Image = null; _mapPick.Items.Clear(); LoadData();
     }
 
     void SaveDir() { try { Directory.CreateDirectory(Path.GetDirectoryName(SettingFile)!); File.WriteAllText(SettingFile, _dir.Text.Trim()); } catch (IOException) { } }
@@ -183,25 +193,25 @@ public sealed class GmPanel : Form
         return Stack(
             Group(Loc.T("gm.gState", "Estado"),
                 Row(Btn(Loc.T("gm.invincible", "Invencível liga/desliga"), () => Run("d 205")),
-                    Btn(Loc.T("gm.invisibleOn", "Transparente"), () => Run("d 10837 1")),
-                    Btn(Loc.T("gm.invisibleOff", "Visível de novo"), () => Run("d 10837 0")),
+                    Need(10837, Btn(Loc.T("gm.invisibleOn", "Transparente"), () => Run("d 10837 1"))),
+                    Need(10837, Btn(Loc.T("gm.invisibleOff", "Visível de novo"), () => Run("d 10837 0"))),
                     Btn(Loc.T("gm.noCooldown", "Skills sem recarga"), () => Run("d 8903 73125")),
                     Btn(Loc.T("gm.myIds", "Meus IDs (personagem, clã, mundo)"), () => Run("d 10852 1")))),
             Group(Loc.T("gm.gLevel", "Nível e progresso"),
                 // gs 1.5.5: d 2000 dá a EXP de 1 nível; não há "nível máximo" (o d 10993 da lista não existe nele)
                 Row(Btn(Loc.T("gm.levelUp", "+1 nível"), () => Run("d 2000")),
                     L(Loc.T("gm.levels", "Subir")), levels, Btn(Loc.T("gm.levelsGo", "níveis"), () => Run(Enumerable.Repeat("d 2000", (int)levels.Value).ToArray())),
-                    Btn(Loc.T("gm.rebirth", "Renascer"), () => { if (Ask(Loc.T("gm.rebirthAsk", "Fazer o renascimento deste personagem (precisa cumprir as condições do jogo)?"))) Run("d 10822"); }),
+                    Need(10822, Btn(Loc.T("gm.rebirth", "Renascer"), () => { if (Ask(Loc.T("gm.rebirthAsk", "Fazer o renascimento deste personagem (precisa cumprir as condições do jogo)?"))) Run("d 10822"); })),
                     Btn(Loc.T("gm.money", "Moedas (nível × 1 milhão)"), () => Run("d 1988"))),
                 Row(L(Loc.T("gm.exp", "EXP")), exp, Btn(Loc.T("gm.give", "Dar"), () => Run($"d 10889 {exp.Value}")),
-                    L(Loc.T("gm.fame", "Fama (reputação)")), fame, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 10850 {fame.Value}"))),
+                    Need(10850, L(Loc.T("gm.fame", "Fama (reputação)"))), Need(10850, fame), Need(10850, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 10850 {fame.Value}")))),
                 // o gs não tem comando só de alma: cada d 10889 dá a EXP pedida + nível × 10.000 de alma (playercmd.cpp)
                 Row(L(Loc.T("gm.spirit", "Alma: dar")), spirit, Btn(Loc.T("gm.spiritGo", "vezes (cada vez = nível × 10.000)"), () => Run(Enumerable.Repeat("d 10889 1", (int)spirit.Value).ToArray())),
                     L(Loc.T("gm.cultivation", "Cultivo (20-22 deus, 30-32 demônio)")), cult, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 1989 {cult.Value}")))),
             // chi (AP): o máximo vem das quests de cultivo (SetMaxAP, 100 por barra); d 1991 n define o máximo (0..399) e
             // d 1992 soma 100 (playercmd.cpp; os dois existem no gs 1.5.5)
             Group(Loc.T("gm.gChi", "Chi (barras de fúria)"),
-                Row(L(Loc.T("gm.chiBars", "Barras liberadas")), chi, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 1991 {chi.Value * 100}")),
+                Row(Need(1991, L(Loc.T("gm.chiBars", "Barras liberadas"))), Need(1991, chi), Need(1991, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 1991 {chi.Value * 100}"))),
                     Btn(Loc.T("gm.chiFill", "Encher o chi"), () => Run(Enumerable.Repeat("d 1992", 3).ToArray())))),
             Group(Loc.T("gm.gBag", "Inventário"),
                 Row(L(Loc.T("gm.slots", "Espaços")), slots, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d 2016 {slots.Value}")),
@@ -242,8 +252,8 @@ public sealed class GmPanel : Form
                   Btn(Loc.T("gm.dropTemp", "Criar por 5 minutos"), () => { if (Sel() is { } id) Run($"d 2001 {id}"); }))
             : Row(Btn(Loc.T("gm.goTo", "Ir até ele"), () => { if (Sel() is { } id) Run($"d 8900 {id}"); }, blue: true),
                   L(Loc.T("gm.qty", "Quantidade")), qty, L(Loc.T("gm.lifeSec", "Dura (s, 0 = sempre)")), time,
-                  Btn(Loc.T("gm.spawnMob", "Invocar monstro aqui"), () => { if (Sel() is { } id) Run($"d 10802 {id} {qty.Value} {time.Value} 0"); }),
-                  Btn(Loc.T("gm.spawnNpc", "Invocar NPC aqui"), () => { if (Sel() is { } id) Run($"d 10857 {id} {qty.Value} {time.Value}"); }));
+                  Need(10802, Btn(Loc.T("gm.spawnMob", "Invocar monstro aqui"), () => { if (Sel() is { } id) Run($"d 10802 {id} {qty.Value} {time.Value} 0"); })),
+                  Need(10857, Btn(Loc.T("gm.spawnNpc", "Invocar NPC aqui"), () => { if (Sel() is { } id) Run($"d 10857 {id} {qty.Value} {time.Value}"); })));
         bottom.Dock = DockStyle.Bottom;
         var p = new Panel();
         p.Controls.Add(list); p.Controls.Add(search); p.Controls.Add(bottom);
@@ -371,7 +381,7 @@ public sealed class GmPanel : Form
                     Btn(Loc.T("gm.pluginReload", "Atualizar lista"), FillPlugins)),
                 Row(_plInfo)),
             Group(Loc.T("gm.gMobs", "Monstros"),
-                Row(Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); }))),
+                Row(Need(10855, Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); })))),
             // d_rendernofocus: liga/desliga desenhar o jogo sem o foco da janela (EC_DlgCmdConsole.cpp CCMD_RENDERNOFOCUS; PW-KB §S31)
             Group(Loc.T("gm.gScreen", "Sua tela"),
                 Row(Btn(Loc.T("gm.noFocus", "Não parar o jogo sem foco (liga/desliga)"), () => Run("d_rendernofocus")),

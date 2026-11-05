@@ -9,7 +9,7 @@ regra: o que vale p/ 1 pacote = hipotese p/ outras versoes. Layout interno de gs
 nao incluido de proposito: senhas, chaves, bytes de patch, links de download.
 
 ## §0 ÍNDICE
-S34 estudo GitHub + instalar servidor por versao + extra_drops.sev | S1 visao geral | S2 client fs | S3 .pck e formatos | S4 daemons+portas | S5 boot/deploy/rede logica | S6 gs.conf+mapas | S7 arquivos de dados (espelho c/s) | S8 protocolo/login/seguranca | S9 storage gamedbd + tabelas | S10 structs personagem/conta | S11 SQL (authd/MySQL) | S12 debug/classes/rates | S13 codigo-fonte | S14 versoes | S15 ferramentas | S16 IDs (refino/addons/pets) | S17 codigo-fonte do CLIENT (1.5.2) | S18 aipolicy | S19 gshop | S20 UI XML (S20b .dcf, S20c tags/textos, S20d arquivos por versao + telas de carregamento, S20e tela de login e fundo animado) | S21 tasks (sTASKedit) | S22 npcgen+mapas server | S23 elements (sELedit) | S24 operacao/seguranca/erros | S25 constantes em binario + skillstr | S31 GM (permissoes, comandos, caminhos) | S32 acervo "Estudo PW" (fontes 1.7.4/1.5.2/cliente CPW_Dev, gauthd aberto, IDs de mapa, loginmap) | S33 acervo PW_Server/PW_Clientes (servidores 1.3.6, 1.4.4, 1.5.5 x2 e 1.7.6 + cliente 1.7.6 Wine, fonte servidor 1.5.2, clientes 144/155/180 BR e PWI 1.5.5, pares cliente-servidor, versoes dos arquivos) | Z resolvidos | Q abertos | R fontes
+S34 estudo GitHub + instalar servidor por versao + extra_drops.sev | S35 fatos por versao (1.3.6 1.4.4 1.5.x 1.7.6 1.8.0) | S1 visao geral | S2 client fs | S3 .pck e formatos | S4 daemons+portas | S5 boot/deploy/rede logica | S6 gs.conf+mapas | S7 arquivos de dados (espelho c/s) | S8 protocolo/login/seguranca | S9 storage gamedbd + tabelas | S10 structs personagem/conta | S11 SQL (authd/MySQL) | S12 debug/classes/rates | S13 codigo-fonte | S14 versoes | S15 ferramentas | S16 IDs (refino/addons/pets) | S17 codigo-fonte do CLIENT (1.5.2) | S18 aipolicy | S19 gshop | S20 UI XML (S20b .dcf, S20c tags/textos, S20d arquivos por versao + telas de carregamento, S20e tela de login e fundo animado) | S21 tasks (sTASKedit) | S22 npcgen+mapas server | S23 elements (sELedit) | S24 operacao/seguranca/erros | S25 constantes em binario + skillstr | S31 GM (permissoes, comandos, caminhos) | S32 acervo "Estudo PW" (fontes 1.7.4/1.5.2/cliente CPW_Dev, gauthd aberto, IDs de mapa, loginmap) | S33 acervo PW_Server/PW_Clientes (servidores 1.3.6, 1.4.4, 1.5.5 x2 e 1.7.6 + cliente 1.7.6 Wine, fonte servidor 1.5.2, clientes 144/155/180 BR e PWI 1.5.5, pares cliente-servidor, versoes dos arquivos) | Z resolvidos | Q abertos | R fontes
 
 ## §S1 VISÃO GERAL
 jogo: MMORPG chines; lancamento jan/2006 China [F] (fontes populares dizem 2005 [W]); empresa Perfect World Co. fundada 2004, Pequim.
@@ -795,6 +795,7 @@ skillstr.txt (configs.pck): UTF-16; skill_translator gera skillstr.tab "ID<TAB>n
 ## §S31 GM: PERMISSOES, COMANDOS E POR ONDE CHEGAM (painel do GM = docs/GM-PAINEL.md, UI/GmPanel.cs)
 - [C pwAdmin, 02/11] GM por socket sem estar no jogo (detalhe §S4): bloquear/mudo conta e personagem = gdeliveryd:29100 opcodes 354/356/360/362 (u32 gm -1, ssid 0, alvo, segundos, motivo); correio do sistema com item/ouro = SysSendMail 4214; chat global = ChatBroadCast 120 em 29300; cash = INSERT em usecashnow; GM = CALL addGM(userid,1).
 REGRA: toda descoberta sobre GM (comando, permissao, caminho, teste) entra AQUI, mesmo pequena; o que ja estiver em outra secao ganha so a referencia.
+- [T 05/11] comandos d N do gs mudam por versao: lista e diferencas em §S35; 1.4.4 tem 90 e 1.5.5 tem 185.
 - [C 01/11 cliente EC_DlgCmdConsole.cpp CCMD_RENDERNOFOCUS + EC_CommandLine GetRenderWhenNoFocus] d_rendernofocus = liga/desliga desenhar o jogo sem o foco da janela (g_bRenderNoFocus); fixo pela linha de comando do cliente 'rendernofocus:1'. Painel do GM: Mundo > Sua tela.
 - [T 01/11] CORRECAO: aviso para todos de fora do jogo = PublicChat 79 no gdeliveryd {u8 canal, u8 emocao, i32 roleid -1, i32 localsid 0, texto UTF-16LE, dados} (como o iweb; ServerAdmin.Broadcast); o ChatBroadCast 120 mandado ao gdeliveryd e IGNORADO (o plugin mandava 120 e o aviso nao saia). A linha do ChatBroadCast abaixo vale so como caminho gs->glinkd.
 - [C 01/11 cnet/rpcalls.xml + gdeliveryd/chatbroadcast.hpp + include/localmacro.h] mensagem para TODOS de fora do jogo: ChatBroadCast type 120 no gdeliveryd {u8 channel, u8 emotion, i32 srcroleid, Octets msg, Octets data} -> WorldChat a todos os glinkd; srcroleid > 32 (e canal != sistema) busca o nome do personagem online, senao vai sem nome. Canais GN_CHAT_CHANNEL: 0 normal 1 mundo 2 grupo 3 cla 4 sussurro 5 dano 6 luta 7 comercio 8 SISTEMA 9 ANUNCIO 10 outros 11 instancia 12 super mundo 13 campo de batalha 14 pais. Uso: avisos dos plugins (docs/PLUGINS.md).
@@ -888,6 +889,34 @@ Licencas: PW-Server-Installer MIT | EDE Apache-2.0 | pw_srvhooks e PW-Helper SEM
 ### AnticristoPW/PW-Helper (Electron, multibox; atualizado 10/2026)
 - [C-terceiros] abre cliente com "startbypatcher user:<login> pwd:<senha> role:<nome>" (senha fica na linha de comando do processo); le memoria so para leitura (OpenProcess 0x0410); data/offsets.default.json = 9 perfis de servidores privados (The Classic 1.2.6/1.8.7, Meta PW, LUG, Unlimited, Nirvana, Avalon...) com nivel, hp, mp, xp, chi, amuletos, moedas; sem posicao x/y/z.
 - Nao serve para o MyAce: automacao de varias contas; offsets sao de outros clientes.
+
+## §S35 FATOS POR VERSAO (uma categoria por versao; fato novo de versao especifica entra aqui; geral fica na secao do assunto)
+Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHandler (pegar a maior), desmontar e ler os cmp do cmd_type. O tamanho de cada caso = primeiro cmp de [ebp+0x14] no destino do je.
+### 1.3.6 (elements v10, tasks v55)
+- [T 05/11] pacote Perfect_World_Server_1.3.6: daemons em 136/, sem home/ etc/ lib/ hosts. 32 bits, gs sem simbolos. Faltam libtask.so e libstdc++.so.5 (Verificacao acusa). Login authd Java em 136/authd (table.xml e authd.conf ali). SQL pw..sql na raiz. Detalhe §S34.
+- GM: comandos do gs nao levantados (sem simbolos).
+### 1.4.4 (elements v60 servidor, v61 cliente BR; tasks v93)
+- [T 05/11] gs: DebugCommandHandler em 0x0810203e, tamanho 0x4e2e, 90 comandos; GMCommandHandler 0x08101104 tamanho 0xf3a, numeros 200-208 217-219.
+- [T 05/11] comandos do painel que NAO existem neste gs: 1991 barras de chi, 10802 invocar monstro, 10822 renascer, 10837 transparente, 10850 fama, 10855 matar monstros do mapa, 10857 invocar NPC. Painel esconde (GmCommands). Causa do "varios comandos nao funcionam" do teste *12.
+- [T 05/11] mesmo tamanho de argumento do 1.5.5: 104, 1989, 2001, 2016, 8888 (0x12), 8900, 8903, 10800, 10801, 10803, 10804, 10889. Sem conferencia de tamanho nos dois: 105, 1988, 1992, 2000, 10852, 10853. Mesmo numero nao prova mesmo efeito: conferir no jogo.
+- [?] GM 202, 204, 206 e 218 existem so aqui; significado nao conferido; pode ser caminho para invocar monstro pelo gm_.
+- [T 05/11 usuario] entrada no mundo no 144 confirmada.
+- Pacote: home/ etc/ lib/ padrao, login mauthd/build, SQL/ ao lado, debug_command_mode=1 no ptemplate.conf. Sem o patch GM-only: conferir.
+### 1.5.2 / 1.5.3 (so fonte)
+- source_server_152 e 153: base dos nomes (playercmd.cpp, extra_drop_table). 10800 aceita size 6 ou 10 (id, ou id + quantidade).
+### 1.5.5 (elements v156; tasks v128/129)
+- [T 05/11] gs 162-155: DebugCommandHandler 0x081472f2 tamanho 0x9211, 185 comandos (o dobro do 1.4.4); GMCommandHandler 0x08145e46 tamanho 0x14ab, numeros 159 200 201 203 205 207 208 217 219 221 222. v156 tem os mesmos enderecos.
+- Tamanhos: 10802 = 0x12, 10857 = 0xe, 10837 10850 10855 1991 = 6, 10822 sem conferencia.
+- [C 05/11] 1.5.5v156: login em home/auth/build com /etc/table.xml; provision e pwctl agora tratam esse caminho (nao instalado ainda).
+- 162-155: /home/authd, root/pwa.sql. Personagem novo precisa do is61.
+### 1.7.6 (elements v386, tasks v191; 64 bits)
+- [T 05/11] VM PWSERVER-1.7.6 (D:/Perfect World/PW_Server/1.7.6/PWSERVER-1.7.6, VMDK monolithicSparse, Debian 13, 20 GB; lida so para leitura, senhas nao lidas nem gravadas): servidor em /root/pwserver; scripts /root/start, stop, server, memory, profile; servicos do sistema apache2, mariadb, php7.4-fpm, ntpsec, usermin; painel /root/pwadmin (Tomcat) e /root/phpiweb.
+- [T 05/11] ordem do /root/start: licenseservice > logservice > gauthd > uniquenamed > gamedbd > gacd > gfactiond > gdeliveryd > "glinkd gamesys.conf 1" > "gs gs01 gsalias.conf gmserver.conf gs.conf" > "gs is61 gsalias.conf gmserver.conf gs.conf". Espera 3-10 s entre eles.
+- [T 05/11] banco: /root/sql/pw176.sql (38 KB; 15 procedimentos: acquireuserpasswd addForbid addGM adduser adduserpoint addUserPriv changePasswd changePasswd2 clearonlinerecords deleteTimeoutForbid delGM delUserPriv enableiplimit lockuser recordoffline), licenseservice.sql (tabela logs), adminuser.sql, old/pw.sql, old/wm.sql.
+- [T 05/11] licenseservice: gamesys.conf [GLicenseServer] 127.0.0.1:33000 + [GMysqlClient] 127.0.0.1:3306; arquivo /home/license.conf; sobe primeiro. E controle de licenca do pacote: o MyAce nao contorna; instalar 1.7.6 depende de licenca valida. Se gs/gauthd exigem esse servico: nao conferido.
+- Daemons 64 bits; gauthd nativo; libs libpcre.so.3 libcrypto.so.3 libmariadb.so.3 libxml2.so.2; GLIBC 2.34, GLIBCXX 3.4.29.
+### 1.8.0 (cliente 180 BR, elements v531, tasks v198)
+- So cliente no acervo; sem servidor para levantar comandos.
 
 ## §Z RESOLVIDOS (use SEMPRE estes; ignore versoes antigas)
 - [31/10] interfaces.pck: a raiz NAO e "antiga, o jogo nao usa". ingame.dcf (interface classica) carrega so a raiz; ingame-v1.dcf (nova) carrega version01\ + 40-110 janelas da raiz. A janela que vale e a que o .dcf cita (§S20b) [T]

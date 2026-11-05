@@ -222,6 +222,8 @@ public static class VersionCheck
                 rows.Add(new(Loc.T("chk.clientEncryption", "criptografia cliente × ") + name, cDesc, sDesc, lvl, msg));
             }
         }
+        rows.AddRange(ClientLogCheck.Rows(clientElement));
+        rows.AddRange(ServerPackageCheck.Rows(serverHome));
         return rows;
     }
 

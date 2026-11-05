@@ -5056,5 +5056,19 @@
   "chk.adsLocal": "本地",
   "chk.adsOnHint": "进入世界时游戏崩溃（“Exception occurred in ParsePage thread”）。请使用“修复”。",
   "chk.adsLocalHint": "没有互联网页面：不会导致游戏崩溃。",
-  "gshop.liveDiff": "本地服务器（{0}）的商城与客户端的 {1} 不同：\n{2}\n\n请使用“保存并发送”（或“服务器”页的“发送”）：服务器会根据客户端重建。"
+  "gshop.liveDiff": "本地服务器（{0}）的商城与客户端的 {1} 不同：\n{2}\n\n请使用“保存并发送”（或“服务器”页的“发送”）：服务器会根据客户端重建。",
+  "chk.clientSession": "客户端 — 上次游戏会话",
+  "chk.clientClosedOk": "游戏正常关闭。",
+  "chk.clientClosedBad": "游戏日志未正常结束：游戏已崩溃或仍在运行。如果您在其他文件夹中游戏，请在此打开该文件夹。",
+  "chk.clientMissing": "客户端 — 游戏未找到的文件",
+  "chk.clientMissingLast": "最后一个：{0}",
+  "chk.clientCrash": "客户端 — 上次崩溃",
+  "chk.clientCrashOld": "（在上次会话之前）",
+  "chk.clientCrashAt": "位于",
+  "chk.pkgBits": "服务器 — 程序",
+  "chk.pkg64": "64 位服务器（1.7.x）：安装程序暂不支持此类型。",
+  "chk.pkgLogin": "服务器 — 登录",
+  "chk.pkgLoginNew": "安装程序暂不支持配置此登录类型。",
+  "chk.pkgLibs": "服务器 — 软件包库",
+  "chk.pkgLibsMissing": "缺少这些库 gs 无法启动，且软件包未包含。请从相同版本的服务器复制。"
 }

@@ -43,7 +43,7 @@ start)
     svc logservice "logservice logservice.conf" logservice ./logservice logservice.conf; sleep 2
     svc uniquenamed "uniquenamed gamesys.conf" uniquenamed ./uniquenamed gamesys.conf; sleep 2
     # authd do pacote instalado: o do 1.5.x (/home/authd) quando existe; senão o do 1.4.4 (/home/mauthd/build)
-    AU=$P/mauthd/build; [ -x $P/authd/authd.sh ] && AU=$P/authd
+    AU=$P/mauthd/build; [ -x $P/auth/build/authd.sh ] && AU=$P/auth/build; [ -x $P/authd/authd.sh ] && AU=$P/authd
     if ! pgrep -f "authd [^ ]*table.xml" >/dev/null; then (cd $AU && ./authd.sh start >/dev/null 2>&1); echo "##SUBIU authd"; else echo "##JA authd"; fi
     wait_port 29200 30 || echo "##AVISO authd não abriu a porta 29200"
     svc gamedbd "gamedbd gamesys.conf" gamedbd ./gamedbd gamesys.conf; sleep 3
@@ -69,7 +69,7 @@ start)
 stop)
     for p in gamedbd uniquenamed; do pkill -USR1 -x $p 2>/dev/null; done; sleep 3
     for p in myaceplugins glinkd gs gdeliveryd gfactiond gacd gamedbd uniquenamed logservice; do pkill -9 -x $p 2>/dev/null; done
-    for d in $P/authd $P/mauthd/build; do [ -x $d/authd.sh ] && (cd $d && ./authd.sh stop >/dev/null 2>&1); done
+    for d in $P/authd $P/mauthd/build $P/auth/build; do [ -x $d/authd.sh ] && (cd $d && ./authd.sh stop >/dev/null 2>&1); done
     pkill -9 -f "authd [^ ]*table.xml" 2>/dev/null
     echo "##OK parado"
     ;;

@@ -5054,5 +5054,19 @@
   "chk.adsLocal": "local",
   "chk.adsOnHint": "The game crashes when entering the world (\"Exception occurred in ParsePage thread\"). Use Fix.",
   "chk.adsLocalHint": "No internet page: does not crash the game.",
-  "gshop.liveDiff": "The local server's shop ({0}) differs from the client's {1}:\n{2}\n\nUse \"Save and send\" (or Send in the Server tab): the server is rebuilt from the client."
+  "gshop.liveDiff": "The local server's shop ({0}) differs from the client's {1}:\n{2}\n\nUse \"Save and send\" (or Send in the Server tab): the server is rebuilt from the client.",
+  "chk.clientSession": "client — last game session",
+  "chk.clientClosedOk": "The game closed normally.",
+  "chk.clientClosedBad": "The game log ended without closing: the game crashed or is still open. If you played from another folder, open that folder here.",
+  "chk.clientMissing": "client — files the game could not find",
+  "chk.clientMissingLast": "Last: {0}",
+  "chk.clientCrash": "client — last crash",
+  "chk.clientCrashOld": "(before the last session)",
+  "chk.clientCrashAt": "at",
+  "chk.pkgBits": "server — programs",
+  "chk.pkg64": "64-bit server (1.7.x): the installer cannot set up this type yet.",
+  "chk.pkgLogin": "server — login",
+  "chk.pkgLoginNew": "The installer cannot configure this login type yet.",
+  "chk.pkgLibs": "server — package libraries",
+  "chk.pkgLibsMissing": "The gs will not start without them and the package does not include them. Copy them from the same server version."
 }
