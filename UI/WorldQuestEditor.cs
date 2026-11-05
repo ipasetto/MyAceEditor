@@ -171,7 +171,7 @@ internal sealed class WorldQuestEditor : Panel
 
     Button Btn(string text, Action a, Color? bg = null)
     {
-        var b = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = bg ?? Bg, Height = 28, Margin = new Padding(3, 0, 3, 0) };
+        var b = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = bg ?? Bg, Height = 28, Margin = new Padding(0, 3, 6, 3) };
         b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 90);
         UiKit.Decorate(b, text, dark: true);
         if (bg is { } c) { b.BackColor = c; b.FlatAppearance.BorderColor = c; }
@@ -507,7 +507,7 @@ internal sealed class WorldQuestEditor : Panel
             {
                 int at = i;
                 var b = Btn("", () => _stepList.SelectedIndex = at);
-                b.AutoSize = false; b.Size = new Size(164, 36); b.TextAlign = ContentAlignment.MiddleLeft; b.TextImageRelation = TextImageRelation.ImageBeforeText; b.AutoEllipsis = true;
+                b.AutoSize = false; b.Size = new Size(162, 36); b.Margin = new Padding(0, 0, 6, 6); b.TextAlign = ContentAlignment.MiddleLeft; b.TextImageRelation = TextImageRelation.ImageBeforeText; b.AutoEllipsis = true;
                 _tabs.Add(b); _stepTabs.Controls.Add(b);
             }
             _addStep = Btn(Loc.T("qe.addStep", "Adicionar etapa"), () =>
@@ -517,7 +517,7 @@ internal sealed class WorldQuestEditor : Panel
                     menu.Items.Add(KindName(k), UiKit.Icon(KindGlyph(k), Color.FromArgb(50, 60, 75), 18), (_, _) => AddStep(k));
                 menu.Show(_addStep!, new Point(0, _addStep!.Height));
             }, UiKit.Accent);
-            _addStep.AutoSize = false; _addStep.Size = new Size(164, 36);
+            _addStep.AutoSize = false; _addStep.Size = new Size(162, 36); _addStep.Margin = new Padding(0, 0, 6, 6);
             _stepTabs.Controls.Add(_addStep);
         }
         for (int i = 0; i < _tabs.Count; i++)
@@ -704,10 +704,13 @@ internal sealed class WorldQuestEditor : Panel
     void AddStep(QuestStepKind kind)
     {
         Remember();
-        int keep = _stepList.SelectedIndex;   // continua na etapa atual; a nova só aparece como aba (usuário 05/11)
         _d.Steps.Add(new QuestStep { Kind = kind });
-        RefreshStepList(keep < 0 ? 0 : keep);
-        if (keep < 0 && kind == QuestStepKind.Reach) ShowAreas();
+        // com uma etapa só de falar com NPC não existe nome de etapa; a partir da segunda, cada etapa aparece no diário e
+        // precisa de nome: abre a primeira que está sem nome (na 2ª etapa é a 1ª; depois, a nova) com o cursor no campo
+        int open = QuestBuilder.IsRecado(_d) ? 0 : Math.Max(0, _d.Steps.FindIndex(x => x.Name.Trim().Length == 0));
+        RefreshStepList(open);
+        if (_d.Steps[open].Kind == QuestStepKind.Reach) ShowAreas();
+        if (!QuestBuilder.IsRecado(_d)) BeginInvoke(() => { _page.ScrollControlIntoView(_stepName); _stepName.Focus(); });
     }
 
     void MoveStep(int by)

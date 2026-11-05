@@ -11,7 +11,7 @@ internal sealed partial class WorldView
     /// <summary>Salvar tudo e enviar ao servidor (EditorForm.SaveAndSend).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Action? SaveAndSendAll { get; set; }
     Tool _tool;
-    readonly Panel _tools = new() { Width = 270, BackColor = Color.FromArgb(28, 32, 38), BorderStyle = BorderStyle.FixedSingle };
+    readonly Panel _tools = new() { Width = 286, BackColor = Color.FromArgb(28, 32, 38), BorderStyle = BorderStyle.FixedSingle };
     readonly Panel _toolHead = new() { Dock = DockStyle.Top, Height = 40, BackColor = Color.FromArgb(36, 41, 49) };
     readonly Label _toolTitle = new() { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10.5f), TextAlign = ContentAlignment.MiddleLeft };
     readonly Button _toolBack = new() { Dock = DockStyle.Left, Width = 40, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Visible = false };
@@ -68,7 +68,19 @@ internal sealed partial class WorldView
     static Label SectionLabel(string text) => new() { Text = text, AutoSize = true, ForeColor = Color.FromArgb(96, 165, 250), Font = new Font("Segoe UI Semibold", 8f), Margin = new Padding(3, 8, 3, 3) };
 
     /// <summary>Quadro de uma ferramenta do Mundo 3D, no mesmo padrão do editor de quests.</summary>
-    static FlowLayoutPanel ToolCard() => new() { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(39, 45, 54), Padding = new Padding(6, 4, 6, 8), Margin = new Padding(0, 0, 0, 8) };
+    static FlowLayoutPanel ToolCard()
+    {
+        // todos com a mesma largura; quadro sem nada visível some (fica com altura 0)
+        var card = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(39, 45, 54), MinimumSize = new Size(268, 0) };
+        void Fit()
+        {
+            bool any = card.Controls.Cast<Control>().Any(c => c.Visible);
+            card.Padding = any ? new Padding(9, 6, 9, 8) : Padding.Empty;
+            card.Margin = any ? new Padding(0, 0, 0, 8) : Padding.Empty;
+        }
+        card.ControlAdded += (_, e) => { e.Control!.VisibleChanged += (_, _) => Fit(); Fit(); };
+        return card;
+    }
 
     static Label Hint(string text) => new() { Text = text, AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Gainsboro, Margin = new Padding(3, 4, 3, 6) };
 
