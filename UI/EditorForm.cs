@@ -382,7 +382,7 @@ public sealed class EditorForm : Form
         });
         tb.Items.Add(lang);
         // servidor e pastas do cliente aberto: ao lado da bandeira (à esquerda dela), um lugar só para os caminhos
-        UiKit.Cmd(tb, UiKit.Server, "tb.rServerSetup", "Servidor", OpenServerSetup, "tb.rServerSetupTip", "Servidor e pastas: onde roda o servidor desta versão do jogo, o pacote dele e a máquina do servidor local.").Alignment = ToolStripItemAlignment.Right;
+        UiKit.Cmd(tb, UiKit.Server, "tb.rServerSetup", "Servidor", () => { if (_tabs is not null && _tabServer is not null) { _tabs.SelectedTab = _tabServer; if (_serverPages is not null) _serverPages.SelectedIndex = 0; } }, "tb.rServerTip", "Servidor de teste: ligar, enviar arquivos, pastas, verificar e corrigir");
         UiKit.Cmd(tb, UiKit.Globe, "tb.rWorld", "Mundo 3D", () => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); }, "tb.rWorldTip", "Abre o mapa do jogo em 3D com os pontos do NPCGen.");
         return tb;
     }
@@ -466,7 +466,6 @@ public sealed class EditorForm : Form
         _tabCheck = tChk;
         Bind(() => tChk.Text = Loc.T("tab.verify", "Verificação"));
         tChk.Controls.Add(BuildCheckView());
-        tabs.TabPages.Add(tChk);
         var tSrv = new TabPage() { BackColor = CBg };
         _tabServer = tSrv;
         Bind(() => tSrv.Text = Loc.T("tab.server", "Servidor"));
@@ -478,7 +477,7 @@ public sealed class EditorForm : Form
         _serverView.Installed += () => BeginInvoke(() =>
         {
             if (_serverView.GameFolderChanged() is { } pkgHome) { _chkServer.Text = pkgHome; SaveSetting("check_server", pkgHome); }
-            if (_tabs is not null && _tabCheck is not null) _tabs.SelectedTab = _tabCheck;
+            ShowCheck();
             var (err, warn) = RunCheck(0);
             if (err + warn > 0 && MessageBox.Show(this, string.Format(Loc.T("chk.afterInstall", "Servidor instalado. A Verificação achou {0} erro(s) e {1} aviso(s).\n\nCorrigir agora?"), err, warn),
                     Loc.T("fix.title", "Corrigir o par"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) FixPair();
@@ -486,6 +485,16 @@ public sealed class EditorForm : Form
         ServerPaths.Changed += _ => BeginInvoke(ApplyServerPaths);
         _serverView.FilesSent += ok => { if (ok) { _unsent.Clear(); _serverDiff = null; } UpdateSendGlow(); };   // servidor recebeu tudo: apaga o brilho
         tabs.TabPages.Add(tSrv);
+        // Servidor e Verificação numa tela só, em pílulas; a lateral fica só com as ferramentas (teste 15)
+        var serverPages = new TabControl { Dock = DockStyle.Fill };
+        var pSrv = new TabPage() { BackColor = CBg };
+        Bind(() => pSrv.Text = Loc.T("tab.server", "Servidor"));
+        pSrv.Controls.Add(_serverView);
+        serverPages.TabPages.Add(pSrv); serverPages.TabPages.Add(tChk);
+        tSrv.Controls.Add(serverPages);
+        tSrv.Controls.Add(new SegmentBar(serverPages, pg => pg == tChk ? UiKit.CheckList : UiKit.Server));
+        _serverPages = serverPages;
+        _serverView.VerifyRequested += () => { ShowCheck(); RunCheck(0); };
         // Plugins de evento (docs/PLUGINS.md): programa do servidor que sorteia/chama eventos (usuário 01/11)
         var tPl = new TabPage() { BackColor = CBg };
         _tabPlugins = tPl;
@@ -521,16 +530,15 @@ public sealed class EditorForm : Form
             (UiKit.Cart, "tab.gshop", "nav.gshopTip", "Loja de cash, na mesma tela do jogo"),
             (UiKit.MapPin, "tab.npcgen", "nav.npcgenTip", "Onde nascem monstros, NPCs e recursos; Mundo 3D"),
             (UiKit.Robot, "tab.aipolicy", "nav.aiTip", "Comportamento dos monstros (aipolicy.data)"),
-            (UiKit.CheckList, "tab.verify", "nav.verifyTip", "Confere se cliente e servidor combinam e corrige"),
-            (UiKit.Server, "tab.server", "nav.serverTip", "Servidor de teste no seu PC: ligar, enviar, administrar"),
             (UiKit.Play, "tab.plugins", "nav.pluginsTip", "Eventos automáticos no servidor: monstro raro por sorteio, chamar pelo GM"),
             (UiKit.Layers, "tab.interfaces", "nav.uiTip", "Janelas do jogo: editar na tela, importar, trocar com outro cliente, telas de carregamento"),
             (UiKit.Box, "tab.pck", "nav.pckTip2", "Pacotes .pck: abrir, ver e extrair arquivos"),
         };
-        for (int i = 0; i < pages.Length && i < tabs.TabPages.Count; i++)
+        var tools = tabs.TabPages.Cast<TabPage>().Where(p => p != _tabServer).ToList();   // o Servidor abre pelo botão de cima
+        for (int i = 0; i < pages.Length && i < tools.Count; i++)
         {
             var (g, key, tip, tipPt) = pages[i];
-            var page = tabs.TabPages[i];
+            var page = tools[i];
             nav.Add(g, () => page.Text, () => Loc.T(tip, tipPt), page);
         }
         return nav;
@@ -1366,6 +1374,12 @@ public sealed class EditorForm : Form
     // "Salvar e enviar ao servidor": grava tudo sem perguntar e leva para o servidor local (aba Servidor mostra o andamento)
     private ServerView? _serverView;
     private TabPage? _tabServer, _tabCheck;
+    private TabControl? _serverPages;
+    private void ShowCheck()
+    {
+        if (_tabs is not null && _tabServer is not null) _tabs.SelectedTab = _tabServer;
+        if (_serverPages is not null && _tabCheck is not null) _serverPages.SelectedTab = _tabCheck;
+    }
     private void SaveAndSend()
     {
         if (_gshop?.ServerProblems() is { Count: > 0 } bad)
@@ -2673,6 +2687,7 @@ public sealed class EditorForm : Form
     {
         var k = key.ToLowerInvariant();
         var kind = FieldKinds.Of(key);
+        if (k.StartsWith("money")) return "Economia";   // moedas do monstro não são item de queda (teste 18)
         if (k.Contains("drop") || (kind == FieldKind.ItemRef && k.Contains("matter") && !k.Contains("material"))) return "Queda";
         if (kind == FieldKind.SkillRef || (k.Contains("skill") && k != "skillpoint")) return "Habilidades";
         if (kind == FieldKind.File) return "Modelo";

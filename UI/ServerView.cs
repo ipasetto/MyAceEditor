@@ -30,6 +30,9 @@ public sealed class ServerView : UserControl
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<string?>? AiPolicyPath { get; set; }
 
+    /// <summary>Botão Verificar e corrigir: a janela principal abre a Verificação nesta mesma tela.</summary>
+    public event Action? VerifyRequested;
+
     public ServerView(Color bg, Color fg, Color accent, Func<string> client, Func<string> serverHome, Func<string, string?> load, Action<string, string> save)
     {
         _client = client; _serverHome = serverHome; _load = load; _save = save;
@@ -46,6 +49,7 @@ public sealed class ServerView : UserControl
         Cmd(rb, UiKit.Game, "srv.rGm", "Painel do GM", OpenGmPanel, "srv.rGmTip", "Comandos de GM no jogo aberto (programa à parte).");
         UiKit.Sep(rb);
         Cmd(rb, UiKit.Download, "srv.rInstall", "Instalar", Install, "srv.rInstallTip", "Instala ou completa o servidor local no Linux do Windows (WSL). Só precisa uma vez.");
+        Cmd(rb, UiKit.CheckList, "srv.rVerify", "Verificar e corrigir", () => VerifyRequested?.Invoke(), "srv.rVerifyTip", "Confere se cliente e servidor combinam e mostra o que corrigir");
         _setupBtn = Cmd(rb, UiKit.Settings, "srv.rSetup", "Pastas", () => Configure(), "srv.rSetupTip", "Servidor e pastas: pacote, pasta, disco e memória do servidor desta versão.");
 
 

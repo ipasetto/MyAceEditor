@@ -5106,5 +5106,8 @@
   "xd.itemSum": "{0}: item chances must add up to 100%.",
   "xd.countSum": "{0}: quantity chances must add up to 100%.",
   "xd.badMonster": "{0}: monster {1} does not exist in elements.data.",
-  "xd.badItem": "{0}: item {1} does not exist in elements.data."
+  "xd.badItem": "{0}: item {1} does not exist in elements.data.",
+  "tb.rServerTip": "Test server: start, send files, folders, verify and fix",
+  "srv.rVerify": "Verify and fix",
+  "srv.rVerifyTip": "Checks that client and server match and shows what to fix"
 }

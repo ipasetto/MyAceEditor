@@ -36,7 +36,7 @@ public static class FieldLabels
         ["faction"] = "Facção", ["monster_faction"] = "Facção de monstro", ["size"] = "Tamanho", ["damage_delay"] = "Atraso do dano",
         ["id_strategy"] = "Tipo de combate", ["role_in_war"] = "Papel na guerra", ["show_level"] = "Força exibida (3 = muito forte)",
         ["id_pet_egg_captured"] = "Ovo de pet ao capturar", ["life"] = "HP", ["defence"] = "Defesa física",
-        ["exp"] = "EXP", ["skillpoint"] = "SP", ["money_average"] = "Dinheiro (média)", ["money_var"] = "Dinheiro (variação)",
+        ["exp"] = "EXP", ["skillpoint"] = "SP", ["money_average"] = "Moedas ao morrer (média)", ["money_var"] = "Moedas ao morrer (varia ± em torno da média)",
         ["short_range_mode"] = "Modo de alcance", ["sight_range"] = "Alcance de visão", ["attack"] = "Precisão", ["armor"] = "Esquiva",
         ["damage_min"] = "Dano físico (mín)", ["damage_max"] = "Dano físico (máx)",
         ["magic_damage_min"] = "Dano mágico (mín)", ["magic_damage_max"] = "Dano mágico (máx)",

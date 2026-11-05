@@ -5108,5 +5108,8 @@
   "xd.itemSum": "{0}：物品概率总和必须为 100%。",
   "xd.countSum": "{0}：数量概率总和必须为 100%。",
   "xd.badMonster": "{0}：elements.data 中没有怪物 {1}。",
-  "xd.badItem": "{0}：elements.data 中没有物品 {1}。"
+  "xd.badItem": "{0}：elements.data 中没有物品 {1}。",
+  "tb.rServerTip": "测试服务器：启动、发送文件、文件夹、验证和修复",
+  "srv.rVerify": "验证和修复",
+  "srv.rVerifyTip": "检查客户端与服务器是否匹配并显示需修复内容"
 }
