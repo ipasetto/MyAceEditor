@@ -94,7 +94,7 @@ internal sealed class WorldMusic : IDisposable
     public void Update(float x, float z, bool night)
     {
         if (_muted || _paused || _file is null) return;
-        var area = _file.At(x, z);
+        var area = _file.At(x, z, _file.MainInstance);
         if (!ReferenceEquals(area, _area))
         {
             bool sameList = area is not null && _area is not null && area.Music.SequenceEqual(_area.Music);

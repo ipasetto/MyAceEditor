@@ -305,7 +305,7 @@ internal sealed partial class WorldView
         return _tpPrecinct?.Areas.Select(a => a.Domain).Where(d => d > 0).ToHashSet() ?? [];
     }
 
-    int DomainAt(float x, float z) => (_tpPrecinct?.At(x, z)?.Domain ?? 0) is > 0 and var d ? d : -1;
+    int DomainAt(float x, float z) => (_tpPrecinct is { } p ? p.At(x, z, p.MainInstance)?.Domain ?? 0 : 0) is > 0 and var d ? d : -1;
 
     static string DomainText(int d) => d > 0 ? string.Format(Loc.T("tp.domain", "território {0}"), d) : Loc.T("tp.noDomain", "fora de território");
 

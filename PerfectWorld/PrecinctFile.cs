@@ -10,8 +10,25 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public sealed class PrecinctFile
 {
+    /// <summary>Lugar da lista do minimapa enquanto o jogador está na zona.</summary>
+    public sealed record Mark(string Name, float X, float Y, float Z);
+
     public sealed record Area(string Name, int Priority, int Interval, int Loop, string Sound, string NightSound, List<string> Music, List<(float X, float Z)> Points, int Domain = 0)
     {
+        /// <summary>Só o cliente lê. O nome e a música trocam quando o ID muda; ID 0 não mostra nome; o mesmo ID em várias áreas forma uma zona em partes.</summary>
+        public int Id { get; init; }
+        /// <summary>Instância para onde vai quem morre ou volta à cidade.</summary>
+        public int DstInstance { get; init; }
+        /// <summary>Instância em que a área vale.</summary>
+        public int SrcInstance { get; init; }
+        /// <summary>Até o nível 29, sem nome rosa ou vermelho, ninguém ataca (PVP_PROTECT_LEVEL).</summary>
+        public bool PkProtected { get; init; }
+        /// <summary>Onde renasce quem morre aqui.</summary>
+        public (float X, float Y, float Z) City { get; init; }
+        /// <summary>Altura de cada canto; o jogo não usa, mas o arquivo guarda.</summary>
+        public List<float> PointY { get; init; } = [];
+        public List<Mark> Marks { get; init; } = [];
+
         /// <summary>Ponto dentro do polígono da área (CELPrecinct::IsPointIn), em x e z do jogo.</summary>
         public bool Contains(float x, float z)
         {
@@ -26,20 +43,35 @@ public sealed class PrecinctFile
     }
 
     public List<Area> Areas { get; } = [];
+    public int Version { get; private set; } = 7;
+    /// <summary>Carimbo: tem de ser igual ao do precinct.sev, senão o jogador vê erro de dados ao entrar (CheckOutInst).</summary>
+    public uint Stamp { get; set; }
 
-    /// <summary>Área de maior prioridade no ponto; null fora de todas.</summary>
-    public Area? At(float x, float z)
+    /// <summary>Instância com mais áreas: a do mapa, para quem não sabe qual é (alguns mapas guardam áreas de outra origem).</summary>
+    public int MainInstance => Areas.GroupBy(a => a.SrcInstance).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).FirstOrDefault()?.Key ?? 1;
+
+    /// <summary>
+    /// A zona em que o jogador está (CELPrecinctSet::IsPointIn): só valem as áreas da instância, o menor número de prioridade
+    /// ganha e, no empate, a que vem depois no arquivo. Null fora de todas.
+    /// </summary>
+    public Area? At(float x, float z, int instance)
     {
         Area? best = null;
         foreach (var a in Areas)
-            if ((best is null || a.Priority > best.Priority) && a.Contains(x, z)) best = a;
+            if (a.SrcInstance == instance && (best is null || a.Priority <= best.Priority) && a.Contains(x, z)) best = a;
         return best;
     }
 
     public static PrecinctFile? Read(string path)
     {
         if (!File.Exists(path)) return null;
-        var b = File.ReadAllBytes(path);
+        try { return Parse(File.ReadAllBytes(path)); }
+        catch (InvalidDataException ex) { AppLog.Info("precinct.clt: " + ex.Message); return null; }
+    }
+
+    /// <summary>Lê o arquivo inteiro. Lança InvalidDataException se não for um precinct.clt legível.</summary>
+    public static PrecinctFile Parse(byte[] b)
+    {
         var text = b.Length >= 2 && b[0] == 0xFF && b[1] == 0xFE ? Encoding.Unicode.GetString(b, 2, b.Length - 2) : Encoding.UTF8.GetString(b);
         var t = Tokens(text);
         int p = 0;
@@ -49,33 +81,71 @@ public sealed class PrecinctFile
         var f = new PrecinctFile();
         try
         {
-            if (Next() != "version") return null;
-            int v = I();
-            Next();   // carimbo
+            if (Next() != "version") throw new InvalidDataException("sem a linha version");
+            int v = f.Version = I();
+            f.Stamp = uint.Parse(Next(), CultureInfo.InvariantCulture);
             while (p < t.Count)
             {
                 var name = Next();
-                int points, marks;
-                if (v >= 2) { I(); }
-                points = I(); marks = I();
-                int prio = I(); I();
+                int id = v >= 2 ? I() : 0;
+                int points = I(), marks = I();
+                int prio = I(), dst = I();
                 int music = I(), interval = I(), loop = I();
-                if (v >= 4) I();
+                int src = v >= 4 ? I() : 0;
                 int domain = v >= 6 ? I() : 0;
-                if (v >= 7) I();
-                F(); F(); F();
+                bool pk = v >= 7 && I() != 0;
+                var city = (F(), F(), F());
                 var poly = new List<(float, float)>(points);
-                for (int i = 0; i < points; i++) { float x = F(); F(); poly.Add((x, F())); }
-                for (int i = 0; i < marks; i++) { Next(); F(); F(); F(); }
+                var heights = new List<float>(points);
+                for (int i = 0; i < points; i++) { float x = F(); heights.Add(F()); poly.Add((x, F())); }
+                var places = new List<Mark>(marks);
+                for (int i = 0; i < marks; i++) places.Add(new Mark(Next(), F(), F(), F()));
                 var sound = Next();
                 var list = new List<string>(music);
                 for (int i = 0; i < music; i++) list.Add(Next());
                 var night = v >= 3 ? Next() : sound;
-                f.Areas.Add(new Area(name, prio, interval, loop, sound, night, list, poly, domain));
+                f.Areas.Add(new Area(name, prio, interval, loop, sound, night, list, poly, domain)
+                    { Id = id, DstInstance = dst, SrcInstance = src, PkProtected = pk, City = city, PointY = heights, Marks = places });
             }
         }
-        catch (Exception ex) when (ex is FormatException or InvalidDataException) { AppLog.Info("precinct.clt: " + ex.Message); }
+        catch (Exception ex) when (ex is FormatException or OverflowException) { throw new InvalidDataException("número inválido no precinct.clt", ex); }
         return f;
+    }
+
+    const string Header = "//  Element pricinct file (client version)\n\n";
+
+    /// <summary>
+    /// Como o %f do editor oficial: 6 casas, com o empate exato para longe do zero (287.8203125 vira 287.820313; o F6 do .NET dá ...312).
+    /// O sinal fica mesmo quando arredonda para zero.
+    /// </summary>
+    internal static string Num(float v)
+    {
+        if (Math.Abs(v) >= 1e9f || float.IsNaN(v)) return ((double)v).ToString("F6", CultureInfo.InvariantCulture);
+        var exact = decimal.Parse(Math.Abs((double)v).ToString("F20", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        var text = Math.Round(exact, 6, MidpointRounding.AwayFromZero).ToString("F6", CultureInfo.InvariantCulture);
+        return float.IsNegative(v) ? "-" + text : text;
+    }
+
+    /// <summary>O arquivo inteiro no formato oficial: a regravação é igual byte a byte nos 71 mapas do 155. Só versão 7.</summary>
+    public byte[] Render()
+    {
+        if (Version != 7) throw new InvalidOperationException($"precinct.clt versão {Version}");
+        static string Text(string s) => s.IndexOfAny(['"', '\n', '\r']) < 0 ? "\"" + s + "\"" : throw new ArgumentException("texto com aspas ou quebra de linha: " + s);
+        var o = new StringBuilder(Header).Append("version  7\n").Append(Stamp.ToString(CultureInfo.InvariantCulture)).Append("\n\n");
+        foreach (var a in Areas)
+        {
+            o.Append(Text(a.Name)).Append('\n');
+            o.Append(FormattableString.Invariant($"{a.Id}  {a.Points.Count}  {a.Marks.Count}  {a.Priority}  {a.DstInstance}  {a.Music.Count}  {a.Interval}  {a.Loop}  {a.SrcInstance}  {a.Domain}  {(a.PkProtected ? 1 : 0)}\n"));
+            o.Append($"{Num(a.City.X)}, {Num(a.City.Y)}, {Num(a.City.Z)}\n");
+            for (int i = 0; i < a.Points.Count; i++) o.Append($"{Num(a.Points[i].X)}  {Num(i < a.PointY.Count ? a.PointY[i] : 0)}  {Num(a.Points[i].Z)}\n");
+            o.Append('\n');
+            foreach (var m in a.Marks) o.Append($"{Text(m.Name)}  {Num(m.X)}  {Num(m.Y)}  {Num(m.Z)}\n");
+            o.Append('\n');
+            o.Append(Text(a.Sound)).Append('\n');
+            foreach (var s in a.Music) o.Append(Text(s)).Append('\n');
+            o.Append(Text(a.NightSound)).Append("\n\n");
+        }
+        return [0xFF, 0xFE, .. Encoding.Unicode.GetBytes(o.ToString())];
     }
 
     /// <summary>

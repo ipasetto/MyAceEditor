@@ -371,12 +371,13 @@ internal static class Program
             return;
         }
         if (args.Length >= 2 && args[0] == "--wq-shot") { MyAceEditor.UI.QuestShotTest.Run(args[1], args.Length >= 3 ? int.Parse(args[2]) : 0); return; }   // <png>: painel e editor de quest do 3D com dados de exemplo
+        if (args.Length >= 4 && args[0] == "--zone-test") { ZoneSelfTest.Run(args[1], args[2], args[3]); return; }   // <maps> <config> <saída>: editor de zonas sem janela
         if (args.Length >= 3 && args[0] == "--quest-preview-shot")   // <png> <pasta element>: janela de quests do jogo com dados de exemplo
         {
             using var w = new Form { Width = 620, Height = 480, StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
             var pv = MyAceEditor.UI.QuestPreview.Create(args[2]);
             if (pv is null) { File.WriteAllText("quest-preview.txt", "sem janela"); return; }
-            pv.Set(new("Carta para o ferreiro", "Leve a carta do guarda até o ferreiro da vila.", "Falar com Guarda Li", new MyAceEditor.UI.QuestPreview.Step[] { new("Falar com o guarda", "", "Falar com Guarda Li"), new("Entregar a carta", "", "Falar com Ferreiro Wang") }, 0, 0, 0, Array.Empty<System.Drawing.Image?>()));
+            pv.Set(new("Carta para o ferreiro", "Leve a carta do guarda até o ferreiro da vila.", "Falar com Guarda Li", new MyAceEditor.UI.QuestPreview.Step[] { new("Falar com o guarda", "", "Falar com Guarda Li"), new("Entregar a carta", "", "Falar com Ferreiro Wang") }, 5000, 1200, 0, Array.Empty<System.Drawing.Image?>()));
             w.Controls.Add(pv); w.Show();
             var stop = DateTime.Now.AddSeconds(2);
             while (DateTime.Now < stop) { Application.DoEvents(); Thread.Sleep(30); }
@@ -511,7 +512,7 @@ internal static class Program
             int same = 0, diff = 0;
             foreach (var w in t.Client.Where(x => x.Tag == 1 && x.Id != p.Id))
             {
-                int d = prec?.At(w.X, w.Z)?.Domain ?? 0;
+                int d = prec?.At(w.X, w.Z, prec.MainInstance)?.Domain ?? 0;
                 if ((d > 0 ? d : -1) == w.Domain) same++; else { diff++; if (diff <= 12) o.Add($"  dominio difere: {w.Id} {w.Name}: arquivo {w.Domain}, precinct {d}"); }
             }
             o.Add($"dominio pelo precinct, mapa 1: {same} iguais, {diff} diferentes; areas com dominio {prec?.Areas.Count(a => a.Domain > 0)} de {prec?.Areas.Count}");
@@ -1291,7 +1292,7 @@ internal static class Program
                 }
             var p = PrecinctFile.Read(Path.Combine(args[1], "maps", "world", "precinct.clt"));
             sb.AppendLine($"precinct.clt: {p?.Areas.Count} áreas, com música {p?.Areas.Count(a => a.Music.Count > 0)}");
-            var at = p?.At(1050, 960);
+            var at = p?.At(1050, 960, p.MainInstance);
             sb.AppendLine($"em 1050,960: {at?.Name} música {string.Join(",", at?.Music ?? [])} som {at?.Sound} noite {at?.NightSound} intervalo {at?.Interval}");
             int found = 0, missing = 0; string? sample = null;
             foreach (var f in p?.Areas.SelectMany(a => a.Music).Distinct() ?? [])
@@ -1322,7 +1323,7 @@ internal static class Program
         {
             // outro processo: sem a pasta do servidor do editor, o LocalServer padrão não acha a distro e os plugins vinham vazios
             if (args.Length >= 3 && args[0] == "--gm" && args[2].Length > 0) LocalServer.Current = new LocalServer(args[2]);
-            Application.Run(new GmPanel(args.Length >= 2 && args[0] == "--gm" ? args[1] : null));
+            Application.Run(new GmPanel(args.Length >= 2 && args[0] == "--gm" && args[1].Length > 0 ? args[1] : null));
             return;
         }
         Application.Run(new EditorForm(args.Length == 1 && File.Exists(args[0]) ? Path.GetFullPath(args[0]) : null));
