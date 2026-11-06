@@ -555,6 +555,13 @@ internal static class Program
             MyAceEditor.UI.DomainEditorWindow.Shot(args[1], args[4]);
             return;
         }
+        if (args.Length >= 4 && args[0] == "--teleport-check")   // <elements.data> <world_targets.sev> <saída>: destinos e pontos dos NPCs contra o servidor
+        {
+            var mod = CfgCatalog.Load(args[1]).Module;
+            var bad = ItemRules.CheckTeleports(mod, WorldTargets.ReadServer(File.ReadAllBytes(args[2])).Select(t => t.Id).ToHashSet());
+            File.WriteAllLines(args[3], bad.GroupBy(p => p.Rule).Select(g => $"{g.Key}: {g.Count()}").Concat(bad.Take(30).Select(p => p.ToString())));
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--atlas-test")   // <tasks.data> <saída>: põe e tira um ponto do Atlas Geográfico na memória e relê
         {
             var o = new List<string>();

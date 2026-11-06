@@ -25,6 +25,30 @@ public static class ItemRules
     // generate_weapon: "estes tipos não têm animação, não são gerados"
     static readonly HashSet<string> WeaponNoAnim = new() { "300", "293", "76", "291" };
 
+    /// <summary>
+    /// Pontos de teleporte contra o world_targets.sev: destino que o servidor não tem vira (0, 0, 0) no gs, e NPC com id_to_discover
+    /// sem o bit 0x08 de combined_services não descobre nada. Precisa da pasta do servidor, por isso fica fora de Check.
+    /// </summary>
+    public static List<Problem> CheckTeleports(Module m, IReadOnlySet<int> server)
+    {
+        var list = new List<Problem>();
+        static string N(Item i) => TasksFile.SplitColor(i.Name).Text;
+        if (m.FindListByName("NPC_ESSENCE") is not { } npcs) return list;
+        var transmit = new Dictionary<string, Item>();
+        foreach (var s in m.FindListByName("NPC_TRANSMIT_SERVICE")?.Items ?? []) transmit.TryAdd(s.Id, s);
+        foreach (var npc in npcs.Items)
+        {
+            if (F(npc, "id_transmit_service") is { } ts && ts != "0" && transmit.TryGetValue(ts, out var svc))
+                foreach (var stop in NpcBuilder.StopsOf(svc).Where(s => s.Point > 0 && !server.Contains(s.Point)))
+                    list.Add(new("npc-target", npcs.Name, npc.Id, N(npc), string.Format(UI.Loc.T("rule.npcTarget", "o destino {0} não existe no world_targets.sev: o gs leva para (0, 0, 0)"), stop.Point)));
+            if (!int.TryParse(F(npc, "id_to_discover"), out var point) || point <= 0) continue;
+            if (!server.Contains(point)) list.Add(new("npc-discover", npcs.Name, npc.Id, N(npc), string.Format(UI.Loc.T("rule.npcDiscoverPoint", "descobre o ponto {0}, que não existe no world_targets.sev"), point)));
+            if (long.TryParse(F(npc, "combined_services"), out var mask) && (mask & NpcBuilder.DiscoverBit) == 0)
+                list.Add(new("npc-discover-bit", npcs.Name, npc.Id, N(npc), string.Format(UI.Loc.T("rule.npcDiscoverBit", "tem o ponto {0}, mas o serviço de descobrir está desligado: falar com ele não descobre nada"), point)));
+        }
+        return list;
+    }
+
     /// <param name="cashLimit">false = versão cujo gs aceita item de loja acima de 65534 (o arquivo original já tem).</param>
     public static List<Problem> Check(Module m, bool cashLimit = true)
     {

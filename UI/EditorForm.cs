@@ -1481,6 +1481,21 @@ public sealed class EditorForm : Form
         return true;
     }
 
+    /// <summary>
+    /// Confere os pontos dos NPCs com o world_targets.sev antes de salvar. Pergunta em vez de barrar: o par do cliente e do servidor
+    /// pode já vir diferente de fábrica, e os NPCs do jogo não são culpa da edição. Sem a pasta do servidor não há o que conferir.
+    /// </summary>
+    private bool TeleportRulesOk(Module m)
+    {
+        if (_npcgen.ConfigDir is not { } dir || Path.Combine(dir, "world_targets.sev") is var sev && !File.Exists(sev)) return true;
+        List<ItemRules.Problem> bad;
+        try { bad = ItemRules.CheckTeleports(m, WorldTargets.ReadServer(File.ReadAllBytes(sev)).Select(t => t.Id).ToHashSet()); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("world_targets.sev", ex); return true; }
+        if (bad.Count == 0) return true;
+        return MessageBox.Show(this, Loc.T("save.teleports", "Estes NPCs têm teleporte com problema no jogo:") + "\n\n" + string.Join("\n", bad.Take(12).Select(p => "• " + p)) + (bad.Count > 12 ? $"\n… +{bad.Count - 12}" : "")
+            + "\n\n" + Loc.T("save.teleportsAsk", "Salvar mesmo assim?"), Loc.T("save.teleportsTitle", "Teleportes"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
+    }
+
     private bool SaveElementsCore(string target)
     {
         if (_store.Current?.Source is not ElementsLayout) return false;
@@ -1493,6 +1508,7 @@ public sealed class EditorForm : Form
             return false;
         }
         if (QuestRulesBlock()) return false;
+        if (!TeleportRulesOk(_store.Current)) return false;
         try
         {
             UseWaitCursor = true;

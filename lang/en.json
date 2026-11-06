@@ -5418,5 +5418,11 @@
   "dm.title": "Territories",
   "dm.type": "Class",
   "tools.domains": "Territories",
-  "tools.domainsSub": "Clan war areas: draw, create and delete on the map."
+  "tools.domainsSub": "Clan war areas: draw, create and delete on the map.",
+  "rule.npcTarget": "destination {0} is not in world_targets.sev: the gs takes players to (0, 0, 0)",
+  "rule.npcDiscoverPoint": "discovers point {0}, which is not in world_targets.sev",
+  "rule.npcDiscoverBit": "has point {0}, but the discover service is off: talking to it discovers nothing",
+  "save.teleports": "These NPCs have a teleport problem in the game:",
+  "save.teleportsAsk": "Save anyway?",
+  "save.teleportsTitle": "Teleports"
 }

@@ -5418,5 +5418,11 @@
   "dm.title": "Территории",
   "dm.type": "Класс",
   "tools.domains": "Территории",
-  "tools.domainsSub": "Области войны кланов: рисовать, создавать и удалять на карте."
+  "tools.domainsSub": "Области войны кланов: рисовать, создавать и удалять на карте.",
+  "rule.npcTarget": "пункта {0} нет в world_targets.sev: gs отправит в (0, 0, 0)",
+  "rule.npcDiscoverPoint": "открывает точку {0}, которой нет в world_targets.sev",
+  "rule.npcDiscoverBit": "имеет точку {0}, но сервис открытия выключен: разговор ничего не открывает",
+  "save.teleports": "У этих NPC проблема с телепортом в игре:",
+  "save.teleportsAsk": "Сохранить всё равно?",
+  "save.teleportsTitle": "Телепорты"
 }

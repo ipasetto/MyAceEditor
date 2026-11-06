@@ -5420,5 +5420,11 @@
   "dm.title": "领土",
   "dm.type": "等级",
   "tools.domains": "领土",
-  "tools.domainsSub": "帮派战争区域:在地图上绘制、创建和删除。"
+  "tools.domainsSub": "帮派战争区域:在地图上绘制、创建和删除。",
+  "rule.npcTarget": "目的地 {0} 不在 world_targets.sev 中:gs 会传送到 (0, 0, 0)",
+  "rule.npcDiscoverPoint": "发现传送点 {0},但它不在 world_targets.sev 中",
+  "rule.npcDiscoverBit": "有传送点 {0},但发现服务已关闭:对话不会发现任何内容",
+  "save.teleports": "这些 NPC 在游戏中的传送有问题:",
+  "save.teleportsAsk": "仍要保存吗?",
+  "save.teleportsTitle": "传送"
 }

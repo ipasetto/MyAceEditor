@@ -55,6 +55,8 @@ internal sealed class NpcGenView : UserControl
     readonly Dictionary<string, NpcGenFile> _files = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> _dirty = new(StringComparer.OrdinalIgnoreCase);
     string? _configDir, _cur;
+    /// <summary>Pasta config do servidor aberto; null até abrir.</summary>
+    public string? ConfigDir => _configDir;
     Kind _kind = Kind.Monster;
     List<int> _rows = new();          // índices em Spawns (monstros/NPCs) ou Resources (coleta)
     bool _binding;
