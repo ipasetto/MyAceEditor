@@ -87,3 +87,8 @@
 - `debug_command_mode = active` foi retirado do instalador e do servidor 144: vale para o servidor inteiro e deixa qualquer jogador usar comandos `d N`. Não ligar de novo.
 - O GM vai ser usado também por pessoas contratadas, em outro PC.
 - Direção: fazer tudo por um plugin no servidor (conta conferida na tabela `auth`), com janela própria do GM. Proposta aguardando confirmação do usuário.
+
+## Opções para o GM no 1.5.5 (05/11/2026, aguardando decisão)
+- A. Painel melhorado: barra flutuante presa à janela do jogo, atalhos globais, teleporte por lista de mapas e locais salvos, ações por personagem (correio, punir) sem console, histórico. Sem mexer no cliente; continua digitando no console para o que só o gs faz.
+- B. Biblioteca no cliente: DLL carregada só pelo lançador do GM; manda os comandos direto, sem teclas, lê o estado do jogo e pode desenhar janela dentro do jogo. Depende de achar as funções no exe 155 (sem símbolos) e de conferir o logiccheck.dll e o gacd.
+- O gs 162-155 aceita d N só de GM. Teleporte entre mapas: d 8888 tag x z 0.

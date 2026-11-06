@@ -4,6 +4,8 @@ Cada linha é uma ferramenta do MyAceEditor e cada coluna uma versão do Perfect
 (PW-KB §S33). Só entra **OK** o que foi testado de verdade (teste de linha de comando ou uso no jogo); o resto fica
 **?** até alguém testar. Regra do projeto: mexeu numa versão, reconfere as outras e atualiza esta tabela.
 
+**Foco desde 05/11/2026: só o 1.5.5.** As outras colunas ficam como estão; não são mais reconferidas.
+
 **Legenda:** ✅ OK (regrava idêntico / funciona) · 👁 só leitura · ❌ não funciona (motivo nas notas) · ? não testado · — não existe nessa versão
 
 **Versões (arquivos usados nos testes):**

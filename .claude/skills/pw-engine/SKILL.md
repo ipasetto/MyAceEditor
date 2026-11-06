@@ -10,6 +10,8 @@ description: Arquitetura do Perfect World (client+server, protocolo, formatos), 
 > 2. No fim da resposta, listar de forma clara **o que falta**: do trabalho atual + os itens abertos do `docs/AFAZERES.md`.
 > 3. Seguir o limite de tokens pedido; perto de ~100k, parar e pedir permissao para continuar.
 
+> FOCO DO USUARIO (05/11): so a versao 1.5.5. Outras versoes: o que rodar, rodou; nao reconferir. Vale sobre a regra de compatibilidade do §5.
+
 **Regra do usuario: consultar esta skill antes de mexer em qualquer coisa de PW.** Ela nao e para ler inteira: e um
 indice. Cada camada abaixo diz onde dar o Grep. Custo alvo: 1-3 Greps pequenos por pergunta.
 

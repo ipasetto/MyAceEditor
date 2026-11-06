@@ -4,6 +4,12 @@
 # PARIDADE: checklist completo das funcoes do Rody em docs/PARIDADE-RODY.md (ver antes de escolher a proxima tarefa)
 # META: app fazer 100% do Rody's Angelica Editor, codigo nosso, interface parecida (§E8)
 
+## FOCO DESDE 05/11/2026: SO A VERSAO 1.5.5 (decisao do usuario)
+Outras versoes: o que rodar, rodou; nao testar nem corrigir. Futuro: ferramenta de portabilidade (155 parecendo versao antiga).
+Prioridade agora: (1) decidir GM A ou B; (2) novo layout/testes do Mundo 3D no 155; (3) erros abertos do Testes.txt; (4) estudar portabilidade (combinado para 06/11).
+Itens 144, 1.3.6, 1.7.x, 1.8 abaixo ficam PARADOS.
+Novo: mapas da guerra territorial nao sao traduzidos ao traduzir com outro cliente (nota do usuario em Estudo PW).
+
 ## FASE 1 — base
 [x] elements.data leitura ~98,6% (§E3)            [ ] cauda Territory War ~1,4% (§Q1)
 [x] elements.data gravacao byte-identica (§E3)    [x] .pck/.pkx nativo + icones (§E4)
