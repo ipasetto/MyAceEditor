@@ -5141,5 +5141,19 @@
   "svc.pick": "选择现有服务…",
   "svc.new": "仅为此 NPC 创建新服务",
   "svc.noBlock": "此 elements.data 没有区块 {0}。",
-  "svc.created": "服务 {0} 已创建并关联到此 NPC。请填写右侧字段。"
+  "svc.created": "服务 {0} 已创建并关联到此 NPC。请填写右侧字段。",
+  "path.whoTitle": "谁走这条路径?",
+  "path.whoBody": "这个刷怪点有 {0} 个生物,共 {1} 种。该点的路径对它们全部生效。",
+  "path.whoOne": "只为这条路径创建 1 个生物",
+  "path.whoOneTip": "推荐:新建一个只有 1 个生物的点,原来的组不变。",
+  "path.whoAll": "全部 {0} 个都走这条路径",
+  "path.whoBack": "返回绘制",
+  "path.createdOne": "路径 {0} 已创建,共 {1} 个节点,位于只有 1 个生物的新点上(Ctrl+Z 撤销)。请保存 NPCGen 和路径并发送到服务器。",
+  "path.fixDead": "释放 {0} 条已删除路径上的点",
+  "path.fixDeadTip": "这些点引用了 path.sev 中不存在的路径,它们会回到自己的区域内活动。",
+  "path.fixedDead": "已释放这些点:它们重新在自己的区域内活动(Ctrl+Z 撤销)。请保存 NPCGen 并发送到服务器。",
+  "is.favorites": "收藏 ({0})",
+  "is.recent": "最近 ({0})",
+  "is.noFav": "没有收藏:请在 elements 编辑器中标记(右键 > 收藏)",
+  "is.noRecent": "你打开或选择过的物品会显示在这里"
 }

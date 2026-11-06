@@ -113,7 +113,7 @@ internal sealed class WorldQuestEditor : Panel
         _sub.Text = _d.Giver > 0 && _host.NameOf(_d.Giver) is { } gn ? string.Format(Loc.T("qe.givenBy2", "dada por {0}"), gn) : "";
         Show(0);
         // validação contínua: Concluir só ativo quando não falta nada (a quest criada tem que funcionar no jogo)
-        _check.Tick += (_, _) => { if (Visible && !IsDisposed) CheckNow(); };
+        _check.Tick += (_, _) => { if (Visible && !IsDisposed && !UiKit.TypingNumber(this)) CheckNow(); };   // ler .Value durante a digitação joga o cursor para o início
         _boxes.UnionWith([_stepBox, _nameBox, _talkBox, _reachBox, _killBox, _itemsBox, _waitBox]);
         foreach (var pg in _pages) if (pg.Item1 is FlowLayoutPanel page) Cardify(page);
         foreach (var b in _boxes) Cardify(b);
@@ -142,8 +142,9 @@ internal sealed class WorldQuestEditor : Panel
     // todo campo de item passa por aqui: a janela escolhe o item e a quantidade, o resto vai pelo "adicionar" de cada lista
     void PickItem(NumericUpDown id, NumericUpDown? qty, Action add)
     {
-        using var w = new ItemSearchWindow(_host.AllItems(), _host.ItemIcon, qty is not null, _host.ItemTip);
+        using var w = new ItemSearchWindow(_host.AllItems(), _host.ItemIcon, qty is not null, _host.ItemTip, _host.FavoriteIds(), _host.RecentIds());
         if (w.ShowDialog(this) != DialogResult.OK) return;
+        _host.ItemPicked(w.Picked);
         id.Value = w.Picked;
         if (qty is not null) qty.Value = Math.Clamp(w.Quantity, (int)qty.Minimum, (int)qty.Maximum);
         add();

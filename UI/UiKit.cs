@@ -11,6 +11,14 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal static class UiKit
 {
+    /// <summary>A pessoa está digitando num campo numérico desta tela? Ler .Value nessa hora valida o texto e joga o cursor para o início.</summary>
+    public static bool TypingNumber(Control root)
+    {
+        for (Control? c = root.FindForm(); c is ContainerControl cc && cc.ActiveControl is { } a; c = a)
+            if (a is NumericUpDown) return true;
+        return false;
+    }
+
     public static readonly Color Fg = Color.FromArgb(30, 39, 51), Muted = Color.FromArgb(100, 112, 128), Accent = Color.FromArgb(37, 99, 235),
         Ok = Color.FromArgb(22, 163, 74), Bad = Color.FromArgb(220, 38, 38), Warn = Color.FromArgb(217, 119, 6), Line = Color.FromArgb(218, 224, 232);
 

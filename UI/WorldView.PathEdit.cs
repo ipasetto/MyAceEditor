@@ -24,6 +24,7 @@ internal sealed partial class WorldView
     Vector3? _drawHover;
     int _dragPt = -1, _hoverPt = -1; byte[]? _dragBefore;
     object? _pathPanelFor = new();       // ponto que o painel está mostrando
+    Button _pathFix = null!;
 
     readonly Label _pathHint = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Gainsboro, Margin = new Padding(3, 2, 3, 6) };
     readonly Label _pathName = new() { AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(3, 2, 3, 4) };
@@ -104,6 +105,11 @@ internal sealed partial class WorldView
 
     /// <summary>Maior ID de caminho citado no npcgen deste mapa.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<int>? MaxPathUsed { get; set; }
+    /// <summary>Ponto, índice da criatura, caminho e circuito: cria um ponto com 1 criatura nesse caminho.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<object, int, int, bool, bool>? SplitCreaturePath { get; set; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<IEnumerable<int>>? CitedPaths { get; set; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Action<HashSet<int>>? ClearDeadPaths { get; set; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<int, string>? CreatureName { get; set; }
     /// <summary>Motivo de o ponto não andar no jogo (NPC comum sem IA); null = anda.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<object, string?>? PatrolBlock { get; set; }
     /// <summary>No fim do caminho (npcgen iLoopType, gs patrol_agent.h): 0 para, 1 volta pelo mesmo caminho, 2 recomeça do início.</summary>
@@ -133,8 +139,10 @@ internal sealed partial class WorldView
         _pathUndo = SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny());
         _pathRedo = SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny());
         _pathSave = SmallButton("\uE74E", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true);
+        _pathFix = SmallButton("\uE7BA", "", FixDeadPaths);
+        _toolTip.SetToolTip(_pathFix, Loc.T("path.fixDeadTip", "Estes pontos citam um caminho que não existe no path.sev. Eles voltam a andar na área deles."));
         foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirHint, _flyMark, _pathDraw, _pathDone, _pathCancel,
-                     _loopBox, _pathDel, _pathState, _pathUndo, _pathRedo, _pathSave })
+                     _loopBox, _pathDel, _pathState, _pathUndo, _pathRedo, _pathSave, _pathFix })
             _pathsPage.Controls.Add(c);
         // um quadro por assunto: quem anda, como anda, o caminho, salvar
         FlowLayoutPanel? card = null;
@@ -178,6 +186,9 @@ internal sealed partial class WorldView
     {
         var s = PathSpawn;
         bool dirty = PathDirty;   // serializa o path.sev inteiro: uma vez por atualização
+        int dead = DeadPaths().Count;
+        _pathFix.Visible = dead > 0;
+        _pathFix.Text = "  " + string.Format(Loc.T("path.fixDead", "Soltar pontos de {0} caminho(s) apagado(s)"), dead);
         _pathPanelFor = s;
         bool drawing = _drawPts is not null, hasPath = SelPath is not null, patrol = PatrolMode;
         var area = s is not null && SelectedMark() is { } m ? AreaOf(m.Tag) : null;
@@ -284,9 +295,27 @@ internal sealed partial class WorldView
         if (pts.Count < 2) { _status.Text = Loc.T("path.needTwo", "Um caminho precisa de pelo menos 2 pontos."); return; }
         bool circuit = pts.Count >= 3 && new Vector2(pts[^1].X - pts[0].X, pts[^1].Z - pts[0].Z).Length < 5;
         if (circuit) pts[^1] = pts[0];   // fechou no 1º ponto: o último vira o começo
+        // um ponto pode juntar vários tipos e dezenas de criaturas: o caminho vale para todas (teste 24), então pergunta
+        int only = -1;
+        if (s.Creatures.Sum(c => Math.Max(c.Amount, 1)) > 1)
+        {
+            using var who = new PathWhoDialog(s, n => CreatureName?.Invoke(n) ?? n.ToString());
+            if (who.ShowDialog(this) != DialogResult.OK) return;   // continua desenhando
+            only = who.Only;
+        }
         int id = NextPathId();
         var np = BuildPath(id, _pathFile.Paths.FirstOrDefault()?.Version ?? 3, pts);
         _drawPts = null; _drawHover = null;
+        if (only >= 0 && SplitCreaturePath is { } split)
+        {
+            var before = _pathFile.Write();
+            _pathFile.Paths.Add(np);
+            if (!split(s, only, id, circuit)) { _pathFile.Paths.Remove(np); UpdatePathPanel(); return; }
+            _pUndo.Add(new PathStep(before, UndoDepth?.Invoke() ?? 0, true)); _pRedo.Clear();
+            RebuildPaths(); RefreshMarkers(); UpdatePathPanel(); _gl.Invalidate();
+            _status.Text = string.Format(Loc.T("path.createdOne", "Caminho {0} criado com {1} pontos num ponto novo, com 1 criatura (Ctrl+Z desfaz). Salve o NPCGen e os caminhos e envie ao servidor."), id, pts.Count);
+            return;
+        }
         // já tinha caminho: o novo toma o lugar (o antigo sai do path.sev se ninguém mais usa) — nada de 2 caminhos no mesmo monstro
         var old = SelPath;
         LinkPath(s, id, np, remove: old is not null && (PathUsers?.Invoke(old.Id) ?? 1) <= 1 ? old : null);
@@ -346,6 +375,25 @@ internal sealed partial class WorldView
     /// </summary>
     /// <summary>ID novo de caminho: acima do path.sev e também do que o npcgen já cita. Ponto que aponta para ID sem caminho
     /// passaria a andar no caminho novo (monstros "puxados" para ele, teste 24).</summary>
+    /// <summary>Caminhos citados pelo npcgen que não existem no path.sev: quem cita fica sem ter onde andar.</summary>
+    HashSet<int> DeadPaths()
+    {
+        var dead = new HashSet<int>();
+        if (_pathFile is null || CitedPaths is null) return dead;
+        var known = _pathFile.Paths.Select(p => p.Id).ToHashSet();
+        foreach (int id in CitedPaths()) if (id > 0 && !known.Contains(id)) dead.Add(id);
+        return dead;
+    }
+
+    void FixDeadPaths()
+    {
+        var dead = DeadPaths();
+        if (dead.Count == 0) return;
+        ClearDeadPaths?.Invoke(dead);
+        RefreshMarkers(); UpdatePathPanel(); _gl.Invalidate();
+        _status.Text = Loc.T("path.fixedDead", "Pontos soltos do caminho apagado: voltam a andar na área deles (Ctrl+Z desfaz). Salve o NPCGen e envie ao servidor.");
+    }
+
     int NextPathId() => Math.Max(_pathFile is { Paths.Count: > 0 } f ? f.Paths.Max(p => p.Id) : 0, MaxPathUsed?.Invoke() ?? 0) + 1;
 
     void OwnPath()

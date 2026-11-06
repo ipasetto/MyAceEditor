@@ -1,86 +1,86 @@
-a01	Dark Beast City	Dark Beast City	Город темных зверей	鬼城
-a02	Passagem Secreta	Passagem Secreta	Могильник героя	英雄冢
-a03	Pan Si Cave	Pan Si Cave	Паутинная пещера	盘丝洞
-a04	Bandit Cave	Bandit Cave	Смрадная пещера	土蝼洞穴
-a05	Toca dos Lobos	Toca dos Lobos	Пещера огненных скал	火岩洞穴
-a06	Toca dos Lobos	Toca dos Lobos	Логово бешеных волков	狂狼巢穴
-a07	Caverna do Escorpião-Serpente	Caverna do Escorpião-Serpente	Пещера ползучих гадов	蛇蝎洞
-a08	Túmulo do Herói	Túmulo do Herói	Зеленый курган	青衣冢
-a09	Residência de Hades	Residência de Hades	Темная обитель	幽冥居
-a10	Salões Congelados	Salões Congelados	Инеевый предел	履霜秘境
+a01	City of Abominations	City of Abominations	Город темных зверей	鬼城
+a02	Passagem Secreta	Secret Passage	Могильник героя	英雄冢
+a03	Silk Cave	Silk Cave	Паутинная пещера	盘丝洞
+a04	Earth Cave	Earth Cave	Смрадная пещера	土蝼洞穴
+a05	Caverna de Fogo	Firecrag Grotto	Пещера огненных скал	火岩洞穴
+a06	Toca dos Lobos	Den of Rabid Wolves	Логово бешеных волков	狂狼巢穴
+a07	Caverna do Escorpião-Serpente	Cave of the Vicious	Пещера ползучих гадов	蛇蝎洞
+a08	Túmulo do Herói	Hall of Deception	Зеленый курган	青衣冢
+a09	Residência de Hades	Gate of Delirium	Темная обитель	幽冥居
+a10	Salões Congelados	Secret Frostcover Grounds	Инеевый предел	履霜秘境
 a101			Перевал	北陆-蜃渊雪国遗址
 a102			Имп. битва	血战求生
 a103			Северные земли	完美大陆-北陆
 a106			Имп. битва	时空狩猎
 a107			Северные земли	时空狩猎
-a11	Vale do Desastre	Vale do Desastre	Долина расхитителей небес	天劫谷
-a12	Ruínas da Selva	Ruínas da Selva	Руины в джунглях	丛林遗迹
-a13	Incerteza Fantasma	Incerteza Fantasma	Предел наваждений	鬼狱幻境
-a14	Portão Desalmado	Portão Desalmado	Врата беспокойных духов	怨灵之门
-a15	Treasure Grotto	Treasure Grotto	Пещера драгоценностей	楼兰古都
-a16	Terra dos Imortais	Immortal Land	Небо иллюзий	仙幻天
-a17	Terra Demoníaca	Terra Demoníaca	Небо наваждений	魔幻天
-a18	Palácio dos Dragões	Palácio dos Dragões	Дворец царя драконов	龙宫
-a19	Ilha dos Piratas	Ilha dos Piratas	Остров ночного плача	海盗岛
-a20	Ilha da Serpente	Ilha da Serpente	Остров Тысячи Змей	万蛇岛
-a21	Sábio	Sábio	Земли небожителей	仙
-a22	Demônio	Demônio	Земли магов и демонов	魔
-a23	Purgatório Celeste	Purgatório Celeste	Чистилище	天界炼狱
-a24	Arcadia Infernal	Arcadia Infernal	Земной ад	魔域桃源
-a25	Misty City	Misty City	Город боевых песен	飘渺城
-a26	Jaula Amaldiçoada	Jaula Amaldiçoada	Зал Перерождения	神威狱
-a27	Clareira da Lua	Clareira da Lua	Долина священной луны	神月谷
-a28	Vale Primordial	Vale Primordial	Долина безбожников	神无谷
-a29	Cidade Glacial	Cidade Glacial	Город Инея	履霜城
-a31	Palácio do Crepusculo	Palácio do Crepusculo	Сумеречный храм	黄昏圣殿
-a32	Cubo do Destino	Cubo do Destino	Куб судьбы	蜂巢密室
-a33	Heaven-Tear City	Heaven-Tear City	Лабиринт времени	天怒神罚
-a34	Capela	Capela	Зал свадеб	结婚场景
-a35	Base de clã	Base de clã	База гильдии	帮派基地
-a37	[Morai]	[Morai]	Морай	蓬莱世界
-a38	Vale da Fênix	Vale da Fênix	Ущелье феникса	凤鸣谷
-a39	Universo Infinito	Universo Infinito	Пещера вечности	
-a40	Morai	Morai	Сокровищница страны фонарей	
-a41	Universo Infinito - Modo Avançado	Universo Infinito - Modo Avançado	Пещера вечности	
-a42	Ravina de Guerra	Ravina de Guerra	Долина битв	
-a43	Cinco Imperadores	Cinco Imperadores	Зал пяти императоров	
-a44	Local de Teste	Local de Teste	Захват флага	
-a45	Local de Teste	Local de Teste	Бой за кристаллы	
-a46	Local de Teste	Local de Teste	Битва на мосту	
-a47	Vale do Pôr-do-Sol	Vale do Pôr-do-Sol	Долина заката	
-a48	Palácio Fechado	Palácio Fechado	Зал наказаний	
-a49	Covil do Dragão	Covil do Dragão	Драконье убежище	
+a11	Vale do Desastre	Valley of Disaster	Долина расхитителей небес	天劫谷
+a12	Ruínas da Selva	Forest Ruins	Руины в джунглях	丛林遗迹
+a13	Incerteza Fantasma	Cave of Sadistic Glee	Предел наваждений	鬼狱幻境
+a14	Portão Desalmado	Wraithgate	Врата беспокойных духов	怨灵之门
+a15	Trincheira Apodrecida	Hallucinatory Trench	Пещера драгоценностей	楼兰古都
+a16	Terra dos Imortais	Eden	Небо иллюзий	仙幻天
+a17	Terra Demoníaca	Brimstone Pit	Небо наваждений	魔幻天
+a18	Palácio dos Dragões	Dragon Temple	Дворец царя драконов	龙宫
+a19	Ilha dos Piratas	Nightscream Island	Остров ночного плача	海盗岛
+a20	Ilha da Serpente	Snake Isle	Остров Тысячи Змей	万蛇岛
+a21	Sábio	Lothranis	Земли небожителей	仙
+a22	Demônio	Momaganon	Земли магов и демонов	魔
+a23	Purgatório Celeste	Seat of Torment	Чистилище	天界炼狱
+a24	Arcádia Infernal	Abaddon	Земной ад	魔域桃源
+a25	Brado de Batalha	Warsong City	Город боевых песен	飘渺城
+a26	Palácio do Nirvana	Palace of Nirvana	Зал Перерождения	神威狱
+a27	Clareira da Lua	Lunar Glade	Долина священной луны	神月谷
+a28	Vale Primordial	Valley of Reciprocity	Долина безбожников	神无谷
+a29	Cidade Glacial	Frostcover City	Город Инея	履霜城
+a31	Palácio do Crepúsculo	Twilight Temple	Сумеречный храм	黄昏圣殿
+a32	Cubo do Destino	Cube of Fate	Куб судьбы	蜂巢密室
+a33	Chrono City	Chrono City	Лабиринт времени	天怒神罚
+a34	Capela	Perfect Chapel	Зал свадеб	结婚场景
+a35	Base de clã	Faction Base	База гильдии	帮派基地
+a37	[Morai]	Morai	Морай	蓬莱世界
+a38	Vale da Fênix	Phoenix Valley	Ущелье феникса	凤鸣谷
+a39	Universo Infinito	Endless Universe	Пещера вечности	
+a40	Morai	Rat Lurk Pits	Сокровищница страны фонарей	
+a41	Universo Infinito - Modo Avançado	Advanced Endless Universe	Пещера вечности	
+a42	Ravina de Guerra	Wargod Gulch	Долина битв	
+a43	Cinco Imperadores	Nation Wars Base Camp	Зал пяти императоров	
+a44	Local de Teste	Nation Wars - Capture the Flag	Захват флага	
+a45	Local de Teste	Nation Wars - Bridge Battle	Бой за кристаллы	
+a46	Local de Teste	Nation Wars - Crystal Contest	Битва на мосту	
+a47	Vale do Pôr-do-Sol	Sunset Valley	Долина заката	
+a48	Palácio Fechado	Shutter Palace	Зал наказаний	
+a49	Covil do Dragão	Hidden Dragon Den	Драконье убежище	
 a49,a105			Алтарь Девы	圣女祭坛
-a50	Ilha de BOT	Ilha de BOT	Страна Грез	
-a61	Vale Celestial	Vale Celestial	Переправа душ	
-a62	Origem	Origem	Изначальный мир	
-a63	Mundo Primitivo	Mundo Primitivo	Мир людей	
-a66	Palácio do Rio de Prata	Palácio do Rio de Prata	Серебряная цитадель	
-a67	Catedral	Catedral	Храм стихий	
-a68	Modo da Coruja - Mundo Primitivo	Modo da Coruja - Mundo Primitivo	Мир людей	
-a69	Caverna das Sombras	Caverna das Sombras	Светлая пещера	
-a70	Cubo do Destino	Cubo do Destino	Мираж блуждающих песков	
-a71	Ilha dos Lordes Dragões	Ilha dos Lordes Dragões	Д. драконов	
-a72	Torre do Martírio	Torre do Martírio	Башня Будды	
-a76	O Paraíso Despedaçado	O Paraíso Despedaçado	Море иллюзий	
-a77	Arena dos Campeões	Arena dos Campeões	Арена героев	
-a78	Perfect Mainland-Avalask	Perfect Mainland-Avalask	Западные земли	
+a50	Ilha de BOT	Realm of Reflection	Страна Грез	
+a61	Vale Celestial	Celestial Vale	Переправа душ	
+a62	Origem	Origination	Изначальный мир	
+a63	Mundo Primitivo	Primal World	Мир людей	
+a66	Palácio do Rio de Prata	Flowsilver Palace	Серебряная цитадель	
+a67	Catedral	Undercurrent Hall	Храм стихий	
+a68	Modo da Coruja - Mundo Primitivo	Primal World - Story Mode	Мир людей	
+a69	Caverna das Sombras	Lightsail Cave	Светлая пещера	
+a70	Cubo do Destino	Cube of Fate - Challenge Mode	Мираж блуждающих песков	
+a71	Ilha dos Lordes Dragões	Dragon Conquest	Д. драконов	
+a72	Torre do Martírio	Heavenfall Temple	Башня Будды	
+a76	O Paraíso Despedaçado	Uncharted Paradise	Море иллюзий	
+a77	Arena dos Campeões	Tournament Champion Arenas	Арена героев	
+a78	Perfect Mainland-Avalask	Neverfall	Западные земли	
 a78,a92		Western Continent Story Mode	Нерушимый город	西陆故事模式
-a79	Snowy City	Snowy City	Снежный замок	
-a80	Moradia	Moradia	Заоблачный мир	
-a81	Homestead	Homestead	Заоблачный мир	
-a82	Homestead	Homestead	Заоблачный мир	
-a83	Homestead	Homestead	Заоблачный мир	
-a84	Perfect World	Perfect World	Виноградная долина	
-a85	Gauntlet of Nemesis	Gauntlet of Nemesis	Музей	
-a86	Dawnlight Temple	Dawnlight Temple	Дворец Рассвета	
+a79	Snowchill Ruins	Snowchill Ruins	Снежный замок	
+a80	Moradia	Homestead	Заоблачный мир	
+a81	Moradia 2	Homestead 2	Заоблачный мир	
+a82	Moradia 3	Homestead 3	Заоблачный мир	
+a83	Moradia 4	Homestead 4	Заоблачный мир	
+a84	Resource Battle	Resource Battle	Виноградная долина	
+a85	Nemesis Gauntlet	Nemesis Gauntlet	Музей	
+a86	Dawnlight Halls	Dawnlight Halls	Дворец Рассвета	
 a87	Mirage Lake	Mirage Lake	Озеро Миражей	
 a88	Rosesand Ruins	Rosesand Ruins	Пустынные руины	
-a89	Yulin Ruins	Yulin Ruins	Лесные руины	
-a90			Дворец Рассвета	
-a91		Adventure Land of Cheero	Царство приключений	奇乐冒险王国
-a93		Sercet Place	Зал Славы	秘境
-a94		Cross server-Dragon Wilderness	Поле Боя - Форпост Заката	跨服约战-龙战之野
+a89	Nightmare Woods	Nightmare Woods	Лесные руины	
+a90		Great Advisor's Sanctum	Дворец Рассвета	
+a91		Adventure Kingdom	Царство приключений	奇乐冒险王国
+a93		Crazy Tank Battle Showroom	Зал Славы	秘境
+a94		Cross Server - Dragon Wilderness	Поле Боя - Форпост Заката	跨服约战-龙战之野
 a95		Icebound Underworld	Ледяной ад	冰妄地狱
 a96		Offline Game	Арена Богов	落地赛
 a97		Twilight Temple Library	Сумеречный дворец	黄昏圣殿—重启
@@ -92,6 +92,6 @@ b03	Arena das Plumas	Arena das Plumas	Арена для состязаний	积
 b04	Arena da Cidade do Dragão	Arena da Cidade do Dragão	Арена для состязаний	祖龙城竞技场
 b30	Guerra Territorial 1	Guerra Territorial 1	Поле битвы 1	城战1
 login			Изменение внешности	登陆场景
-random03	Deserto da Miragem	Deserto da Miragem	Мираж песчаных бурь	
+random03	Deserto da Miragem	Quicksand Maze	Мираж песчаных бурь	
 random05			Гробница шепотов	呓陵魂境
 world	Perfect World	Perfect World	Идеальный Мир	完美大陆

@@ -9,6 +9,7 @@ Outras versoes: o que rodar, rodou; nao testar nem corrigir. Futuro: ferramenta 
 Prioridade agora: (1) decidir GM A ou B; (2) novo layout/testes do Mundo 3D no 155; (3) erros abertos do Testes.txt; (4) estudar portabilidade (combinado para 06/11).
 Itens 144, 1.3.6, 1.7.x, 1.8 abaixo ficam PARADOS.
 06/11: feitos no codigo, falta o usuario conferir: testes 2, 5, 8, 10, 16, 17, 19, 24, 25. Aberto: 4 (gerador em andamento: 90/96 galhos, 40/96 frondes, 6/96 tudo igual; falta variacao, flares, forks; meta 100% igual a speedtreert.dll), 28 (ferramenta nova, aguarda desenho aprovado).
+06/11 tarde: arvores 84/96 identicas a DLL. Feitos no codigo, falta o usuario conferir: 10 (piscar), 11, 16, 19, 24, 29. Dados: world ponto #7039 precisa do botao de soltar caminho apagado na ferramenta Caminhos. Aberto: 28 (aguarda desenho aprovado), frondes de 12 arvores.
 Novo: mapas da guerra territorial nao sao traduzidos ao traduzir com outro cliente (nota do usuario em Estudo PW).
 
 ## FASE 1 — base

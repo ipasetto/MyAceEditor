@@ -5139,5 +5139,19 @@
   "svc.pick": "Choose an existing service…",
   "svc.new": "Create a new service for this NPC only",
   "svc.noBlock": "This elements.data has no block {0}.",
-  "svc.created": "Service {0} created and linked to this NPC. Fill the fields on the right."
+  "svc.created": "Service {0} created and linked to this NPC. Fill the fields on the right.",
+  "path.whoTitle": "Who walks this path?",
+  "path.whoBody": "This point has {0} creatures of {1} type(s). The point's path applies to all of them.",
+  "path.whoOne": "Create 1 creature just for this path",
+  "path.whoOneTip": "Recommended: makes a new point with 1 creature. The group stays as it is.",
+  "path.whoAll": "All {0} follow the path",
+  "path.whoBack": "Back to drawing",
+  "path.createdOne": "Path {0} created with {1} points on a new point with 1 creature (Ctrl+Z undoes). Save NPCGen and the paths, then send to the server.",
+  "path.fixDead": "Release points from {0} deleted path(s)",
+  "path.fixDeadTip": "These points cite a path that is not in path.sev. They go back to walking in their area.",
+  "path.fixedDead": "Points released from the deleted path: they walk in their area again (Ctrl+Z undoes). Save NPCGen and send to the server.",
+  "is.favorites": "Favorites ({0})",
+  "is.recent": "Recent ({0})",
+  "is.noFav": "No favorites: mark them in the elements editor (right click > Favorite)",
+  "is.noRecent": "Items you open or pick show up here"
 }

@@ -62,6 +62,7 @@ public sealed class EditorForm : Form
     private readonly List<Item> _history = new();
     private int _histPos = -1;
     private bool _navigating;
+    private Item? _autoShown;   // 1ª linha selecionada sozinha ao trocar de filtro
     private readonly ToolStripStatusLabel _stTotal = new() { Spring = false }, _stBlock = new(), _stSel = new();
     private readonly ListView _links = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None, HideSelection = false };
     private readonly TabControl _detailTabs = new() { Dock = DockStyle.Fill };
@@ -607,6 +608,7 @@ public sealed class EditorForm : Form
         _list.DrawSubItem += OnDrawSubItem;
         _list.ColumnClick += (_, e) => OnColumnClick(e.Column);
         _list.SelectedIndexChanged += (_, _) => OnListSelect();
+        typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(_list, true);   // sem piscar
         _list.ItemActivate += (_, _) => { if (_current is not null && TypeMembers(_current) is not null) OpenTypeFilter(_current); };
         _list.VirtualItemsSelectionRangeChanged += (_, _) => OnListSelect();
         _list.KeyDown += (_, e) =>
@@ -1824,7 +1826,7 @@ public sealed class EditorForm : Form
         _list.EndUpdate();
         _list.Invalidate();
         if (_current is not null && _view.Contains(_current)) SelectItem(_current, focus: false);
-        else if (_view.Count > 0) { _current = _view[0]; SelectItem(_current, focus: false); ShowItem(_current); }
+        else if (_view.Count > 0) { _current = _autoShown = _view[0]; SelectItem(_current, focus: false); ShowItem(_current); }
     }
 
     private void OnRetrieveItem(object? s, RetrieveVirtualItemEventArgs e)
@@ -1840,7 +1842,7 @@ public sealed class EditorForm : Form
     // sem ícone no jogo (monstros, NPCs…): miniatura do modelo 3D, feita em segundo plano
     private ModelThumbs? _thumbs;
     private readonly List<(string Ecm, Image? Img)> _thumbBatch = new();
-    private readonly System.Windows.Forms.Timer _thumbFlush = new() { Interval = 300 };
+    private readonly System.Windows.Forms.Timer _thumbFlush = new() { Interval = 1000 };
     private bool _thumbFlushHooked;
     private string? _thumbsDir;
     private int ThumbIndexFor(Item it)
@@ -1868,7 +1870,7 @@ public sealed class EditorForm : Form
                     int k = 0;
                     foreach (var (ecm, img) in _thumbBatch) _iconIdx["ecm:" + ecm] = img is null ? -1 : first + k++;
                     _thumbBatch.Clear();
-                    _list.Refresh();
+                    _list.Invalidate();
                 };
             }
         }
@@ -2571,7 +2573,8 @@ public sealed class EditorForm : Form
         FillFindFields(item);
 
         RememberRecent(item);
-        if (!_navigating)
+        if (item != _autoShown) _autoShown = null;
+        if (!_navigating && _autoShown is null)
         {
             if (_histPos >= 0 && _histPos < _history.Count - 1) _history.RemoveRange(_histPos + 1, _history.Count - _histPos - 1);
             if (_history.Count == 0 || _history[^1] != item) { _history.Add(item); if (_history.Count > 200) _history.RemoveAt(0); }
@@ -3200,6 +3203,9 @@ public sealed class EditorForm : Form
             return lines;
         }
         public Image? ItemIcon(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? f.IconFor(h.Item) : null;
+        public IReadOnlyList<int> FavoriteIds() => f.FavoriteIds();
+        public IReadOnlyList<int> RecentIds() => f.RecentIds();
+        public void ItemPicked(int id) => f.NotePicked(id);
         public IReadOnlyList<(int Id, string Name, string Block)> AllItems()
         {
             var rows = new List<(int, string, string)>();
@@ -3745,8 +3751,18 @@ public sealed class EditorForm : Form
     private int? PickShopItem(IWin32Window owner, int current)
     {
         IQuestHost host = new QuestHostImpl(this);
-        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: host.ItemTip);
-        return w.ShowDialog(owner) == DialogResult.OK ? w.Picked : null;
+        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: host.ItemTip, favorites: FavoriteIds(), recent: RecentIds());
+        if (w.ShowDialog(owner) != DialogResult.OK) return null;
+        NotePicked(w.Picked);
+        return w.Picked;
+    }
+
+    private List<int> FavoriteIds() => _favorites.Select(k => k[(k.LastIndexOf('|') + 1)..]).Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToList();
+    private List<int> RecentIds() => _recentKeys.Select(k => int.TryParse(k.Id, out var n) ? n : 0).Where(n => n > 0).ToList();
+    private void NotePicked(int id)
+    {
+        var text = id.ToString();
+        if (_store.Current?.Lists.SelectMany(l => l.Items).FirstOrDefault(i => i.Id == text) is { } it) RememberRecent(it);
     }
 
     private int? PickCreature(IWin32Window owner)
@@ -3756,7 +3772,7 @@ public sealed class EditorForm : Form
             if (_store.Current?.FindListByName(name) is { } l)
                 foreach (var it in l.Items)
                     if (int.TryParse(it.Id, out var id)) rows.Add((id, TasksFile.SplitColor(it.Name).Text, Pretty(l.Name)));
-        using var w = new ItemSearchWindow(rows, id => CreatureItem(id) is { } c ? IconFor(c.Item) : null, askQuantity: false) { Text = Loc.T("is.titleCreature", "Escolher criatura") };
+        using var w = new ItemSearchWindow(rows, id => CreatureItem(id) is { } c ? IconFor(c.Item) : null, askQuantity: false, favorites: FavoriteIds(), recent: RecentIds()) { Text = Loc.T("is.titleCreature", "Escolher criatura") };
         return w.ShowDialog(owner) == DialogResult.OK ? w.Picked : null;
     }
 
@@ -4080,6 +4096,8 @@ public sealed class EditorForm : Form
     private void Navigate(int delta)
     {
         int np = _histPos + delta;
+        // a 1ª linha de um filtro não entra no histórico: o Voltar sai dela direto para o último item visitado
+        if (delta < 0 && _histPos >= 0 && _histPos < _history.Count && _history[_histPos] != _current) np = _histPos;
         while (np >= 0 && np < _history.Count && _history[np] == _current) np += delta;   // o próprio item aberto não conta como passo
         if (np < 0 || np >= _history.Count) return;
         _histPos = np;

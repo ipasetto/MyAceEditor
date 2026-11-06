@@ -930,6 +930,32 @@ internal sealed class NpcGenView : UserControl
         var worldFile = Cur;
         w.PathUsers = id => worldFile?.Spawns.Count(x => x.Creatures.Any(c => c.PathId == id)) ?? 0;
         w.MaxPathUsed = () => worldFile?.Spawns.SelectMany(x => x.Creatures).Select(c => c.PathId).DefaultIfEmpty(0).Max() ?? 0;
+        w.CreatureName = NameOf;
+        w.CitedPaths = () => worldFile?.Spawns.SelectMany(x => x.Creatures).Select(c => c.PathId) ?? [];
+        // ponto novo com 1 criatura: o grupo original fica intacto e o Ctrl+Z tira só o ponto novo
+        w.SplitCreaturePath = (o, at, id, circuit) =>
+        {
+            if (o is not NpcGenSpawn s || !ReferenceEquals(Cur, worldFile) || at >= s.Creatures.Count) return false;
+            SelectObject(o);
+            var c = s.Creatures[at].Clone();
+            c.Amount = 1; c.PathId = id; c.PathLoop = circuit ? 2 : 1;
+            if (c.Respawn <= 0) c.Respawn = 30;
+            var ns = s.Clone();
+            ns.Creatures.Clear(); ns.Creatures.Add(c);
+            ns.Trigger = 0; ns.Spread = new Vec3(0, 0, 0);
+            InsertPoint(worldFile!.Spawns.Count, ns);
+            return true;
+        };
+        w.ClearDeadPaths = dead =>
+        {
+            if (!ReferenceEquals(Cur, worldFile)) return;
+            foreach (var s in worldFile!.Spawns.Where(x => x.Creatures.Any(c => dead.Contains(c.PathId))).ToList())
+            {
+                SelectObject(s); Snapshot("pathdead:" + DateTime.Now.Ticks + ":" + worldFile.Spawns.IndexOf(s));
+                foreach (var c in s.Creatures.Where(c => dead.Contains(c.PathId))) { c.PathId = 0; c.PathLoop = 0; }
+                Touch(); ShowPoint();
+            }
+        };
         w.SwapCreature = o =>
         {
             if (o is not NpcGenSpawn s || s.Creatures.Count == 0 || PickCreature?.Invoke(this) is not { } id) return;

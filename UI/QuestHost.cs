@@ -34,6 +34,11 @@ internal interface IQuestHost
     string? NameOf(int id);
     /// <summary>Todos os itens do elements.data, para a janela de busca.</summary>
     IReadOnlyList<(int Id, string Name, string Block)> AllItems() => [];
+    /// <summary>Favoritos e recentes do editor de elements, para a janela de busca.</summary>
+    IReadOnlyList<int> FavoriteIds() => [];
+    IReadOnlyList<int> RecentIds() => [];
+    /// <summary>Item escolhido na janela de busca: entra nos recentes.</summary>
+    void ItemPicked(int id) { }
     /// <summary>Ícone do item, para a janela de escolher item.</summary>
     Image? ItemIcon(int id) => null;
     /// <summary>Linhas da dica do item, como na lista do editor de elements.</summary>

@@ -423,6 +423,43 @@ internal static class Program
             File.WriteAllText(args[1], sb.ToString());
             return;
         }
+        if (args.Length >= 2 && args[0] == "--path-who-shot")   // <png>: janela de quem anda no caminho, com dados de exemplo
+        {
+            var sp = new NpcGenSpawn();
+            sp.Creatures.Add(new NpcGenCreature { Id = 1698, Amount = 20 }); sp.Creatures.Add(new NpcGenCreature { Id = 1704, Amount = 20 });
+            using var d = new MyAceEditor.UI.PathWhoDialog(sp, n => "Vespa Sangrenta (" + n + ")");
+            d.Show(); Application.DoEvents();
+            using var bmp = new System.Drawing.Bitmap(d.Width, d.Height);
+            d.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, d.Width, d.Height));
+            bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
+        if (args.Length >= 5 && args[0] == "--path-near")   // <saída> <pasta do mapa> <x> <z>: caminhos perto do ponto e quem anda neles (teste 24)
+        {
+            float px = float.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture), pz = float.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
+            var paths = PathFile.Read(File.ReadAllBytes(Path.Combine(args[2], "path.sev"))).Paths;
+            var gen = NpcGenFile.Read(File.ReadAllBytes(Path.Combine(args[2], "npcgen.data")));
+            var sb = new StringBuilder($"caminhos {paths.Count}, max {paths.Max(x => x.Id)}, pontos {gen.Spawns.Count}\n");
+            foreach (var pa in paths)
+            {
+                if (!pa.Points.Any(q => MathF.Abs(q.Pos.X - px) < 200 && MathF.Abs(q.Pos.Z - pz) < 200)) continue;
+                sb.AppendLine(FormattableString.Invariant($"caminho {pa.Id} v{pa.Version} pontos {pa.Points.Count} de ({pa.Points[0].Pos.X:0},{pa.Points[0].Pos.Y:0},{pa.Points[0].Pos.Z:0}) a ({pa.Points[^1].Pos.X:0},{pa.Points[^1].Pos.Y:0},{pa.Points[^1].Pos.Z:0})"));
+                foreach (var sp in gen.Spawns)
+                    foreach (var c in sp.Creatures.Where(c => c.PathId == pa.Id))
+                        sb.AppendLine(FormattableString.Invariant($"   ponto #{gen.Spawns.IndexOf(sp)} em ({sp.Position.X:0},{sp.Position.Y:0},{sp.Position.Z:0}) raio {sp.Spread.X:0} tipo {sp.Type} grupo {sp.GroupType} criaturas {sp.Creatures.Count}: id {c.Id} qtd {c.Amount} laco {c.PathLoop}"));
+            }
+            sb.AppendLine("--- caminhos no ar (ponto a mais de 25 m acima do primeiro) ---");
+            foreach (var pa in paths.Where(x => x.Points.Max(q => q.Pos.Y) - x.Points.Min(q => q.Pos.Y) > 25 || x.Id > 1000000000))
+            {
+                int users = gen.Spawns.Sum(sp => sp.Creatures.Count(c => c.PathId == pa.Id));
+                sb.AppendLine(FormattableString.Invariant($"caminho {pa.Id} pontos {pa.Points.Count} usuarios {users} y {pa.Points.Min(q => q.Pos.Y):0}-{pa.Points.Max(q => q.Pos.Y):0} de ({pa.Points[0].Pos.X:0},{pa.Points[0].Pos.Z:0}) a ({pa.Points[^1].Pos.X:0},{pa.Points[^1].Pos.Z:0})"));
+            }
+            var byId = gen.Spawns.SelectMany(sp => sp.Creatures).Where(c => c.PathId > 1000000000).GroupBy(c => c.PathId);
+            foreach (var g in byId) sb.AppendLine($"usado {g.Key}: {g.Count()} criaturas, ids {string.Join(',', g.Select(c => c.Id).Distinct().Take(12))}");
+            foreach (var sp in gen.Spawns.Where(x => x.Creatures.Any(c => c.PathId > 1358957000))) sb.AppendLine(FormattableString.Invariant($"ponto #{gen.Spawns.IndexOf(sp)} em ({sp.Position.X:0},{sp.Position.Y:0},{sp.Position.Z:0}) raio {sp.Spread.X:0} criaturas {sp.Creatures.Count}: {string.Join(" ", sp.Creatures.Select(c => $"{c.Id}x{c.Amount}/caminho {c.PathId}/laco {c.PathLoop}"))}"));
+            File.WriteAllText(args[1], sb.ToString());
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--spt-all")   // <pasta com .spt> <saída tsv>: nome, vértices de galho e de fronde, altura (compara com Tests/SptOracle)
         {
             using var o = new StreamWriter(args[2]);
@@ -463,7 +500,7 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo
         {
             var rows = Enumerable.Range(1, 40).Select(i => (Id: 1000 + i, Name: $"Item de exemplo {i}", Block: i % 3 == 0 ? "Armas" : i % 3 == 1 ? "Armaduras" : "Itens de quest")).ToList();
-            using var w = new MyAceEditor.UI.ItemSearchWindow(rows) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
+            using var w = new MyAceEditor.UI.ItemSearchWindow(rows, favorites: [1003, 1006], recent: [1009, 1001]) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
             w.Show();
             var stop = DateTime.Now.AddSeconds(2);
             while (DateTime.Now < stop) { Application.DoEvents(); Thread.Sleep(30); }
