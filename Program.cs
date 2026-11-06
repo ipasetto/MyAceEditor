@@ -408,6 +408,21 @@ internal static class Program
                 .Select(k => k + "\t" + string.Join("\t", all.Select(d => d.GetValueOrDefault(k, "")))));
             return;
         }
+        if (args.Length >= 3 && args[0] == "--path-orphans")   // <saída> <pasta config do servidor>: pontos do npcgen que citam caminho que o path.sev não tem
+        {
+            var sb = new StringBuilder();
+            foreach (var dir in Directory.GetDirectories(args[2]))
+            {
+                string gen = Path.Combine(dir, "npcgen.data"), sev = Path.Combine(dir, "path.sev");
+                if (!File.Exists(gen) || !File.Exists(sev)) continue;
+                var ids = PathFile.Read(File.ReadAllBytes(sev)).Paths.Select(x => x.Id).ToHashSet();
+                var used = NpcGenFile.Read(File.ReadAllBytes(gen)).Spawns.SelectMany(x => x.Creatures).Select(c => c.PathId).Where(i => i > 0).ToList();
+                var orphans = used.Where(i => !ids.Contains(i)).ToList();
+                sb.AppendLine($"{Path.GetFileName(dir)} caminhos={ids.Count} max={(ids.Count > 0 ? ids.Max() : 0)} usados={used.Count} orfaos={orphans.Count} maxOrfao={(orphans.Count > 0 ? orphans.Max() : 0)}");
+            }
+            File.WriteAllText(args[1], sb.ToString());
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo
         {
             var rows = Enumerable.Range(1, 40).Select(i => (Id: 1000 + i, Name: $"Item de exemplo {i}", Block: i % 3 == 0 ? "Armas" : i % 3 == 1 ? "Armaduras" : "Itens de quest")).ToList();

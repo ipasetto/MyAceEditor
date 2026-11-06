@@ -8,6 +8,7 @@
 Outras versoes: o que rodar, rodou; nao testar nem corrigir. Futuro: ferramenta de portabilidade (155 parecendo versao antiga).
 Prioridade agora: (1) decidir GM A ou B; (2) novo layout/testes do Mundo 3D no 155; (3) erros abertos do Testes.txt; (4) estudar portabilidade (combinado para 06/11).
 Itens 144, 1.3.6, 1.7.x, 1.8 abaixo ficam PARADOS.
+06/11: feitos no codigo, falta o usuario conferir: testes 2, 5, 8, 10, 16, 17, 19, 24, 25. Aberto: 4 (galho curvado; suspeita: nivel de frond), 28 (ferramenta nova, aguarda desenho aprovado).
 Novo: mapas da guerra territorial nao sao traduzidos ao traduzir com outro cliente (nota do usuario em Estudo PW).
 
 ## FASE 1 — base
