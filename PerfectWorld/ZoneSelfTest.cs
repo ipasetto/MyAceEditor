@@ -21,12 +21,37 @@ public static class ZoneSelfTest
         var lines = new List<string>();
         var r = new Report(lines);
         Client(r, maps);
+        if (config is not null) Server(r, maps, config);
         lines.Add($"falhas: {r.Failed}");
         File.WriteAllLines(output, lines);
     }
 
     static IEnumerable<string> ClientFiles(string maps) =>
         Directory.GetDirectories(maps).Select(d => Path.Combine(d, "precinct.clt")).Where(File.Exists);
+
+    static void Server(Report r, string maps, string config)
+    {
+        int same = 0, total = 0, pairs = 0, match = 0;
+        string first = "";
+        foreach (var dir in Directory.GetDirectories(config))
+        {
+            var sev = Path.Combine(dir, "precinct.sev");
+            if (!File.Exists(sev)) continue;
+            total++;
+            var b = File.ReadAllBytes(sev);
+            var read = PrecinctServer.Parse(b);
+            if (read.Render().AsSpan().SequenceEqual(b)) same++; else if (first.Length == 0) first = dir;
+            var clt = Path.Combine(maps, Path.GetFileName(dir), "precinct.clt");
+            if (!File.Exists(clt) || read.Version != 7) continue;
+            var client = PrecinctFile.Parse(File.ReadAllBytes(clt));
+            if (client.Stamp != read.Stamp) continue;
+            pairs++;
+            if (PrecinctServer.From(client, read.Stamp).Render().AsSpan().SequenceEqual(b)) match++;
+            else if (first.Length == 0) first = "par " + dir;
+        }
+        r.Check("sev-identico", total > 0 && same == total, $"{same}/{total} {first}");
+        r.Check("sev-do-clt", pairs > 0 && match == pairs, $"{match}/{pairs} {first}");
+    }
 
     static void Client(Report r, string maps)
     {
