@@ -3821,6 +3821,15 @@ public sealed class EditorForm : Form
             b.Save(Path.Combine(dir, name));
             f.Controls.Remove(c);
         }
+        if (WorldTargets.Open(element, null) is { Client.Count: > 2 } targets)
+        {
+            using var stops = new TeleportStopsWindow(targets.Client, [new TeleportStop(targets.Client[0].Id, 500, 10), new TeleportStop(targets.Client[1].Id, 0, 0)], targets.Client[2].Id)
+                { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false };
+            stops.Show(); Application.DoEvents();
+            using var b = new Bitmap(stops.Width, stops.Height);
+            stops.DrawToBitmap(b, new Rectangle(0, 0, stops.Width, stops.Height));
+            b.Save(Path.Combine(dir, "teleport-stops.png"));
+        }
         var shop = new ShopDraft(); shop.Titles[0] = "Armas"; shop.Titles[1] = "Poções";
         for (int i = 0; i < ids.Count; i++) shop.Goods[0][i * 2] = ids[i];
         using (var w = new GameServiceWindow(element, false, host)) { w.Load(shop); Save(w, "shop.png"); }

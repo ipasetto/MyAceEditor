@@ -56,7 +56,7 @@ internal sealed class TeleportStopsWindow : Form
         right.Controls.Add(new Label { Dock = DockStyle.Top, Height = 24, Text = string.Format(Loc.T("tp.chosen", "Para onde ele leva (até {0})"), NpcBuilder.MaxStops), ForeColor = Color.Gainsboro });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Loc.T("tp.stop", "Destino"), ReadOnly = true, FillWeight = 60 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Loc.T("tp.fee", "Taxa"), FillWeight = 22 });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Loc.T("tp.level", "Nível mínimo"), FillWeight = 22 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Loc.T("tp.level", "Nível mínimo"), FillWeight = 34 });
         _grid.CellValidating += ValidateCell;
         _grid.CellEndEdit += (_, _) => ReadGrid();
         layout.Controls.Add(right, 2, 0);
