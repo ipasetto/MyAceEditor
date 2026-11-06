@@ -300,10 +300,11 @@ internal sealed class NavBar : Control
             if (sel || i == _hover) using (var b = new SolidBrush(sel ? Sel : Hov)) g.FillRectangle(b, r);
             if (sel) using (var b = new SolidBrush(UiKit.Accent)) g.FillRectangle(b, 0, r.Y + 6, 4, ItemH - 12);
             int h = ItemH, isz = h >= 66 ? 28 : 22;                       // mais apertado: ícone menor e texto numa linha
-            int iy = r.Y + Math.Max(4, (h - isz - 18) / 2);
+            bool label = Width >= 70;                                     // estreita (painel do GM ao lado do jogo): só o ícone, o nome fica na dica
+            int iy = label ? r.Y + Math.Max(4, (h - isz - 18) / 2) : r.Y + (h - isz) / 2;
             var ic = UiKit.Icon(it.Glyph, sel ? Color.White : Color.FromArgb(170, 182, 198), isz);
             g.DrawImage(ic, (Width - isz) / 2, iy);
-            TextRenderer.DrawText(g, it.Text(), f, new Rectangle(2, iy + isz + 3, Width - 4, h >= 66 ? 32 : 16), sel ? Color.White : Color.FromArgb(170, 182, 198),
+            if (label) TextRenderer.DrawText(g, it.Text(), f, new Rectangle(2, iy + isz + 3, Width - 4, h >= 66 ? 32 : 16), sel ? Color.White : Color.FromArgb(170, 182, 198),
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | (h >= 66 ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine) | TextFormatFlags.EndEllipsis);
         }
     }

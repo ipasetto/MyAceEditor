@@ -5426,5 +5426,9 @@
   "rule.npcDiscoverBit": "有传送点 {0},但发现服务已关闭:对话不会发现任何内容",
   "save.teleports": "这些 NPC 在游戏中的传送有问题:",
   "save.teleportsAsk": "仍要保存吗?",
-  "save.teleportsTitle": "传送"
+  "save.teleportsTitle": "传送",
+  "gm.sideFull": "游戏处于全屏:请在游戏选项中切换到窗口模式后重试。",
+  "gm.launchShort": "▶ 打开游戏",
+  "gm.sideBack": "◧ 恢复原样",
+  "gm.sideShort": "◧ 并排"
 }

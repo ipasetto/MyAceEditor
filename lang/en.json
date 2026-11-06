@@ -5424,5 +5424,9 @@
   "rule.npcDiscoverBit": "has point {0}, but the discover service is off: talking to it discovers nothing",
   "save.teleports": "These NPCs have a teleport problem in the game:",
   "save.teleportsAsk": "Save anyway?",
-  "save.teleportsTitle": "Teleports"
+  "save.teleportsTitle": "Teleports",
+  "gm.sideFull": "The game is in full screen: switch to window mode in the game options and try again.",
+  "gm.launchShort": "▶ Open the game",
+  "gm.sideBack": "◧ Back to normal",
+  "gm.sideShort": "◧ Side by side"
 }

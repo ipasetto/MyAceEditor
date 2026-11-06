@@ -32,11 +32,12 @@ public sealed class GmPanel : Form
         var top = new TableLayoutPanel { Dock = DockStyle.Top, Height = 40, ColumnCount = 5, Padding = new Padding(6, 6, 6, 0) };
         top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         for (int i = 0; i < 3; i++) top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        top.Controls.Add(new Label { Text = Loc.T("gm.gameFolder", "Pasta do jogo (element)"), AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        _dirLabel = new Label { Text = Loc.T("gm.gameFolder", "Pasta do jogo (element)"), AutoSize = true, Anchor = AnchorStyles.Left };
+        top.Controls.Add(_dirLabel, 0, 0);
         top.Controls.Add(_dir, 1, 0);
-        top.Controls.Add(Btn(Loc.T("gm.browse", "Procurar…"), PickDir), 2, 0);
-        top.Controls.Add(Btn(Loc.T("gm.launch", "▶ Abrir o jogo com console"), LaunchGame, blue: true), 3, 0);
-        top.Controls.Add(Btn(Loc.T("gm.side", "◧ Lado a lado com o jogo"), ToggleSide), 4, 0);
+        top.Controls.Add(_browse = Btn(Loc.T("gm.browse", "Procurar…"), PickDir), 2, 0);
+        top.Controls.Add(_launch = Btn(Loc.T("gm.launch", "▶ Abrir o jogo com console"), LaunchGame, blue: true), 3, 0);
+        top.Controls.Add(_side = Btn(Loc.T("gm.side", "◧ Lado a lado com o jogo"), ToggleSide), 4, 0);
 
         // ordem do uso: o próprio personagem, ir a algum lugar, criar coisas, cuidar de jogadores, eventos do mundo;
         // cada aba diz no topo do que precisa (jogo aberto com console / servidor neste PC)
@@ -48,9 +49,9 @@ public sealed class GmPanel : Form
         _tabs.TabPages.Add(Page("👹 " + Loc.T("gm.tabNpcs", "NPCs e monstros"), SearchTab(Kind.Npc), needGame));
         _tabs.TabPages.Add(Page("👥 " + Loc.T("gm.tabPlayers", "Jogadores"), PlayersTab(), Loc.T("gm.needPlayers", "Ações pelo console do jogo (conta GM). Lista de quem está online e aviso geral usam o servidor quando ele roda neste PC.")));
         _tabs.TabPages.Add(Page("🌍 " + Loc.T("gm.tabWorld2", "Mundo e eventos"), WorldTab(), Loc.T("gm.needWorld", "Eventos e aviso geral vão pelo servidor quando ele roda neste PC; sem ele, use o Ctrl+G dentro do jogo.")));
-        _tabs.SelectedIndexChanged += (_, _) => { if (_tabs.SelectedTab == mapPage) LoadMap(); };
+        _tabs.SelectedIndexChanged += (_, _) => { if (_tabs.SelectedTab == mapPage) LoadMap(); FitWidth(_tabs); };
 
-        var nav = new NavBar(_tabs);
+        var nav = _nav = new NavBar(_tabs);
         string[] glyphs = { "\uE77B", "\uE707", "\uE7B8", "\uE7EE", "\uE716", "\uE774" };   // eu, mapa, itens, monstros, jogadores, mundo
         for (int i = 0; i < _tabs.TabPages.Count; i++)
         {
@@ -61,8 +62,16 @@ public sealed class GmPanel : Form
         }
         Controls.Add(_tabs); Controls.Add(nav); Controls.Add(_log); Controls.Add(_card); Controls.Add(top);
         _poll.Tick += (_, _) => UpdateState(); _poll.Start();
-        Shown += (_, _) => { ApplyCommandSet(); UpdateState(); LoadData(); };
-        FormClosed += (_, _) => _poll.Dispose();
+        Shown += (_, _) => { ApplyCommandSet(); UpdateState(); LoadData(); Compact(); };
+        Resize += (_, _) => Compact();
+        ResizeEnd += (_, _) => FollowPanel();
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
+        FormClosed += (_, _) =>
+        {
+            _poll.Dispose();
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
+            if (_gameBefore is { } game) GameConsole.Place(game);
+        };
     }
 
     // ---------- comum ----------
@@ -95,9 +104,20 @@ public sealed class GmPanel : Form
 
     static NumericUpDown Num(decimal value, decimal min, decimal max, int width = 90) => new() { Minimum = min, Maximum = max, Value = value, Width = width };
 
+    /// <summary>Linha que quebra e cresce em altura: o AutoSize do FlowLayoutPanel mede uma linha só e cortava o que quebrava (teste 32).</summary>
+    sealed class WrapRow : FlowLayoutPanel
+    {
+        public WrapRow() { WrapContents = true; Dock = DockStyle.Top; Margin = new Padding(0, 0, 0, 4); }
+        protected override void OnLayout(LayoutEventArgs e)
+        {
+            base.OnLayout(e);
+            if (Width > 0 && GetPreferredSize(new Size(Width, 0)).Height is var h && h != Height) Height = h;
+        }
+    }
+
     static FlowLayoutPanel Row(params Control[] cs)
     {
-        var f = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Dock = DockStyle.Top, Margin = new Padding(0, 0, 0, 4) };
+        var f = new WrapRow();
         foreach (var c in cs) { if (c is Label l) { l.AutoSize = true; l.Margin = new Padding(0, 7, 6, 0); } f.Controls.Add(c); }
         return f;
     }
@@ -118,22 +138,77 @@ public sealed class GmPanel : Form
         return p;
     }
 
-    Rectangle? _before;
+    Rectangle? _before, _gameBefore;
+    double _share = 0.2;   // parte da tela que fica com o painel (usuário 06/11: 20% o painel, 80% o jogo)
+    const int MinPanel = 300;
+    readonly Label _dirLabel;
+    readonly Button _browse, _launch, _side;
+    readonly NavBar _nav;
+    readonly Dictionary<Control, int> _wide = new();
 
     /// <summary>
-    /// Opção A do GM: o jogo encosta à esquerda e o painel fica no espaço à direita, sempre por cima, para o clique no jogo
-    /// não esconder o painel. Um segundo clique volta como estava. O tamanho do jogo não muda: ele não aceita bem mudar de tamanho aberto.
+    /// Opção A do GM: o jogo fica com 80% da tela à esquerda e o painel com 20% à direita, sempre por cima, para o clique no jogo
+    /// não esconder o painel. Um segundo clique volta os dois como estavam.
     /// </summary>
     void ToggleSide()
     {
-        if (_before is { } was) { TopMost = false; Bounds = was; _before = null; return; }
-        var area = Screen.FromControl(this).WorkingArea;
-        if (GameConsole.MoveToCorner(area) is not { } right) { AddLog("⚠ " + Loc.T("gm.sideNoGame", "Abra o jogo primeiro: não achei a janela dele.")); return; }
-        const int MinWidth = 460;
-        _before = Bounds;
-        int left = Math.Min(right, area.Right - MinWidth);
+        if (_before is { } was)
+        {
+            TopMost = false; Bounds = was; _before = null;
+            if (_gameBefore is { } game) GameConsole.Place(game);
+            _gameBefore = null;
+            Compact();
+            return;
+        }
+        if (GameConsole.Bounds() is not { } now) { AddLog("⚠ " + Loc.T("gm.sideNoGame", "Abra o jogo primeiro: não achei a janela dele.")); return; }
+        if (!GameConsole.Resizable) { AddLog("⚠ " + Loc.T("gm.sideFull", "O jogo está em tela cheia: mude para janela nas opções do jogo e tente de novo.")); return; }
+        _before = Bounds; _gameBefore = now; _share = 0.2;
         TopMost = true;
-        Bounds = new Rectangle(left, area.Top, area.Right - left, area.Height);
+        ApplySide();
+    }
+
+    void ApplySide()
+    {
+        var area = Screen.FromControl(this).WorkingArea;
+        int panel = Math.Clamp((int)(area.Width * _share), MinPanel, area.Width - 400);
+        GameConsole.Place(new Rectangle(area.Left, area.Top, area.Width - panel, area.Height));
+        Bounds = new Rectangle(area.Right - panel, area.Top, panel, area.Height);
+    }
+
+    /// <summary>Quem arrasta a borda do painel muda a divisão: o jogo acompanha e a nova parte vale se a tela mudar.</summary>
+    void FollowPanel()
+    {
+        if (_before is null) return;
+        var area = Screen.FromControl(this).WorkingArea;
+        _share = (double)Width / area.Width;
+        ApplySide();
+    }
+
+    void OnDisplayChanged(object? sender, EventArgs e) { if (_before is not null) BeginInvoke(ApplySide); }
+
+    /// <summary>Painel estreito: some a linha da pasta, a barra lateral fica só com ícones e os campos largos encolhem.</summary>
+    void Compact()
+    {
+        bool narrow = Width < 640;
+        _dirLabel.Visible = _dir.Visible = _browse.Visible = !narrow;
+        _nav.Width = narrow ? 56 : 92;
+        _launch.Text = narrow ? Loc.T("gm.launchShort", "▶ Abrir o jogo") : Loc.T("gm.launch", "▶ Abrir o jogo com console");
+        _side.Text = _before is not null ? Loc.T("gm.sideBack", "◧ Voltar ao normal") : narrow ? Loc.T("gm.sideShort", "◧ Lado a lado") : Loc.T("gm.side", "◧ Lado a lado com o jogo");
+        FitWidth(_tabs);
+    }
+
+    void FitWidth(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            if (c is TextBox or ComboBox or ListView && c.Dock == DockStyle.None && c.Parent is { } parent)
+            {
+                if (!_wide.TryGetValue(c, out int width)) _wide[c] = width = c.Width;
+                int want = Math.Min(width, Math.Max(120, parent.ClientSize.Width - c.Margin.Horizontal - 8));
+                if (c.Width != want) c.Width = want;
+            }
+            FitWidth(c);
+        }
     }
 
     bool Ask(string text) => MessageBox.Show(this, text, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
@@ -586,7 +661,7 @@ public sealed class GmPanel : Form
             var (x, z) = _map.ToGame(e.Location);
             Run($"d 8888 {_mapTag} {x:0} {z:0} 0");
         };
-        var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, WrapContents = false, Padding = new Padding(0, 2, 0, 0) };
+        var top = new WrapRow { Padding = new Padding(0, 2, 0, 0) };
         top.Controls.Add(new Label { Text = Loc.T("gm.mapWhich", "Mapa"), AutoSize = true, Margin = new Padding(0, 7, 6, 0) });
         top.Controls.Add(_mapPick); top.Controls.Add(_mapInfo);
         var p = new Panel();

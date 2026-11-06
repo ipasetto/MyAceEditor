@@ -46,15 +46,15 @@ public static class GameConsole
 
     public static bool Running => Window() != IntPtr.Zero;
 
-    /// <summary>Encosta a janela do jogo no canto da área dada, sem mudar o tamanho, e devolve onde ela termina à direita; null = jogo fechado.</summary>
-    public static int? MoveToCorner(System.Drawing.Rectangle area)
-    {
-        var w = Window();
-        if (w == IntPtr.Zero || !GetWindowRect(w, out var r)) return null;
-        int width = r.Right - r.Left, height = r.Bottom - r.Top;
-        MoveWindow(w, area.Left, area.Top, width, height, true);
-        return area.Left + width;
-    }
+    /// <summary>Onde a janela do jogo está; null = jogo fechado.</summary>
+    public static System.Drawing.Rectangle? Bounds() =>
+        Window() is var w && w != IntPtr.Zero && GetWindowRect(w, out var r) ? System.Drawing.Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom) : null;
+
+    /// <summary>Em tela cheia a janela não tem borda de mudar tamanho (EC_Configs.cpp: WS_THICKFRAME só no modo janela).</summary>
+    public static bool Resizable => Window() is var w && w != IntPtr.Zero && (GetWindowLongW(w, -16) & 0x00040000) != 0;
+
+    /// <summary>Põe a janela do jogo nesse lugar e tamanho. O jogo refaz a tela sozinho (WM_SIZE) e guarda o tamanho em systemsettings.ini.</summary>
+    public static bool Place(System.Drawing.Rectangle r) => Window() is var w && w != IntPtr.Zero && MoveWindow(w, r.X, r.Y, r.Width, r.Height, true);
 
     /// <summary>
     /// Abre o console, digita cada linha com Enter e fecha com Esc; o foco fica no jogo. false = jogo não aberto ou não
@@ -116,6 +116,7 @@ public static class GameConsole
     [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr w, out RECT r);
     [DllImport("user32.dll")] static extern bool MoveWindow(IntPtr w, int x, int y, int width, int height, bool repaint);
+    [DllImport("user32.dll")] static extern int GetWindowLongW(IntPtr w, int index);
     [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
     [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint type);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();

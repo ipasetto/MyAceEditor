@@ -729,7 +729,9 @@ internal static class Program
             Form w = args[0] == "--gm-shot" ? new MyAceEditor.UI.GmPanel(args[2])
                 : new MyAceEditor.UI.ServerAdminWindow(new LocalServer(args.Length >= 5 ? args[4] : ""), args[2], args.Length >= 4 ? args[3] : "", System.Drawing.Color.FromArgb(231, 236, 242), System.Drawing.Color.FromArgb(30, 39, 51), System.Drawing.Color.FromArgb(37, 99, 235));
             w.StartPosition = FormStartPosition.Manual; w.Location = new System.Drawing.Point(-20000, -20000); w.ShowInTaskbar = false;
+            if (args[0] == "--gm-shot" && args.Length >= 4) { w.Width = int.Parse(args[3]); w.Height = 1000; }   // [largura] [aba]: painel estreito ao lado do jogo
             w.Show();
+            if (args[0] == "--gm-shot" && args.Length >= 5 && w.Controls.OfType<TabControl>().FirstOrDefault() is { } gmTabs) gmTabs.SelectedIndex = int.Parse(args[4]);
             var until = DateTime.Now.AddSeconds(8);
             while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
             using var bmp = new System.Drawing.Bitmap(w.Width, w.Height);
