@@ -445,10 +445,18 @@ internal static class Program
             }
             return;
         }
-        if (args.Length >= 3 && args[0] == "--spt-obj")   // <.spt> <saída>: vértices dos galhos em eixos do SpeedTree
+        if (args.Length >= 3 && args[0] == "--spt-obj")   // <.spt ou pasta> <saída>: vértices de galho e fronde em eixos do SpeedTree (compara com Tests/SptOracle)
         {
-            var m = SptGrower.Build(new SptFile(File.ReadAllBytes(args[1])));
-            File.WriteAllLines(args[2], m.Pos.Select(p => FormattableString.Invariant($"v B {p.X} {-p.Z} {p.Y}")));
+            static void Obj(string spt, string to)
+            {
+                var m = SptGrower.Build(new SptFile(File.ReadAllBytes(spt)));
+                File.WriteAllLines(to, m.Pos.Select(p => FormattableString.Invariant($"v B {p.X} {-p.Z} {p.Y}"))
+                    .Concat(m.FrondPos.Select(p => FormattableString.Invariant($"v F {p.X} {-p.Z} {p.Y}"))));
+            }
+            if (File.Exists(args[1])) { Obj(args[1], args[2]); return; }
+            Directory.CreateDirectory(args[2]);
+            foreach (var p in Directory.GetFiles(args[1], "*.spt", SearchOption.AllDirectories))
+                Obj(p, Path.Combine(args[2], Path.GetFileName(p).ToLowerInvariant() + ".txt"));
             return;
         }
         if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo

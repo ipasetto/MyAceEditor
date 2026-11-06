@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using OpenTK.Mathematics;
 
@@ -16,6 +16,11 @@ public sealed class SptFile
     public float SizeVariance { get; private set; }
     public int Seed { get; private set; } = 1;
     public int FlareSeed { get; private set; } = 1;
+    /// <summary>Seção 9000, LOD dos galhos: 9011 níveis, 9012 parte da área que fica na LOD alta, 9013 fuzziness, 9014 retenção dos maiores.</summary>
+    public int BranchLods { get; private set; } = 1;
+    public float BranchArea { get; private set; } = 1;
+    public float BranchFuzziness { get; private set; }
+    public float BranchRetention { get; private set; }
     public List<SptLevel> Levels { get; } = new();
     /// <summary>Texturas de folha (4000–4007): âncora e tamanho do cartão (unidades da árvore) e o recorte no mapa composto.</summary>
     public List<SptLeafMap> LeafMaps { get; } = new();
@@ -89,6 +94,21 @@ public sealed class SptFile
                 try { ReadTexCoords(new Reader(b, p + 4)); } catch (Exception) { }
                 break;
             }
+        for (int p = after; p + 8 <= b.Length; p++)
+            if (BitConverter.ToInt32(b, p) == 16013) { FlareSeed = BitConverter.ToInt32(b, p + 4); break; }   // semente do rand() dos flares
+        for (int p = after; p + 8 <= b.Length; p++)
+            if (BitConverter.ToInt32(b, p) == 9000 && BitConverter.ToInt32(b, p + 4) == 9002)
+            {
+                for (int q = p; q + 8 <= b.Length && q < p + 160; q++)
+                    switch (BitConverter.ToInt32(b, q))
+                    {
+                        case 9011: BranchLods = BitConverter.ToInt32(b, q + 4); break;
+                        case 9012: BranchArea = BitConverter.ToSingle(b, q + 4); break;
+                        case 9013: BranchFuzziness = BitConverter.ToSingle(b, q + 4); break;
+                        case 9014: BranchRetention = BitConverter.ToSingle(b, q + 4); break;
+                    }
+                break;
+            }
         // flares: "16000 16002", 11 pares por nível (CTreeEngine::ParseFlareInfo)
         for (int p = after; p + 8 <= b.Length; p++)
             if (BitConverter.ToInt32(b, p) == 16000 && BitConverter.ToInt32(b, p + 4) == 16002)
@@ -104,7 +124,6 @@ public sealed class SptFile
                     q += 88;
                 }
                 while (q + 88 <= b.Length && BitConverter.ToInt32(b, q) == 16002) q += 88;
-                if (q + 8 <= b.Length && BitConverter.ToInt32(b, q) == 16013) FlareSeed = BitConverter.ToInt32(b, q + 4);
                 break;
             }
         // frondes: "13000" seguido de um token da seção
@@ -513,10 +532,14 @@ public static class SptGrower
         int seed = f.Seed;
         _leafPts = new List<Vector3>();
         _guides = new List<Guide>();
+        _branches = new List<Branch>();
         _flareRand = new SptCRand(f.FlareSeed);
+        _unit = f.Size * 0.3048f;
         Grow(f, m, rng, seed, 0, Vector3.Zero, Frame.Identity, Vector3.UnitZ, 0, -1, 1);
-        EmitFronds(f.Frond, m);
+        EmitBranches(f, m, rng);
+        EmitFronds(f.Frond, m, rng);
         _guides = null;
+        _branches = null;
         _leafPts = null;
         // escala do SpeedTree: TODAS as medidas × tamanho do .spt em metros (CTreeEngine::Compute passa fTreeSize ao
         // galho; o cliente faz SetTreeSize(tamanho × 0,3048), EL_Tree.cpp). Conferido 30/10 com print do jogo
@@ -606,30 +629,14 @@ public static class SptGrower
 
         bool leafLevel = level >= f.Levels.Count - 1;
         bool frond = !leafLevel && f.Frond is { Enabled: true, Type: 0 or 1, Maps.Count: > 0 } fr0 && level >= fr0.Level;
-        if (frond) AddGuide(f.Frond!, rng, centers, dirs, side, length, baseR);
+        if (frond) AddGuide(f.Frond!, rng, pts, centers, dirs, tms, side, baseR);
         else if (!leafLevel)
         {
-            // anéis de vértices (sides + 1 para fechar a costura da textura), nos eixos do próprio vértice (FUN_10005400)
-            var flares = MakeFlares(L, _flareRand!);
-            int first = m.Pos.Count;
-            for (int i = 0; i <= segs; i++)
-            {
-                var ay = Ours(tms[i].Y); var az = Ours(tms[i].Z);
-                for (int j = 0; j <= sides; j++)
-                {
-                    float u = j / (float)sides, ang = u * MathF.Tau;
-                    var n = ay * MathF.Cos(ang) + az * MathF.Sin(ang);
-                    m.Pos.Add(centers[i] + n * (radii[i] * (1 + FlarePush(flares, ang, ts[i])))); m.Normal.Add(n);
-                    m.Uv.Add(new Vector2(u * tileU, ts[i] * tileV));
-                }
-            }
+            // o galho só vira malha depois de escolher quais ficam na LOD alta (EmitBranches)
+            float area = 0;
             for (int i = 0; i < segs; i++)
-                for (int j = 0; j < sides; j++)
-                {
-                    int a = first + i * (sides + 1) + j, b = a + sides + 1;
-                    m.Index.Add(a); m.Index.Add(b); m.Index.Add(a + 1);
-                    m.Index.Add(a + 1); m.Index.Add(b); m.Index.Add(b + 1);
-                }
+                area += (radii[i] + radii[i + 1]) * _unit * FastSqrt(((pts[i + 1] - pts[i]) * _unit).LengthSquared);
+            _branches!.Add(new Branch(centers, tms, radii, ts, sides, tileU, tileV, MakeFlares(L, _flareRand!), area));
         }
 
         // filhos do próximo nível (ou pontos de folha, se o próximo é o último)
@@ -689,6 +696,64 @@ public static class SptGrower
     }
 
     static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    /// <summary>Raiz aproximada que a speedtreert.dll usa em comprimentos e áreas.</summary>
+    static float FastSqrt(float x) => BitConverter.Int32BitsToSingle((BitConverter.SingleToInt32Bits(x) >> 1) + 0x1fc00000);
+
+    sealed record Branch(Vector3[] Centers, Frame[] Tms, float[] Radii, float[] Ts, int Sides, float TileU, float TileV, Flare[] Flares, float Area);
+
+    /// <summary>
+    /// Galhos da LOD alta: o jogo desenha de perto só os maiores até somar 9012 da área (FUN_100286f0). Cada galho fora da
+    /// retenção gasta um sorteio de fuzziness, e é isso que deixa o gerador no ponto certo para as frondes.
+    /// </summary>
+    static void EmitBranches(SptFile f, SptMesh m, SptRandom rng)
+    {
+        var all = _branches!;
+        if (all.Count == 0) return;
+        float total = 0, largest = 0;
+        foreach (var b in all) { total += b.Area; largest = MathF.Max(largest, b.Area); }
+        float limit = (1 - f.BranchRetention) * largest;
+        var rest = new List<(Branch B, float Key)>(); var saved = new List<Branch>();
+        foreach (var b in all)
+            if (b.Area <= limit)
+            {
+                float u = rng.Range(0, f.BranchFuzziness);
+                rest.Add((b, MathF.Max(u * largest + (1 - u) * b.Area, 0)));
+            }
+            else saved.Add(b);
+        saved.Reverse();
+        float target = (f.BranchLods < 2 ? 1 : f.BranchArea) * total, sum = 0;
+        foreach (var b in saved.Concat(rest.OrderByDescending(r => r.Key).Select(r => r.B)))
+        {
+            if (target <= sum) break;
+            sum += b.Area;
+            AddRings(m, b);
+        }
+    }
+
+    /// <summary>Anéis de vértices (sides + 1 para fechar a costura da textura), nos eixos do próprio vértice (FUN_10005400).</summary>
+    static void AddRings(SptMesh m, Branch b)
+    {
+        int first = m.Pos.Count, sides = b.Sides, segs = b.Centers.Length - 1;
+        for (int i = 0; i <= segs; i++)
+        {
+            var ay = Ours(b.Tms[i].Y); var az = Ours(b.Tms[i].Z);
+            for (int j = 0; j <= sides; j++)
+            {
+                float u = j / (float)sides, ang = u * MathF.Tau;
+                var n = ay * MathF.Cos(ang) + az * MathF.Sin(ang);
+                m.Pos.Add(b.Centers[i] + n * (b.Radii[i] * (1 + FlarePush(b.Flares, ang, b.Ts[i])))); m.Normal.Add(n);
+                m.Uv.Add(new Vector2(u * b.TileU, b.Ts[i] * b.TileV));
+            }
+        }
+        for (int i = 0; i < segs; i++)
+            for (int j = 0; j < sides; j++)
+            {
+                int a = first + i * (sides + 1) + j, c = a + sides + 1;
+                m.Index.Add(a); m.Index.Add(c); m.Index.Add(a + 1);
+                m.Index.Add(a + 1); m.Index.Add(c); m.Index.Add(c + 1);
+            }
+    }
 
     readonly record struct Flare(float Angle, float Spread, float SpreadExp, float Reach, float ReachExp, float Distance);
 
@@ -795,29 +860,43 @@ public static class SptGrower
     /// textura (negativo em galhos alternados); meia largura = comprimento × tamanho × 0,5 × proporção; s atravessa a fita,
     /// t vai da base (embaixo na imagem) à ponta.
     /// </summary>
-    sealed record Guide(SptFrondMap Map, Vector3[] Centers, Vector3[] Dirs, Vector3 Side, float Half, float Tilt, float Area);
+    sealed record Guide(SptFrondMap Map, Vector3[] Centers, Vector3[] Dirs, Frame[] Tms, Vector3 Side, float Half, float Tilt, float Area);
     [ThreadStatic] static List<Guide>? _guides;
+    [ThreadStatic] static List<Branch>? _branches;
     [ThreadStatic] static SptCRand? _flareRand;
+    [ThreadStatic] static float _unit;
     const float ParentRadiusFactor = 0.85f;
 
-    static void AddGuide(SptFrond fr, SptRandom rng, Vector3[] centers, Vector3[] dirs, Vector3 side, float length, float firstRadius)
+    /// <summary>Fim de uma guia de fronde (FUN_1000a2a0): comprimento pela raiz aproximada, textura sorteada, inclinação alternada.</summary>
+    static void AddGuide(SptFrond fr, SptRandom rng, Vector3[] pts, Vector3[] centers, Vector3[] dirs, Frame[] tms, Vector3 side, float firstRadius)
     {
         var g = _guides!;
+        float len = 0;
+        for (int i = 0; i + 1 < pts.Length; i++) len += FastSqrt(((pts[i + 1] - pts[i]) * _unit).LengthSquared);
         var map = fr.Maps[(int)rng.Range(0, 100000) % fr.Maps.Count];
         float tilt = rng.Range(map.MinAngle, map.MaxAngle) * (g.Count % 2 == 0 ? -1 : 1);
-        g.Add(new Guide(map, centers, dirs, side, length * map.Size * 0.5f * map.Aspect, tilt, length * firstRadius));
+        g.Add(new Guide(map, centers, dirs, tms, side, len / _unit * map.Size * 0.5f * map.Aspect, tilt, len * firstRadius * _unit));
     }
 
-    /// <summary>Frondes da LOD mais alta: as maiores, até passar de MaxArea da área somada (CFrondEngine::BuildGuideLods).</summary>
-    static void EmitFronds(SptFrond? fr, SptMesh m)
+    /// <summary>Frondes da LOD alta: as maiores até passar de MaxArea da área somada, com a chave de fuzziness (FUN_1000d450).</summary>
+    static void EmitFronds(SptFrond? fr, SptMesh m, SptRandom rng)
     {
         if (fr is null || _guides is not { Count: > 0 } all) return;
-        float total = all.Sum(g => g.Area), largest = all.Max(g => g.Area), saveAbove = largest * (1 - fr.LargeRetention);
-        var saved = all.Where(g => g.Area > saveAbove).OrderByDescending(g => g.Area).Reverse();
-        var order = saved.Concat(all.Where(g => g.Area <= saveAbove).OrderByDescending(g => g.Area)).ToList();
+        float total = 0, largest = 0;
+        foreach (var g in all) { total += g.Area; largest = MathF.Max(largest, g.Area); }
+        float limit = (1 - fr.LargeRetention) * largest, square = largest * largest;
+        var rest = new List<(Guide G, float Key)>(); var saved = new List<Guide>();
+        foreach (var g in all)
+            if (g.Area <= limit)
+            {
+                float u = rng.Range(0, fr.Fuzziness);
+                rest.Add((g, u * square + (1 - u) * g.Area));
+            }
+            else saved.Add(g);
+        saved.Reverse();
         float target = fr.MaxArea * total, sum = 0;
         if (target <= 0) return;
-        foreach (var g in order)
+        foreach (var g in saved.Concat(rest.OrderByDescending(r => r.Key).Select(r => r.G)))
         {
             if (sum > target) break;
             sum += g.Area;
@@ -833,19 +912,28 @@ public static class SptGrower
         float t0 = MathF.Min(MathF.Min(uv[1], uv[3]), MathF.Min(uv[5], uv[7])), t1 = MathF.Max(MathF.Max(uv[1], uv[3]), MathF.Max(uv[5], uv[7]));
         int n = centers.Length;
         if (fr.Type == 1) { Extrude(fr, m, centers, dirs, side, half, tilt, s0, s1, t0, t1); return; }
+        // cada lâmina nos eixos do ponto: o último usa os do anterior e os do meio ficam na média dos dois (FUN_1000ab90)
         float step = 180f / fr.Blades;
+        var cross = new Vector3[n]; var plus = new Vector3[n]; var minus = new Vector3[n];
         for (int bl = 0; bl < fr.Blades; bl++)
         {
             int first = m.FrondPos.Count;
-            var ss = side;
+            float deg = MathHelper.DegreesToRadians(bl * step + tilt), ca = MathF.Cos(deg), sa = MathF.Sin(deg);
             for (int i = 0; i < n; i++)
             {
-                var a = dirs[i];
-                ss = Vector3.Cross(Vector3.Cross(a, ss), a); if (ss.LengthSquared < 1e-6f) ss = Vector3.Cross(a, Vector3.UnitZ); ss.Normalize();
-                var across = Rotate(ss, a, bl * step + tilt);
-                float tt = Lerp(t1, t0, i / (float)(n - 1));
-                m.FrondPos.Add(centers[i] - across * half); m.FrondUv.Add(new Vector2(s0, tt));
-                m.FrondPos.Add(centers[i] + across * half); m.FrondUv.Add(new Vector2(s1, tt));
+                var t = g.Tms[i >= n - 1 ? i - 1 : i];
+                cross[i] = Ours(t.Y) * ca + Ours(t.Z) * sa;
+                var w = i == n - 1 ? cross[i - 1] : i == 0 ? cross[0] : (cross[i - 1] + cross[i]) * 0.5f;
+                plus[i] = centers[i] + w * half; minus[i] = centers[i] - w * half;
+            }
+            float runP = 0, runM = 0, lenP = 0, lenM = 0;
+            for (int i = 1; i < n; i++) { lenP += (plus[i] - plus[i - 1]).Length; lenM += (minus[i] - minus[i - 1]).Length; }
+            for (int i = 0; i < n; i++)
+            {
+                if (i > 0) { runP += (plus[i] - plus[i - 1]).Length; runM += (minus[i] - minus[i - 1]).Length; }
+                float vp = i == n - 1 ? 1 : runP / MathF.Max(lenP, 1e-6f) * 0.999f, vm = i == n - 1 ? 1 : runM / MathF.Max(lenM, 1e-6f) * 0.999f;
+                m.FrondPos.Add(minus[i]); m.FrondUv.Add(new Vector2(s0, Lerp(t1, t0, vm)));
+                m.FrondPos.Add(plus[i]); m.FrondUv.Add(new Vector2(s1, Lerp(t1, t0, vp)));
             }
             for (int i = 0; i < n - 1; i++)
             {
