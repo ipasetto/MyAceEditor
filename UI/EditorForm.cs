@@ -3761,6 +3761,61 @@ public sealed class EditorForm : Form
         if (_store.Current?.Lists.SelectMany(l => l.Items).FirstOrDefault(i => i.Id == text) is { } it) RememberRecent(it);
     }
 
+    /// <summary>Diagnóstico (--create-shot): janelas da ferramenta Criar e dicas com os dados do cliente aberto, fora da tela.</summary>
+    internal void CreateShots(string dir)
+    {
+        Directory.CreateDirectory(dir);
+        if (_store.Current is not { } m || _dataPath is null || Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) is not { } element) return;
+        var host = new QuestHostImpl(this);
+        var ids = host.AllItems().Where(r => host.ItemIcon(r.Id) is not null).Take(12).Select(r => r.Id).ToList();
+        void Save(Control c, string name)
+        {
+            using var f = new Form { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false, FormBorderStyle = FormBorderStyle.None, ClientSize = c.Size };
+            f.Controls.Add(c); f.Show(); Application.DoEvents();
+            using var b = new Bitmap(c.Width, c.Height);
+            c.DrawToBitmap(b, new Rectangle(0, 0, c.Width, c.Height));
+            b.Save(Path.Combine(dir, name));
+            f.Controls.Remove(c);
+        }
+        var shop = new ShopDraft(); shop.Titles[0] = "Armas"; shop.Titles[1] = "Poções";
+        for (int i = 0; i < ids.Count; i++) shop.Goods[0][i * 2] = ids[i];
+        using (var w = new GameServiceWindow(element, false, host)) { w.Load(shop); Save(w, "shop.png"); }
+        var make = new MakeDraft();
+        make.Goods[0][0] = new RecipeDraft { Product = ids[0], Count = 1, Price = 1500, Materials = [(ids[1], 3), (ids[2], 1)] };
+        make.Goods[0][1] = new RecipeDraft { Product = ids[3], Materials = [(ids[4], 2)] };
+        using (var w = new GameServiceWindow(element, true, host)) { w.Load(make); Save(w, "forge.png"); }
+        TipImage(ids[0])?.Save(Path.Combine(dir, "tip-item.png"));
+        var mob = m.FindListByName("MONSTER_ESSENCE")?.Items.FirstOrDefault(i => i.Name.Length > 0);
+        if (mob is not null) TipImage(int.Parse(mob.Id))?.Save(Path.Combine(dir, "tip-monster.png"));
+        var rows = (m.FindListByName("MONSTER_ESSENCE")?.Items ?? []).Take(40).Select(i => (int.Parse(i.Id), TasksFile.SplitColor(i.Name).Text, Pretty("MONSTER_ESSENCE"))).ToList();
+        using (var w = new ItemSearchWindow(rows, CreatureIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds(), model: CreatureModel) { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
+        {
+            w.Show();
+            var stop = DateTime.Now.AddSeconds(35);
+            using (var warm = new Bitmap(w.Width, w.Height))   // fora da tela a lista não se pinta sozinha: cada foto pede as miniaturas
+                while (DateTime.Now < stop) { w.DrawToBitmap(warm, new Rectangle(0, 0, w.Width, w.Height)); for (int k = 0; k < 40; k++) { Application.DoEvents(); Thread.Sleep(25); } }
+            w.ShotModel(rows[3].Item1);
+            Application.DoEvents();
+            using var b = new Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(b, new Rectangle(0, 0, w.Width, w.Height));
+            b.Save(Path.Combine(dir, "jav-creature.png"));
+        }
+        using (var w = new RecipeWindow(host, make.Goods[0][0]) { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
+        {
+            w.Show(); Application.DoEvents();
+            using var b = new Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(b, new Rectangle(0, 0, w.Width, w.Height));
+            b.Save(Path.Combine(dir, "recipe.png"));
+        }
+        using (var w = new ClientTranslateWindow("PW 155 BR", element, "PWI", element, false, [new("Itens, monstros e NPCs (elements.data)", "Nomes e textos pelo ID.", true, true), new("Corrigir 7 nomes de instâncias", "a05: Toca dos Lobos → Caverna de Fogo, a15: 楼兰古都 → Trincheira Apodrecida", true, true), new("configs.pck: 4.210 textos", "Descrições de itens e habilidades.", false, true)]) { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
+        {
+            w.Show(); Application.DoEvents();
+            using var b = new Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(b, new Rectangle(0, 0, w.Width, w.Height));
+            b.Save(Path.Combine(dir, "translate.png"));
+        }
+    }
+
     private Item? RecipeOf(int id) => _store.Current?.FindListByName("RECIPE_ESSENCE")?.Items.FirstOrDefault(i => i.Id == id.ToString());
 
     private int? PickRecipe(IWin32Window owner)

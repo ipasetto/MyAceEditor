@@ -1164,6 +1164,41 @@ internal static class Program
             return;
         }
         if (args.Length >= 4 && args[0] == "--world-shot") { WorldShot(args[1], args[2], args.Skip(3).ToArray()); return; }   // <pasta do mapa> <saída> x,y,z,yaw,pitch[,nome] ...
+        if (args.Length >= 3 && args[0] == "--client-check")   // <pasta element> <saída>: nomes das instâncias, músicas do precinct.clt e leitura do mp3 (sem tocar)
+        {
+            var sb = new StringBuilder();
+            using (var pck = new PckArchive(Path.Combine(args[1], "configs.pck")))
+                if (pck.Find(@"configs\instance.txt") is { } ie)
+                {
+                    var bytes = PackTextTranslator.RepairInstanceNames(pck.Read(ie), out var changes);
+                    sb.AppendLine($"instance.txt: {changes.Count} nomes a corrigir, resultado {(bytes is null ? "nenhum" : bytes.Length + " B")}");
+                    foreach (var (t, from, to) in changes.Take(14)) sb.AppendLine($"  {t}: {from} -> {to}");
+                }
+            var p = PrecinctFile.Read(Path.Combine(args[1], "maps", "world", "precinct.clt"));
+            sb.AppendLine($"precinct.clt: {p?.Areas.Count} áreas, com música {p?.Areas.Count(a => a.Music.Count > 0)}");
+            var at = p?.At(1050, 960);
+            sb.AppendLine($"em 1050,960: {at?.Name} música {string.Join(",", at?.Music ?? [])} som {at?.Sound} noite {at?.NightSound} intervalo {at?.Interval}");
+            int found = 0, missing = 0; string? sample = null;
+            foreach (var f in p?.Areas.SelectMany(a => a.Music).Distinct() ?? [])
+            {
+                var path = new[] { Path.Combine(args[1], f), Path.Combine(args[1], "music", f) }.FirstOrDefault(File.Exists);
+                if (path is null) { missing++; sb.AppendLine("  falta: " + f); } else { found++; sample ??= path; }
+            }
+            sb.AppendLine($"músicas achadas {found}, faltando {missing}");
+            if (sample is not null) sb.AppendLine($"MCI abre {Path.GetFileName(sample)}: {MyAceEditor.UI.WorldMusic.CanOpen(sample)}");
+            File.WriteAllText(args[2], sb.ToString());
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--create-shot")   // <pasta>: loja, fornalha, dicas e janelas da ferramenta Criar com o cliente aberto por último
+        {
+            MyAceEditor.UI.ReadProgressDialog.Offscreen = true;
+            using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), ShowInTaskbar = false };
+            f.Show();
+            var until = DateTime.Now.AddSeconds(14);
+            while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
+            f.CreateShots(args[1]);
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }
         AppLog.Info($"início · {Application.ProductVersion} · {Environment.OSVersion} · idioma {AppLang.Current}");
         UseAppIcon();
@@ -1294,7 +1329,7 @@ internal static class Program
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
-        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png") })
+        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png"), (4, "window-create.png") })
         {
             w.ShotTool(scene); Application.DoEvents();
             using var full = new System.Drawing.Bitmap(w.Width, w.Height);

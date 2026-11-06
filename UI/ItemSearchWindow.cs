@@ -123,6 +123,9 @@ internal sealed class ItemSearchWindow : Form
         Fill();
     }
 
+    /// <summary>Diagnóstico: desenha o modelo sem esperar o mouse.</summary>
+    internal void ShotModel(int id) { _modelId = id; DrawModel(); }
+
     void ShowModelLater(int id)
     {
         if (_model is null || id == _modelId) return;
@@ -172,7 +175,7 @@ internal sealed class ItemSearchWindow : Form
             {
                 img = _icon(id);
                 _tries[id] = _tries.GetValueOrDefault(id) + 1;
-                if (img is not null || _tries[id] >= 10) _icons[id] = img; else _missing = true;   // 10 tentativas: sem modelo, fica sem ícone
+                if (img is not null || _tries[id] >= 90) _icons[id] = img; else _missing = true;   // cerca de 1 minuto: sem modelo, fica sem ícone
             }
             if (img is not null) e.Graphics.DrawImage(img, e.Bounds.X + 6, e.Bounds.Y + 1, 32, 32);
             return;

@@ -32,6 +32,14 @@ internal sealed class WorldMusic : IDisposable
         _muted = File.Exists(MuteFile);
     }
 
+    /// <summary>Diagnóstico: o Windows abre este mp3? Abre e fecha sem tocar.</summary>
+    public static bool CanOpen(string file)
+    {
+        bool ok = mciSendString($"open \"{file}\" type mpegvideo alias pwtest", null, 0, IntPtr.Zero) == 0;
+        mciSendString("close pwtest", null, 0, IntPtr.Zero);
+        return ok;
+    }
+
     public bool Muted
     {
         get => _muted;

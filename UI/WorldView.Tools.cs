@@ -1,3 +1,5 @@
+using MyAceEditor.PerfectWorld;
+
 namespace MyAceEditor.UI;
 
 /// <summary>
@@ -209,7 +211,7 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Para a captura (--world-shot): abre a ferramenta Editar cenário ou volta ao menu.</summary>
-    internal void ShotTool(int tool) { CloseTool(); if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
+    internal void ShotTool(int tool) { CloseTool(); if (tool == 4) { OpenTool(Tool.Create); PickKind(NpcKind.Seller); return; } if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
 
     /// <summary>Aviso de mudança não salva no painel da ferramenta.</summary>
     void UpdateSideState()

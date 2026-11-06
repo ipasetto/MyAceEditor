@@ -163,6 +163,12 @@ Tests/SptOracle | juiz das arvores: programa x86 que chama a speedtreert.dll do 
 [so build 06/11] SptGrower refeito pela speedtreert.dll: um gerador so, semente por valor, Branch/EmitBranches (LOD alta), ReduceLeaves (so para gastar sorteios), EmitFronds, Extrude, flares (SptCRand). Sem repetir sorteio: Build(f) e deterministico. CLI: --spt-obj <pasta> <saida>, --spt-stats. Juiz: Tests/SptOracle (--dump, --stats, --lod; compare.py).
 UI/PathWhoDialog.cs | caminho em ponto com mais de 1 criatura: cria ponto novo com 1 ou aplica em todas (teste 24).
 [so build 06/11] WorldQuestEditor nao le .Value enquanto digita (UiKit.TypingNumber, teste 11); Voltar ignora a 1a linha de um filtro (_autoShown, teste 16); Caminhos: SplitCreaturePath e botao de soltar pontos de caminho apagado; ItemSearchWindow com Favoritos e Recentes (teste 29); lista sem piscar com miniaturas (teste 10); map_names.tsv com BR e ingles conferidos (teste 19). CLI: --path-near, --path-who-shot.
+PerfectWorld/NpcBuilder.cs | rascunhos e criacao de NPC, loja, fabricacao e receitas (ferramenta Criar); teste --npc-builder-test.
+PerfectWorld/PrecinctFile.cs | leitor do precinct.clt (areas, musica, som).
+UI/WorldView.CreateTool.cs | ferramenta Criar do Mundo 3D. UI/GameServiceWindow.cs | janela do jogo para montar loja e fornalha. UI/RecipeWindow.cs | receita nova.
+UI/ItemTipForm.cs | dica flutuante igual a do editor (EditorForm.TipImage), usada na JAV, loja e fornalha.
+UI/WorldWater.cs | agua com reflexo e normal maps (GLSL 120; sem GLSL volta a agua simples). UI/WorldMusic.cs | musica e som por area (MCI).
+UI/ClientTranslateWindow.cs | escolha do que traduzir de outro cliente. CLI: --create-shot, --client-check, --item-fields, --teleport-report.
 UI/QuestPreview.cs | janela de quests do jogo (quest.xml) no Resumo do editor de quests, so com a quest em edicao
 UI/ItemSearchWindow.cs | janela de escolher item (tipo, busca nome/ID, icones, quantidade); usar sempre que um campo pedir item, sem campo de ID; WorldQuestEditor.PickItem
 PerfectWorld/GmCommands.cs | comandos d N por versao do jogo; painel do GM esconde o que o gs nao tem (PW-KB §S35)

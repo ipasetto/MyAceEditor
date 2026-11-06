@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 using MyAceEditor.UI;
 
@@ -201,10 +201,13 @@ public static class PackTextTranslator
         var a = Encoding.Unicode.GetString(mine, 2, mine.Length - 2 & ~1);
         int lang = MapTags.LanguageOf(InstanceEntry.Matches(a).Select(m => (m.Groups["t"].Value.Trim(), m.Groups["n"].Value)));
         if (lang == 0) return null;
+        // mesma sigla com nomes diferentes (b30 = Guerra Territorial 1 a 4, random03): é de propósito, fica como está
+        var shared = InstanceEntry.Matches(a).Where(m => !Cjk.IsMatch(m.Groups["n"].Value)).GroupBy(m => m.Groups["t"].Value.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Select(m => m.Groups["n"].Value.Trim()).Distinct().Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var res = InstanceEntry.Replace(a, m =>
         {
             var tag = m.Groups["t"].Value.Trim(); var name = m.Groups["n"].Value;
-            if (MapTags.BaseName(tag, lang) is not { } right || right == name.Trim() || name.Trim().Length == 0) return m.Value;
+            if (shared.Contains(tag) || MapTags.BaseName(tag, lang) is not { } right || right == name.Trim() || name.Trim().Length == 0) return m.Value;
             list.Add((tag, name, right));
             return "\"" + right + "\"" + m.Groups["mid"].Value + m.Groups["t"].Value + "\"";
         });

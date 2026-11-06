@@ -1,4 +1,4 @@
-using MyAceEditor.Model;
+﻿using MyAceEditor.Model;
 using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
@@ -45,7 +45,14 @@ internal sealed class GameServiceWindow : Panel
                 _ifc = new PckArchive(ip); _surf = new PckArchive(sp); _tex = new GameTextures(_surf);
                 GameFonts.Load(elementDir);
                 _dlg = GameDialog.Load(_ifc, forge ? @"interfaces\version01\produce_icon.xml" : @"interfaces\version01\shop.xml");
-                if (_dlg is not null) _base = GameDraw.Render(_dlg, _tex, outlines: false);
+                if (_dlg is not null)
+                {
+                    // textos de exemplo do arquivo da janela ficariam por baixo do que desenhamos
+                    foreach (var (name, c) in _dlg.Controls.ToList())
+                        if (c.Text is { Length: > 0 } && (name.StartsWith("Btn_Set", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Txt_", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Lab_Bind", StringComparison.OrdinalIgnoreCase) || c.Color is { R: > 200, G: < 60 }))
+                            _dlg.Controls[name] = c with { Text = null };
+                    _base = GameDraw.Render(_dlg, _tex, outlines: false);
+                }
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("janela do jogo", ex); }

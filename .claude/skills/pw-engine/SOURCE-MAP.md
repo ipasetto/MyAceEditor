@@ -5,6 +5,9 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 **Como usar (barato):** Grep `## §M<n>` para a area ou o nome do arquivo neste mapa; depois Grep o simbolo dentro do arquivo indicado. Nunca ler o mapa inteiro. Textos do cliente em GBK (ler com cp936).
 
 ## §M0 Indice por assunto -> arquivo:simbolo (servidor S=`source_server_153/cgame/gs`, cliente C=`source_client_153/CElementClient`)
+Arvores: speedtreert.dll (cliente) FUN_100029e0 CBranch::Compute, 1002d230 curva, 100286f0 LOD galhos, 1000d450 LOD frondes, 1000ab90/1000bde0 fita e extrusao (PW-KB §S35)
+Fabricacao/loja: gs serviceprovider.cpp produce_provider, npcgenerator.cpp recipe_manager; cliente DlgProduce.cpp, DlgShop.cpp
+Musica por area: CCommon/EL_Precinct.cpp CELPrecinct::Load; agua: Angelica3D/Source/A3DTerrainWaterRender.cpp; teleporte: serviceprovider.cpp transmit_provider
 
 scripts de ajuda do cliente (element\help\script.pck, "Help\Script\" + list.txt) -> source_client_153/CElementClient/ECScriptManInGame.cpp:CECScriptManInGame (Init), ECScriptController.cpp:LoadScriptList, comandos em ECScriptFunctionInGame.cpp:REGISTER_TO_ECSCRIPTFUNCTION_FACTORY; comando desconhecido = ponteiro nulo no build 2305 (PW-KB §S2)
 - drop de monstro (quantos e quantidade): S/npc.cpp OnDeath (drop_times, double_drop) -> template/itemdataman.cpp generate_item_from_monster -> S/worldmanager.cpp case GM_MSG_PRODUCE_MONSTER_DROP -> generate_item_for_drop; quantidade so na aljava: template/generate_item_temp.h (num_min/num_max)
