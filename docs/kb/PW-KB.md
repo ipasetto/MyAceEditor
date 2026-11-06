@@ -989,6 +989,9 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 - [T] o gdeliveryd le home/gdeliveryd/domain.sev (162-155: 52 territorios, par do cliente); gamed/config/domain.sev tem 51, copia velha. Regravar da byte igual.
 - [T] fronteiras calculadas por encosto: 42 de 52 iguais as do arquivo; as outras 10 sao de territorios ligados pelo mar ou por escolha do jogo. Recalcular e so por botao.
 
+- [C] precinct.sev (binario, el_precinct.cpp do gs): u32 versao, i32 n, [v>=5] u32 data; por area: nPontos, prioridade, instancia de destino, [v>=4] origem, [v>=6] dominio, [v>=7] bool pk, cidade xyz, pontos. NAO tem nome, marcas, som nem musica: isso so existe no precinct.clt. [T] 162-155 x 155 BR, mapa world: 382 areas nos dois.
+- [T] --teleport-check 155 BR x config/world_targets.sev: 0 problemas. Contra config/world/world_targets.sev (a copia que o gs nao le): 164 destinos e 38 pontos faltando.
+
 ## §Z RESOLVIDOS (use SEMPRE estes; ignore versoes antigas)
 - [31/10] interfaces.pck: a raiz NAO e "antiga, o jogo nao usa". ingame.dcf (interface classica) carrega so a raiz; ingame-v1.dcf (nova) carrega version01\ + 40-110 janelas da raiz. A janela que vale e a que o .dcf cita (§S20b) [T]
 - lancamento: jan/2006 (nao 2005)
