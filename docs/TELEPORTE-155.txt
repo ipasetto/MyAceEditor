@@ -1,0 +1,523 @@
+# 95 NPCs teleportadores, 427 ligações, 95 serviços, 92 pontos, taxa máxima 10000, pontos com NPC que descobre 92
+NPC	Serviço	Destino	Taxa	Nível
+Teleportadora Elly (2171)	2918	Cidade das Feras (mapa 1)	1000	1
+Teleportadora Elly (2171)	2918	Cidade das Plumas (mapa 1)	1000	1
+Teleportadora Elly (2171)	2918	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Elly (2171)	2918	Vila dos Eremitas (mapa 1)	200	1
+Teleportadora Elly (2171)	2918	Vila Quadrada (mapa 1)	200	1
+Teleportadora Elly (2171)	2918	Galpão dos Lenhadores (mapa 1)	200	1
+Teleportadora Elly (2171)	2918	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Elly (2171)	2918	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Elly (2171)	2918	Tribo dos Ventos (mapa 1)	5000	1
+Teleportadora Elly (2171)	2918	Vila dos Pescadores (mapa 1)	3000	1
+Teleportadora Elly (2171)	2918	Cidade das Tormentas (mapa 1)	1000	1
+Teleportadora Elly (2171)	2918	Cidade de Tellus (mapa 1)	1000	1
+Teleportadora Elly (2171)	2918	Vila Esquecida (mapa 1)	10000	1
+Teleportadora Elly (2171)	2918	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Elly (2171)	2918	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportadora Kyn (2187)	2920	Cidade das Feras (mapa 1)	1000	1
+Teleportadora Kyn (2187)	2920	Cidade das Espadas (mapa 1)	1000	1
+Teleportadora Kyn (2187)	2920	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Kyn (2187)	2920	Vila do Bambu (mapa 1)	200	1
+Teleportadora Kyn (2187)	2920	Vila Nanke (mapa 1)	200	1
+Teleportadora Kyn (2187)	2920	Montanha dos Cisnes (mapa 1)	200	1
+Teleportadora Kyn (2187)	2920	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Kyn (2187)	2920	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Kyn (2187)	2920	Cidade das Tormentas (mapa 1)	1000	1
+Teleportadora Kyn (2187)	2920	Cidade de Tellus (mapa 1)	1000	1
+Teleportadora Kyn (2187)	2920	Vila Esquecida (mapa 1)	10000	1
+Teleportadora Kyn (2187)	2920	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Kyn (2187)	2920	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportador Kergan (2202)	2919	Cidade das Espadas (mapa 1)	1000	1
+Teleportador Kergan (2202)	2919	Cid.do Dragão N (mapa 1)	3000	1
+Teleportador Kergan (2202)	2919	Vila a Beira D'Água (mapa 1)	200	1
+Teleportador Kergan (2202)	2919	Garganta dos Ventos Ancestrais (mapa 1)	200	1
+Teleportador Kergan (2202)	2919	Cidade das Plumas (mapa 1)	1000	1
+Teleportador Kergan (2202)	2919	Vila da Ponte Quebrada (mapa 1)	200	1
+Teleportador Kergan (2202)	2919	Cidade do Pôr-do-Sol (mapa 1)	5000	1
+Teleportador Kergan (2202)	2919	Cid.do Dragão O (mapa 1)	3000	1
+Teleportador Kergan (2202)	2919	Cid.do Dragão S (mapa 1)	3000	1
+Teleportador Kergan (2202)	2919	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador Kergan (2202)	2919	Cidade de Tellus (mapa 1)	1000	1
+Teleportador Kergan (2202)	2919	Vila Esquecida (mapa 1)	10000	1
+Teleportador Kergan (2202)	2919	Cid.do Dragão L (mapa 1)	3000	1
+Teleportador Kergan (2202)	2919	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportadora (2218)	2921	Cidade das Espadas (mapa 1)	5000	20
+Teleportadora (2218)	2921	Cidade das Feras (mapa 1)	5000	20
+Teleportadora (2218)	2921	Cidade das Plumas (mapa 1)	5000	20
+Teleportadora (2218)	2921	Cidade do Vento Alísio (mapa 1)	5000	35
+Teleportadora (2218)	2921	Acampamento Aliado (mapa 1)	5000	30
+Teleportadora (2218)	2921	Residência do Lago Espelhado (mapa 1)	5000	20
+Teleportadora Galena (3578)	3589	Cidade das Espadas (mapa 1)	200	1
+Teleportadora Galena (3578)	3589	Vila dos Eremitas (mapa 1)	200	1
+Teleportadora Galena (3578)	3589	Galpão dos Lenhadores (mapa 1)	200	1
+Teleportadora Iritia (3579)	3590	Cidade da Perdição (mapa 1)	5000	1
+Teleportadora Iritia (3579)	3590	Acampamento Aliado (mapa 1)	3000	1
+Teleportadora Iritia (3579)	3590	Cidade das Espadas (mapa 1)	1000	1
+Teleportadora Lauren (3580)	3591	Tribo dos Ventos (mapa 1)	5000	1
+Teleportadora Lauren (3580)	3591	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Lauren (3580)	3591	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Lauren (3580)	3591	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Lauren (3580)	3591	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Evan (3581)	3588	Tribo dos Ventos (mapa 1)	5000	1
+Teleportadora Karla (3582)	3593	Cidade das Feras (mapa 1)	200	1
+Teleportadora Karla (3582)	3593	Vila da Ponte Quebrada (mapa 1)	200	0
+Teleportadora Karla (3582)	3593	Vila a Beira D'Água (mapa 1)	200	1
+Teleportadora Victoria (3583)	3592	Cidade das Feras (mapa 1)	200	1
+Teleportadora Victoria (3583)	3592	Garganta dos Ventos Ancestrais (mapa 1)	200	1
+Teleportadora Victoria (3583)	3592	Vila da Ponte Quebrada (mapa 1)	200	1
+Teleportadora Bruna (3584)	3597	Cidade do Pôr-do-Sol (mapa 1)	5000	1
+Teleportadora Julia (3585)	3596	Cidade das Plumas (mapa 1)	200	1
+Teleportadora Julia (3585)	3596	Montanha dos Cisnes (mapa 1)	200	1
+Teleportadora Julia (3585)	3596	Vila do Bambu (mapa 1)	200	1
+Teleportadora Hanna (3586)	3595	Vila das Espadas (mapa 1)	5000	1
+Teleportadora Hanna (3586)	3595	Vila dos Sonhos (mapa 1)	6000	1
+Teleportadora Hanna (3586)	3595	Reino de Yu (mapa 1)	3000	1
+Teleportadora Mirana (3587)	3594	Cidade da Presa (mapa 1)	6000	1
+Teleportadora Mirana (3587)	3594	Residência do Lago Espelhado (mapa 1)	3000	1
+Teleportadora Mirana (3587)	3594	Reino de Yu (mapa 1)	3000	1
+Teleportador Carna (4117)	4204	Vila dos Pescadores (mapa 1)	3000	1
+Teleportadora Charys (4142)	4206	Campo de Su Muer (mapa 1)	5000	1
+Teleportadora Charys (4142)	4206	Cidade do Vento Alísio (mapa 1)	5000	1
+Teleportadora Charys (4142)	4206	Cidade das Espadas (mapa 1)	1000	1
+Teleportadora Muriel (4160)	4207	Vila dos Pescadores (mapa 1)	3000	1
+Teleportadora Muriel (4160)	4207	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Muriel (4160)	4207	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Muriel (4160)	4207	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Muriel (4160)	4207	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Bella (4162)	4211	Residência do Lago Espelhado (mapa 1)	3000	1
+Teleportadora Bella (4162)	4211	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Bella (4162)	4211	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Bella (4162)	4211	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Bella (4162)	4211	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Fran (4170)	4208	Cidade de Fei Wei (mapa 1)	5000	1
+Teleportadora Fran (4170)	4208	Cidade das Feras (mapa 1)	1000	1
+Teleportadora Lena (4172)	4209	Cidade das Feras (mapa 1)	200	1
+Teleportadora Lena (4172)	4209	Vila a Beira D'Água (mapa 1)	200	1
+Teleportadora Lena (4172)	4209	Garganta dos Ventos Ancestrais (mapa 1)	200	1
+Teleportadora Lena (4172)	4209	Declive do Dragão (mapa 1)	3000	1
+Teleportadora Clara (4184)	4212	Cidade das Plumas (mapa 1)	200	1
+Teleportadora Clara (4184)	4212	Vila Nanke (mapa 1)	200	1
+Teleportadora Clara (4184)	4212	Montanha dos Cisnes (mapa 1)	200	1
+Teleportadora Flávia (4187)	4210	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Flávia (4187)	4210	Vila das Orquídeas (mapa 1)	3000	1
+Teleportadora Flávia (4187)	4210	Vila das Espadas (mapa 1)	5000	1
+Teleportadora Flávia (4187)	4210	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Flávia (4187)	4210	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Flávia (4187)	4210	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Hefis (4193)	4205	Cidade das Espadas (mapa 1)	200	1
+Teleportadora Hefis (4193)	4205	Vila Quadrada (mapa 1)	200	1
+Teleportadora Hefis (4193)	4205	Galpão dos Lenhadores (mapa 1)	200	1
+Teleportadora Karin (4383)	4384	Cidade das Espadas (mapa 1)	200	1
+Teleportadora Karin (4383)	4384	Vila Quadrada (mapa 1)	200	0
+Teleportadora Karin (4383)	4384	Vila dos Eremitas (mapa 1)	200	1
+Teleportadora Karen (4453)	5369	Cidade das Espadas (mapa 1)	1000	1
+Teleportadora Karen (4453)	5369	Cidade das Feras (mapa 1)	1000	1
+Teleportadora Karen (4453)	5369	Cidade das Plumas (mapa 1)	1000	1
+Teleportadora Karen (4453)	5369	Cidade do Vento Alísio (mapa 1)	5000	1
+Teleportadora Karen (4453)	5369	Acampamento Aliado (mapa 1)	3000	1
+Teleportadora Karen (4453)	5369	Residência do Lago Espelhado (mapa 1)	3000	1
+Teleportadora Karen (4453)	5369	Cid.do Dragão O (mapa 1)	500	1
+Teleportadora Karen (4453)	5369	Cid.do Dragão N (mapa 1)	500	1
+Teleportadora Karen (4453)	5369	Porto dos Sonhos (mapa 1)	8000	1
+Teleportadora Karen (4453)	5369	Cidade Universal (mapa 1)	8000	1
+Teleportadora Karen (4453)	5369	Vila das Orquídeas (mapa 1)	3000	1
+Teleportadora Karen (4453)	5369	Templo das Orquídeas (mapa 1)	1000	1
+Teleportadora Karen (4453)	5369	Cidade das Tormentas (mapa 1)	1000	1
+Teleportadora Karen (4453)	5369	Cidade de Tellus (mapa 1)	1000	1
+Teleportadora Karen (4453)	5369	Vila Esquecida (mapa 1)	10000	1
+Teleportadora Karen (4453)	5369	Cid.do Dragão L (mapa 1)	500	1
+Teleportadora Karen (4453)	5369	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportador Lumere (4454)	5370	Cidade das Espadas (mapa 1)	1000	1
+Teleportador Lumere (4454)	5370	Cidade das Feras (mapa 1)	1000	1
+Teleportador Lumere (4454)	5370	Cidade das Plumas (mapa 1)	1000	1
+Teleportador Lumere (4454)	5370	Cidade do Vento Alísio (mapa 1)	5000	1
+Teleportador Lumere (4454)	5370	Acampamento Aliado (mapa 1)	3000	1
+Teleportador Lumere (4454)	5370	Residência do Lago Espelhado (mapa 1)	3000	1
+Teleportador Lumere (4454)	5370	Cid.do Dragão N (mapa 1)	500	1
+Teleportador Lumere (4454)	5370	Cid.do Dragão S (mapa 1)	500	1
+Teleportador Lumere (4454)	5370	Porto dos Sonhos (mapa 1)	8000	1
+Teleportador Lumere (4454)	5370	Cidade Universal (mapa 1)	8000	1
+Teleportador Lumere (4454)	5370	Vila das Orquídeas (mapa 1)	3000	1
+Teleportador Lumere (4454)	5370	Templo das Orquídeas (mapa 1)	1000	1
+Teleportador Lumere (4454)	5370	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador Lumere (4454)	5370	Cidade de Tellus (mapa 1)	1000	1
+Teleportador Lumere (4454)	5370	Vila Esquecida (mapa 1)	10000	1
+Teleportador Lumere (4454)	5370	Cid.do Dragão L (mapa 1)	500	1
+Teleportador Lumere (4454)	5370	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportadora Karlee (4460)	5368	Cidade das Espadas (mapa 1)	1000	1
+Teleportadora Karlee (4460)	5368	Cidade das Feras (mapa 1)	1000	1
+Teleportadora Karlee (4460)	5368	Cidade das Plumas (mapa 1)	1000	1
+Teleportadora Karlee (4460)	5368	Cidade do Vento Alísio (mapa 1)	5000	1
+Teleportadora Karlee (4460)	5368	Acampamento Aliado (mapa 1)	3000	1
+Teleportadora Karlee (4460)	5368	Residência do Lago Espelhado (mapa 1)	3000	1
+Teleportadora Karlee (4460)	5368	Cid.do Dragão O (mapa 1)	500	1
+Teleportadora Karlee (4460)	5368	Cid.do Dragão S (mapa 1)	500	1
+Teleportadora Karlee (4460)	5368	Porto dos Sonhos (mapa 1)	8000	1
+Teleportadora Karlee (4460)	5368	Cidade Universal (mapa 1)	8000	1
+Teleportadora Karlee (4460)	5368	Vila das Orquídeas (mapa 1)	3000	1
+Teleportadora Karlee (4460)	5368	Templo das Orquídeas (mapa 1)	1000	1
+Teleportadora Karlee (4460)	5368	Cidade das Tormentas (mapa 1)	1000	1
+Teleportadora Karlee (4460)	5368	Cidade de Tellus (mapa 1)	1000	1
+Teleportadora Karlee (4460)	5368	Vila Esquecida (mapa 1)	10000	1
+Teleportadora Karlee (4460)	5368	Cid.do Dragão L (mapa 1)	500	1
+Teleportadora Karlee (4460)	5368	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportadora Hermie (5362)	5372	Cidade das Plumas (mapa 1)	200	1
+Teleportadora Hermie (5362)	5372	Vila do Bambu (mapa 1)	200	1
+Teleportadora Hermie (5362)	5372	Vila Nanke (mapa 1)	200	1
+Teleportadora Noiri Polok (7335)	7658	Vila de Gelo (mapa 1)	8000	1
+Teleportadora Noiri Polok (7335)	7658	Cidade Universal (mapa 1)	8000	1
+Teleportadora Nixten (7343)	7659	Vila Nevada (mapa 1)	8000	1
+Teleportadora Nixten (7343)	7659	Vila da Avalanche (mapa 1)	8000	1
+Teleportadora Mirth (7347)	7660	Vila de Gelo (mapa 1)	8000	1
+Teleportadora Athir (7355)	7662	Cidade Universal (mapa 1)	8000	1
+Teleportadora Athir (7355)	7662	Cidade de Dongpin (mapa 1)	8000	1
+Teleportadora Athir (7355)	7662	Cidade de Nanping (mapa 1)	8000	1
+Teleportadora Cloyce (7365)	7663	Cidade Universal (mapa 1)	8000	1
+Teleportadora Cloyce (7365)	7663	Cidade de Beiping (mapa 1)	8000	1
+Teleportadora Cloyce (7365)	7663	Cidade de Nanping (mapa 1)	8000	1
+Teleportadora Cloyce (7365)	7663	Campo da Expedição (mapa 1)	8000	1
+Teleportadora Elaine (7375)	7664	Cidade Universal (mapa 1)	8000	1
+Teleportadora Elaine (7375)	7664	Cidade de Beiping (mapa 1)	8000	1
+Teleportadora Elaine (7375)	7664	Cidade de Dongpin (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Vila Nevada (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Cidade de Beiping (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Cidade de Dongpin (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Cidade de Nanping (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Vila do Fogo (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Sítio na Vila da Areia (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Rio da Tranquilidade (mapa 1)	8000	1
+Teleportadora Maris  (7385)	7661	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Maris  (7385)	7661	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Maris  (7385)	7661	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Maris  (7385)	7661	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Emma (7397)	7665	Cidade de Dongpin (mapa 1)	8000	1
+Teleportador Karius (7407)	7666	Cidade Universal (mapa 1)	8000	1
+Teleportadora Aldric (7415)	7667	Cidade Universal (mapa 1)	8000	1
+Teleportadora Luly (7423)	7668	Cidade de Arcádia (mapa 1)	6000	1
+Teleportadora Mila (7427)	7669	Vila Langour (mapa 1)	6000	1
+Teleportadora Mila (7427)	7669	Vila Perdida (mapa 1)	6000	1
+Teleportadora Gina (7444)	7670	Cidade Universal (mapa 1)	8000	1
+Teleportadora Gina (7444)	7670	Vila Yelang (mapa 1)	8000	1
+Teleportadora Berta (7452)	7671	Porto dos Sonhos (mapa 1)	8000	1
+Teleportadora Berta (7452)	7671	Vila Perdida (mapa 1)	6000	1
+Teleportadora Berta (7452)	7671	Vila dos Sonhos (mapa 1)	6000	1
+Teleportadora Pan (7460)	7672	Cidade de Arcádia (mapa 1)	6000	1
+Teleportadora Pan (7460)	7672	Porto dos Sonhos (mapa 1)	8000	1
+Teleportadora Pan (7460)	7672	Vila de Pedra (mapa 1)	6000	1
+Teleportadora Pan (7460)	7672	Vila dos Sonhos (mapa 1)	6000	1
+Teleportadora Vivian (7464)	7674	Porto dos Sonhos (mapa 1)	8000	1
+Teleportadora Vivian (7464)	7674	Cidade da Presa (mapa 1)	6000	1
+Teleportadora Vivian (7464)	7674	Vila Perdida (mapa 1)	6000	1
+Teleportadora Vivian (7464)	7674	Vila de Pedra (mapa 1)	6000	1
+Teleportadora Trixy (7472)	7675	Vila dos Sonhos (mapa 1)	6000	1
+Teleportadora Trixy (7472)	7675	Vila de Pedra (mapa 1)	6000	1
+Teleportadora Trixy (7472)	7675	Vila Perdida (mapa 1)	6000	1
+Teleportadora Trixy (7472)	7675	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Trixy (7472)	7675	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Trixy (7472)	7675	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Trixy (7472)	7675	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Kiel (7650)	7673	Sítio na Vila da Areia (mapa 1)	8000	1
+Teleportadora Alison (13937)	13940	Cid.do Dragão O (mapa 1)	1000	1
+Teleportadora Alison (13937)	13940	Cid.do Dragão N (mapa 1)	1000	1
+Teleportadora Alison (13937)	13940	Cid.do Dragão S (mapa 1)	1000	1
+Teleportadora Alison (13937)	13940	Cid.do Dragão L (mapa 1)	1000	1
+Teleportadora Paula (13938)	13941	Vila da Ponte Quebrada (mapa 1)	3000	1
+Mensageira Lua Púrpura (13939)	13942	Vila das Espadas (mapa 1)	3000	1
+Mensageira Lua Púrpura (13939)	13942	Cidade da Presa (mapa 1)	3000	1
+Teleportador (25533)	26177	Altar do Fogo Noturno  (mapa 1)	200	1
+Teleportador (25533)	26177	Montanha Nebulosa (mapa 1)	200	1
+Teleportador (25533)	26177	Quebra Onda (mapa 1)	1000	1
+Teleportador (25533)	26177	Arrecife da Nuvem Solitária (mapa 1)	5000	1
+Teleportador (25533)	26177	Posto Lança Cega (mapa 1)	5000	1
+Teleportador (25533)	26177	Cidade das Feras (mapa 1)	1000	1
+Teleportador (25533)	26177	Cidade das Espadas (mapa 1)	1000	1
+Teleportador (25533)	26177	Cidade das Plumas (mapa 1)	1000	1
+Teleportador (25533)	26177	Cid.do Dragão N (mapa 1)	3000	1
+Teleportador (25533)	26177	Cid.do Dragão O (mapa 1)	3000	1
+Teleportador (25533)	26177	Cid.do Dragão S (mapa 1)	3000	1
+Teleportador (25533)	26177	Cidade de Tellus (mapa 1)	1000	1
+Teleportador (25533)	26177	Vila Esquecida (mapa 1)	10000	1
+Teleportador (25533)	26177	Cid.do Dragão L (mapa 1)	3000	1
+Teleportador (25533)	26177	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportador Kuan Koji (25811)	26174	Altar do Fogo Noturno  (mapa 1)	200	1
+Teleportador Kuan Koji (25811)	26174	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador Kuan Koji (25811)	26174	Quebra Onda (mapa 1)	1000	1
+Teleportador Yang Mingyu (25812)	26176	Montanha Nebulosa (mapa 1)	200	1
+Teleportador Yang Mingyu (25812)	26176	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador Yang Mingyu (25812)	26176	Quebra Onda (mapa 1)	1000	1
+Teleportadora Danqing (25831)	26179	Quebra Onda (mapa 1)	1000	1
+Teleportadora Danqing (25831)	26179	Cidade das Tormentas (mapa 1)	1000	1
+Teleportadora Danqing (25831)	26179	Posto Lança Cega (mapa 1)	5000	1
+Teleportador Shimizu (25843)	26174	Altar do Fogo Noturno  (mapa 1)	200	1
+Teleportador Shimizu (25843)	26174	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador Shimizu (25843)	26174	Quebra Onda (mapa 1)	1000	1
+Teleportador Lan Xiao-night (25844)	26176	Montanha Nebulosa (mapa 1)	200	1
+Teleportador Lan Xiao-night (25844)	26176	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador Lan Xiao-night (25844)	26176	Quebra Onda (mapa 1)	1000	1
+Teleportador leisurely (25845)	26178	Montanha Nebulosa (mapa 1)	200	1
+Teleportador leisurely (25845)	26178	Altar do Fogo Noturno  (mapa 1)	200	1
+Teleportador leisurely (25845)	26178	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador leisurely (25845)	26178	Arrecife da Nuvem Solitária (mapa 1)	5000	1
+Teleportador leisurely (25845)	26178	Posto Lança Cega (mapa 1)	5000	1
+Teleportador Wei (25866)	26180	Arrecife da Nuvem Solitária (mapa 1)	5000	1
+Teleportador Wei (25866)	26180	Quebra Onda (mapa 1)	1000	1
+Teleportador Wei (25866)	26180	Cidade das Tormentas (mapa 1)	1000	1
+Teleportadora Liang (29170)	30201	Cidade de Tellus (mapa 1)	1000	1
+Teleportadora Yuan Xiang (29192)	30197	Cidade de Tellus (mapa 1)	200	1
+Teleportadora Yuan Xiang (29192)	30197	Santuário dos Ancestrais (mapa 1)	200	1
+Teleportadora Yuan Xiang (29192)	30197	Fortaleza dos Guardiães (mapa 1)	1000	1
+Teleportadora Yu Chi (29193)	30198	Vale da Estrela da Manhã (mapa 1)	200	1
+Teleportadora Yu Chi (29193)	30198	Cidade de Tellus (mapa 1)	200	1
+Teleportadora Yu Chi (29193)	30198	Fortaleza dos Guardiães (mapa 1)	1000	1
+Teleportadora Cheng He (29194)	30199	Santuário dos Ancestrais (mapa 1)	200	1
+Teleportadora Cheng He (29194)	30199	Cidade de Tellus (mapa 1)	200	1
+Teleportadora Cheng He (29194)	30199	Vale da Estrela da Manhã (mapa 1)	200	0
+Teleportadora Qian Li (29195)	30200	Templo dos Imortais (mapa 1)	5000	1
+Teleportadora Qian Li (29195)	30200	Vale da Estrela da Manhã (mapa 1)	200	1
+Teleportadora Qian Li (29195)	30200	Santuário dos Ancestrais (mapa 1)	200	1
+Teleportadora Qian Li (29195)	30200	Fortaleza dos Guardiães (mapa 1)	1000	1
+Teleportadora Qian Li (29195)	30200	Cidade do Vento Uivante (mapa 1)	1000	1
+Teleportadora Qian Li (29195)	30200	Santuário Esquecido (mapa 1)	5000	1
+Teleportadora Qian Li (29195)	30200	Cid.do Dragão N (mapa 1)	3000	1
+Teleportadora Qian Li (29195)	30200	Cid.do Dragão O (mapa 1)	3000	1
+Teleportadora Qian Li (29195)	30200	Cid.do Dragão S (mapa 1)	3000	1
+Teleportadora Qian Li (29195)	30200	Cidade das Espadas (mapa 1)	1000	1
+Teleportadora Qian Li (29195)	30200	Cidade das Feras (mapa 1)	1000	1
+Teleportadora Qian Li (29195)	30200	Cidade das Plumas (mapa 1)	1000	1
+Teleportadora Qian Li (29195)	30200	Cidade das Tormentas (mapa 1)	1000	1
+Teleportadora Qian Li (29195)	30200	Vila Esquecida (mapa 1)	10000	1
+Teleportadora Qian Li (29195)	30200	Cid.do Dragão L (mapa 1)	3000	1
+Teleportadora Qian Li (29195)	30200	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teleportadora Hao Ju (29197)	30202	Cidade de Tellus (mapa 1)	1000	1
+Teleportadora Yuan Ji (29198)	30196	Cidade de Tellus (mapa 1)	1000	1
+Teleportador Mon Suer (32230)	32759	Cid.do Dragão N (mapa 1)	3000	1
+Teleportador Mon Suer (32230)	32759	Cid.do Dragão O (mapa 1)	3000	1
+Teleportador Mon Suer (32230)	32759	Cid.do Dragão S (mapa 1)	3000	1
+Teleportador Mon Suer (32230)	32759	Cidade das Espadas (mapa 1)	1000	1
+Teleportador Mon Suer (32230)	32759	Cidade das Feras (mapa 1)	1000	1
+Teleportador Mon Suer (32230)	32759	Cidade das Plumas (mapa 1)	1000	1
+Teleportador Mon Suer (32230)	32759	Cidade das Tormentas (mapa 1)	1000	1
+Teleportador Mon Suer (32230)	32759	Cidade de Tellus (mapa 1)	1000	1
+Teleportador Mon Suer (32230)	32759	Cid.do Dragão L (mapa 1)	3000	1
+Teleportador Mon Suer (32230)	32759	Cidade da Névoa Sombria (mapa 1)	10000	1
+Teletransportador Shia Sol (33170)	33302	Posto Warblades (mapa 137)	2500	95
+Teletransportador Shia Sol (33170)	33302	Posto Solstício (mapa 137)	2500	95
+Teletransportador Shia Sol (33170)	33302	Cristal da Luz de Areia (mapa 137)	2500	95
+Teletransportador Shia Sol (33170)	33302	Vila da Luz de Vela  (mapa 137)	2500	95
+Teletransportador Shia Sol (33170)	33302	Portão Invisível (mapa 137)	2500	95
+Teletransportador Ruzon (33177)	33303	Lago Celestial (mapa 137)	2500	95
+Teletransportador Ruzon (33177)	33303	Posto Solstício (mapa 137)	2500	95
+Teletransportador Ruzon (33177)	33303	Cristal da Luz de Areia (mapa 137)	2500	95
+Teletransportador Ruzon (33177)	33303	Vila da Luz de Vela  (mapa 137)	2500	95
+Teletransportador Monis (33188)	33329	Posto Warblades (mapa 137)	2500	95
+Teletransportador Monis (33188)	33329	Altar Safira (mapa 137)	2500	95
+Teletransportador Monis (33188)	33329	Nexus da Luminância (mapa 137)	2500	95
+Teletransportador Monis (33188)	33329	Lago Celestial (mapa 137)	2500	95
+Teletransportador Veru (33190)	33328	Posto Solstício (mapa 137)	2500	95
+Teletransportador Veru (33190)	33328	Cristal da Luz de Areia (mapa 137)	2500	95
+Teletransportador Veru (33190)	33328	Nexus da Luminância (mapa 137)	2500	95
+Teletransportador Hoki (33198)	33330	Lago Celestial (mapa 137)	2500	95
+Teletransportador Hoki (33198)	33330	Nexus da Luminância (mapa 137)	3000	95
+Teletransportador Hoki (33198)	33330	Templo Protegido (mapa 137)	3000	95
+Teletransportador Hoki (33198)	33330	Santuário Corona  (mapa 137)	3000	95
+Teletransportador Hoki (33198)	33330	Torre Vista de Areia (mapa 137)	3000	95
+Teletransportador Swane Key (33203)	33331	Lago Celestial (mapa 137)	2500	95
+Teletransportador Swane Key (33203)	33331	Posto Warblades (mapa 137)	2500	95
+Teletransportador Swane Key (33203)	33331	Posto Solstício (mapa 137)	2500	95
+Teletransportador Mionia (33210)	33332	Portão Invisível (mapa 137)	3000	95
+Teletransportador Mionia (33210)	33332	Torre Vista de Areia (mapa 137)	3000	95
+Teletransportador Siobahn (33217)	33333	Altar Safira (mapa 137)	2500	95
+Teletransportador Siobahn (33217)	33333	Cristal da Luz de Areia (mapa 137)	2500	95
+Teletransportador Siobahn (33217)	33333	Portão Invisível (mapa 137)	3000	95
+Teletransportador Siobahn (33217)	33333	Torre Vista de Areia (mapa 137)	3000	95
+Teletransportador Raio Kin (33226)	33334	Portão Invisível (mapa 137)	3000	95
+Teletransportador Raio Kin (33226)	33334	Torre Vista de Areia (mapa 137)	3000	95
+Teletransportador Rua (33231)	33327	Lago Celestial (mapa 137)	2500	95
+Teletransportador Rua (33231)	33327	Posto Warblades (mapa 137)	2500	95
+Teletransportador Rua (33231)	33327	Altar Safira (mapa 137)	2500	95
+Teletransportador Rua (33231)	33327	Vila da Luz de Vela  (mapa 137)	2500	95
+Teletransportador Shin (34577)	34578	Lago Celestial (mapa 137)	2500	95
+Teletransportador Shin (34577)	34578	Nexus da Luminância (mapa 137)	3000	95
+Teletransportador Shin (34577)	34578	Templo Protegido (mapa 137)	3000	95
+Teletransportador Shin (34577)	34578	Santuário Corona  (mapa 137)	3000	95
+Teletransportador Shin (34577)	34578	Portão Invisível (mapa 137)	2500	95
+Projeção: Blizzen (40299)	42331	Torre do Dragão (mapa 163)	2500	1
+Projeção: Blizzen (40299)	42331	Aldeia Huan (mapa 163)	2500	1
+Projeção: Blizzen (40299)	42331	Vilarejo das Árvores Ancestrais (mapa 163)	2500	1
+Projeção: Blizzen (40299)	42331	Vila do Outono  (mapa 163)	2500	1
+Projeção: Blizzen (40299)	42331	Acampamento Gélido (mapa 163)	3000	1
+Projeção: Blizzen (40299)	42331	Maré Forte (mapa 163)	3000	1
+Mestre Teletransportador (40317)	42333	Cidade Kirin (mapa 163)	2500	1
+Mestre Teletransportador (40317)	42333	Torre do Dragão (mapa 163)	2500	1
+Mestre Teletransportador (40317)	42333	Vilarejo das Árvores Ancestrais (mapa 163)	2500	1
+Mestre Teletransportador (40317)	42333	Vila do Outono  (mapa 163)	2500	1
+Mestre Teletransportador (40340)	42334	Cidade Kirin (mapa 163)	2500	1
+Mestre Teletransportador (40340)	42334	Torre do Dragão (mapa 163)	2500	1
+Mestre Teletransportador (40340)	42334	Aldeia Huan (mapa 163)	2500	1
+Mestre Teletransportador (40340)	42334	Vila do Outono  (mapa 163)	2500	1
+Mestre Teletransportador (42249)	42332	Cidade Kirin (mapa 163)	2500	1
+Mestre Teletransportador (42249)	42332	Aldeia Huan (mapa 163)	2500	1
+Mestre Teletransportador (42249)	42332	Vilarejo das Árvores Ancestrais (mapa 163)	2500	1
+Mestre Teletransportador (42249)	42332	Vila do Outono  (mapa 163)	2500	1
+Mestre Teletransportador (42255)	42335	Cidade Kirin (mapa 163)	2500	1
+Mestre Teletransportador (42255)	42335	Torre do Dragão (mapa 163)	2500	1
+Mestre Teletransportador (42255)	42335	Aldeia Huan (mapa 163)	2500	1
+Mestre Teletransportador (42255)	42335	Vilarejo das Árvores Ancestrais (mapa 163)	2500	1
+Teletransportador (42612)	43622	Vila do Inverno (mapa 163)	2500	1
+Teletransportador (42612)	43622	Campos Glaciais (mapa 163)	2500	1
+Teletransportador (42612)	43622	Cidade Kirin (mapa 163)	3000	1
+Teletransportador Mo (42618)	43623	Acampamento Gélido (mapa 163)	2500	1
+Teletransportador Mo (42618)	43623	Campos Glaciais (mapa 163)	2500	1
+Teletransportador Mei  (42621)	43624	Acampamento Gélido (mapa 163)	2500	1
+Teletransportador Mei  (42621)	43624	Vila do Inverno (mapa 163)	2500	1
+Teletransportador Mei  (42621)	43624	Maré Forte (mapa 163)	2500	1
+Mestre Teletransportador Luffey (44408)	46137	Vila do Sábio (mapa 161)	50	1
+Mestre Teletransportador Luffey (44408)	46137	Cidade de Kontong (mapa 161)	50	1
+Mestre Teletransportador Luffey (44408)	46137	Ilhas Ascendentes (mapa 161)	50	1
+Mestre Teletransportador Luffey (44408)	46137	Acampamento Sombrio (mapa 161)	50	1
+Mestre Teletransportador Fulio (44411)	46138	Terraço dos Heróis (mapa 161)	50	1
+Mestre Teletransportador Fulio (44411)	46138	Cidade de Kontong (mapa 161)	50	1
+Mestre Teletransportador Fulio (44411)	46138	Ilhas Ascendentes (mapa 161)	50	1
+Mestre Teletransportador Fulio (44411)	46138	Acampamento Sombrio (mapa 161)	50	1
+Mestre Teletransportador Luxan (44433)	46140	Terraço dos Heróis (mapa 161)	50	1
+Mestre Teletransportador Luxan (44433)	46140	Vila do Sábio (mapa 161)	50	1
+Mestre Teletransportador Luxan (44433)	46140	Cidade de Kontong (mapa 161)	50	1
+Mestre Teletransportador Luxan (44433)	46140	Acampamento Sombrio (mapa 161)	50	1
+Mestre Teletransportador Ning (44644)	45054	Cidade das Espadas (mapa 1)	1000	1
+Mestre Teletransportador Ning (44644)	45054	Cidade das Feras (mapa 1)	1000	1
+Mestre Teletransportador Ning (44644)	45054	Cidade das Plumas (mapa 1)	1000	1
+Mestre Teletransportador Ning (44644)	45054	Cidade do Vento Alísio (mapa 1)	5000	1
+Mestre Teletransportador Ning (44644)	45054	Acampamento Aliado (mapa 1)	3000	1
+Mestre Teletransportador Ning (44644)	45054	Residência do Lago Espelhado (mapa 1)	3000	1
+Mestre Teletransportador Ning (44644)	45054	Cid.do Dragão O (mapa 1)	500	1
+Mestre Teletransportador Ning (44644)	45054	Cid.do Dragão S (mapa 1)	500	1
+Mestre Teletransportador Ning (44644)	45054	Porto dos Sonhos (mapa 1)	8000	1
+Mestre Teletransportador Ning (44644)	45054	Cidade Universal (mapa 1)	8000	1
+Mestre Teletransportador Ning (44644)	45054	Vila das Orquídeas (mapa 1)	3000	1
+Mestre Teletransportador Ning (44644)	45054	Templo das Orquídeas (mapa 1)	1000	1
+Mestre Teletransportador Ning (44644)	45054	Cidade das Tormentas (mapa 1)	1000	1
+Mestre Teletransportador Ning (44644)	45054	Cidade de Tellus (mapa 1)	1000	1
+Mestre Teletransportador Ning (44644)	45054	Vila Esquecida (mapa 1)	10000	1
+Mestre Teletransportador Ning (44644)	45054	Cid.do Dragão N (mapa 1)	500	1
+Mestre Teletransportador Ning (44644)	45054	Cidade da Névoa Sombria (mapa 1)	1000	1
+Teletransportador Rayga (44724)	46107	Cid.do Dragão N (mapa 1)	3000	1
+Teletransportador Rayga (44724)	46107	Cid.do Dragão O (mapa 1)	3000	1
+Teletransportador Rayga (44724)	46107	Cid.do Dragão S (mapa 1)	3000	1
+Teletransportador Rayga (44724)	46107	Cid.do Dragão L (mapa 1)	3000	1
+Teletransportador Rayga (44724)	46107	Cidade das Espadas (mapa 1)	1000	1
+Teletransportador Rayga (44724)	46107	Cidade das Feras (mapa 1)	1000	1
+Teletransportador Rayga (44724)	46107	Cidade das Plumas (mapa 1)	1000	1
+Teletransportador Rayga (44724)	46107	Cidade de Tellus (mapa 1)	1000	1
+Teletransportador Rayga (44724)	46107	Cidade das Tormentas (mapa 1)	1000	1
+Teletransportador Rayga (44724)	46107	Altar da Ilusão (mapa 1)	200	1
+Teletransportador Rayga (44724)	46107	Vila Esquecida (mapa 1)	10000	1
+Teletransportador Fosim (44727)	46141	Terraço dos Heróis (mapa 161)	50	1
+Teletransportador Fosim (44727)	46141	Vila do Sábio (mapa 161)	50	1
+Teletransportador Fosim (44727)	46141	Cidade de Kontong (mapa 161)	50	1
+Teletransportador Fosim (44727)	46141	Ilhas Ascendentes (mapa 161)	50	1
+Mestre Teletransportador Lui (44737)	46108	Cidade da Névoa Sombria (mapa 1)	200	1
+Teletransportador Guay (44740)	46139	Terraço dos Heróis (mapa 161)	50	1
+Teletransportador Guay (44740)	46139	Vila do Sábio (mapa 161)	50	1
+Teletransportador Guay (44740)	46139	Ilhas Ascendentes (mapa 161)	50	1
+Teletransportador Guay (44740)	46139	Acampamento Sombrio (mapa 161)	50	1
+Teletransportador Mestre (46641)	47399	Maré Forte (mapa 163)	2500	1
+Teletransportador Fargo (46649)	47400	Maré Forte (mapa 163)	2500	1
+Mestre Teletransportador Banksy (46660)	47401	Cidade Kirin (mapa 163)	3000	1
+Mestre Teletransportador Banksy (46660)	47401	Frota Aliada (mapa 163)	2500	1
+Mestre Teletransportador Banksy (46660)	47401	Campos Glaciais (mapa 163)	2500	1
+Mestre Teletransportador Banksy (46660)	47401	Floresta Incandescente (mapa 163)	2500	1
+
+# Quem descobre cada ponto (id_to_discover)
+Vila Nevada (mapa 1)	Teleportadora Noiri Polok
+Vila de Gelo (mapa 1)	Teleportadora Nixten
+Vila da Avalanche (mapa 1)	Teleportadora Mirth
+Galpão dos Lenhadores (mapa 1)	Teleportadora Karin
+Cidade da Perdição (mapa 1)	Teleportador Carna
+Cidade Universal (mapa 1)	Teleportadora Maris 
+Cidade de Beiping (mapa 1)	Teleportadora Athir
+Cidade de Dongpin (mapa 1)	Teleportadora Cloyce
+Cidade de Nanping (mapa 1)	Teleportadora Elaine
+Campo da Expedição (mapa 1)	Teleportadora Emma
+Campo de Su Muer (mapa 1)	Teleportadora Evan
+Cidade das Espadas (mapa 1)	Teleportadora Elly
+Vila dos Eremitas (mapa 1)	Teleportadora Hefis
+Vila Quadrada (mapa 1)	Teleportadora Galena
+Vila dos Pescadores (mapa 1)	Teleportadora Iritia
+Vila do Fogo (mapa 1)	Teleportador Karius
+Rio da Tranquilidade (mapa 1)	Teleportadora Aldric
+Tribo dos Ventos (mapa 1)	Teleportadora Charys
+Cidade do Vento Alísio (mapa 1)	Teleportadora Lauren
+Templo das Orquídeas (mapa 1)	Teleportadora Alison
+Acampamento Aliado (mapa 1)	Teleportadora Muriel
+Cidade de Fei Wei (mapa 1)	Teleportadora Bruna
+Cidade das Feras (mapa 1)	Teleportador Kergan
+Vila a Beira D'Água (mapa 1)	Teleportadora Victoria
+Cid.do Dragão N (mapa 1)	Teleportadora Karlee
+Cid.do Dragão O (mapa 1)	Teleportador Lumere
+Cid.do Dragão S (mapa 1)	Teleportadora Karen
+Vila Langour (mapa 1)	Teleportadora Luly
+Cidade do Pôr-do-Sol (mapa 1)	Teleportadora Fran
+Vila da Ponte Quebrada (mapa 1)	Teleportadora Lena
+Garganta dos Ventos Ancestrais (mapa 1)	Teleportadora Karla
+Declive do Dragão (mapa 1)	Teleportadora Paula
+Residência do Lago Espelhado (mapa 1)	Teleportadora Flávia
+Vila das Orquídeas (mapa 1)	Teleportadora Bella
+Cidade de Arcádia (mapa 1)	Teleportadora Mila
+Sítio na Vila da Areia (mapa 1)	Teleportadora Gina
+Montanha dos Cisnes (mapa 1)	Teleportadora Hermie
+Cidade das Plumas (mapa 1)	Teleportadora Kyn
+Vila das Espadas (mapa 1)	Teleportadora Mirana
+Reino de Yu (mapa 1)	Mensageira Lua Púrpura
+Vila de Pedra (mapa 1)	Teleportadora Berta
+Vila Perdida (mapa 1)	Teleportadora Pan
+Vila Yelang (mapa 1)	Teleportadora Kiel
+Vila Nanke (mapa 1)	Teleportadora Julia
+Vila do Bambu (mapa 1)	Teleportadora Clara
+Cidade da Presa (mapa 1)	Teleportadora Hanna
+Vila dos Sonhos (mapa 1)	Teleportadora Vivian
+Porto dos Sonhos (mapa 1)	Teleportadora Trixy
+Templo dos Imortais (mapa 1)	Teleportadora Yuan Ji
+Vale da Estrela da Manhã (mapa 1)	Teleportadora Yuan Xiang
+Santuário dos Ancestrais (mapa 1)	Teleportadora Yu Chi
+Fortaleza dos Guardiães (mapa 1)	Teleportadora Cheng He
+Cidade de Tellus (mapa 1)	Teleportadora Qian Li
+Cidade do Vento Uivante (mapa 1)	Teleportadora Liang
+Santuário Esquecido (mapa 1)	Teleportadora Hao Ju
+Vila Esquecida (mapa 1)	Teleportador Mon Suer
+Montanha Nebulosa (mapa 1)	Teleportador Kuan Koji
+Altar do Fogo Noturno  (mapa 1)	Teleportador Yang Mingyu
+Arrecife da Nuvem Solitária (mapa 1)	Teleportadora Danqing
+Posto Lança Cega (mapa 1)	Teleportador Wei
+Cidade das Tormentas (mapa 1)	Teleportador
+Quebra Onda (mapa 1)	Teleportador leisurely
+Lago Celestial (mapa 137)	Teletransportador Shia Sol
+Posto Warblades (mapa 137)	Teletransportador Ruzon
+Posto Solstício (mapa 137)	Teletransportador Rua
+Vila da Luz de Vela  (mapa 137)	Teletransportador Swane Key
+Altar Safira (mapa 137)	Teletransportador Veru
+Cristal da Luz de Areia (mapa 137)	Teletransportador Monis
+Portão Invisível (mapa 137)	Teletransportador Hoki
+Santuário Corona  (mapa 137)	Teletransportador Mionia
+Templo Protegido (mapa 137)	Teletransportador Raio Kin
+Nexus da Luminância (mapa 137)	Teletransportador Siobahn
+Torre Vista de Areia (mapa 137)	Teletransportador Shin
+Cidade Kirin (mapa 163)	Projeção: Blizzen
+Torre do Dragão (mapa 163)	Mestre Teletransportador
+Aldeia Huan (mapa 163)	Mestre Teletransportador
+Vilarejo das Árvores Ancestrais (mapa 163)	Mestre Teletransportador
+Vila do Outono  (mapa 163)	Mestre Teletransportador
+Acampamento Gélido (mapa 163)	Teletransportador
+Vila do Inverno (mapa 163)	Teletransportador Mo
+Campos Glaciais (mapa 163)	Teletransportador Mei 
+Cid.do Dragão L (mapa 1)	Mestre Teletransportador Ning
+Cidade da Névoa Sombria (mapa 1)	Teletransportador Rayga
+Altar da Ilusão (mapa 1)	Mestre Teletransportador Lui
+Terraço dos Heróis (mapa 161)	Mestre Teletransportador Luffey
+Vila do Sábio (mapa 161)	Mestre Teletransportador Fulio
+Cidade de Kontong (mapa 161)	Teletransportador Guay
+Ilhas Ascendentes (mapa 161)	Mestre Teletransportador Luxan
+Acampamento Sombrio (mapa 161)	Teletransportador Fosim
+Frota Aliada (mapa 163)	Teletransportador Mestre
+Floresta Incandescente (mapa 163)	Teletransportador Fargo
+Maré Forte (mapa 163)	Mestre Teletransportador Banksy

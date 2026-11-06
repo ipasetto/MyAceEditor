@@ -78,6 +78,21 @@ public static class MapTags
         return t;
     });
 
+    /// <summary>Idioma de um conjunto de nomes (coluna da tabela: 1 pt, 2 en, 3 ru, 4 zh) pelo que mais bate; 0 = não deu para saber.</summary>
+    public static int LanguageOf(IEnumerable<(string Tag, string Name)> names)
+    {
+        var hits = new int[5];
+        foreach (var (tag, name) in names)
+            if (Translations.Value.TryGetValue(tag, out var row))
+                for (int c = 1; c <= 4; c++) if (row[c].Length > 0 && row[c].Equals(name.Trim(), StringComparison.OrdinalIgnoreCase)) hits[c]++;
+        int best = Array.IndexOf(hits, hits.Max());
+        return hits[best] >= 3 ? best : 0;
+    }
+
+    /// <summary>Nome certo da tabela do MyAce nesse idioma; null se a tabela não tem (o nome do cliente fica).</summary>
+    public static string? BaseName(string tag, int column) =>
+        column > 0 && Translations.Value.TryGetValue(tag, out var row) && row[column].Length > 0 ? row[column] : null;
+
     public static string LocalName(string tag, string clientName)
     {
         int col = AppLang.Current switch { "en" => 2, "ru" => 3, "zh-CN" => 4, _ => 1 };

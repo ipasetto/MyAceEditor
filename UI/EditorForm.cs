@@ -2225,27 +2225,16 @@ public sealed class EditorForm : Form
         catch (Exception ex) { Error(Loc.T("trc.planFail", "Não consegui comparar os clientes"), ex); return; }
         bool running = GameRunningFrom(target);
 
-        using var f = new Form { Text = Loc.T("trc.title", "Traduzir a partir de outro cliente"), Width = 760, Height = 520, StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false, MinimizeBox = false, BackColor = CSurface, ForeColor = CFg, Font = new Font("Segoe UI", 9.5f) };
         // pelo nome da pasta do cliente (a que contém "element"); o caminho inteiro fica na dica
         static string ClientName(string element) => Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(element).TrimEnd('\\')) ?? element);
-        var info = new Label { Dock = DockStyle.Top, Height = 84, Padding = new Padding(10), ForeColor = running ? Color.Firebrick : CMuted, AutoEllipsis = true,
-            Text = string.Format(Loc.T("trc.info", "De: {0}\nPara: {1} (o cliente aberto)\nSó entra o que este cliente tem. Cada arquivo ganha cópia de segurança, guardada fora do cliente."), ClientName(source), ClientName(target))
-                + (running ? "\n" + Loc.T("trc.running", "Feche o jogo deste cliente antes de aplicar.") : "") };
-        new ToolTip().SetToolTip(info, source + "\n→ " + target);
-        var list = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None, BackColor = CSurface, ForeColor = CFg, IntegralHeight = false };
-        var detail = new Label { Dock = DockStyle.Bottom, Height = 54, Padding = new Padding(10, 6, 10, 6), ForeColor = CMuted };
         const string elementsRow = "elements";
-        list.Items.Add(Loc.T("trc.elements", "Itens, monstros, NPCs e habilidades (elements.data) — revisar antes"), true);
         var rows = new List<object> { elementsRow };
-        foreach (var s in steps) { list.Items.Add(s.Title, s.Default); rows.Add(s); }
-        list.ItemCheck += (_, e) => { if (rows[e.Index] is ClientTranslator.Step { Enabled: false }) e.NewValue = CheckState.Unchecked; };
-        list.SelectedIndexChanged += (_, _) => detail.Text = list.SelectedIndex < 0 ? "" : rows[list.SelectedIndex] is ClientTranslator.Step st ? st.Detail
-            : Loc.T("trc.elementsDetail", "Nomes e textos pelo ID, bloco e campo, em qualquer versão; abre a janela de revisão e entra no Desfazer.");
-        var ok = new Button { Text = Loc.T("trc.go", "Traduzir"), Dock = DockStyle.Bottom, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = CAccent, ForeColor = Color.White, DialogResult = DialogResult.OK };
-        f.Controls.Add(list); f.Controls.Add(info); f.Controls.Add(detail); f.Controls.Add(ok);
-        f.AcceptButton = ok;
+        var lines = new List<ClientTranslateWindow.Row> { new(Loc.T("trc.elements", "Itens, monstros, NPCs e habilidades (elements.data) — revisar antes"),
+            Loc.T("trc.elementsDetail", "Nomes e textos pelo ID, bloco e campo, em qualquer versão; abre a janela de revisão e entra no Desfazer."), true, true) };
+        foreach (var s in steps) { rows.Add(s); lines.Add(new(s.Title, s.Detail, s.Default, s.Enabled)); }
+        using var f = new ClientTranslateWindow(ClientName(source), source, ClientName(target), target, running, lines);
         if (f.ShowDialog(this) != DialogResult.OK) return;
-        var chosen = list.CheckedIndices.Cast<int>().Select(i => rows[i]).ToList();
+        var chosen = f.Chosen.Select(i => rows[i]).ToList();
         if (chosen.Count == 0) return;
         if (chosen.Any(c => c is ClientTranslator.Step) && GameRunningFrom(target))
         {

@@ -179,6 +179,32 @@ public static class ClientTranslator
             });
         }
 
+        // ---- nomes das instâncias: tabela do MyAce (Assets/map_names.tsv), no idioma do próprio cliente ----
+        var cfg = Path.Combine(target, "configs.pck");
+        if (File.Exists(cfg))
+        {
+            try
+            {
+                byte[]? fixedNames = null; List<(string Tag, string From, string To)> names = [];
+                using (var pck = new PckArchive(cfg))
+                    if (pck.Find(@"configs\instance.txt") is { } ie) fixedNames = PackTextTranslator.RepairInstanceNames(pck.Read(ie), out names);
+                if (fixedNames is { } bytes)
+                    steps.Add(new Step
+                    {
+                        Title = string.Format(Loc.T("ct.fixMaps", "Corrigir {0} nomes de instâncias"), names.Count),
+                        Detail = string.Join(", ", names.Take(4).Select(n => $"{n.Tag}: {n.From} → {n.To}")) + (names.Count > 4 ? "…" : ""),
+                        Default = true, Enabled = true,
+                        Apply = log =>
+                        {
+                            PckWriter.Write(cfg, new Dictionary<string, byte[]> { [@"configs\instance.txt"] = bytes });
+                            log(string.Format(Loc.T("ct.fixMapsLog", "configs.pck: {0} nomes de instâncias corrigidos"), names.Count));
+                            return cfg;
+                        },
+                    });
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("instance.txt", ex); }
+        }
+
         ctx?.Report(0.9, Loc.T("ct.stCombat", "Imagens de batalha"), force: true);
         // ---- imagens com texto da batalha (surfaces\ingame, PW-KB §S20e): só elas, em qualquer versão; o resto do surfaces fica ----
         var sT = Path.Combine(target, "surfaces.pck"); var sS = Path.Combine(source, "surfaces.pck");

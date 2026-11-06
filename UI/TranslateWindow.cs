@@ -15,7 +15,7 @@ internal sealed class TranslateWindow : Form
     readonly CheckedListBox _blocks = new() { Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false, BorderStyle = BorderStyle.None };
     readonly CheckBox _onlyNames = new() { AutoSize = true }, _onlyUntranslated = new() { AutoSize = true };   // desmarcado: o cliente pode estar em inglês (só pegaria chinês/russo)
     readonly ListView _preview = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BorderStyle = BorderStyle.None };
-    readonly Button _ok = new() { Height = 34, Dock = DockStyle.Bottom, FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = Color.White, DialogResult = DialogResult.OK };
+    readonly Button _ok = new() { Width = 260, Dock = DockStyle.Right, FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = Color.White, DialogResult = DialogResult.OK };
     readonly Label _info = new() { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8), ForeColor = Color.FromArgb(100, 112, 128) };
     List<string> _order = new();
 
@@ -44,7 +44,9 @@ internal sealed class TranslateWindow : Form
         Load += (_, _) => split.SplitterDistance = 300;   // só depois que a janela tem tamanho
         split.Panel1.Controls.Add(_blocks); split.Panel1.Controls.Add(Step(Loc.T("tr.step1", "1. Marque o que quer traduzir")));
         split.Panel2.Controls.Add(_preview); split.Panel2.Controls.Add(Step(Loc.T("tr.step2", "2. Confira antes e depois")));
-        Controls.Add(split); Controls.Add(opts); Controls.Add(_info); Controls.Add(_ok);
+        var foot = new Panel { Dock = DockStyle.Bottom, Height = 62, Padding = new Padding(10, 8, 10, 16) };
+        foot.Controls.Add(_ok);
+        Controls.Add(split); Controls.Add(opts); Controls.Add(_info); Controls.Add(foot);
         _onlyNames.CheckedChanged += (_, _) => Refill(); _onlyUntranslated.CheckedChanged += (_, _) => Refill();
         _blocks.ItemCheck += (_, _) => { if (IsHandleCreated) BeginInvoke(Update); };   // marcação muda depois do evento
         Refill();

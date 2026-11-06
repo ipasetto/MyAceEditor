@@ -177,6 +177,10 @@ public static class PackTextTranslator
             if (name.Trim().Length == 0) continue;
             if (!theirs.TryGetValue(tag, out var had) || Cjk.IsMatch(had) && !Cjk.IsMatch(name)) theirs[tag] = name;
         }
+        // o outro cliente pode trazer nome errado (BR repete Toca dos Lobos no a05): vale a tabela do MyAce no idioma dele
+        int lang = MapTags.LanguageOf(theirs.Select(kv => (kv.Key.Split('|')[0], kv.Value)));
+        foreach (var key in theirs.Keys.ToList())
+            if (MapTags.BaseName(key.Split('|')[0], lang) is { } right) theirs[key] = right;
         int c = 0;
         var res = InstanceEntry.Replace(a, m =>
         {
@@ -186,6 +190,25 @@ public static class PackTextTranslator
         });
         count = c;
         return c == 0 ? null : new byte[] { 0xFF, 0xFE }.Concat(Encoding.Unicode.GetBytes(res)).ToArray();
+    }
+
+    /// <summary>Corrige os nomes do próprio cliente pela tabela do MyAce, no idioma dele. Devolve o que mudou, para mostrar antes.</summary>
+    public static byte[]? RepairInstanceNames(byte[] mine, out List<(string Tag, string From, string To)> changes)
+    {
+        var list = new List<(string, string, string)>();
+        changes = list;
+        if (mine.Length < 2 || mine[0] != 0xFF || mine[1] != 0xFE) return null;
+        var a = Encoding.Unicode.GetString(mine, 2, mine.Length - 2 & ~1);
+        int lang = MapTags.LanguageOf(InstanceEntry.Matches(a).Select(m => (m.Groups["t"].Value.Trim(), m.Groups["n"].Value)));
+        if (lang == 0) return null;
+        var res = InstanceEntry.Replace(a, m =>
+        {
+            var tag = m.Groups["t"].Value.Trim(); var name = m.Groups["n"].Value;
+            if (MapTags.BaseName(tag, lang) is not { } right || right == name.Trim() || name.Trim().Length == 0) return m.Value;
+            list.Add((tag, name, right));
+            return "\"" + right + "\"" + m.Groups["mid"].Value + m.Groups["t"].Value + "\"";
+        });
+        return list.Count == 0 ? null : new byte[] { 0xFF, 0xFE }.Concat(Encoding.Unicode.GetBytes(res)).ToArray();
     }
 
     // .htf (dicas da interface antiga): UTF-16 com BOM, uma linha "controle"<TAB>"dica" (PW-KB §S20c)

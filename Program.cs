@@ -481,6 +481,37 @@ internal static class Program
             File.WriteAllText(args[2], sb.ToString());
             return;
         }
+        if (args.Length >= 3 && args[0] == "--teleport-report")   // <pasta element> <saída>: qual NPC leva aonde, por quanto, e quem descobre cada ponto
+        {
+            var mod = CfgCatalog.Load(Path.Combine(args[1], "data", "elements.data")).Module;
+            var names = new Dictionary<string, string>();
+            foreach (var line in File.ReadAllText(Path.Combine(args[1], "maps", "world", "world_targets.txt"), Encoding.Unicode).Split('\n'))
+                if (System.Text.RegularExpressions.Regex.Match(line, "^(\\d+)\\s+\"([^\"]*)\"\\s+(\\d+)\\s+\"([^\"]*)\"") is { Success: true } m) names[m.Groups[1].Value] = $"{m.Groups[2].Value} (mapa {m.Groups[3].Value})";
+            var svc = mod.FindListByName("NPC_TRANSMIT_SERVICE")!.Items.ToDictionary(i => i.Id);
+            var sb = new StringBuilder("NPC\tServiço\tDestino\tTaxa\tNível\n");
+            var discover = new Dictionary<string, List<string>>();
+            int npcs = 0, links = 0; long maxFee = 0;
+            foreach (var n in mod.FindListByName("NPC_ESSENCE")!.Items)
+            {
+                string nm = MyAceEditor.PerfectWorld.TasksFile.SplitColor(n.Name).Text;
+                if (n.Fields.TryGetValue("id_to_discover", out var d) && d.Value is not ("0" or ""))
+                { if (!discover.TryGetValue(d.Value, out var l)) discover[d.Value] = l = new(); l.Add(nm); }
+                if (!n.Fields.TryGetValue("id_transmit_service", out var t) || !svc.TryGetValue(t.Value, out var s)) continue;
+                npcs++;
+                int count = int.Parse(s.Fields["num_targets"].Value);
+                for (int i = 1; i <= count; i++)
+                {
+                    var id = s.Fields[$"targets_{i}_idTarget"].Value; long fee = long.Parse(s.Fields[$"targets_{i}_fee"].Value);
+                    maxFee = Math.Max(maxFee, fee); links++;
+                    sb.AppendLine($"{nm} ({n.Id})\t{s.Id}\t{names.GetValueOrDefault(id, id)}\t{fee}\t{s.Fields[$"targets_{i}_required_level"].Value}");
+                }
+            }
+            sb.Insert(0, $"# {npcs} NPCs teleportadores, {links} ligações, {svc.Count} serviços, {names.Count} pontos, taxa máxima {maxFee}, pontos com NPC que descobre {discover.Count}\n");
+            sb.AppendLine("\n# Quem descobre cada ponto (id_to_discover)");
+            foreach (var (id, l) in discover.OrderBy(x => x.Key)) sb.AppendLine($"{names.GetValueOrDefault(id, id)}\t{string.Join(", ", l.Distinct().Take(4))}");
+            File.WriteAllText(args[2], sb.ToString());
+            return;
+        }
         if (args.Length >= 5 && args[0] == "--path-near")   // <saída> <pasta do mapa> <x> <z>: caminhos perto do ponto e quem anda neles (teste 24)
         {
             float px = float.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture), pz = float.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
