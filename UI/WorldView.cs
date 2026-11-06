@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using MyAceEditor.PerfectWorld;
 using OpenTK.GLControl;
 using OpenTK.Graphics.OpenGL;
@@ -165,6 +165,7 @@ internal sealed partial class WorldView : Form
         _bar.Items.Add(_mapBox);
         _bar.Items.Add(new ToolStripSeparator());
         _bar.Items.Add(Btn("world.help2", "❔ Atalhos (H)", ToggleLegend));
+        _bar.Items.Add(_soundBtn = Btn("world.sound", "🔊 Som", ToggleSound));
         // "Mostrar" numa barra própria EMBAIXO (pedido do usuário 01/11: em cima não cabia em tela pequena); quebra em
         // linhas quando falta largura, em grupos: pontos | só com gatilho | mundo
         _showBar.Items.Add(new ToolStripLabel(Loc.T("world.show", "Mostrar:"), UiKit.Icon("", Color.Silver, 16)) { ForeColor = Color.Silver, TextImageRelation = TextImageRelation.ImageBeforeText });
@@ -369,6 +370,7 @@ internal sealed partial class WorldView : Form
     {
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (PathKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }
+        if (e.KeyCode == Keys.Escape && _placing is not null) { CancelPlacing(); return; }
         if (e.KeyCode == Keys.Escape && _pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return; }
         if (e.KeyCode == Keys.Escape && _pickMine is not null) { _pickMine = null; _status.Text = Loc.T("qe.pickMineCancel", "Escolha de coleta cancelada."); return; }
         if (e.KeyCode == Keys.Escape && _pickMonster is not null) { _pickMonster = null; _status.Text = Loc.T("qe.pickMonsterCancel", "Escolha de monstro cancelada."); return; }
@@ -520,6 +522,7 @@ internal sealed partial class WorldView : Form
 
     void Render()
     {
+        StepMusic();
         SyncPickCursor();
         _gl.MakeCurrent();
         bool loading = _load.Pump(6);   // resultados do segundo plano: no máximo 6 ms por quadro
@@ -530,21 +533,11 @@ internal sealed partial class WorldView : Form
         GL.MatrixMode(MatrixMode.Projection); var p = Proj; GL.LoadMatrix(ref p);
         GL.MatrixMode(MatrixMode.Modelview); var v = View; GL.LoadMatrix(ref v);
         StepDayNight();
+        ApplyFog();
+        DrawReflection(ref p, ref v);
+        GL.Disable(EnableCap.Fog);
         _sky.Draw(_cam, _nightApplied);   // céu da área (tetos das instâncias); sem céu fica a cor de fundo
         GL.Enable(EnableCap.Fog);
-        GL.Fog(FogParameter.FogMode, (int)FogMode.Linear);
-        // neblina da área da câmera (.ecbsd, como o jogo); N troca pela neblina longe, para editar enxergando o mapa todo
-        if (_gameFog && _sky.Fog(_cam, _nf) is { } fog)
-        {
-            GL.Fog(FogParameter.FogStart, fog.Start); GL.Fog(FogParameter.FogEnd, fog.End);
-            GL.Fog(FogParameter.FogColor, new[] { fog.Color.X, fog.Color.Y, fog.Color.Z, 1f });
-            _skyTint = fog.Color;
-        }
-        else
-        {
-            GL.Fog(FogParameter.FogStart, 1500f); GL.Fog(FogParameter.FogEnd, 8000f);
-            GL.Fog(FogParameter.FogColor, new[] { 0.62f, 0.76f, 0.9f, 1f });
-        }
 
         // terreno só de cima (faces da frente sobem: a→d→b), como o jogo: visto de baixo, a tampa das cavernas some.
         // O "teto" das instâncias (a35, a24, a27) não é terreno — é o céu da área (A3DSkySphere com texturas de pedra).
@@ -899,6 +892,72 @@ internal sealed partial class WorldView : Form
     /// </summary>
     // só as células com água da máscara da área (linha 0 ao norte: conferido com o chão abaixo/acima da água na a18 e no
     // mundo), juntas em faixas por linha
+    void ApplyFog()
+    {
+        GL.Enable(EnableCap.Fog);
+        GL.Fog(FogParameter.FogMode, (int)FogMode.Linear);
+        // neblina da área da câmera (.ecbsd, como o jogo); N troca pela neblina longe, para editar enxergando o mapa todo
+        if (_gameFog && _sky.Fog(_cam, _nf) is { } fog)
+        {
+            GL.Fog(FogParameter.FogStart, fog.Start); GL.Fog(FogParameter.FogEnd, fog.End);
+            GL.Fog(FogParameter.FogColor, new[] { fog.Color.X, fog.Color.Y, fog.Color.Z, 1f });
+            _skyTint = fog.Color;
+        }
+        else
+        {
+            GL.Fog(FogParameter.FogStart, 1500f); GL.Fog(FogParameter.FogEnd, 8000f);
+            GL.Fog(FogParameter.FogColor, new[] { 0.62f, 0.76f, 0.9f, 1f });
+        }
+    }
+
+    /// <summary>Altura da água perto da câmera, abaixo dela; null sem água por perto.</summary>
+    float? WaterLevel()
+    {
+        if (_clientWater is null) return null;
+        float camX = _cam.X, camZ = -_cam.Z, best = float.MaxValue; float? level = null;
+        foreach (var (x0, z0, x1, z1, y, _) in _clientWater)
+        {
+            if (y > _cam.Y) continue;
+            float dx = MathF.Max(MathF.Max(x0 - camX, camX - x1), 0), dz = MathF.Max(MathF.Max(z0 - camZ, camZ - z1), 0), d = dx * dx + dz * dz;
+            if (d < best && d < 600 * 600) { best = d; level = y; }
+        }
+        return level;
+    }
+
+    /// <summary>Cena espelhada na altura da água, numa textura (o jogo faz o mesmo com uma segunda câmera).</summary>
+    void DrawReflection(ref Matrix4 proj, ref Matrix4 view)
+    {
+        _reflectOk = false;
+        if (!_waterFx.Ready || !_waterFx.HasReflection || WaterLevel() is not { } h) return;
+        _reflectOk = true;
+        // parado, o reflexo de antes serve: refaz só quando a câmera anda
+        if (_reflectCam == _cam && _reflectLook == Forward && _reflectH == h && _reflectAt + 400 > Environment.TickCount64) return;
+        _reflectCam = _cam; _reflectLook = Forward; _reflectH = h; _reflectAt = Environment.TickCount64;
+        _waterFx.BeginReflection();
+        GL.ClearColor(_skyTint.X, _skyTint.Y, _skyTint.Z, 1);
+        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+        GL.MatrixMode(MatrixMode.Modelview);
+        GL.LoadMatrix(ref view);
+        GL.Translate(0, 2 * h, 0); GL.Scale(1, -1, 1);
+        GL.Disable(EnableCap.Fog);
+        _sky.Draw(_cam, _nightApplied);
+        GL.ClipPlane(ClipPlaneName.ClipPlane0, new double[] { 0, 1, 0, -h });
+        GL.Enable(EnableCap.ClipPlane0);
+        GL.Enable(EnableCap.Fog);
+        GL.Enable(EnableCap.DepthTest);
+        GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(FrontFaceDirection.Cw);
+        var eye = new Vector3(_cam.X, 2 * h - _cam.Y, _cam.Z); var look = new Vector3(Forward.X, -Forward.Y, Forward.Z);
+        _terrain.Draw(eye, look);
+        GL.Disable(EnableCap.CullFace);
+        if (_showBuildings) _buildings.Draw(eye, look);
+        _trees.Draw(eye, look);
+        GL.FrontFace(FrontFaceDirection.Ccw);
+        GL.Disable(EnableCap.ClipPlane0);
+        WorldWater.EndReflection(_gl.Width, _gl.Height);
+        GL.ClearColor(0.62f, 0.76f, 0.9f, 1);
+        GL.LoadMatrix(ref view);
+    }
+
     static IEnumerable<(float, float, float, float, float, int)> WetStrips(ClientWater.Area a)
     {
         float left = a.X - a.Cols * a.Cell / 2, top = a.Z + a.Rows * a.Cell / 2;
@@ -917,7 +976,8 @@ internal sealed partial class WorldView : Form
         _clientWater ??= ClientWater.Read(_t.Dir) is { } cw ? cw.SelectMany(WetStrips).ToList()
             : Water().Select(w => (w.Item1, w.Item2, w.Item3, w.Item4, w.Item5, unchecked((int)0xFF2E6B8C))).ToList();
         if (_clientWater.Count == 0) return;
-        if (_waveTex == 0) _waveTex = WaveTexture();
+        _waterFx.Init(Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(_t.Dir))!, "textures.pck"));
+        if (_waveTex == 0 && !_waterFx.Ready) _waveTex = WaveTexture();
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
         const float Tile = 24;   // metros por repetição da onda
         void Quad(float x0, float z0, float x1, float z1, float y)
@@ -938,6 +998,11 @@ internal sealed partial class WorldView : Form
         var (amb, sun) = _sky.Light(_cam, _nf) ?? (new Vector3(0.55f), new Vector3(0.8f));
         var light = Vector3.Clamp((amb + sun) * 0.65f, new Vector3(0.15f), new Vector3(1.1f));
         float camX = _cam.X, camZ = -_cam.Z;
+        if (_waterFx.Ready)
+        {
+            GL.Disable(EnableCap.CullFace);
+            _waterFx.Start(_cam, _skyTint, light, (float)_clock.Elapsed.TotalSeconds, GL.IsEnabled(EnableCap.Fog), _reflectOk);
+        }
         const float G = 8, Near = 520;
         bool nearWater = false;
         foreach (var (x0, z0, x1, z1, y, argb) in _clientWater)
@@ -980,8 +1045,9 @@ internal sealed partial class WorldView : Form
                 if (gz1 < z1) Quad(gx0, gz1, gx1, z1, y);
             }
         }
-        // ondas: duas camadas somadas, andando (o jogo anda a textura de relevo da água)
-        if (_waveTex > 0)
+        if (_waterFx.Ready) { WorldWater.Stop(); _wavesNear = _reflectOk; }
+        // sem o sombreador: duas camadas de onda somadas, andando (o jogo anda a textura de relevo da água)
+        else if (_waveTex > 0)
         {
             GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, _waveTex);
             GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
@@ -1003,6 +1069,14 @@ internal sealed partial class WorldView : Form
     }
 
     List<(float X0, float Z0, float X1, float Z1, float Y, int Argb)>? _clientWater;
+    readonly WorldWater _waterFx = new();
+    bool _reflectOk;
+    Vector3 _reflectCam, _reflectLook;
+    float _reflectH;
+    long _reflectAt;
+    WorldMusic? _music;
+    long _musicAt;
+    ToolStripItem? _soundBtn;
     Vector3 _skyTint = new(0.62f, 0.76f, 0.9f);   // cor do céu/neblina da área (reflexo na água)
     bool _wavesNear; double _wavesAt;
     int _waveTex;
@@ -1751,6 +1825,36 @@ internal sealed partial class WorldView : Form
     }
 
     // a ação mais recente é desfeita primeiro: quest (se nada de ponto mudou depois dela) ou ponto do NPCGen
+    void ToggleSound()
+    {
+        if (_music is null) return;
+        _music.Muted = !_music.Muted;
+        ShowSoundState();
+        _gl.Focus();
+    }
+
+    void ShowSoundState()
+    {
+        if (_soundBtn is null || _music is null) return;
+        _soundBtn.Text = _music.Muted ? Loc.T("world.soundOff", "Sem som") : Loc.T("world.sound", "Som");
+        _soundBtn.Image = UiKit.Icon(_music.Muted ? "\uE74F" : "\uE767", Color.White, 16);
+        _soundBtn.ToolTipText = Loc.T("world.soundTip", "Liga e desliga a música e o som de fundo do jogo.");
+    }
+
+    /// <summary>Música da área onde a câmera está: confere uma vez por segundo.</summary>
+    void StepMusic()
+    {
+        if (Environment.TickCount64 < _musicAt) return;
+        _musicAt = Environment.TickCount64 + 1000;
+        if (_music is null)
+        {
+            _music = new WorldMusic(Path.GetDirectoryName(Path.GetDirectoryName(_t.Dir))!, _t.Dir);
+            ShowSoundState();
+            FormClosed += (_, _) => { _music?.Dispose(); _waterFx.Dispose(); };
+        }
+        _music.Update(_cam.X, -_cam.Z, _nightApplied);
+    }
+
     bool UndoAny()
     {
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
