@@ -414,7 +414,7 @@ internal sealed partial class WorldView : Form
             case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;
             case Keys.L: _nightOn = !_nightOn; _gl.Invalidate(); return;               // dia / noite               // neblina do jogo (por área) ou longe
             case Keys.Delete:   // só sem ferramenta: dentro de uma ferramenta o Delete não apaga a criatura escolhida
-                if (_tool == Tool.None && _selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
+                if (_tool == Tool.None && _selected() is { } s && DeletePoint is not null && ConfirmDelete(SelectedMark()?.Id ?? 0)) { DeletePoint(s); RefreshMarkers(); }
                 return;
             case Keys.Space: e.SuppressKeyPress = true; break;
         }
@@ -1616,7 +1616,7 @@ internal sealed partial class WorldView : Form
             if (EditPoint is not null)
                 menu.Items.Add(string.Format(Loc.T("world.edit", "Editar {0} no software…"), under.Name), null, (_, _) => EditPoint(under.Tag));
             if (DeletePoint is not null)
-                menu.Items.Add(string.Format(Loc.T("world.delete", "Excluir {0}"), under.Name), null, (_, _) => { if (Confirm()) { DeletePoint(under.Tag); RefreshMarkers(); } });
+                menu.Items.Add(string.Format(Loc.T("world.delete", "Excluir {0}"), under.Name), null, (_, _) => { if (ConfirmDelete(under.Id)) { DeletePoint(under.Tag); RefreshMarkers(); } });
             if (SwapCreature is not null && under.Tag is NpcGenSpawn)
                 menu.Items.Add(Loc.T("world.swapCreature", "Trocar criatura…"), null, (_, _) => { SwapCreature(under.Tag); RefreshMarkers(); _gl.Invalidate(); });
             menu.Items.Add(Loc.T("world.copyPoint", "Copiar ponto (Ctrl+C)"), null, (_, _) => _clip = under.Tag);

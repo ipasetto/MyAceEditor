@@ -480,16 +480,48 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Tira o ponto do par e de tudo que aponta para ele: sem isso o gs levaria para (0, 0, 0).</summary>
+    /// <summary>
+    /// Excluir um ponto do mundo. Quem descobre um ponto de teleporte recebe a escolha: sem o NPC o ponto continua no mapa de viagem,
+    /// mas ninguém consegue liberá-lo. Sem esse vínculo, é a pergunta de sempre.
+    /// </summary>
+    bool ConfirmDelete(int id)
+    {
+        int point = id > 0 && _host?.IsNpc(id) == true ? _host.DiscoverOf(id) : 0;
+        if (point <= 0) return Confirm();
+        OpenTeleportsQuiet();
+        var only = new TaskDialogButton(Loc.T("del.npcOnly", "Só o NPC"));
+        var both = new TaskDialogButton(Loc.T("del.npcAndPoint", "O NPC e o ponto"));
+        var page = new TaskDialogPage
+        {
+            Caption = Text, Heading = string.Format(Loc.T("del.linkedTitle", "{0} libera um ponto de teleporte"), _host!.NameOf(id) ?? id.ToString()),
+            Text = Loc.T("del.linkedText", "Só o NPC: o ponto fica no mapa de viagem, mas ninguém mais consegue liberar.\nO NPC e o ponto: o ponto sai do mapa de viagem, e os NPCs deixam de levar até lá. Isso grava os pontos na hora."),
+            Buttons = { only, both, TaskDialogButton.Cancel }, DefaultButton = only, Icon = TaskDialogIcon.Warning,
+        };
+        var answer = TaskDialog.ShowDialog(this, page);
+        if (answer == only) return true;
+        if (answer != both) return false;
+        return RemovePoint(point, _host.AtlasHas(point));
+    }
+
+    /// <summary>Tira o ponto do par, dos destinos dos NPCs, de quem descobre e do Atlas.</summary>
+    bool RemovePoint(int point, bool atlas)
+    {
+        if (_host is null || _tp is not { } tp) return false;
+        var leads = _host.TeleportersTo(point);
+        var finders = _host.DiscoverersOf(point);
+        if (!ChangePoints(() => tp.Remove(point))) return false;
+        foreach (var l in leads) _host.RemoveTransmit(l.Npc, point, false);
+        foreach (var (id, _) in finders) _host.SetDiscover(id, 0);
+        if (atlas) _host.SetAtlas(new WorldTarget(point, "", MapTag, 0, 0, 0, -1), false);
+        return true;
+    }
+
     void DeleteTeleport()
     {
-        if (_host is null || _tp is not { } tp || _tpd is not { Point: > 0 } d) return;
+        if (_host is null || _tp is null || _tpd is not { Point: > 0 } d) return;
         var leads = _host.TeleportersTo(d.Point);
-        var finders = _host.DiscoverersOf(d.Point);
         if (MessageBox.Show(this, string.Format(Loc.T("tp.deleteAsk2", "Excluir {0}? Ele sai do mapa de viagem, e {1} NPCs deixam de levar até aqui. Os NPCs continuam no mundo."), _tpName.Text, leads.Count), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-        if (!ChangePoints(() => tp.Remove(d.Point))) return;
-        foreach (var l in leads) _host.RemoveTransmit(l.Npc, d.Point, false);
-        foreach (var (id, _) in finders) _host.SetDiscover(id, 0);
-        if (d.HadAtlas) _host.SetAtlas(new WorldTarget(d.Point, "", MapTag, 0, 0, 0, -1), false);
+        if (!RemovePoint(d.Point, d.HadAtlas)) return;
         _tpd = null; _tpDirty = false; _tpSavedHint = true;
         UpdateTeleportPanel();
         _gl.Invalidate();

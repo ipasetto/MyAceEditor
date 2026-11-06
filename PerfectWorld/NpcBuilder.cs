@@ -22,9 +22,11 @@ public sealed class ShopDraft
 public sealed class RecipeDraft
 {
     public int RecipeId, Product, Count = 1, Price, SkillLevel;
+    /// <summary>Habilidade que a receita pede (id_skill): só para mostrar. Ao gravar vale a da fornalha.</summary>
+    public int Skill;
     public float Duration = 2;
     public List<(int Id, int Num)> Materials = [];
-    public RecipeDraft Copy() => new() { RecipeId = RecipeId, Product = Product, Count = Count, Price = Price, Duration = Duration, SkillLevel = SkillLevel, Materials = [.. Materials] };
+    public RecipeDraft Copy() => new() { RecipeId = RecipeId, Product = Product, Count = Count, Price = Price, Duration = Duration, SkillLevel = SkillLevel, Skill = Skill, Materials = [.. Materials] };
 }
 
 /// <summary>Fabricação em rascunho: 8 páginas de 32 receitas, como NPC_MAKE_SERVICE.</summary>
@@ -300,7 +302,7 @@ public static class NpcBuilder
     {
         if (Find(m, "RECIPE_ESSENCE", id) is not { } r) return null;
         int Num(string k) => int.TryParse(F(r, k), out var v) ? v : 0;
-        var d = new RecipeDraft { Product = Num("targets_1_id_to_make"), Count = Math.Max(1, Num("num_to_make")), Price = Num("price"), SkillLevel = Num("skill_level"),
+        var d = new RecipeDraft { Product = Num("targets_1_id_to_make"), Count = Math.Max(1, Num("num_to_make")), Price = Num("price"), SkillLevel = Num("skill_level"), Skill = Num("id_skill"),
             Duration = float.TryParse(F(r, "duration"), System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 2 };
         for (int i = 1; r.Fields.ContainsKey($"materials_{i}_id"); i++)
             if (Num($"materials_{i}_id") is > 0 and var id2) d.Materials.Add((id2, Math.Max(1, Num($"materials_{i}_num"))));

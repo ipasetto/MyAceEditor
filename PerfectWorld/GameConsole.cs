@@ -46,6 +46,9 @@ public static class GameConsole
 
     public static bool Running => Window() != IntPtr.Zero;
 
+    /// <summary>Devolve o foco ao jogo. False = jogo fechado ou o Windows não deixou.</summary>
+    public static bool FocusGame() => Window() is var w && w != IntPtr.Zero && Front(w);
+
     /// <summary>Onde a janela do jogo está; null = jogo fechado.</summary>
     public static System.Drawing.Rectangle? Bounds() =>
         Window() is var w && w != IntPtr.Zero && GetWindowRect(w, out var r) ? System.Drawing.Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom) : null;

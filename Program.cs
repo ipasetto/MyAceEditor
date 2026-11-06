@@ -1320,6 +1320,8 @@ internal static class Program
         // Painel do GM: programa à parte (--gm [pasta element], ou o exe renomeado para MyAceGM.exe) — docs/GM-PAINEL.md
         if ((args.Length >= 1 && args[0] == "--gm") || Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "").StartsWith("MyAceGM", StringComparison.OrdinalIgnoreCase))
         {
+            // outro processo: sem a pasta do servidor do editor, o LocalServer padrão não acha a distro e os plugins vinham vazios
+            if (args.Length >= 3 && args[0] == "--gm" && args[2].Length > 0) LocalServer.Current = new LocalServer(args[2]);
             Application.Run(new GmPanel(args.Length >= 2 && args[0] == "--gm" ? args[1] : null));
             return;
         }

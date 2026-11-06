@@ -29,8 +29,7 @@ internal sealed class GameServiceWindow : Panel
     readonly Dictionary<string, Rectangle> _own = [];
     readonly NumericUpDown _price = new() { Maximum = 999_999_999, Width = 120, ThousandsSeparator = true, BackColor = Color.FromArgb(44, 50, 60), ForeColor = Color.White, Enabled = false };
     readonly Label _priceNote = new() { AutoSize = false, ForeColor = Color.Silver };
-    readonly ComboBox _skill = new() { DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(44, 50, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-    readonly List<int> _skills = [];
+    readonly Dictionary<int, string> _skillNames = [];
     int _page, _sel = -1;
     bool _binding;
 
@@ -64,13 +63,14 @@ internal sealed class GameServiceWindow : Panel
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("janela do jogo", ex); }
         if (_dlg is null) BuildOwnGrid();
         var size = _dlg?.Size ?? new Size(372, forge ? 372 : 236);
-        Size = new Size((int)(size.Width * Scale) + Pad * 2, (int)(size.Height * Scale) + Pad * 2 + Foot);
+        int foot = forge ? Foot - 34 : Foot;   // a fornalha não tem a linha do preço
+        Size = new Size((int)(size.Width * Scale) + Pad * 2, (int)(size.Height * Scale) + Pad * 2 + foot);
 
-        int y = Height - Foot + 4;
+        int y = Height - foot + 4;
         var pageName = new Label { Text = Loc.T("gs.pageName", "Nome da aba"), AutoSize = true, ForeColor = Color.Silver, Location = new Point(Pad, y + 4) };
         _title.Location = new Point(Pad + 86, y);
         _title.TextChanged += (_, _) => { if (_binding) return; Remember(); Titles[_page] = _title.Text; Invalidate(); Changed?.Invoke(); };
-        _hint.Location = new Point(Pad, y + 66); _hint.Size = new Size(Width - Pad * 2, 38);
+        _hint.Location = new Point(Pad, forge ? y + 32 : y + 66); _hint.Size = new Size(Width - Pad * 2, 38);
         _hint.Text = forge ? Loc.T("gs.hintMake", "Clique num espaço para pôr uma receita. Botão direito tira.")
             : Loc.T("gs.hintShop2", "Clique num espaço vazio para pôr um item. Clique num item para ver o preço; de novo, para trocar. Botão direito tira.");
         if (!forge)
@@ -87,24 +87,14 @@ internal sealed class GameServiceWindow : Panel
         Controls.Add(close);
         Button Btn(string glyph, string text, Action a, int x, int w, bool main = false)
         {
-            var b = new Button { Text = "  " + text, Location = new Point(x, y + 110), Size = new Size(w, 30), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
+            var b = new Button { Text = "  " + text, Location = new Point(x, forge ? y + 76 : y + 110), Size = new Size(w, 30), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
                 Image = UiKit.Icon(glyph, Color.White, 16), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText };
             b.FlatAppearance.BorderSize = main ? 0 : 1; b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 92);
             b.Click += (_, _) => a();
             return b;
         }
         Controls.Add(pageName); Controls.Add(_title); Controls.Add(_hint);
-        if (forge)
-        {
-            // habilidade que o jogador precisa ter: uma por NPC (o gs compara com id_make_skill)
-            var need = new Label { Text = Loc.T("gs.needs", "O que precisa"), AutoSize = true, ForeColor = Color.Silver, Location = new Point(Pad, y + 38) };
-            _skill.Location = new Point(Pad + 86, y + 34); _skill.Width = 180;
-            _skill.Items.Add(Loc.T("gs.noSkill", "Nada")); _skills.Add(0);
-            foreach (var (id, name) in host.MakeSkills()) { _skill.Items.Add(name); _skills.Add(id); }
-            _skill.SelectedIndex = 0;
-            _skill.SelectedIndexChanged += (_, _) => { if (_binding) return; Remember(); Make.Skill = _skills[_skill.SelectedIndex]; Changed?.Invoke(); };
-            Controls.Add(need); Controls.Add(_skill);
-        }
+        if (forge) foreach (var (id, name) in host.MakeSkills()) _skillNames.TryAdd(id, name);
         Controls.Add(Btn("", Loc.T("gs.undo", "Desfazer"), () => Undo(), Pad, 104));
         Controls.Add(Btn("", Loc.T("gs.redo", "Refazer"), () => Redo(), Pad + 110, 104));
         Controls.Add(Btn("", Loc.T("gs.done", "Pronto"), () => Visible = false, Width - Pad - 110, 110, main: true));
@@ -120,7 +110,6 @@ internal sealed class GameServiceWindow : Panel
     {
         _binding = true;
         _title.Text = Titles[_page];
-        if (_forge && _skills.Count > 0) _skill.SelectedIndex = Math.Max(0, _skills.IndexOf(Make.Skill));
         _binding = false;
     }
 
@@ -131,6 +120,7 @@ internal sealed class GameServiceWindow : Panel
         for (int i = 0; i < NpcBuilder.Slots; i++) _own[$"U_{i + 1:00}"] = new Rectangle(4 + i % 8 * 46, 34 + i / 8 * 46, 42, 42);
         if (!_forge) return;
         for (int m = 0; m < 8; m++) { _own[$"Item_{m + 1:00}"] = new Rectangle(4 + m % 4 * 92, 226 + m / 4 * 46, 42, 42); _own[$"Txt_no{m + 1}"] = new Rectangle(48 + m % 4 * 92, 236 + m / 4 * 46, 44, 20); }
+        _own["Txt_SkillName"] = new Rectangle(52, 352, 140, 18); _own["Txt_SkillLevel"] = new Rectangle(200, 352, 60, 18);
         _own["Item_out"] = new Rectangle(4, 326, 42, 42); _own["Txt_out"] = new Rectangle(52, 330, 220, 20); _own["Txt_Gold"] = new Rectangle(280, 330, 86, 20);
     }
 
@@ -213,6 +203,12 @@ internal sealed class GameServiceWindow : Panel
         if (IconOf(prod) is { } pi) g.DrawImage(pi, R("Item_out"));
         GameDraw.Text(g, _host.NameOf(prod) ?? "", new Rectangle(R("Txt_out").X, R("Txt_out").Y - 2, 160, 21), Gold, 10);
         GameDraw.Text(g, rec.Price.ToString(), R("Txt_Gold"), TextC, 10, align: ContentAlignment.MiddleRight);
+        // "Requer: Ferreiro   Nível 3", como no jogo: a habilidade é a da própria receita (uma por fornalha, o gs compara com id_make_skill)
+        var full = rec.RecipeId > 0 ? _host.ReadRecipe(rec.RecipeId) : rec;
+        int skill = rec.RecipeId > 0 ? full?.Skill ?? 0 : Make.Skill, level = full?.SkillLevel ?? 0;
+        var at = R("Txt_SkillName");
+        GameDraw.Text(g, _skillNames.GetValueOrDefault(skill) ?? Loc.T("gs.noSkill", "Nada"), new Rectangle(at.X, at.Y - 2, 100, 18), TextC, 10, align: ContentAlignment.MiddleLeft);
+        if (level > 0) { var lv = R("Txt_SkillLevel"); GameDraw.Text(g, level.ToString(), new Rectangle(lv.X, lv.Y - 2, 40, 18), TextC, 10, align: ContentAlignment.MiddleLeft); }
     }
 
     protected override void OnMouseDown(MouseEventArgs e)

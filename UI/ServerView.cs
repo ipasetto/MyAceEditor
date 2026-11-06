@@ -412,7 +412,8 @@ public sealed class ServerView : UserControl
     void OpenGmPanel()
     {
         var client = _client();
-        var args = Directory.Exists(client) ? $"--gm \"{client.TrimEnd('\\')}\"" : "--gm";
+        var server = LocalServer.Current.BaseDir.TrimEnd('\\');
+        var args = (Directory.Exists(client) ? $"--gm \"{client.TrimEnd('\\')}\"" : "--gm \"\"") + (server.Length > 0 ? $" \"{server}\"" : "");
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, args) { UseShellExecute = false }); }
         catch (Exception ex) { Warn(ex.Message); }
     }

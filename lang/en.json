@@ -5456,5 +5456,9 @@
   "wc.dropZero": "nothing {0}",
   "wc.dropOne": "1 item {0}",
   "wc.dropMany": "{1} items {0}",
-  "wc.dropCount": "On death: {0}"
+  "wc.dropCount": "On death: {0}",
+  "del.npcOnly": "Only the NPC",
+  "del.npcAndPoint": "The NPC and the point",
+  "del.linkedTitle": "{0} unlocks a teleport point",
+  "del.linkedText": "Only the NPC: the point stays on the travel map, but nobody can unlock it anymore.\nThe NPC and the point: the point leaves the travel map and NPCs stop taking players there. This saves the points right away."
 }

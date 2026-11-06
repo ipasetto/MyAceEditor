@@ -64,11 +64,14 @@ public sealed class GmPanel : Form
         _poll.Tick += (_, _) => UpdateState(); _poll.Start();
         Shown += (_, _) => { ApplyCommandSet(); UpdateState(); LoadData(); Compact(); };
         Resize += (_, _) => Compact();
+        _clicks = new ClickWatch(this);
+        _backToGame.Tick += (_, _) => BackToGame();
         ResizeEnd += (_, _) => FollowPanel();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
         FormClosed += (_, _) =>
         {
-            _poll.Dispose();
+            _poll.Dispose(); _backToGame.Dispose();
+            Application.RemoveMessageFilter(_clicks);
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
             if (_gameBefore is { } game) GameConsole.Place(game);
         };
@@ -145,6 +148,8 @@ public sealed class GmPanel : Form
     readonly Button _browse, _launch, _side;
     readonly NavBar _nav;
     readonly Dictionary<Control, int> _wide = new();
+    readonly System.Windows.Forms.Timer _backToGame = new() { Interval = 350 };
+    readonly ClickWatch _clicks;
 
     /// <summary>
     /// Opção A do GM: o jogo fica com 80% da tela à esquerda e o painel com 20% à direita, sempre por cima, para o clique no jogo
@@ -157,6 +162,7 @@ public sealed class GmPanel : Form
             TopMost = false; Bounds = was; _before = null;
             if (_gameBefore is { } game) GameConsole.Place(game);
             _gameBefore = null;
+            Application.RemoveMessageFilter(_clicks);
             Compact();
             return;
         }
@@ -165,6 +171,32 @@ public sealed class GmPanel : Form
         _before = Bounds; _gameBefore = now; _share = 0.2;
         TopMost = true;
         ApplySide();
+        Application.AddMessageFilter(_clicks);
+        GameConsole.FocusGame();
+    }
+
+    /// <summary>
+    /// Lado a lado o jogo fica com o foco: todo clique no painel devolve o foco a ele, menos em campo de digitar ou lista suspensa,
+    /// onde a pessoa ainda vai escrever. A espera deixa o duplo clique acontecer e o botão terminar o que faz.
+    /// </summary>
+    sealed class ClickWatch(GmPanel panel) : IMessageFilter
+    {
+        public bool PreFilterMessage(ref Message m)
+        {
+            const int LeftButtonUp = 0x0202;
+            if (m.Msg == LeftButtonUp && Control.FromChildHandle(m.HWnd) is { } c && c.FindForm() == panel && !Typing(c)) panel._backToGame.Start();
+            return false;
+        }
+    }
+
+    static bool Typing(Control? c) => c is TextBoxBase or UpDownBase or ComboBox || c?.Parent is UpDownBase;
+
+    void BackToGame()
+    {
+        _backToGame.Stop();
+        // pergunta aberta ou digitando: o painel continua com o foco
+        if (_before is null || !Enabled || OwnedForms.Length > 0 || Typing(ActiveControl is ContainerControl box ? box.ActiveControl : ActiveControl)) return;
+        GameConsole.FocusGame();
     }
 
     void ApplySide()
@@ -531,7 +563,7 @@ public sealed class GmPanel : Form
     sealed record GmPlugin(string Id, string Name) { public override string ToString() => Name.Length > 0 ? Name : Id; }   // o "Nome (só desta cópia)" da tela Plugins
     void FillPlugins()
     {
-        Task.Run(() => { try { return LocalAdmin().PluginsLoad(); } catch (Exception) { return new List<PluginRule>(); } }).ContinueWith(t => BeginInvoke(() =>
+        Task.Run(() => { try { return LocalAdmin().PluginsLoad(); } catch (Exception ex) { AppLog.Error("painel do GM: plugins", ex); return new List<PluginRule>(); } }).ContinueWith(t => BeginInvoke(() =>
         {
             if (_plTimer is null) { _plTimer = new System.Windows.Forms.Timer { Interval = 1000 }; _plTimer.Tick += (_, _) => PluginTick(); _plTimer.Start(); Disposed += (_, _) => _plTimer.Dispose(); }
             _plugins.Items.Clear();

@@ -65,12 +65,14 @@ internal sealed class QuestPreview : Panel
         // sem prêmio o jogo não mostra o bloco de recompensa
         // só o que a quest mostra: rodapé e rótulos de exemplo da janela ficam de fora, senão um texto cai em cima do outro (teste 11)
         var icons = Area("Img_Item0", new Rectangle(213, 328, 32, 32));
+        // título "Recompensa da Missão": o rótulo entre o objetivo e o prêmio (a posição muda de um tema para o outro)
+        var goal = Area("Txt_QuestItem", new Rectangle(211, 205, 325, 81)); var award = Area("Txt_BaseAward", new Rectangle(211, 309, 325, 15));
+        bool RewardTitle(GameDialog.Control c) => c.Tag == "LABEL" && c.Rect.Y >= goal.Bottom - 6 && c.Rect.Y < award.Y;
         bool Noise(GameDialog.Control c) => c.Name is "Img_New" or "Btn_GotoNPC" or "Btn_FinishTask" or "Btn_TreasureMap"
             || c.Rect.Y >= icons.Bottom && c.Rect.Height < 60
             || c.Tag == "LABEL" && c.Rect.Y + c.Rect.Height > icons.Y
-            || !reward && (c.Name.StartsWith("Img_Item") || c.Name == "Txt_ItemAward" || c.Name == "Txt_BaseAward" || c.Tag == "LABEL" && c.Rect.Y > 280 && c.Rect.Y < 320);
-        // título "Recompensa da Missão": no pergaminho a cor do XML quase some (teste 2)
-        GameDraw.Dialog(g, _dialog, _tex, c => Noise(c) ? new Rectangle(-5000, 0, 0, 0) : GameDraw.Box(c), c => c.Tag == "LABEL" && c.Rect.Y > 280 && c.Rect.Y < 320 ? Color.White : null);
+            || !reward && (c.Name.StartsWith("Img_Item") || c.Name == "Txt_ItemAward" || c.Name == "Txt_BaseAward" || RewardTitle(c));
+        GameDraw.Dialog(g, _dialog, _tex, c => Noise(c) ? new Rectangle(-5000, 0, 0, 0) : GameDraw.Box(c), c => RewardTitle(c) ? Color.White : null);
         if (_data is not { } d) return;
         using var font = new Font("Segoe UI", 9f);
         void Write(string text, Rectangle box, Color c) => TextRenderer.DrawText(g, text, font, box, c, TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);

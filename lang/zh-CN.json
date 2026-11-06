@@ -5458,5 +5458,9 @@
   "wc.dropZero": "无 {0}",
   "wc.dropOne": "1 件物品 {0}",
   "wc.dropMany": "{1} 件物品 {0}",
-  "wc.dropCount": "死亡时:{0}"
+  "wc.dropCount": "死亡时:{0}",
+  "del.npcOnly": "仅 NPC",
+  "del.npcAndPoint": "NPC 和传送点",
+  "del.linkedTitle": "{0} 会解锁一个传送点",
+  "del.linkedText": "仅 NPC:传送点留在旅行地图上,但没有人能再解锁它。\nNPC 和传送点:传送点从旅行地图移除,NPC 不再送往该处。传送点会立即保存。"
 }
