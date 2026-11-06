@@ -50,6 +50,11 @@ public sealed class NpcDraft
     public int Discover;
     /// <summary>Editar: ID do NPC que já existe. 0 = NPC novo.</summary>
     public int Editing;
+    /// <summary>Tem teleporte (o NPC pode ter loja, fabricação e teleporte juntos).</summary>
+    public bool Teleports;
+    public bool HasShop => Shop is not null || Kind == NpcKind.Seller;
+    public bool HasMake => Make is not null || Kind == NpcKind.Forge;
+    public bool HasStops => Teleports || Kind == NpcKind.Teleporter;
 }
 
 /// <summary>
@@ -95,19 +100,19 @@ public static class NpcBuilder
         if (d.Kind == NpcKind.Creature) return e;
         if (d.BaseId > 0 && Find(m, "NPC_ESSENCE", d.BaseId) is null) e.Add(T("nb.baseNpc", "A base precisa ser um NPC."));
         if (d.Name.Trim().Length == 0) e.Add(T("nb.noName", "Dê um nome para o NPC."));
-        if (d.Kind == NpcKind.Seller)
+        if (d.HasShop)
         {
             if (d.Shop is not { Count: > 0 } shop) e.Add(T("nb.emptyShop", "A loja está vazia: clique nos espaços para pôr os itens."));
             else foreach (int id in shop.Goods.SelectMany(p => p).Where(g => g > 0).Distinct())
                     if (!isItem(id)) e.Add(string.Format(T("nb.noItem", "O item {0} não existe no elements.data."), id));
             if (m.FindListByName("NPC_SELL_SERVICE") is null) e.Add(T("nb.noSellBlock", "Este elements.data não tem o bloco de lojas."));
         }
-        if (d.Kind == NpcKind.Teleporter)
+        if (d.HasStops)
         {
             if (d.Stops.Count == 0) e.Add(T("nb.noStops", "Escolha pelo menos um destino: sem destino o gs cai ao iniciar."));
             if (d.Stops.Count > MaxStops) e.Add(string.Format(T("nb.manyStops", "Mais de {0} destinos."), MaxStops));
         }
-        if (d.Kind == NpcKind.Forge)
+        if (d.HasMake)
         {
             if (d.Make is not { Count: > 0 } make) { e.Add(T("nb.emptyMake", "A fornalha está vazia: clique nos espaços para pôr as receitas.")); return e; }
             SkillOf(m, make, out bool mixed);
@@ -217,7 +222,7 @@ public static class NpcBuilder
 
         Item Service(string block, string name) => NewService(m, block, name, blank);
 
-        if (d.Kind == NpcKind.Seller)
+        if (d.HasShop)
         {
             var svc = Service("NPC_SELL_SERVICE", npc.Name);
             insert(m.FindListByName("NPC_SELL_SERVICE")!, svc);
@@ -226,14 +231,14 @@ public static class NpcBuilder
             if (m.FindListByName("NPC_BUY_SERVICE")?.Items.FirstOrDefault() is { } buy) Set(npc, "id_buy_service", buy.Id);   // o jogador também vende para ele
         }
         if (d.Discover > 0) { Set(npc, "id_to_discover", d.Discover.ToString()); Set(npc, "combined_services", WithDiscover(F(npc, "combined_services"), true)); }
-        if (d.Kind == NpcKind.Teleporter)
+        if (d.HasStops)
         {
             var svc = Service("NPC_TRANSMIT_SERVICE", npc.Name);
             insert(m.FindListByName("NPC_TRANSMIT_SERVICE")!, svc);
             FillStops(svc, d.Stops);
             Set(npc, "id_transmit_service", svc.Id);
         }
-        if (d.Kind == NpcKind.Forge)
+        if (d.HasMake)
         {
             var svc = Service("NPC_MAKE_SERVICE", npc.Name);
             insert(m.FindListByName("NPC_MAKE_SERVICE")!, svc);
@@ -256,19 +261,14 @@ public static class NpcBuilder
         if (Find(m, "NPC_ESSENCE", id) is not { } n) return null;
         int Num(Item i, string k) => int.TryParse(F(i, k), out var v) ? v : 0;
         var d = new NpcDraft { Editing = id, BaseId = id, Kind = NpcKind.Npc, Name = TasksFile.SplitColor(n.Name).Text, Discover = Num(n, "id_to_discover") };
-        if (Find(m, "NPC_SELL_SERVICE", Num(n, "id_sell_service")) is { } sell)
+        // os três serviços são lidos: um NPC pode ter loja e fornalha juntas, e a edição mostra os dois
+        if (Find(m, "NPC_TRANSMIT_SERVICE", Num(n, "id_transmit_service")) is { } tr)
         {
-            d.Kind = NpcKind.Seller;
-            var shop = new ShopDraft();
-            for (int p = 0; p < Pages; p++)
-            {
-                shop.Titles[p] = F(sell, $"pages_{p + 1}_page_title") ?? "";
-                for (int g = 0; g < Slots; g++)
-                    shop.Goods[p][g] = int.TryParse(F(sell, $"pages_{p + 1}_goods_{g + 1}_id") ?? F(sell, $"pages_{p + 1}_id_goods_{g + 1}"), out var v) ? v : 0;
-            }
-            d.Shop = shop;
+            d.Kind = NpcKind.Teleporter;
+            d.Teleports = true;
+            d.Stops = StopsOf(tr);
         }
-        else if (Find(m, "NPC_MAKE_SERVICE", Num(n, "id_make_service")) is { } mk)
+        if (Find(m, "NPC_MAKE_SERVICE", Num(n, "id_make_service")) is { } mk)
         {
             d.Kind = NpcKind.Forge;
             var make = new MakeDraft { Skill = Num(mk, "id_make_skill") };
@@ -280,10 +280,17 @@ public static class NpcBuilder
             }
             d.Make = make;
         }
-        else if (Find(m, "NPC_TRANSMIT_SERVICE", Num(n, "id_transmit_service")) is { } tr)
+        if (Find(m, "NPC_SELL_SERVICE", Num(n, "id_sell_service")) is { } sell)
         {
-            d.Kind = NpcKind.Teleporter;
-            d.Stops = StopsOf(tr);
+            d.Kind = NpcKind.Seller;
+            var shop = new ShopDraft();
+            for (int p = 0; p < Pages; p++)
+            {
+                shop.Titles[p] = F(sell, $"pages_{p + 1}_page_title") ?? "";
+                for (int g = 0; g < Slots; g++)
+                    shop.Goods[p][g] = int.TryParse(F(sell, $"pages_{p + 1}_goods_{g + 1}_id") ?? F(sell, $"pages_{p + 1}_id_goods_{g + 1}"), out var v) ? v : 0;
+            }
+            d.Shop = shop;
         }
         return d;
     }
@@ -301,12 +308,12 @@ public static class NpcBuilder
     }
 
     /// <summary>Campos que mudam neste serviço para ficar como o rascunho. Receitas novas entram pelo insert.</summary>
-    public static List<(string Key, string Value)> ServiceChanges(Module m, NpcDraft d, Item svc, Func<ItemList, Item> blank, Action<ItemList, Item> insert, Func<int, string> nameOf)
+    public static List<(string Key, string Value)> ServiceChanges(Module m, NpcDraft d, NpcKind kind, Item svc, Func<ItemList, Item> blank, Action<ItemList, Item> insert, Func<int, string> nameOf)
     {
         var after = new Item { Id = svc.Id, Name = svc.Name, Fields = svc.Fields.Clone() };
-        if (d.Kind == NpcKind.Seller) FillShop(after, d.Shop!);
-        if (d.Kind == NpcKind.Forge) FillMake(m, d.Make!, after, blank, insert, nameOf);
-        if (d.Kind == NpcKind.Teleporter) FillStops(after, d.Stops);
+        if (kind == NpcKind.Seller) FillShop(after, d.Shop!);
+        if (kind == NpcKind.Forge) FillMake(m, d.Make!, after, blank, insert, nameOf);
+        if (kind == NpcKind.Teleporter) FillStops(after, d.Stops);
         return after.Fields.Where(f => F(svc, f.Key) != f.Value.Value).Select(f => (f.Key, f.Value.Value)).ToList();
     }
 

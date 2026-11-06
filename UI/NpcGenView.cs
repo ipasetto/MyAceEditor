@@ -55,6 +55,10 @@ internal sealed class NpcGenView : UserControl
     readonly Dictionary<string, NpcGenFile> _files = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> _dirty = new(StringComparer.OrdinalIgnoreCase);
     string? _configDir, _cur;
+    /// <summary>Drops do monstro para o painel do Mundo 3D.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Func<int, CreatureDrops?>? DropsOf { get; set; }
+    /// <summary>Abre o editor de drops do monstro (dono da janela, ID).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<IWin32Window, int>? EditDrops { get; set; }
     /// <summary>Pasta config do servidor aberto; null até abrir.</summary>
     public string? ConfigDir => _configDir;
     Kind _kind = Kind.Monster;
@@ -850,6 +854,9 @@ internal sealed class NpcGenView : UserControl
             var cq = CreatureQuests;
             var ann = Announce;
             panel.Announce = ann is null ? null : mid => ann(_world ?? (IWin32Window)this, mid);
+            var edit = EditDrops;
+            panel.DropsOf = DropsOf;
+            panel.EditDrops = edit is null ? null : mid => edit(_world ?? (IWin32Window)this, mid);
             panel.Apply = (r, a, sp, mn, d) =>
             {
                 SelectObject(o); Snapshot("crea3d:" + DateTime.Now.Ticks);

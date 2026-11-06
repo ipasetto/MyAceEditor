@@ -111,7 +111,7 @@ internal sealed partial class WorldView
         _toolBack.FlatAppearance.BorderSize = 0; _toolFold.FlatAppearance.BorderSize = 0;
         _toolBack.Image = UiKit.Icon("", Color.White, 16);
         _toolTip.SetToolTip(_toolBack, Loc.T("tools.back", "Voltar ao menu de ferramentas"));
-        _toolBack.Click += (_, _) => { if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
+        _toolBack.Click += (_, _) => { if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
         _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
@@ -121,7 +121,7 @@ internal sealed partial class WorldView
         _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
-        _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.create", "Criar"), Loc.T("tools.createSub", "Criatura, NPC, vendedor ou fornalha, direto no mundo."), () => OpenTool(Tool.Create)));
+        _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.npcs", "NPCs e monstros"), Loc.T("tools.npcsSub", "Criar e editar NPC, vendedor, fornalha e monstro."), () => OpenTool(Tool.Create)));
         _toolMenu.Controls.Add(ToolButton("\uE81E", Loc.T("tools.domains", "Territórios"), Loc.T("tools.domainsSub", "Áreas da guerra de clãs: desenhar, criar e excluir no mapa."), () => DomainEditorWindow.Open(this, ElementOfMap, ServerConfigDir, _tpPrecinctDomains())));
         _toolMenu.Controls.Add(ToolButton("\uE8AB", Loc.T("tools.teleports", "Teleportes"), Loc.T("tools.teleportsSub2", "Lugares do mapa de viagem e o NPC que atende em cada um."), () => OpenTool(Tool.Teleports)));
         // sempre por último: grava tudo e leva ao servidor (a janela principal abre na aba Servidor)
@@ -203,7 +203,12 @@ internal sealed partial class WorldView
         }
         if (t == Tool.Scene) { _toolTitle.Text = "       " + Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
         if (t == Tool.Paths) { _toolTitle.Text = "       " + Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
-        if (t == Tool.Create) { _toolTitle.Text = "       " + Loc.T("tools.create", "Criar"); UpdateCreatePanel(); }
+        if (t == Tool.Create)
+        {
+            _toolTitle.Text = "       " + Loc.T("tools.npcs", "NPCs e monstros");
+            if (SelectedMark() is { Id: > 0 } chosen) _target = chosen.Id;
+            UpdateCreatePanel();
+        }
         if (t == Tool.Teleports) { _toolTitle.Text = "       " + Loc.T("tools.teleports", "Teleportes"); OpenTeleports(); }
         LayoutTools();
     }

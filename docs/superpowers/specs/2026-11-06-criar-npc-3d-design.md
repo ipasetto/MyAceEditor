@@ -45,3 +45,7 @@ registros do elements pelo Ctrl+Z do editor (cada um tem a sua pilha).
 ## Testes
 
 `--npc-builder-test` cria os quatro tipos na memória e confere as regras. Teste na tela: criar um vendedor e uma fornalha.
+
+## Mudança de 06/11 (teste 28)
+
+A ferramenta passou a se chamar **NPCs e monstros**. Ela abre com quem está selecionado no mundo, **Criar novo** e **Editar o selecionado**, que fica apagado sem seleção. Editar usa os mesmos passos; monstro abre no Elements. Na edição, loja, fabricação e teleporte são linhas separadas: cada uma entra e sai sozinha. Tirar um serviço só desliga o NPC, e o registro fica para quem mais usa.

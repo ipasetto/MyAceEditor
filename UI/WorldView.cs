@@ -300,6 +300,7 @@ internal sealed partial class WorldView : Form
                         _movingTag = null; _movePos = null; _gl.Invalidate();
                         return;
                     }
+                    if (_tool == Tool.Create && mk is { Id: > 0 }) SelectTarget(mk.Id);   // ferramenta NPCs e monstros: quem o Editar vai abrir
                     if (mk is { Id: > 0 } && NpcQuests is not null)
                     {
                         if (NpcQuests(mk.Id) is { } qi)
@@ -327,6 +328,7 @@ internal sealed partial class WorldView : Form
                 HideBottomPanels();
                 _questNpc = 0;   // a ferramenta Quests volta a pedir "Clique em um NPC"
                 if (_tool == Tool.Quests) ShowQuestTool(null);
+                if (_tool == Tool.Create) SelectTarget(0);
                 if (_selected() is not null) { ClearSelection?.Invoke(); _gizmoHover = 0; _gl.Invalidate(); }
             }
         };

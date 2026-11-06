@@ -463,6 +463,8 @@ public sealed class EditorForm : Form
         _npcgen.QuestHost = new QuestHostImpl(this);
         _npcgen.InhabitOf = id => CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" } c && int.TryParse(c.Item.Fields.GetValueOrDefault("inhabit_type")?.Value, out var ih) ? ih : 0;
         _npcgen.Announce = OpenAnnouncements;
+        _npcgen.DropsOf = DropsOfCreature;
+        _npcgen.EditDrops = (owner, id) => { if (CreatureItem(id) is { Block.Name: "MONSTER_ESSENCE" } c) OpenChanceEditor(c.Item, drops: true, owner); };
         _npcgen.IsMerchant = id => CreatureItem(id) is { } c && c.Item.Fields.TryGetValue("id_sell_service", out var sv) && sv.Value is not ("0" or "");
         _npcgen.OpenQuest = id => { GoToQuest(id); Activate(); };
         // servidor escolhido no NPCGen (pasta gamed\config) vira o servidor do programa todo
@@ -1004,7 +1006,27 @@ public sealed class EditorForm : Form
     }
 
     // Editor de addons / de drops (janela): trabalha numa cópia; ao salvar, as mudanças entram no histórico como uma ação só.
-    private void OpenChanceEditor(Item item, bool drops)
+    /// <summary>Drops do monstro para o painel do Mundo 3D: chance de cair N itens e os itens, do mais provável ao menos. Null = não é monstro.</summary>
+    private CreatureDrops? DropsOfCreature(int id)
+    {
+        if (CreatureItem(id) is not { Block.Name: "MONSTER_ESSENCE" } c) return null;
+        double Num(string key) => c.Item.Fields.TryGetValue(key, out var f) && double.TryParse(f.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
+        var rows = new List<DropRow>();
+        for (int i = 1; c.Item.Fields.TryGetValue($"drop_matters_{i}_id", out var f); i++)
+            if (int.TryParse(f.Value, out var item) && item > 0)
+            {
+                string name = item.ToString(); Image? icon = null;
+                if (_refs?.Resolve(FieldKind.ItemRef, f.Value) is { } hit)
+                {
+                    name = TasksFile.SplitColor(hit.Item.Name).Text;
+                    if (IconIndexFor(hit.Item) is >= 0 and var at) icon = _treeIcons.Images[at];
+                }
+                rows.Add(new(item, name, icon, Num($"drop_matters_{i}_probability")));
+            }
+        return new([.. Enumerable.Range(0, 4).Select(n => Num($"probability_drop_num{n}"))], [.. rows.OrderByDescending(r => r.Chance)]);
+    }
+
+    private void OpenChanceEditor(Item item, bool drops, IWin32Window? owner = null)
     {
         _grid.EndEdit();
         var addons = _cfgs?.Addons;
@@ -1026,7 +1048,7 @@ public sealed class EditorForm : Form
             return picked?.Select(p => p.Id).ToList();
         }
         using var dlg = new ChanceEditor(item, drops, FieldLabels.Label, Text, Pick, drops ? Icon : null);
-        if (dlg.ShowDialog(this) != DialogResult.OK || dlg.Changes.Count == 0) return;
+        if (dlg.ShowDialog(owner ?? this) != DialogResult.OK || dlg.Changes.Count == 0) return;
         var what = drops ? Loc.T("dropEd.name", "Editor de drops") : Loc.T("addonEd.name", "Editor de addons");
         using (_edits.Batch($"{what} {item.Id}"))
             foreach (var (k, v) in dlg.Changes) SetField(item, k, v, refresh: false);
@@ -3834,6 +3856,20 @@ public sealed class EditorForm : Form
         _edits.Undo();
         o.Add("Ctrl+Z: tem " + host.AtlasHas(point));
         var seller = npcs.First(n => NpcNumber(n, "id_sell_service") > 0);
+        // serviços separados: NPC comum ganha loja, Ctrl+Z tira; quem tem loja e fornalha abre com as duas
+        var plain = npcs.First(n => NpcNumber(n, "id_sell_service") == 0 && NpcNumber(n, "id_make_service") == 0 && NpcNumber(n, "id_transmit_service") == 0);
+        var pd = host.LoadNpc(int.Parse(plain.Id))!;
+        pd.Shop = new ShopDraft(); pd.Shop.Goods[0][0] = host.LoadNpc(int.Parse(seller.Id))!.Shop!.Goods[0].First(g => g > 0);
+        o.Add($"comum {plain.Id} ganha loja: " + (host.UpdateNpc(pd, false) ?? "ok") + $" serviço {NpcNumber(plain, "id_sell_service")} compra {NpcNumber(plain, "id_buy_service")} itens {host.LoadNpc(int.Parse(plain.Id))!.Shop?.Count}");
+        var pd2 = host.LoadNpc(int.Parse(plain.Id))!; pd2.Shop = null; pd2.Kind = NpcKind.Npc;
+        o.Add("tira a loja: " + (host.UpdateNpc(pd2, false) ?? "ok") + $" serviço {NpcNumber(plain, "id_sell_service")} compra {NpcNumber(plain, "id_buy_service")}");
+        _edits.Undo(); _edits.Undo();
+        o.Add($"Ctrl+Z duas vezes: serviço {NpcNumber(plain, "id_sell_service")} compra {NpcNumber(plain, "id_buy_service")}");
+        if (npcs.FirstOrDefault(n => NpcNumber(n, "id_sell_service") > 0 && NpcNumber(n, "id_make_service") > 0) is { } both)
+        {
+            var bd = host.LoadNpc(int.Parse(both.Id))!;
+            o.Add($"loja e fornalha {both.Id}: loja {bd.Shop?.Count} fabricação {bd.Make?.Count} usuários que mudam {host.ServiceUsersOf(bd)}");
+        }
         var loaded = host.LoadNpc(int.Parse(seller.Id))!;
         int first = loaded.Shop!.Goods[0][0];
         o.Add($"editar {seller.Id} {loaded.Name}: {loaded.Kind}, {loaded.Shop.Count} itens, usuários do serviço {host.ServiceUsersOf(loaded)}");
@@ -4031,11 +4067,24 @@ public sealed class EditorForm : Form
     private static string ServiceField(NpcKind kind) => kind switch { NpcKind.Seller => "id_sell_service", NpcKind.Forge => "id_make_service", _ => "id_transmit_service" };
     private static string ServiceBlock(NpcKind kind) => kind switch { NpcKind.Seller => "NPC_SELL_SERVICE", NpcKind.Forge => "NPC_MAKE_SERVICE", _ => "NPC_TRANSMIT_SERVICE" };
 
+    private static readonly NpcKind[] ServiceKinds = [NpcKind.Seller, NpcKind.Forge, NpcKind.Teleporter];
+    private static bool Wants(NpcDraft d, NpcKind kind) => kind == NpcKind.Seller ? d.HasShop : kind == NpcKind.Forge ? d.HasMake : d.HasStops;
+
+    private int UsersOf(NpcKind kind, int svc) => svc == 0 ? 0 : _store.Current!.FindListByName("NPC_ESSENCE")!.Items.Count(i => NpcNumber(i, ServiceField(kind)) == svc);
+
+    /// <summary>Maior número de NPCs que dividem um serviço que esta edição muda (0 ou 1 = não há o que perguntar).</summary>
     private int ServiceUsersOf(NpcDraft d)
     {
-        if (d.Kind is not (NpcKind.Seller or NpcKind.Forge or NpcKind.Teleporter) || NpcById(d.Editing) is not { } n) return 0;
-        int svc = NpcNumber(n, ServiceField(d.Kind));
-        return svc == 0 ? 0 : _store.Current!.FindListByName("NPC_ESSENCE")!.Items.Count(i => NpcNumber(i, ServiceField(d.Kind)) == svc);
+        if (_store.Current is not { } m || NpcById(d.Editing) is not { } n) return 0;
+        int most = 0;
+        foreach (var kind in ServiceKinds)
+        {
+            if (!Wants(d, kind) || m.FindListByName(ServiceBlock(kind)) is not { } block) continue;
+            int id = NpcNumber(n, ServiceField(kind));
+            if (block.Items.FirstOrDefault(i => i.Id == id.ToString()) is not { } svc) continue;
+            if (NpcBuilder.ServiceChanges(m, d, kind, svc, BlankRecord, (_, _) => { }, i => i.ToString()).Count > 0) most = Math.Max(most, UsersOf(kind, id));
+        }
+        return most;
     }
 
     /// <summary>Grava o rascunho sobre o NPC que já existe, num passo do Ctrl+Z.</summary>
@@ -4051,18 +4100,38 @@ public sealed class EditorForm : Form
         using (_edits.Batch(string.Format(Loc.T("hist.editNpc", "Editar NPC {0}"), n.Id)))
         {
             if (TasksFile.SplitColor(n.Name).Text != d.Name.Trim()) { SetField(n, "Name", d.Name.Trim(), refresh: false); n.Name = d.Name.Trim(); }
-            if (d.Kind is NpcKind.Seller or NpcKind.Forge or NpcKind.Teleporter && _store.Current.FindListByName(ServiceBlock(d.Kind)) is { } block
-                && block.Items.FirstOrDefault(i => i.Id == NpcNumber(n, ServiceField(d.Kind)).ToString()) is { } svc)
+            foreach (var kind in ServiceKinds)
             {
-                if (copy)
+                if (m.FindListByName(ServiceBlock(kind)) is not { } block) continue;
+                string field = ServiceField(kind);
+                int id = NpcNumber(n, field);
+                if (!Wants(d, kind))
+                {
+                    // tirar o serviço só desliga este NPC: o registro fica para quem mais usa
+                    if (id != 0) SetField(n, field, "0", refresh: false);
+                    if (kind == NpcKind.Seller && NpcNumber(n, "id_buy_service") != 0) SetField(n, "id_buy_service", "0", refresh: false);
+                    continue;
+                }
+                var svc = block.Items.FirstOrDefault(i => i.Id == id.ToString());
+                bool added = svc is null;
+                if (svc is null)
+                {
+                    svc = NpcBuilder.NewService(m, ServiceBlock(kind), n.Name, BlankRecord);
+                    Insert(block, svc);
+                    SetField(n, field, svc.Id, refresh: false);
+                    if (kind == NpcKind.Seller && NpcNumber(n, "id_buy_service") == 0 && m.FindListByName("NPC_BUY_SERVICE")?.Items.FirstOrDefault() is { } buy) SetField(n, "id_buy_service", buy.Id, refresh: false);
+                }
+                var changes = NpcBuilder.ServiceChanges(m, d, kind, svc, BlankRecord, Insert, NameOf);
+                if (changes.Count == 0) continue;
+                if (!added && copy && UsersOf(kind, id) > 1)
                 {
                     svc = NpcBuilder.CopyService(m, block, svc);
                     Insert(block, svc);
-                    SetField(n, ServiceField(d.Kind), svc.Id, refresh: false);
+                    SetField(n, field, svc.Id, refresh: false);
                 }
-                foreach (var (k, v) in NpcBuilder.ServiceChanges(m, d, svc, BlankRecord, Insert, NameOf)) SetField(svc, k, v, refresh: false);
+                foreach (var (k, v) in changes) SetField(svc, k, v, refresh: false);
             }
-            if (d.Kind == NpcKind.Teleporter && NpcNumber(n, "id_to_discover") != d.Discover)
+            if (d.HasStops && NpcNumber(n, "id_to_discover") != d.Discover)
             {
                 SetField(n, "id_to_discover", d.Discover.ToString(), refresh: false);
                 SetField(n, "combined_services", NpcBuilder.WithDiscover(n.Fields["combined_services"].Value, d.Discover > 0), refresh: false);

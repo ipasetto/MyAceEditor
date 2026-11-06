@@ -1,8 +1,13 @@
 namespace MyAceEditor.UI;
 
+/// <summary>Um item que o monstro deixa cair.</summary>
+internal sealed record DropRow(int Id, string Name, Image? Icon, double Chance);
+/// <summary>Drops do monstro: chance de cair 0, 1, 2 e 3 itens e a lista.</summary>
+internal sealed record CreatureDrops(IReadOnlyList<double> Count, IReadOnlyList<DropRow> Items);
+
 /// <summary>
-/// Painel de baixo do Mundo 3D ao clicar num monstro: ficha do ponto à esquerda (quantidade, renascer, mortes até parar,
-/// como anda, gatilho) e as quests que usam a criatura à direita. Mesmo jeito do painel de quests do NPC (WorldQuestPanel).
+/// Painel de baixo do Mundo 3D ao clicar num monstro: à esquerda os drops com ícone e chance (botão Editar drops) e, na pílula ao
+/// lado, a ficha do ponto (quantidade, renascer, como anda, gatilho); à direita as quests que usam a criatura.
 /// </summary>
 internal sealed class WorldCreaturePanel : Panel
 {
@@ -18,6 +23,14 @@ internal sealed class WorldCreaturePanel : Panel
     readonly ListView _quests = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None,
         BackColor = Card, ForeColor = Color.Gainsboro, HeaderStyle = ColumnHeaderStyle.Nonclickable, ShowItemToolTips = true };
     readonly List<Label> _names = new();
+    readonly ListView _drops = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.None,
+        BackColor = Card, ForeColor = Color.Gainsboro, HeaderStyle = ColumnHeaderStyle.Nonclickable, ShowItemToolTips = true };
+    readonly ImageList _dropIcons = new() { ImageSize = new Size(24, 24), ColorDepth = ColorDepth.Depth32Bit };
+    readonly Label _dropCount = new() { Dock = DockStyle.Top, Height = 24, ForeColor = Color.Gainsboro, BackColor = Card, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(6, 0, 0, 0), AutoEllipsis = true };
+    readonly Button _pageDrops, _pagePoint, _editDrops;
+    readonly Panel _pages = new() { Dock = DockStyle.Top, Height = 38, Padding = new Padding(0, 2, 0, 4) };
+    readonly Panel _dropsBox = new() { Dock = DockStyle.Fill, BackColor = Card };
+    readonly TableLayoutPanel _sheet;
     int _target, _token, _id;
     bool _filling;
     IReadOnlyList<SpawnRow> _rows = Array.Empty<SpawnRow>();
@@ -29,6 +42,10 @@ internal sealed class WorldCreaturePanel : Panel
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? EditCreature { get; set; }
     /// <summary>Anúncios do monstro (AnnounceDialog / AiAnnounce). Null = botão escondido.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? Announce { get; set; }
+    /// <summary>Drops do monstro. Null ou sem resultado = o painel mostra só a ficha do ponto.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Func<int, CreatureDrops?>? DropsOf { get; set; }
+    /// <summary>Editor de drops do MyAce para este monstro (ID).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? EditDrops { get; set; }
 
     static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 90, BackColor = Color.FromArgb(40, 46, 56), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 2, 6, 2) };
     static Label Value() => new() { AutoSize = true, ForeColor = Color.Gainsboro, Margin = new Padding(0, 6, 0, 0) };
@@ -53,7 +70,7 @@ internal sealed class WorldCreaturePanel : Panel
         head.Controls.Add(_title); head.Controls.Add(icon); head.Controls.Add(buttons);
 
         // ficha do ponto: nome | valor | explicação, uma linha por informação
-        var sheet = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = Card, Padding = new Padding(10, 6, 10, 6) };
+        var sheet = _sheet = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = Card, Padding = new Padding(10, 6, 10, 6) };
         sheet.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130)); sheet.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); sheet.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Label Name() { var l = new Label { AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 6, 6, 0) }; _names.Add(l); return l; }
         _groupLabel = Name();
@@ -65,7 +82,18 @@ internal sealed class WorldCreaturePanel : Panel
         var walkName = Name(); Row(walkName, _walk, null); sheet.SetColumnSpan(_walk, 2);
         var trigName = Name(); Row(trigName, _trigger, null); sheet.SetColumnSpan(_trigger, 2);
         var sheetBox = new Panel { Dock = DockStyle.Left, Width = 470, Padding = new Padding(8, 8, 4, 8) };
-        sheetBox.Controls.Add(sheet);
+        // drops primeiro: é o que se quer ver ao clicar num monstro; a ficha do ponto fica na outra pílula
+        _pageDrops = Btn(() => ShowPage(true), "\uE7BF");
+        _pagePoint = Btn(() => ShowPage(false), "\uE707");
+        _editDrops = Btn(EditDropsNow, "\uE70F");
+        _editDrops.Dock = DockStyle.Right; _pageDrops.Dock = _pagePoint.Dock = DockStyle.Left;
+        _pages.Controls.Add(_editDrops); _pages.Controls.Add(_pagePoint); _pages.Controls.Add(_pageDrops);
+        _drops.Columns.Add("", 300); _drops.Columns.Add("", 90, HorizontalAlignment.Right);
+        _drops.SmallImageList = _dropIcons;
+        _drops.Resize += (_, _) => _drops.Columns[0].Width = Math.Max(160, _drops.ClientSize.Width - _drops.Columns[1].Width - 4);
+        _drops.HandleCreated += (_, _) => SetWindowTheme(_drops.Handle, "DarkMode_Explorer", null);
+        _dropsBox.Controls.Add(_drops); _dropsBox.Controls.Add(_dropCount);
+        sheetBox.Controls.Add(sheet); sheetBox.Controls.Add(_dropsBox); sheetBox.Controls.Add(_pages);
 
         var questBox = new Panel { Dock = DockStyle.Fill, Padding = new Padding(4, 2, 8, 8) };
         _quests.Columns.Add("", 64); _quests.Columns.Add("", 220); _quests.Columns.Add("", 150);
@@ -83,7 +111,7 @@ internal sealed class WorldCreaturePanel : Panel
             Height = _target > Height ? Math.Min(_target, Height + step) : Math.Max(_target, Height - step);
             if (Height == _target) { _anim.Stop(); if (_target == 0) Visible = false; }
         };
-        Disposed += (_, _) => { _anim.Dispose(); _tip.Dispose(); };
+        Disposed += (_, _) => { _anim.Dispose(); _tip.Dispose(); _dropIcons.Dispose(); };
         void Texts()
         {
             _minText.Text = Loc.T("wc.minNote2", "0 = sem sorteio; maior = sorteia o tempo");
@@ -95,6 +123,11 @@ internal sealed class WorldCreaturePanel : Panel
             _tip.SetToolTip(_announce, Loc.T("wc.announceTip", "O que o jogo anuncia quando ele morre ou entra em combate (canal e texto)."));
             _tip.SetToolTip(_edit, Loc.T("wc.editTip", "Abre o monstro no editor de elements (nível, drops, modelo...)."));
             _tip.SetToolTip(_close, Loc.T("wq.close", "Fechar"));
+            _pageDrops.Text = Loc.T("wc.pageDrops", "Drops");
+            _pagePoint.Text = Loc.T("wc.pagePoint", "Ponto no mapa");
+            _editDrops.Text = Loc.T("wc.editDrops", "Editar drops");
+            _tip.SetToolTip(_editDrops, Loc.T("wc.editDropsTip", "Abre o editor de drops deste monstro. Vale para todos os pontos dele."));
+            _drops.Columns[0].Text = Loc.T("wc.colItem", "Item"); _drops.Columns[1].Text = Loc.T("wc.colChance", "Chance");
             _quests.Columns[0].Text = Loc.T("wq.colId", "ID"); _quests.Columns[1].Text = Loc.T("wq.colName", "Quest"); _quests.Columns[2].Text = Loc.T("ci.how", "Como usa");
         }
         Texts();
@@ -117,6 +150,7 @@ internal sealed class WorldCreaturePanel : Panel
         _group.EndUpdate();
         _group.Visible = _groupLabel.Visible = rows.Count > 1;   // um grupo só: a linha não diz nada
         if (rows.Count > 0) _group.SelectedIndex = 0; else LoadGroup();
+        ShowPage(LoadDrops());
         int token = ++_token;
         if (quests is null) SetQuests(Loc.T("ci.noTasks", "Sem tasks.data aberto."), Array.Empty<QuestUse>(), false);
         else
@@ -130,6 +164,45 @@ internal sealed class WorldCreaturePanel : Panel
         }
         Visible = true; BringToFront();
         _target = Full; _anim.Start();
+    }
+
+    /// <summary>Preenche os drops; false = esta criatura não tem (a pílula some e fica a ficha do ponto).</summary>
+    bool LoadDrops()
+    {
+        var d = DropsOf?.Invoke(_id);
+        _pages.Visible = d is not null;
+        _editDrops.Visible = EditDrops is not null;
+        _drops.BeginUpdate(); _drops.Items.Clear(); _dropIcons.Images.Clear();
+        foreach (var r in d?.Items ?? [])
+        {
+            int icon = -1;
+            if (r.Icon is { } img) { _dropIcons.Images.Add(img); icon = _dropIcons.Images.Count - 1; }
+            _drops.Items.Add(new ListViewItem(new[] { r.Name, r.Chance.ToString("P2") }, icon) { ToolTipText = string.Format(Loc.T("wc.dropTip", "Item {0}"), r.Id) });
+        }
+        if (d is { Items.Count: 0 }) _drops.Items.Add(new ListViewItem(Loc.T("wc.dropNone", "(este monstro não deixa cair nada)")) { ForeColor = Color.Gray });
+        _drops.EndUpdate();
+        if (d is not null)
+        {
+            var parts = new List<string>();
+            for (int n = 0; n < d.Count.Count; n++)
+                if (d.Count[n] > 0)
+                    parts.Add(string.Format(n == 0 ? Loc.T("wc.dropZero", "nada {0}") : n == 1 ? Loc.T("wc.dropOne", "1 item {0}") : Loc.T("wc.dropMany", "{1} itens {0}"), d.Count[n].ToString("P0"), n));
+            _dropCount.Text = string.Format(Loc.T("wc.dropCount", "Ao morrer: {0}"), string.Join(" · ", parts));
+        }
+        return d is not null;
+    }
+
+    void ShowPage(bool drops)
+    {
+        _dropsBox.Visible = drops; _sheet.Visible = !drops;
+        _pageDrops.BackColor = drops ? UiKit.Accent : Bg2; _pagePoint.BackColor = drops ? Bg2 : UiKit.Accent;
+    }
+
+    void EditDropsNow()
+    {
+        if (_id <= 0 || EditDrops is null) return;
+        EditDrops(_id);
+        LoadDrops();
     }
 
     void SetQuests(string title, IReadOnlyList<QuestUse> list, bool loading)
@@ -181,7 +254,8 @@ internal sealed class WorldCreaturePanel : Panel
     internal static Form ShotForm()
     {
         var f = new Form { Width = 1100, Height = 300, StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false, BackColor = Color.Black };
-        var p = new WorldCreaturePanel { Apply = (_, _, _, _, _) => { } };
+        var p = new WorldCreaturePanel { Apply = (_, _, _, _, _) => { }, EditDrops = _ => { },
+            DropsOf = _ => new CreatureDrops([0.2, 0.7, 0.1, 0], [new(1, "Pedra do Trovão", null, 0.25), new(2, "Couro Grosso", null, 0.125), new(3, "Asa de Besouro", null, 0.0125)]) };
         f.Controls.Add(p);
         var s = new MyAceEditor.PerfectWorld.NpcGenSpawn { Spread = new MyAceEditor.PerfectWorld.Vec3(20, 0, 30) };
         var g = new MyAceEditor.PerfectWorld.NpcGenCreature { Id = 61648, Amount = 1, Respawn = 600, PathId = 12, PathLoop = 1 };

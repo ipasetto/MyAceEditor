@@ -17,6 +17,7 @@ Feito: Salvar confere destinos e pontos dos NPCs com o .sev (ItemRules.CheckTele
 06/11 fim: confirmados 17, 19, 27, 29. Feitos, falta conferir: Testes 1, 2, 3, 4, 5, 28, 30, 31. Ferramenta Teleportes e Criar > Teleportador prontos, testados por dentro, nao testados no jogo.
 Aberto agua: cor quase branca do mapa (lago da cidade) ainda fica leitosa; ver como A3DTerrainWaterRender usa a cor. Aberto regra: ItemRules nao confere se idTarget existe no .sev (precisa da pasta do servidor).
 06/11 fim 2: usuario confirmou teleporte no jogo com Atlas (teste 33) e desenho do editor de zonas; falta plano. Testes abertos: 1 (aba GShop sem moldura no tema 0: desenha so controles do version01), 2 (Recompensa da Missao em branco), 7, 8, 13, 28 (redesenho: ferramenta NPC com Criar e Editar), 32 (GM lado a lado: metade da tela e layout estreito), 34 (cachoeira: superficie .sdr desenhada opaca), 4 (lago claro).
+06/11 fim 3: feitos no codigo, falta o usuario conferir: 2 (titulo branco), 34 (superficies .sdr translucidas com rolagem), 1 (GShop com moldura do tema), 32 (GM 20% e jogo 80%, nao testado com o jogo aberto), 28 (ferramenta NPCs e monstros: Criar novo, Editar o selecionado, servicos separados; monstro abre no Elements), painel do monstro com drops e Editar drops. Editor de zonas: falta o plano.
 
 ## FASE 1 — base
 [x] elements.data leitura ~98,6% (§E3)            [ ] cauda Territory War ~1,4% (§Q1)
