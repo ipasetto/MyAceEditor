@@ -102,6 +102,8 @@ internal sealed partial class WorldView
         return null;
     }
 
+    /// <summary>Maior ID de caminho citado no npcgen deste mapa.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<int>? MaxPathUsed { get; set; }
     /// <summary>Motivo de o ponto não andar no jogo (NPC comum sem IA); null = anda.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] internal Func<object, string?>? PatrolBlock { get; set; }
     /// <summary>No fim do caminho (npcgen iLoopType, gs patrol_agent.h): 0 para, 1 volta pelo mesmo caminho, 2 recomeça do início.</summary>
@@ -282,7 +284,7 @@ internal sealed partial class WorldView
         if (pts.Count < 2) { _status.Text = Loc.T("path.needTwo", "Um caminho precisa de pelo menos 2 pontos."); return; }
         bool circuit = pts.Count >= 3 && new Vector2(pts[^1].X - pts[0].X, pts[^1].Z - pts[0].Z).Length < 5;
         if (circuit) pts[^1] = pts[0];   // fechou no 1º ponto: o último vira o começo
-        int id = _pathFile.Paths.Count == 0 ? 1 : _pathFile.Paths.Max(p => p.Id) + 1;
+        int id = NextPathId();
         var np = BuildPath(id, _pathFile.Paths.FirstOrDefault()?.Version ?? 3, pts);
         _drawPts = null; _drawHover = null;
         // já tinha caminho: o novo toma o lugar (o antigo sai do path.sev se ninguém mais usa) — nada de 2 caminhos no mesmo monstro
@@ -342,10 +344,14 @@ internal sealed partial class WorldView
     /// nos dados originais), ele vira uma cópia só desta criatura (ID novo, 1 passo do Ctrl+Z) e só ela muda. Valia só
     /// para o arrasto aéreo; arrastar no chão mexia na patrulha de vários monstros (usuário 01/11 e 02/11).
     /// </summary>
+    /// <summary>ID novo de caminho: acima do path.sev e também do que o npcgen já cita. Ponto que aponta para ID sem caminho
+    /// passaria a andar no caminho novo (monstros "puxados" para ele, teste 24).</summary>
+    int NextPathId() => Math.Max(_pathFile is { Paths.Count: > 0 } f ? f.Paths.Max(p => p.Id) : 0, MaxPathUsed?.Invoke() ?? 0) + 1;
+
     void OwnPath()
     {
         if (SelPath is not { } shared || PathSpawn is not { } ps || _pathFile is null || (PathUsers?.Invoke(shared.Id) ?? 1) <= 1) return;
-        int nid = _pathFile.Paths.Max(p => p.Id) + 1;
+        int nid = NextPathId();
         var copy = new SevPath { Version = shared.Version, Id = nid, GlobalId = -1, NextGlobalId = -1 };
         copy.Points.AddRange(shared.Points); copy.Segments.AddRange(shared.Segments);   // pontos e segmentos são valores: a cópia não mexe no original
         LinkPath(ps, nid, copy);

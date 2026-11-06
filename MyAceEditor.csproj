@@ -30,6 +30,7 @@
     <Compile Remove="Plugins\**\*.cs" />   <!-- programa dos plugins (Linux): projeto próprio Plugins/MyAcePlugins.csproj -->
     <!-- Logo: ícone do .exe (ApplicationIcon) e das janelas (Program.UseAppIcon) -->
     <EmbeddedResource Include="Assets\app.ico" LogicalName="MyAceEditor.app.ico" />
+    <EmbeddedResource Include="Assets\map_names.tsv" LogicalName="MyAceEditor.map_names.tsv" />
     <None Update="sample.data" CopyToOutputDirectory="PreserveNewest" />
     <None Update="PerfectWorld\cfg\**\*.cfg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="PerfectWorld\cfg\*.tsv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

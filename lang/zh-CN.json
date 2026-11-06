@@ -4355,7 +4355,6 @@
   "world.noPaths": "此地图在服务器上没有 path.sev。",
   "world.pathsOn": "巡逻路径：全部（{0}）—— P 隐藏",
   "world.pathsOff": "巡逻路径：仅所选点的 —— P 显示全部",
-  "legend.kObjs": "场景特效和声音（点击查看）",
   "world.noScene": "此地图在客户端中没有 .ecwld。",
   "world.objsOn": "场景对象：{0} 个特效，{1} 个声音（橙色=特效，蓝色=声音；点击查看）—— O 隐藏",
   "world.objsOff": "场景对象已隐藏 —— O 显示",
@@ -5136,5 +5135,11 @@
   "ss.deleteAsk": "删除本地服务器 {0}？\n\n服务器将被停止，其 Linux 将被删除，包括程序、数据库、账号和角色。\n\n服务器包、客户端和备份会保留在电脑上。此操作无法撤销。",
   "ss.deleting": "正在删除服务器…",
   "ss.deleted": "服务器已删除。",
-  "ls.deleteFailed": "无法删除服务器："
+  "ls.deleteFailed": "无法删除服务器：",
+  "world.swapCreature": "更换生物…",
+  "is.titleCreature": "选择生物",
+  "svc.pick": "选择现有服务…",
+  "svc.new": "仅为此 NPC 创建新服务",
+  "svc.noBlock": "此 elements.data 没有区块 {0}。",
+  "svc.created": "服务 {0} 已创建并关联到此 NPC。请填写右侧字段。"
 }

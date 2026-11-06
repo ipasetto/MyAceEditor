@@ -263,9 +263,11 @@ public sealed class ServerAdmin
             text = Regex.Replace(text, @"//[^\n]*", "");
             var map = new Dictionary<int, string>();
             // o instance.txt dos clientes 144 (inclusive o BR) ainda é chinês: nome ilegível não é mostrado
-            foreach (Match m in Regex.Matches(text, @"""([^""]*)""\s*\{\s*(\d+)"))
-                if (!m.Groups[1].Value.Any(ch => ch is >= '⺀' and <= '鿿'))
-                    map.TryAdd(int.Parse(m.Groups[2].Value), m.Groups[1].Value);
+            foreach (Match m in Regex.Matches(text, @"""([^""]*)""\s*\{\s*(\d+)\s*""([^""]*)"""))
+            {
+                var name = MapTags.LocalName(m.Groups[3].Value.Trim(), m.Groups[1].Value);
+                if (AppLang.Current == "zh-CN" || !name.Any(ch => ch is >= '⺀' and <= '鿿')) map.TryAdd(int.Parse(m.Groups[2].Value), name);
+            }
             map.TryAdd(1, Loc.T("svadm.mainWorld", "Mundo principal"));
             return map;
         }

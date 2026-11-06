@@ -18,6 +18,8 @@ internal sealed class GShopView : UserControl
     readonly Func<int, Image?> _itemIcon;
     readonly Func<int, (string Name, Color Color)?> _itemInfo;
     readonly Func<IWin32Window, int, int?> _pickItem;
+    /// <summary>Descrição do item no cliente (item_ext_desc), para a troca de item.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Func<int, string?>? ItemDescription { get; set; }
 
     // dois pares: 0 = Loja (gshop/gshopsev), 1 = Butique de Eventos (gshop1/gshopsev1)
     readonly GShopFile?[] _shops = new GShopFile?[2];
@@ -483,7 +485,14 @@ internal sealed class GShopView : UserControl
 
         _name.TextChanged += (_, _) => Edit(it => it.Name = _name.Text);
         _itemId.ValueChanged += (_, _) => { Edit(it => it.ItemId = (int)_itemId.Value); UpdateItemName(); };
-        pick.Click += (_, _) => { if (_sel is not null && _pickItem(FindForm()!, _sel.ItemId) is { } id) _itemId.Value = id; };
+        pick.Click += (_, _) =>
+        {
+            if (_sel is null || _pickItem(FindForm()!, _sel.ItemId) is not { } id) return;
+            _itemId.Value = id;
+            // troca completa: nome e descrição do item; o ícone da lista já vem do ID
+            if (_itemInfo(id) is { } info) _name.Text = info.Name.Length < GShopItem.NameChars ? info.Name : info.Name[..(GShopItem.NameChars - 1)];
+            if (ItemDescription?.Invoke(id) is { } text) _desc.Text = text;
+        };
         _amount.ValueChanged += (_, _) => Edit(it => it.Amount = (int)_amount.Value);
         _cat.SelectedIndexChanged += (_, _) => { if (_binding) return; FillSubs(); if (_subCb.Items.Count > 0) _subCb.SelectedIndex = 0; Edit(it => it.MainType = _cat.SelectedIndex); };
         _subCb.SelectedIndexChanged += (_, _) => Edit(it => it.SubType = _subCb.SelectedIndex);

@@ -62,6 +62,32 @@ public static class MapTags
     /// Nome de cada mapa como o cliente mostra (configs\instance.txt: "nome" { tag "pasta" ... }), pela pasta do mapa.
     /// Nomes em chinês (instance.txt dos clientes 144) ficam de fora: quem chama usa o nome conhecido.
     /// </summary>
+    /// <summary>Tabela Assets/map_names.tsv: pasta do mapa, pt, en, ru, zh. Só traduz mapa que o cliente aberto tem.</summary>
+    static readonly Lazy<Dictionary<string, string[]>> Translations = new(() =>
+    {
+        var t = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var stream = typeof(MapTags).Assembly.GetManifestResourceStream("MyAceEditor.map_names.tsv");
+            if (stream is null) return t;
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            while (reader.ReadLine() is { } line)
+                if (line.Split('\t') is { Length: 5 } c) t[c[0]] = c;
+        }
+        catch (Exception ex) { AppLog.Error("map_names.tsv", ex); }
+        return t;
+    });
+
+    public static string LocalName(string tag, string clientName)
+    {
+        int col = AppLang.Current switch { "en" => 2, "ru" => 3, "zh-CN" => 4, _ => 1 };
+        return Translations.Value.TryGetValue(tag, out var row) && row[col].Length > 0 ? row[col] : clientName;
+    }
+
+    /// <summary>Nomes no idioma do programa para os mapas que este cliente tem.</summary>
+    public static Dictionary<string, string> LocalMapNames(string elementDir) =>
+        ClientMapNames(elementDir).ToDictionary(kv => kv.Key, kv => LocalName(kv.Key, kv.Value), StringComparer.OrdinalIgnoreCase);
+
     public static Dictionary<string, string> ClientMapNames(string elementDir)
     {
         var r = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

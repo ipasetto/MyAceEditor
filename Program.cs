@@ -401,6 +401,13 @@ internal static class Program
             File.WriteAllText("fav-test.txt", $"{found.Count} de {keys.Length}: {string.Join(" ", found)}");
             return;
         }
+        if (args.Length >= 3 && args[0] == "--map-names-dump")   // <saída tsv> <pasta element>...: pasta do mapa e nome em cada cliente
+        {
+            var all = args.Skip(2).Select(MapTags.ClientMapNames).ToList();
+            File.WriteAllLines(args[1], all.SelectMany(d => d.Keys).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(k => k)
+                .Select(k => k + "\t" + string.Join("\t", all.Select(d => d.GetValueOrDefault(k, "")))));
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo
         {
             var rows = Enumerable.Range(1, 40).Select(i => (Id: 1000 + i, Name: $"Item de exemplo {i}", Block: i % 3 == 0 ? "Armas" : i % 3 == 1 ? "Armaduras" : "Itens de quest")).ToList();

@@ -26,7 +26,9 @@ internal sealed class NpcGenView : UserControl
     public Func<int, NpcQuestInfo?>? QuestsOfNpc { get; set; }
     /// <summary>Quests que usam a criatura (painel da criatura no Mundo 3D); null = sem tasks.data. Chamado fora da tela.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-    public Func<int, IReadOnlyList<QuestUse>?>? CreatureQuests { get; set; }
+    /// <summary>Janela de escolher criatura (monstro ou NPC); null = cancelou.</summary>
+    public Func<IWin32Window, int?>? PickCreature { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Func<int, IReadOnlyList<QuestUse>?>? CreatureQuests { get; set; }
     /// <summary>Motivo de a criatura não andar/patrulhar no jogo (null = anda). Ferramenta Caminhos e áreas.</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public Func<int, string?>? PatrolProblem { get; set; }
@@ -927,8 +929,16 @@ internal sealed class NpcGenView : UserControl
         // conta no npcgen DESTE mapa (o do path.sev aberto), mesmo que a lista do NPCGen mude de arquivo com o 3D aberto
         var worldFile = Cur;
         w.PathUsers = id => worldFile?.Spawns.Count(x => x.Creatures.Any(c => c.PathId == id)) ?? 0;
+        w.MaxPathUsed = () => worldFile?.Spawns.SelectMany(x => x.Creatures).Select(c => c.PathId).DefaultIfEmpty(0).Max() ?? 0;
+        w.SwapCreature = o =>
+        {
+            if (o is not NpcGenSpawn s || s.Creatures.Count == 0 || PickCreature?.Invoke(this) is not { } id) return;
+            SelectObject(o); Snapshot("swap3d:" + DateTime.Now.Ticks);
+            s.Creatures[0].Id = id;
+            Touch(); ShowPoint();
+        };
         w.Maps = _paths.Keys.ToList();
-        w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; OpenWorld(true); } };
+        w.SwitchMap = name => { if (_paths.ContainsKey(name)) { _fileBox.SelectedItem = name; _list.SelectedIndices.Clear(); OpenWorld(true); } };   // nada selecionado vem junto para o outro mapa
         if (overview is { } ov)
         {
             // instância: olhar para onde está o conteúdo (média dos 10 pontos de criatura mais perto da entrada)

@@ -30,6 +30,7 @@ internal sealed partial class WorldView : Form
     const System.ComponentModel.DesignerSerializationVisibility Hidden = System.ComponentModel.DesignerSerializationVisibility.Hidden;
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, Vector3>? CloneHere { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? EditPoint { get; set; }
+    [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? SwapCreature { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<Vector3, int>? CreateNewHere { get; set; }
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object>? DeletePoint { get; set; }
     /// <summary>Anel de giro: novo ângulo do ponto (graus; 0 = olhando para +Z, 90 = +X).</summary>
@@ -194,7 +195,7 @@ internal sealed partial class WorldView : Form
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_showBar); Controls.Add(_status);   // painel de quests acima da barra de status
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         _element = element;
-        if (element is not null) _clientNames = MapTags.ClientMapNames(element);
+        if (element is not null) _clientNames = MapTags.LocalMapNames(element);
         _terrain = new WorldTerrain(t, _load, element, start);
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
@@ -396,9 +397,6 @@ internal sealed partial class WorldView : Form
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
             case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
             case Keys.G: _grassBtn.Checked = !_grassBtn.Checked; return;    // esconde a grama (botão Grama de cima acompanha)
-            case Keys.O:   // ferramenta Editar cenário (abre/fecha, como o botão do menu de ferramentas)
-                if (_sceneObjs) CloseTool(); else OpenTool(Tool.Scene);
-                return;
             case Keys.P:   // caminhos de patrulha (path.sev) perto da câmera
                 _allPaths = !_allPaths; _syncPathsBtn?.Invoke(); _gl.Invalidate();
                 _status.Text = Paths is null ? Loc.T("world.noPaths", "Este mapa não tem path.sev no servidor.")
@@ -1135,7 +1133,6 @@ internal sealed partial class WorldView : Form
             new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "B" }),
             new(K("legend.kGrass", "esconder a grama"), Keys: new[] { "G" }),
             new(K("legend.kPaths", "caminhos de patrulha (todos / só o do ponto)"), Keys: new[] { "P" }),
-            new(K("legend.kObjs", "efeitos e sons do cenário (clique para ver)"), Keys: new[] { "O" }),
             new(K("legend.kFog", "neblina do jogo / neblina longe"), Keys: new[] { "N" }),
             new(K("legend.kDayNight", "dia / noite"), Keys: new[] { "L" }),
             new(K("legend.kLegend", "abrir / fechar esta legenda"), Keys: new[] { "H" }),
@@ -1536,6 +1533,8 @@ internal sealed partial class WorldView : Form
                 menu.Items.Add(string.Format(Loc.T("world.edit", "Editar {0} no software…"), under.Name), null, (_, _) => EditPoint(under.Tag));
             if (DeletePoint is not null)
                 menu.Items.Add(string.Format(Loc.T("world.delete", "Excluir {0}"), under.Name), null, (_, _) => { if (Confirm()) { DeletePoint(under.Tag); RefreshMarkers(); } });
+            if (SwapCreature is not null && under.Tag is NpcGenSpawn)
+                menu.Items.Add(Loc.T("world.swapCreature", "Trocar criatura…"), null, (_, _) => { SwapCreature(under.Tag); RefreshMarkers(); _gl.Invalidate(); });
             menu.Items.Add(Loc.T("world.copyPoint", "Copiar ponto (Ctrl+C)"), null, (_, _) => _clip = under.Tag);
         }
         if (_selected() is { } s)

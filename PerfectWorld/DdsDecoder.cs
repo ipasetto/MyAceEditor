@@ -22,7 +22,7 @@ public static class DdsDecoder
         // folhagem com borda suave (árvores feitas de cartões nos .bmd): muito fundo transparente e meios-tons só na borda
         // recorte de verdade tem parte opaca: alfa quase todo 0 e nada opaco é máscara (brilho/reflexo), não transparência
         // (guarda 2557: corpo r_男npc3.dds DXT3 com 87% alfa 0 e 0,1% opaco sumia no Mundo 3D)
-        if (full < n / 10) return false;
+        if (full < n / 50) return false;
         return n > 0 && (zero > n / 100 && mid < n / 8 || zero > n / 4 && mid < n / 3);
     }
 

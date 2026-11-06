@@ -412,6 +412,7 @@ public sealed class EditorForm : Form
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? IconFor(h.Item) : null,
             id => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? (TasksFile.SplitColor(h.Item.Name).Text, NameColor(h.Item)) : null,
             PickShopItem));
+        _gshop.ItemDescription = id => _cfgs is not null && _cfgs.ItemDescs.TryGetValue(id, out var d) ? d : null;
         tabs.TabPages.Add(tG);
         var tN = new TabPage() { BackColor = CBg };
         _tabNpcGen = tN;
@@ -452,6 +453,7 @@ public sealed class EditorForm : Form
         // NPC comum não tem IA no gs (npcgenerator.cpp: id_type 3214 = normal, aipolicy 0): não anda nem patrulha; só guarda (3216)
         _npcgen.PatrolProblem = id => CreatureItem(id) is { Block.Name: "NPC_ESSENCE" } c && c.Item.Fields.GetValueOrDefault("id_type")?.Value != "3216"
             ? Loc.T("path.npcNoAi", "NPC comum fica parado no jogo: o servidor não dá IA a ele, então não anda na área nem patrulha. Só NPC do tipo guarda (tipo 3216) anda.") : null;
+        _npcgen.PickCreature = PickCreature;
         _npcgen.CreatureQuests = id => _tasks is { } tq && CreatureItem(id) is { } ci ? QuestUsesOf(tq, ci.Block.Name == "NPC_ESSENCE" ? 'N' : 'M', id.ToString()) : null;
         _npcgen.DeletedMany += n => Status(string.Format(Loc.T("npcgen.deletedMany", "{0} ponto(s) excluído(s). Ctrl+Z desfaz."), n));
         _npcgen.QuestHost = new QuestHostImpl(this);
@@ -3055,6 +3057,7 @@ public sealed class EditorForm : Form
                 return true;
             case FieldKind.AddonRef or FieldKind.ItemRef or FieldKind.MonsterRef or FieldKind.RecipeRef or FieldKind.ServiceRef:
             {
+                if (kind == FieldKind.ServiceRef && !_pickingService) { ServiceMenu(item, key); return true; }
                 var src = PickSource(kind, key);
                 if (src.Count == 0) return false;
                 bool multi = System.Text.RegularExpressions.Regex.IsMatch(key, @"_\d+_");
@@ -3738,14 +3741,25 @@ public sealed class EditorForm : Form
     }
 
     // Loja: escolher o item vendido (mesma janela de escolha dos campos de item)
+    // janela de escolher item (a mesma do Mundo 3D): a loja usa em "Trocar item"
     private int? PickShopItem(IWin32Window owner, int current)
     {
-        var src = PickSource(FieldKind.ItemRef);
-        if (src.Count == 0) return null;
-        var picked = FieldEditors.Pick(owner, Loc.T("pick.item", "Escolher item"), src, current.ToString(), IconIndexFor, _treeIcons,
-            it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : "", it => _owner.TryGetValue(it, out var b) ? Pretty(b.Name) : null, false);
-        return picked is { Count: > 0 } && int.TryParse(picked[0].Id, out var id) ? id : null;
+        IQuestHost host = new QuestHostImpl(this);
+        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: host.ItemTip);
+        return w.ShowDialog(owner) == DialogResult.OK ? w.Picked : null;
     }
+
+    private int? PickCreature(IWin32Window owner)
+    {
+        var rows = new List<(int Id, string Name, string Block)>();
+        foreach (var name in new[] { "MONSTER_ESSENCE", "NPC_ESSENCE" })
+            if (_store.Current?.FindListByName(name) is { } l)
+                foreach (var it in l.Items)
+                    if (int.TryParse(it.Id, out var id)) rows.Add((id, TasksFile.SplitColor(it.Name).Text, Pretty(l.Name)));
+        using var w = new ItemSearchWindow(rows, id => CreatureItem(id) is { } c ? IconFor(c.Item) : null, askQuantity: false) { Text = Loc.T("is.titleCreature", "Escolher criatura") };
+        return w.ShowDialog(owner) == DialogResult.OK ? w.Picked : null;
+    }
+
 
     private List<Item> PickSource(FieldKind kind, string key = "")
     {
@@ -4202,12 +4216,19 @@ public sealed class EditorForm : Form
     private void GoToItem(Item it)
     {
         if (!_owner.TryGetValue(it, out var b)) return;
-        if (_curBlock != b)
-            foreach (var o in _blockCombo.Items)
-                if (o is BlockEntry be && be.Block == b) { _search.Text = ""; _searchDelay.Stop(); _blockCombo.SelectedItem = be; break; }
-        if (_typeCombo.Visible && _typeCombo.SelectedIndex > 0) _typeCombo.SelectedIndex = 0;
-        _current = it;
-        SelectItem(it);
+        // trocar de bloco seleciona a 1ª linha dele: isso não é item visitado (o Voltar parava nele e pedia dois cliques)
+        bool was = _navigating;
+        _navigating = true;
+        try
+        {
+            if (_curBlock != b)
+                foreach (var o in _blockCombo.Items)
+                    if (o is BlockEntry be && be.Block == b) { _search.Text = ""; _searchDelay.Stop(); _blockCombo.SelectedItem = be; break; }
+            if (_typeCombo.Visible && _typeCombo.SelectedIndex > 0) _typeCombo.SelectedIndex = 0;
+            _current = it;
+            SelectItem(it);
+        }
+        finally { _navigating = was; }
         ShowItem(it);
         _detailTabs.SelectedIndex = 0;
     }
@@ -4421,6 +4442,45 @@ public sealed class EditorForm : Form
     {
         if (it.Fields.ContainsKey("ID")) it.Fields["ID"] = Field.Of(FieldType.Int, it.Id);
         if (it.Fields.ContainsKey("Name")) it.Fields["Name"] = Field.Of(FieldType.String, it.Name);
+    }
+
+    private bool _pickingService;
+
+    // serviço de NPC: escolher um que já existe ou criar um novo só para este NPC
+    private void ServiceMenu(Item item, string key)
+    {
+        var menu = new ContextMenuStrip();
+        menu.Items.Add(Loc.T("svc.pick", "Escolher serviço que já existe…"), null, (_, _) =>
+        {
+            _pickingService = true;
+            try { EditFieldSpecial(item, key); } finally { _pickingService = false; }
+        });
+        menu.Items.Add(Loc.T("svc.new", "Criar serviço novo só para este NPC"), null, (_, _) => NewService(item, key));
+        menu.Show(Cursor.Position);
+    }
+
+    private void NewService(Item npc, string key)
+    {
+        var name = "NPC_" + key.ToUpperInvariant().Replace("ID_", "");
+        if (_store.Current?.FindListByName(name) is not { } block) { Status(string.Format(Loc.T("svc.noBlock", "Este elements.data não tem o bloco {0}."), name)); return; }
+        Item ni;
+        long code = NextCode(block);
+        if ((_store.Current.Source as ElementsLayout)?.Blocks.FirstOrDefault(b => ReferenceEquals(b.List, block)) is { } span)
+        {
+            ni = CfgElementsReader.ReadRecord(span.Block, new byte[span.RecordSize]);
+            ni.Raw = null;
+        }
+        else
+        {
+            ni = new Item();
+            if (block.Items.FirstOrDefault() is { } template)
+                foreach (var (k, f) in template.Fields) ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
+        }
+        ni.Id = code.ToString(); ni.Name = TasksFile.SplitColor(npc.Name).Text;
+        SetIdName(ni);
+        SetField(npc, key, ni.Id, refresh: false);
+        InsertNewItem(block, ni);
+        Status(string.Format(Loc.T("svc.created", "Serviço {0} criado e ligado a este NPC. Preencha os campos à direita."), code));
     }
 
     private void InsertNewItem(ItemList block, Item ni)

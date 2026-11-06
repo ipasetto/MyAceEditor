@@ -4353,7 +4353,6 @@
   "world.noPaths": "This map has no path.sev on the server.",
   "world.pathsOn": "Patrol paths: all ({0}) — P hides",
   "world.pathsOff": "Patrol paths: only the selected point's — P shows all",
-  "legend.kObjs": "scene effects and sounds (click to see)",
   "world.noScene": "This map has no .ecwld in the client.",
   "world.objsOn": "Scene objects: {0} effects and {1} sounds (orange = effect, blue = sound; click to see) — O hides",
   "world.objsOff": "Scene objects hidden — O shows",
@@ -5134,5 +5133,11 @@
   "ss.deleteAsk": "Delete the local server {0}?\n\nThe server will be stopped and its Linux deleted, with programs, database, accounts and characters.\n\nThe server package, the client and backups stay on the PC. This cannot be undone.",
   "ss.deleting": "Deleting the server…",
   "ss.deleted": "Server deleted.",
-  "ls.deleteFailed": "Could not delete the server:"
+  "ls.deleteFailed": "Could not delete the server:",
+  "world.swapCreature": "Swap creature…",
+  "is.titleCreature": "Choose creature",
+  "svc.pick": "Choose an existing service…",
+  "svc.new": "Create a new service for this NPC only",
+  "svc.noBlock": "This elements.data has no block {0}.",
+  "svc.created": "Service {0} created and linked to this NPC. Fill the fields on the right."
 }
