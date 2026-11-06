@@ -88,6 +88,19 @@ public sealed class SptFile
                 try { ReadTexCoords(new Reader(b, p + 4)); } catch (Exception) { }
                 break;
             }
+        // flares: "16000 16002", 11 pares por nível (CTreeEngine::ParseFlareInfo)
+        for (int p = after; p + 8 <= b.Length; p++)
+            if (BitConverter.ToInt32(b, p) == 16000 && BitConverter.ToInt32(b, p + 4) == 16002)
+            {
+                int q = p + 4;
+                foreach (var level in Levels)
+                {
+                    if (q + 88 > b.Length || BitConverter.ToInt32(b, q) != 16002) break;
+                    level.SegmentExponent = BitConverter.ToSingle(b, q + 4);
+                    q += 88;
+                }
+                break;
+            }
         // frondes: "13000" seguido de um token da seção
         for (int p = after; p + 8 <= b.Length; p++)
             if (BitConverter.ToInt32(b, p) == 13000 && BitConverter.ToInt32(b, p + 4) is (>= 13002 and <= 13013) or 14007 or 14008)
@@ -207,6 +220,10 @@ public sealed class SptLeafMap
 public sealed class SptFrond
 {
     public int Level = 1, Type, Blades = 1;
+    /// <summary>13007: sem isto ligado os galhos continuam tubos (CBranch::PassesFrondRules).</summary>
+    public bool Enabled;
+    /// <summary>13010-13013: a LOD mais alta guarda as frondes maiores até somar esta parte da área (CFrondEngine::BuildGuideLods).</summary>
+    public float MaxArea = 1, MinArea = 1, Fuzziness, LargeRetention;
     /// <summary>Extrusão (tipo 1): perfil da seção (13005, curva 0..1 do centro à borda) e nº de pontos de cada metade (13006).</summary>
     public SptSpline Profile = SptSpline.Zero;
     public int Segments = 3;
@@ -224,8 +241,11 @@ public sealed class SptFrond
                 case 13005: f.Profile = SptSpline.Parse(r.Str()); break;
                 case 13006: f.Segments = Math.Max(2, r.Int()); break;
                 case 13009 or 14007 or 14008: r.Int(); break;
-                case 13007: r.Bool(); break;
-                case 13010 or 13011 or 13012 or 13013: r.Float(); break;
+                case 13007: f.Enabled = r.Bool(); break;
+                case 13010: f.MaxArea = r.Float(); break;
+                case 13011: f.MinArea = r.Float(); break;
+                case 13012: f.Fuzziness = r.Float(); break;
+                case 13013: f.LargeRetention = r.Float(); break;
                 case 13008:
                 {
                     int n = r.Int();
@@ -266,6 +286,8 @@ public sealed class SptLevel
     public SptSpline Disturbance = SptSpline.Zero, Gravity = SptSpline.Zero, Flexibility = SptSpline.Zero, FlexScale = SptSpline.Zero,
         Length = SptSpline.Zero, Radius = SptSpline.Zero, Taper = SptSpline.Zero, StartAngle = SptSpline.Zero, GravityProfile = SptSpline.Zero;
     public int Sides = 6, Segments = 1;
+    /// <summary>Seção 16000, um bloco por nível: 16002 expoente dos segmentos (progresso = (i/n)^expoente, anéis juntos na base).</summary>
+    public float SegmentExponent = 1;
     public float First, Last = 1, Frequency, TileU = 1, TileV = 1;
     public bool AbsoluteU, AbsoluteV;
 
@@ -372,6 +394,9 @@ public sealed class SptSpline
     /// <summary>Valor em t, com a variação sorteada (sempre consome um número do gerador, como no runtime).</summary>
     public float Eval(float t, SptRandom rng) => (Max - Min) * Shape(t) + Min + rng.Range(-Variance, Variance);
 
+    /// <summary>Curva de raio: a variação cresce com a forma (Evaluate com bScaleVariance).</summary>
+    public float EvalScaled(float t, SptRandom rng) { float n = Shape(t); return (Max - Min) * n + Min + n * rng.Range(-Variance, Variance); }
+
     /// <summary>Perturbação: ± variação × forma (graus).</summary>
     public float Jitter(float t, SptRandom rng) { float y = Variance * Shape(t); return rng.Range(-y, y); }
 }
@@ -464,29 +489,8 @@ public static class SptGrower
     /// de 40 sorteios, folha mais baixa até −25 m). O jogo gera cada tipo uma vez só e as árvores dele aparecem inteiras;
     /// aqui vale o primeiro sorteio (de 12) com a árvore toda acima do chão — senão o que enterra menos.
     /// </remarks>
-    public static SptMesh Build(SptFile f)
-    {
-        SptMesh? best = null; float bestLow = float.MinValue;
-        for (int i = 0; i < 12; i++)
-        {
-            var m = Build(f, f.Seed + 1 + i * 7919);
-            float low = Lowest(m);
-            if (low >= -0.5f) return m;
-            if (low > bestLow) (best, bestLow) = (m, low);
-        }
-        return best!;
-    }
+    public static SptMesh Build(SptFile f) => Build(f, f.Seed);   // a speedtreert.dll gera sempre a mesma árvore (PW-KB §S35)
 
-    // ponto mais baixo da COPA (folhas; sem folhas, frondes): tronco e raiz podem descer de propósito (bambu: nível 0 = raiz)
-    static float Lowest(SptMesh m)
-    {
-        float low = 0;
-        if (m.Leaves.Count > 0) foreach (var l in m.Leaves) low = MathF.Min(low, l.Pos.Y);
-        else foreach (var p in m.FrondPos) low = MathF.Min(low, p.Y);
-        return low;
-    }
-
-    /// <summary>varianceSeed: semente do gerador das variações das curvas (no jogo é um gerador estático, sem semente fixa).</summary>
     public static SptMesh Build(SptFile f, int varianceSeed)
     {
         var m = new SptMesh();
@@ -496,7 +500,10 @@ public static class SptGrower
         float size = Math.Max(1, rng.Range(f.Size - f.SizeVariance, f.Size + f.SizeVariance));
         int seed = f.Seed;
         _leafPts = new List<Vector3>();
+        _guides = new List<Guide>();
         Grow(f, m, rng, vr, ref seed, 0, Vector3.Zero, Frame.Identity, Vector3.UnitZ, 0, -1, 1);
+        EmitFronds(f.Frond, m);
+        _guides = null;
         _leafPts = null;
         // escala do SpeedTree: TODAS as medidas × tamanho do .spt em metros (CTreeEngine::Compute passa fTreeSize ao
         // galho; o cliente faz SetTreeSize(tamanho × 0,3048), EL_Tree.cpp). Conferido 30/10 com print do jogo
@@ -548,8 +555,12 @@ public static class SptGrower
         float gravity = L.Gravity.Eval(rel, vr);
         float radius = L.Radius.Eval(rel, vr) * scale;
         L.Flexibility.Eval(rel, vr);
-        float baseR = L.Taper.Eval(0, vr) * radius;
-        if (maxRadius > 0 && baseR > maxRadius * 0.85f) { radius *= maxRadius * 0.85f / baseR; baseR = maxRadius * 0.85f; }
+        if (radius < 0) radius = -radius;
+        // o galho não passa do máximo da curva nem de uma fração do raio do pai (CBranch::Compute)
+        float limit = L.Radius.Max * scale;
+        if (level > 0 && maxRadius > 0 && maxRadius * ParentRadiusFactor < limit) limit = maxRadius * ParentRadiusFactor;
+        if (radius > limit) radius = limit;
+        float baseR = L.Taper.Eval(0, vr) * radius;   // fFirstRadius: área da fronde
         if (length <= 0 || radius <= 0) return;
 
         int segs = Math.Max(1, L.Segments), sides = Math.Max(3, L.Sides);
@@ -560,13 +571,17 @@ public static class SptGrower
         var tms = new Frame[segs + 1]; var pts = new Vector3[segs + 1]; var radii = new float[segs + 1];
         var tm = parent.Turn(axis.Normalized(), roll);
         float d1 = L.Disturbance.Jitter(0, vr), d2 = L.Disturbance.Jitter(0, vr);
-        tm = Gravity(tm.RotateYZ(start + d2, d1), L, gravity, 0, vr);
-        tms[0] = tm; pts[0] = pos; radii[0] = baseR;
-        float step = length / segs;
+        tm = tm.RotateYZ(start + d2, d1);
+        radii[0] = radius * L.Taper.EvalScaled(0, vr);
+        L.FlexScale.Eval(0, vr);
+        tm = Gravity(tm, L, gravity, 0, vr);
+        tms[0] = tm; pts[0] = pos;
+        float run = 0;
         for (int i = 1; i <= segs; i++)
         {
-            float t = i / (float)segs;
-            radii[i] = MathF.Min(L.Taper.Eval(t, vr) * radius, baseR);
+            float t = MathF.Pow(i / (float)segs, L.SegmentExponent);   // CBranch::Compute: anéis pelo expoente, não em passos iguais
+            float step = t * length - run; run += step;
+            radii[i] = radius * L.Taper.EvalScaled(t, vr);
             L.FlexScale.Eval(t, vr);
             tm = Gravity(tm, L, gravity, t, vr);
             d1 = L.Disturbance.Jitter(t, vr); d2 = L.Disturbance.Jitter(t, vr);
@@ -579,8 +594,8 @@ public static class SptGrower
         var side = Ours(tms[0].Y).Normalized();
 
         bool leafLevel = level >= f.Levels.Count - 1;
-        bool frond = !leafLevel && f.Frond is { Type: 0 or 1, Maps.Count: > 0 } fr0 && level >= fr0.Level;
-        if (frond) Frond(f.Frond!, m, rng, centers, dirs, side, length, (m.FrondIndex.Count / 6) % 2 == 1);
+        bool frond = !leafLevel && f.Frond is { Enabled: true, Type: 0 or 1, Maps.Count: > 0 } fr0 && level >= fr0.Level;
+        if (frond) AddGuide(f.Frond!, rng, centers, dirs, side, length, baseR);
         else if (!leafLevel)
         {
             // anéis de vértices (sides + 1 para fechar a costura da textura)
@@ -731,11 +746,38 @@ public static class SptGrower
     /// textura (negativo em galhos alternados); meia largura = comprimento × tamanho × 0,5 × proporção; s atravessa a fita,
     /// t vai da base (embaixo na imagem) à ponta.
     /// </summary>
-    static void Frond(SptFrond fr, SptMesh m, SptRandom rng, Vector3[] centers, Vector3[] dirs, Vector3 side, float length, bool odd)
+    sealed record Guide(SptFrondMap Map, Vector3[] Centers, Vector3[] Dirs, Vector3 Side, float Half, float Tilt, float Area);
+    [ThreadStatic] static List<Guide>? _guides;
+    const float ParentRadiusFactor = 0.85f;
+
+    static void AddGuide(SptFrond fr, SptRandom rng, Vector3[] centers, Vector3[] dirs, Vector3 side, float length, float firstRadius)
     {
+        var g = _guides!;
         var map = fr.Maps[(int)MathF.Round(rng.Range(0, 100000)) % fr.Maps.Count];
-        float half = length * map.Size * 0.5f * map.Aspect;
-        float tilt = rng.Range(map.MinAngle, map.MaxAngle) * (odd ? -1 : 1);
+        float tilt = rng.Range(map.MinAngle, map.MaxAngle) * (g.Count % 2 == 0 ? -1 : 1);
+        g.Add(new Guide(map, centers, dirs, side, length * map.Size * 0.5f * map.Aspect, tilt, length * firstRadius));
+    }
+
+    /// <summary>Frondes da LOD mais alta: as maiores, até passar de MaxArea da área somada (CFrondEngine::BuildGuideLods).</summary>
+    static void EmitFronds(SptFrond? fr, SptMesh m)
+    {
+        if (fr is null || _guides is not { Count: > 0 } all) return;
+        float total = all.Sum(g => g.Area), largest = all.Max(g => g.Area), saveAbove = largest * (1 - fr.LargeRetention);
+        var saved = all.Where(g => g.Area > saveAbove).OrderByDescending(g => g.Area).Reverse();
+        var order = saved.Concat(all.Where(g => g.Area <= saveAbove).OrderByDescending(g => g.Area)).ToList();
+        float target = fr.MaxArea * total, sum = 0;
+        if (target <= 0) return;
+        foreach (var g in order)
+        {
+            if (sum > target) break;
+            sum += g.Area;
+            Frond(fr, m, g);
+        }
+    }
+
+    static void Frond(SptFrond fr, SptMesh m, Guide g)
+    {
+        var (map, centers, dirs, side, half, tilt) = (g.Map, g.Centers, g.Dirs, g.Side, g.Half, g.Tilt);
         var uv = map.Uv;
         float s0 = MathF.Min(MathF.Min(uv[0], uv[2]), MathF.Min(uv[4], uv[6])), s1 = MathF.Max(MathF.Max(uv[0], uv[2]), MathF.Max(uv[4], uv[6]));
         float t0 = MathF.Min(MathF.Min(uv[1], uv[3]), MathF.Min(uv[5], uv[7])), t1 = MathF.Max(MathF.Max(uv[1], uv[3]), MathF.Max(uv[5], uv[7]));

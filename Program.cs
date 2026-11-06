@@ -423,6 +423,20 @@ internal static class Program
             File.WriteAllText(args[1], sb.ToString());
             return;
         }
+        if (args.Length >= 3 && args[0] == "--spt-all")   // <pasta com .spt> <saída tsv>: nome, vértices de galho e de fronde, altura (compara com Tests/SptOracle)
+        {
+            using var o = new StreamWriter(args[2]);
+            foreach (var p in Directory.GetFiles(args[1], "*.spt", SearchOption.AllDirectories))
+                try { var m = SptGrower.Build(new SptFile(File.ReadAllBytes(p))); o.WriteLine(FormattableString.Invariant($"{Path.GetFileName(p).ToLowerInvariant()}	{m.Pos.Count}	{m.FrondPos.Count}	{m.Height:0.0}")); }
+                catch (Exception ex) { o.WriteLine(Path.GetFileName(p) + "	ERRO " + ex.Message); }
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--spt-obj")   // <.spt> <saída>: vértices dos galhos em eixos do SpeedTree
+        {
+            var m = SptGrower.Build(new SptFile(File.ReadAllBytes(args[1])));
+            File.WriteAllLines(args[2], m.Pos.Select(p => FormattableString.Invariant($"v B {p.X} {-p.Z} {p.Y}")));
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--item-pick-shot")   // <png>: janela de escolher item com dados de exemplo
         {
             var rows = Enumerable.Range(1, 40).Select(i => (Id: 1000 + i, Name: $"Item de exemplo {i}", Block: i % 3 == 0 ? "Armas" : i % 3 == 1 ? "Armaduras" : "Itens de quest")).ToList();
