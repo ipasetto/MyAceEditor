@@ -451,7 +451,8 @@ internal static class Program
             {
                 var m = SptGrower.Build(new SptFile(File.ReadAllBytes(spt)));
                 File.WriteAllLines(to, m.Pos.Select(p => FormattableString.Invariant($"v B {p.X} {-p.Z} {p.Y}"))
-                    .Concat(m.FrondPos.Select(p => FormattableString.Invariant($"v F {p.X} {-p.Z} {p.Y}"))));
+                    .Concat(m.FrondPos.Select(p => FormattableString.Invariant($"v F {p.X} {-p.Z} {p.Y}")))
+                    .Concat(m.Leaves.Select(l => FormattableString.Invariant($"v L {l.Pos.X} {-l.Pos.Z} {l.Pos.Y}"))));
             }
             if (File.Exists(args[1])) { Obj(args[1], args[2]); return; }
             Directory.CreateDirectory(args[2]);

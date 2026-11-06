@@ -16,11 +16,14 @@ public sealed class SptFile
     public float SizeVariance { get; private set; }
     public int Seed { get; private set; } = 1;
     public int FlareSeed { get; private set; } = 1;
-    /// <summary>Seção 9000, LOD dos galhos: 9011 níveis, 9012 parte da área que fica na LOD alta, 9013 fuzziness, 9014 retenção dos maiores.</summary>
+    /// <summary>Seção 9000: 9007 níveis de galho, 9012 parte da área que fica na LOD alta, 9013 fuzziness, 9014 retenção dos maiores; 9011 níveis de folha, 9010 chance de um par sumir, 9009 aumento do tamanho.</summary>
     public int BranchLods { get; private set; } = 1;
     public float BranchArea { get; private set; } = 1;
     public float BranchFuzziness { get; private set; }
     public float BranchRetention { get; private set; }
+    public int LeafLods { get; private set; } = 1;
+    public float LeafDrop { get; private set; }
+    public float LeafGrowth { get; private set; }
     public List<SptLevel> Levels { get; } = new();
     /// <summary>Texturas de folha (4000–4007): âncora e tamanho do cartão (unidades da árvore) e o recorte no mapa composto.</summary>
     public List<SptLeafMap> LeafMaps { get; } = new();
@@ -102,7 +105,10 @@ public sealed class SptFile
                 for (int q = p; q + 8 <= b.Length && q < p + 160; q++)
                     switch (BitConverter.ToInt32(b, q))
                     {
-                        case 9011: BranchLods = BitConverter.ToInt32(b, q + 4); break;
+                        case 9007: BranchLods = BitConverter.ToInt32(b, q + 4); break;
+                        case 9009: LeafGrowth = BitConverter.ToSingle(b, q + 4); break;
+                        case 9010: LeafDrop = BitConverter.ToSingle(b, q + 4); break;
+                        case 9011: LeafLods = BitConverter.ToInt32(b, q + 4); break;
                         case 9012: BranchArea = BitConverter.ToSingle(b, q + 4); break;
                         case 9013: BranchFuzziness = BitConverter.ToSingle(b, q + 4); break;
                         case 9014: BranchRetention = BitConverter.ToSingle(b, q + 4); break;
@@ -537,6 +543,7 @@ public static class SptGrower
         _unit = f.Size * 0.3048f;
         Grow(f, m, rng, seed, 0, Vector3.Zero, Frame.Identity, Vector3.UnitZ, 0, -1, 1);
         EmitBranches(f, m, rng);
+        ReduceLeaves(f, m, rng);
         EmitFronds(f.Frond, m, rng);
         _guides = null;
         _branches = null;
@@ -624,12 +631,10 @@ public static class SptGrower
             tms[i] = tm;
         }
         var centers = pts.Select(Ours).ToArray();
-        var dirs = tms.Select(x => Ours(x.X).Normalized()).ToArray();
-        var side = Ours(tms[0].Y).Normalized();
 
         bool leafLevel = level >= f.Levels.Count - 1;
         bool frond = !leafLevel && f.Frond is { Enabled: true, Type: 0 or 1, Maps.Count: > 0 } fr0 && level >= fr0.Level;
-        if (frond) AddGuide(f.Frond!, rng, pts, centers, dirs, tms, side, baseR);
+        if (frond) AddGuide(f.Frond!, rng, pts, centers, tms, baseR);
         else if (!leafLevel)
         {
             // o galho só vira malha depois de escolher quais ficam na LOD alta (EmitBranches)
@@ -670,7 +675,7 @@ public static class SptGrower
                 // CBranch::MakeLeaf: textura sorteada entre as que não são flor; RoomForLeaf; só a folha aceita sorteia
                 // o grupo de balanço e a variação de cor
                 var lp = p + ld * bud;
-                int map = ChooseLeafMap(f, rng, f.BlossomLevel == 0 ? childRel : rel);
+                int map = ChooseLeafMap(f, rng, f.BlossomLevel == 0 ? rel : childRel);
                 if (map < 0) continue;
                 if (f.LeafCollision != 0)
                 {
@@ -728,6 +733,46 @@ public static class SptGrower
             if (target <= sum) break;
             sum += b.Area;
             AddRings(m, b);
+        }
+    }
+
+    /// <summary>
+    /// LODs baixas das folhas: não aparecem de perto, mas cada par gasta um sorteio antes das frondes e por isso precisam
+    /// rodar para a escolha das frondes bater (FUN_10028d90, FUN_1001b340 e FUN_1001b0b0).
+    /// </summary>
+    static void ReduceLeaves(SptFile f, SptMesh m, SptRandom rng)
+    {
+        if (f.LeafLods < 2 || _leafPts is not { Count: > 0 } pts) return;
+        float big = -1;
+        foreach (var map in f.LeafMaps) big = MathF.Max(big, MathF.Max(map.Size.X, map.Size.Y) * _unit * f.LeafSpacing);
+        float reach = (big == -1 ? 10 : big) * 10;
+        var leaves = new List<(Vector3 P, int Map)>(pts.Count);
+        for (int i = 0; i < pts.Count; i++) leaves.Add((pts[i] * _unit, m.LeafMap[i]));
+        for (int level = 1; level < f.LeafLods; level++)
+        {
+            float growth = level * f.LeafGrowth + 1;
+            var used = new bool[leaves.Count];
+            var pairs = new List<(int A, int B)>();
+            for (int i = 0; i < leaves.Count; i++)
+            {
+                float best = float.MaxValue; int found = -1;
+                for (int j = i + 1; j < leaves.Count && !used[j]; j++)   // o laço do jogo para no primeiro já usado
+                {
+                    float d = FastSqrt((leaves[j].P - leaves[i].P).LengthSquared);
+                    if (d < reach && d < best) { best = d; found = j; }
+                }
+                if (found >= 0) { used[found] = true; pairs.Add((i, found)); }
+            }
+            var next = new List<(Vector3 P, int Map)>(pairs.Count);
+            foreach (var (a, b) in pairs)
+            {
+                if (rng.Range(0, 1) <= f.LeafDrop) continue;
+                var mid = (leaves[a].P + leaves[b].P) * 0.5f;
+                var lm = f.LeafMaps[leaves[a].Map];
+                mid.Z += (lm.Origin.Y - 0.5f) * lm.Size.Y * _unit * growth * 0.5f;
+                next.Add((mid, leaves[a].Map));
+            }
+            leaves = next;
         }
     }
 
@@ -805,8 +850,7 @@ public static class SptGrower
         bool isBlossom = false;
         if (bloss.Count > 0)
         {
-            float d = f.BlossomDistance;
-            isBlossom = (d < 0 ? percent < -d : percent > d) && rng.Range(0, 1) <= f.BlossomWeighting;
+            isBlossom = percent > f.BlossomDistance && rng.Range(0, 1) <= f.BlossomWeighting;   // FUN_10004cb0
         }
         var list = isBlossom ? bloss : plain;
         if (list.Count == 0) return -1;
@@ -814,11 +858,6 @@ public static class SptGrower
         return list[idx / 2];
     }
 
-    /// <summary>
-    /// Fronde em extrusão (CFrondEngine tipo 1, FUN_10025990/FUN_10024aa0): a seção é o perfil 13005 espelhado — n pontos de
-    /// uma borda ao centro e n−1 de volta (2n−1 no total): lado = ±s·w, altura = (perfil(s) − perfil(0))·w, s = 1 … 0 … 1 —
-    /// girada pelo giro sorteado e arrastada pelo eixo do galho; s da textura atravessa a seção, t vai da base à ponta.
-    /// </summary>
     /// <summary>
     /// Fronde extrudada (FUN_1000bde0 e FUN_1000cda0): perfil espelhado, cada ponto sorteia a variação da curva. O ponto fica
     /// na média dos eixos deste vértice e do anterior, girados pela inclinação.
@@ -870,7 +909,7 @@ public static class SptGrower
     /// textura (negativo em galhos alternados); meia largura = comprimento × tamanho × 0,5 × proporção; s atravessa a fita,
     /// t vai da base (embaixo na imagem) à ponta.
     /// </summary>
-    sealed record Guide(SptFrondMap Map, Vector3[] Centers, Vector3[] Dirs, Frame[] Tms, Vector3 Side, float Half, float Tilt, float Area);
+    sealed record Guide(SptFrondMap Map, Vector3[] Centers, Frame[] Tms, float Half, float Tilt, float Area);
     [ThreadStatic] static List<Guide>? _guides;
     [ThreadStatic] static List<Branch>? _branches;
     [ThreadStatic] static SptCRand? _flareRand;
@@ -878,14 +917,14 @@ public static class SptGrower
     const float ParentRadiusFactor = 0.85f;
 
     /// <summary>Fim de uma guia de fronde (FUN_1000a2a0): comprimento pela raiz aproximada, textura sorteada, inclinação alternada.</summary>
-    static void AddGuide(SptFrond fr, SptRandom rng, Vector3[] pts, Vector3[] centers, Vector3[] dirs, Frame[] tms, Vector3 side, float firstRadius)
+    static void AddGuide(SptFrond fr, SptRandom rng, Vector3[] pts, Vector3[] centers, Frame[] tms, float firstRadius)
     {
         var g = _guides!;
         float len = 0;
         for (int i = 0; i + 1 < pts.Length; i++) len += FastSqrt(((pts[i + 1] - pts[i]) * _unit).LengthSquared);
         var map = fr.Maps[(int)rng.Range(0, 100000) % fr.Maps.Count];
         float tilt = rng.Range(map.MinAngle, map.MaxAngle) * (g.Count % 2 == 0 ? -1 : 1);
-        g.Add(new Guide(map, centers, dirs, tms, side, len / _unit * map.Size * 0.5f * map.Aspect, tilt, len * firstRadius * _unit));
+        g.Add(new Guide(map, centers, tms, len / _unit * map.Size * 0.5f * map.Aspect, tilt, len * firstRadius * _unit));
     }
 
     /// <summary>Frondes da LOD alta: as maiores até passar de MaxArea da área somada, com a chave de fuzziness (FUN_1000d450).</summary>
@@ -916,7 +955,7 @@ public static class SptGrower
 
     static void Frond(SptFrond fr, SptMesh m, Guide g, SptRandom rng)
     {
-        var (map, centers, dirs, side, half, tilt) = (g.Map, g.Centers, g.Dirs, g.Side, g.Half, g.Tilt);
+        var (map, centers, half, tilt) = (g.Map, g.Centers, g.Half, g.Tilt);
         var uv = map.Uv;
         float s0 = MathF.Min(MathF.Min(uv[0], uv[2]), MathF.Min(uv[4], uv[6])), s1 = MathF.Max(MathF.Max(uv[0], uv[2]), MathF.Max(uv[4], uv[6]));
         float t0 = MathF.Min(MathF.Min(uv[1], uv[3]), MathF.Min(uv[5], uv[7])), t1 = MathF.Max(MathF.Max(uv[1], uv[3]), MathF.Max(uv[5], uv[7]));
