@@ -32,7 +32,7 @@ Excluir tira o ponto do par e de tudo que aponta para ele.
 ## Por que o ponto não era descoberto (print 9)
 
 `npcgenerator.cpp` e `CECNPCServer::GetWayPointID` só olham `id_to_discover` se `combined_services & 0x08`. A ferramenta anterior gravava
-só o ponto. O campo de serviço 8 da tabela de máscaras aparece como "(não disponível)", mas é este.
+só o ponto. Na tabela de máscaras esse bit (índice 3) estava com o nome errado; agora é "Descobrir ponto de teleporte".
 
 ## Atlas Geográfico (12758)
 

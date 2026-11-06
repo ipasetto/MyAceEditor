@@ -6,14 +6,15 @@
 
 ## FOCO DESDE 05/11/2026: SO A VERSAO 1.5.5 (decisao do usuario)
 Outras versoes: o que rodar, rodou; nao testar nem corrigir. Futuro: ferramenta de portabilidade (155 parecendo versao antiga).
-Prioridade agora: (1) decidir GM A ou B; (2) novo layout/testes do Mundo 3D no 155; (3) erros abertos do Testes.txt; (4) estudar portabilidade (combinado para 06/11).
-Itens 144, 1.3.6, 1.7.x, 1.8 abaixo ficam PARADOS.
+Pendencias de outras versoes foram tiradas daqui (usuario 06/11). GM: opcao A, painel separado lado a lado com o jogo. Prioridade agora: (1) testes do Mundo 3D no 155; (2) erros abertos do Testes.txt; (3) estudar portabilidade.
 06/11: feitos no codigo, falta o usuario conferir: testes 2, 5, 8, 10, 16, 17, 19, 24, 25. Aberto: 4 (gerador em andamento: 90/96 galhos, 40/96 frondes, 6/96 tudo igual; falta variacao, flares, forks; meta 100% igual a speedtreert.dll), 28 (ferramenta nova, aguarda desenho aprovado).
 06/11 tarde: arvores 84/96 identicas a DLL. Feitos no codigo, falta o usuario conferir: 10 (piscar), 11, 16, 19, 24, 29. Dados: world ponto #7039 precisa do botao de soltar caminho apagado na ferramenta Caminhos. Aberto: 28 (aguarda desenho aprovado), frondes de 12 arvores.
 06/11 noite: confirmados pelo usuario 4, 10, 11, 16, 24. Feitos, falta conferir: 17, 19, 27, 28 (ferramenta Criar), 29, 31 (agua e musica). 30: so estudo, em docs/TELEPORTE-3D.md, aguarda decidir se constroi. Ferramenta Criar nao testada no jogo nem por clique na tela.
+06/11 noite 2: confirmados 2, 3, 4, 5, 9 (fornalha), 10 (loja compra e venda). Feitos, falta conferir: 1 (gshop), 6, 7, 8, 11, 13, 28, 29, 30, 31 e GM lado a lado.
+Regra de desenho para leigos: docs/superpowers/specs/2026-11-06-teleportes-leigos-design.md.
+Aberto: ItemRules nao confere se idTarget existe no .sev. Aberto agua: cor quase branca do lago da cidade. Aberto territorio novo: nao testado no gdeliveryd.
 06/11 fim: confirmados 17, 19, 27, 29. Feitos, falta conferir: Testes 1, 2, 3, 4, 5, 28, 30, 31. Ferramenta Teleportes e Criar > Teleportador prontos, testados por dentro, nao testados no jogo.
 Aberto agua: cor quase branca do mapa (lago da cidade) ainda fica leitosa; ver como A3DTerrainWaterRender usa a cor. Aberto regra: ItemRules nao confere se idTarget existe no .sev (precisa da pasta do servidor).
-Novo: mapas da guerra territorial nao sao traduzidos ao traduzir com outro cliente (nota do usuario em Estudo PW).
 
 ## FASE 1 — base
 [x] elements.data leitura ~98,6% (§E3)            [ ] cauda Territory War ~1,4% (§Q1)
@@ -60,14 +61,10 @@ Novo: mapas da guerra territorial nao sao traduzidos ao traduzir com outro clien
 [ ] futuro (usuario 31/10): trocar o fundo ANIMADO do login — cena maps\login + camera (SceneCtrl.ini / scenectrl.lua), efeito gfx\程序联入\登录界面1.gfx, background.jpg, CG .wmv no 1.7; tudo mapeado em PW-KB §S20e
 [ ] PLUGINS de evento (docs/PLUGINS.md: programa C# no servidor + tela Plugins acima do Extrator; monstro raro, chefe errante, mercador/colheita/rodizio) | [ ] deploy de servidor | editor de mapa (PW-KB §S22) | skills
 
-- [>] 02/11 Servidor local POR VERSAO (prioridade do usuario): codigo pronto (1 distro por pasta, sem instalar versao por cima, so 1 no ar). Distro antiga PWServer155 excluida a pedido. FALTA: usuario instalar 155 (D:\PWServer155, pacote pw_server_162-155) e 144 (D:\PWServer144v60) pela aba Servidor e reportar erros; itens do Testes.txt: 1 (Verificacao com as pastas do Servidor: feito ao abrir cliente), 2/8 (Corrigir resolver tudo, ate sem servidor), 3 (favoritos/3D do 155 aparecendo no 144: configuracoes globais), 4 gshop 144, 5 plugin padrao desativado, 6 botao "zerar" no menu Arquivo, 7 campos de quest sem dado escondidos e icone principal so onde existe.
-- [~] 02/11 noite: 144 instalado pelo usuario sem erros [T]. Feito no codigo (falta testar na tela): pergunta de configurar servidor na 1a abertura, janela Instalar com disco/memoria, WSL ausente (instalar/Verificacao/Corrigir), varios servidores da mesma versao, Verificacao+Corrigir automaticos apos instalar.
-- [~] 02/11: janela "Servidor e pastas" pronta (captura ok); 144 corrigido (envio com o cliente certo, gs no ar, loja ts 1793026156) - falta o usuario confirmar que entra no mundo.
 - [ ] Servidor por IP/SSH (VM, outro PC, hospedagem): tipo "Outro Linux" ja existe em "Servidor e pastas" (so arquivos); falta conectar com ssh.exe/scp.exe do Windows (IP, porta, usuario, CHAVE - nunca senha gravada): Enviar = scp dos arquivos do envio, Iniciar/Parar/Estado/Administrar = ssh + pwctl (levar o pwctl na 1a conexao; conferir se funciona num servidor nao instalado pelo programa).
 - [x] 05/11 entrada no mundo confirmada pelo usuario: crash ao entrar no mundo no 144 (cliente PW 144 BR): servidor ok; suspeita = dados de cliente (elements BR convertido v61->v60, configs.pck BR) x exe v60; teste proposto = usar o "client files" do pacote 1.4.4 (mesmo exe) com backup. FEITO 22:07: PW 144 BR recebeu configs.pck + data/* + fontes do pacote (backup em D:\PWServer144v60ackup-cliente-PW144BR-20261102-220710), servidor 144 recebeu os mesmos (MD5 iguais, gs no ar). 2o crash: era a pagina de anuncios (ParsePage thread), corrigida so na instalacao e no cliente errado = bug do MyAce, corrigido (todo envio corrige o cliente usado). 3o crash: help\script*.pck do BR (2016/2017) mais novos que o exe 2012 -> trocado pelo script.pck do cliente 144 (backup em ...\help). Falta o usuario entrar no mundo; depois voltar os dados do BR (backup) mantendo o help certo, para ver se a conversao v61->v60 tambem quebra algo.
 - [x] 05/11 feito (ClientLogCheck; .dmp real ainda nao testado por falta de amostra): Verificacao ler o log do CLIENTE (element\logs\EC.log + ec_build*.dmp): mostrar crash do jogo (excecao, modulo+offset, ultimo arquivo que faltou) e avisar quando o cliente jogado nao e o aberto no editor (02/11: servidor recebeu "Perfect World 144" e o jogo era "PW 144 BR").
 - [ ] Verificacao: help\script*.pck x elementclient.exe (comandos dos scripts de ajuda que o exe nao registra = crash ao entrar no mundo; 02/11 144 BR). Ideia: nomes de funcao dos scripts presentes como texto no exe.
-- [~] 05/11 Estudo dos links do Testes.txt concluido (PW-KB §S34). Instalar servidor por versao, por ordem: (1) [~] login do 1.5.5v156 em home/auth/build no provision/pwctl, falta instalar; (2) [x] a Verificacao confere o pacote (32/64 bits, login, libs); (3) normalizar 1.3.6 (falta libtask.so e libstdc++.so.5 no pacote); (4) 1.7.6: 64 bits, gauthd, licenseservice, SQL (receita em PW-KB §S35; depende de licenca).
 - [~] 05/11 *12 painel GM no 144v60: FUNCIONA (debug_command_mode=active; nivel, moedas, EXP, teleporte testados no jogo); 7 comandos sem suporte somem do painel; falta testar item, ir ate NPC, gm_* e GM 202/204/206/218.
 - [x] 05/11 Editor de extra_drops.sev no Administrar (regrava identico em 5 versoes; falta salvar num servidor no ar e ver o drop no jogo).
 - [x] 05/11 Testes: 15 Servidor+Verificacao em pilulas e fora da lateral, 18 moedas em Economia, 20 aviso apos enviar e titulo da etapa, 21 busca de item nas quests, 27 passos na traducao, 6 Limpar tudo.
@@ -118,7 +115,6 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [x] indice/legenda no canto superior esquerdo (fundo preto translucido): verde = ligado a evento/gatilho, branco = NPC de missao/venda ou monstro normal, vermelho = guardas, etc.
 - [x] botao direito no NPC: "Editar" leva ao item no editor; mudancas no editor atualizam o 3D na hora (e vice-versa)
 - [x] DESCARTADO: animacao dos modelos
-- [ ] a26 do servidor 1.4.4 nao bate com a a26 do cliente (pontos de x -4286 a 4453 num mapa de 1 km): descobrir qual mapa do cliente corresponde
 
 ## MUNDO 3D — rodada 2 (25/10/2026 tarde)
 - [x] clique preciso (escolha pela tela, 12-40 px do modelo); Delete/menu Excluir; Ctrl+C/Ctrl+V; janela sem dono (Editar traz o editor); seletor aberto pelo 3D fica na frente do 3D
@@ -224,7 +220,6 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 - [ ] Mundo 3D como editor de mapas: roteiro em 8 passos em docs/MUNDO-3D-EDITOR.md (quests 3+, geradores, eventos, caminhos, areas, objetos .ecwld/.ecbsd, terreno + regerar bht/rmap do servidor, passagem/voo)
 - [ ] editor da guerra territorial (domain.data + domain.sev, formato em PW-KB; editar os dois juntos)
 - [x] tradutor de cliente: nomes dos mapas da guerra territorial (domain*.data, world_targets.txt, GuildMap.dds) + outras imagens com texto (31/10; falta testar aplicando num cliente) (vem do domain.data UTF-16; PW-KB §S32/§S6) — pedido do usuario 31/10
-- [ ] ler as notas do porte 1.8.9 (Estudo PW\pw-189-port) e levar para a PW-KB o que valer para o editor (elements v531, tasks v198, aipolicy 1.8.0)
 - [ ] ItemRules: avisar quando os addons fixos de movimento de um item somam > 3 m/s (o gs limita a 3 e zera acima de 5; REGRAS-DO-JOGO §2)
 - [ ] adicionar icone novo ao iconlist (ivtrm + ivtrf juntos) para itens novos, como o Glue do IconListEditor
 - [ ] botao "inserir minha posicao" no NPCGen e nas quests (GamePosition ja le a posicao)
@@ -267,10 +262,6 @@ recurso limitado: nada pesado sem autorizacao | backup + escrita atomica + round
 
 ## COMPATIBILIDADE ENTRE VERSOES (pedido 02/11) — PW-KB §S33 e §Q
 Pendencias achadas nos testes de 02/11 (--roundtrip/--tasks/--aipolicy/--npcgen/--gshop nos arquivos do acervo):
-- [ ] tasks.data v55 (servidor 1.3.6) TRAVA a leitura (nao termina em 5 min): pôr limite/aviso para nao prender a tela e depois o layout das versoes antigas (< 93).
-- [ ] gshop.data 1.7.x (1.7.6 e Maori 1.7.2) nao abre: layout V3 do item (~1448 B cliente / ~232 B servidor). Usar o par do 1.7.6 (PW_Server/1.7.6/pw_server_1.7.6_2025) e o fonte 1.7.4 (Estudo PW/174Source.zip, cgame/gs/playermall.cpp). Ver memoria gshop-172-pending.
-- [ ] elements.data comprimido MPPC (1.7.x, v386) so leitura: validar a regravacao comprimida.
-- [ ] PWSERVER-1.7.6-01.2026-VM.7z ainda nao extraido/inventariado.
 - [x] aipolicy 1.7.6 (operacoes 103-105) — feito 02/11.
 
 Documento COMECADO 02/11 (docs/COMPATIBILIDADE.md; preencher os "?"): uma tabela POR FERRAMENTA do editor, marcando cada versao testada:

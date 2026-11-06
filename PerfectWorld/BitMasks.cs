@@ -59,7 +59,7 @@ public static class BitMasks
     public static readonly (int Bit, string Name)[] Services =
     {
         (0, "Aprender habilidades de produção (1)"), (1, "Aprender habilidades de produção (2)"), (2, "(só versão chinesa)"),
-        (3, "Entrar no campo de batalha"), (4, "Criar clã"), (5, "Roupas (estilista)"), (6, "Correio"), (7, "Leilão"),
+        (3, "Descobrir ponto de teleporte"), (4, "Criar clã"), (5, "Roupas (estilista)"), (6, "Correio"), (7, "Leilão"),
         (8, "(não disponível)"), (9, "Incubar mascote"), (10, "Restaurar mascote"), (11, "Batalha territorial (resultado)"),
         (12, "Sair do campo de batalha"), (13, "Troca de gold"), (14, "Refinar equipamento"), (15, "Pintar roupa"),
         (16, "Transferir refino"), (17, "Remover atributos do daimon"), (18, "Remover habilidades do daimon (1)"),

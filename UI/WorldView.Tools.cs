@@ -122,6 +122,7 @@ internal sealed partial class WorldView
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
         _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.create", "Criar"), Loc.T("tools.createSub", "Criatura, NPC, vendedor ou fornalha, direto no mundo."), () => OpenTool(Tool.Create)));
+        _toolMenu.Controls.Add(ToolButton("\uE81E", Loc.T("tools.domains", "Territórios"), Loc.T("tools.domainsSub", "Áreas da guerra de clãs: desenhar, criar e excluir no mapa."), () => DomainEditorWindow.Open(this, ElementOfMap, ServerConfigDir, _tpPrecinctDomains())));
         _toolMenu.Controls.Add(ToolButton("\uE8AB", Loc.T("tools.teleports", "Teleportes"), Loc.T("tools.teleportsSub2", "Lugares do mapa de viagem e o NPC que atende em cada um."), () => OpenTool(Tool.Teleports)));
         // sempre por último: grava tudo e leva ao servidor (a janela principal abre na aba Servidor)
         var send = ToolButton("\uE898", Loc.T("tools.send", "Salvar e enviar ao servidor"), Loc.T("tools.sendSub", "Grava tudo o que mudou e reinicia o servidor local com isso"), () =>

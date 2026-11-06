@@ -22,19 +22,6 @@ internal sealed class ModelPreview : IDisposable
     readonly Dictionary<string, (SkiModel Ski, string Dir)?> _skis = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string, bool> _cutout = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Alfa é recorte (cabelo, folhas) quando quase tudo é 0 ou 255. Muita armadura guarda brilho no alfa, com valores no meio: recortar por ele deixa o modelo em pontinhos.</summary>
-    static bool IsCutout(int[] px)
-    {
-        int edge = 0, n = 0;
-        for (int i = 0; i < px.Length; i += 7)
-        {
-            int a = (px[i] >> 24) & 0xFF;
-            if (a <= 24 || a >= 232) edge++;
-            n++;
-        }
-        return n > 0 && edge >= n * 0.8;
-    }
-
     /// <summary>Imagem do modelo girado yaw graus (arrastar na prévia gira). Guarda as imagens por ângulo de 10°.</summary>
     public Image? Render(string? ecm, int size = 240, float yaw = 0, bool transparent = false)
     {
@@ -87,7 +74,7 @@ internal sealed class ModelPreview : IDisposable
                     if (_texCache.Count > 128) _texCache.Clear();
                     tex = _texCache[te.Path] = DdsDecoder.Decode(_pck!.Read(te)) is { } img ? (img.Pixels, img.Width, img.Height) : null;
                 }
-                if (tex is { } decoded && !_cutout.TryGetValue(te.Path, out cut)) _cutout[te.Path] = cut = IsCutout(decoded.Px);
+                if (tex is { } decoded && !_cutout.TryGetValue(te.Path, out cut)) _cutout[te.Path] = cut = DdsDecoder.IsCutout(decoded.Px);
             }
             var v = m.Vertices;
             for (int t = 0; t + 2 < m.Indices.Length; t += 3)

@@ -36,6 +36,7 @@
 | NPC com serviço de teleporte: o serviço tem pelo menos 1 destino | o gs cai ao iniciar | idem |
 | Ponto de teleporte existe nos dois arquivos, com o mesmo ID, até 32767 | sem o `.sev` o gs leva para (0, 0, 0); sem o `.txt` o cliente não mostra | `WorldTargets.cs`, ferramenta Teleportes |
 | Ponto novo tem NPC com `id_to_discover` | o jogador vê o destino e a viagem é recusada | aviso na ferramenta Teleportes |
+| NPC com `id_to_discover` tem o bit `0x08` em `combined_services` | sem o bit o gs e o cliente ignoram o ponto: falar com o NPC não descobre nada | `NpcBuilder.WithDiscover`, ferramenta Teleportes |
 | NPC com serviço de redistribuir atributos: nenhum valor negativo | o gs cai ao iniciar | idem |
 | Receita: chances dos produtos (`targets_N_probability`) somam 1 | o gs ignora a receita ao carregar | `recipe_manager` em `npcgenerator.cpp`; `ItemRules` "recipe-chance" |
 | Serviço de fabricação só aponta para receita que existe | o NPC oferece o que o gs não conhece | `ItemRules` "make-recipe" |

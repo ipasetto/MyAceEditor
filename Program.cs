@@ -533,6 +533,28 @@ internal static class Program
             File.WriteAllLines(args[4], o);
             return;
         }
+        if (args.Length >= 5 && args[0] == "--domain-test")   // <element> <domain.sev> <saída> <png>: leitura e escrita dos territórios, triângulos e fronteiras
+        {
+            var o = new List<string>();
+            var bytes = File.ReadAllBytes(Path.Combine(args[1], "data", "domain.data"));
+            var dm = DomainMap.Parse(bytes);
+            o.Add($"cliente {dm.Areas.Count} territórios, regravar igual: {dm.Build().AsSpan().SequenceEqual(bytes)}");
+            var sb2 = File.ReadAllBytes(args[2]);
+            var ds = DomainServer.Parse(sb2);
+            o.Add($"servidor {ds.Entries.Count}, regravar igual: {ds.Build().AsSpan().SequenceEqual(sb2)}");
+            int fine = dm.Areas.Count(a => DomainMap.Triangulate(a.Vertices).Count == a.Faces.Count);
+            o.Add($"triângulos com a mesma contagem do arquivo: {fine} de {dm.Areas.Count}");
+            var old = dm.Areas.ToDictionary(a => a.Id, a => a.Neighbors.OrderBy(x => x).ToList());
+            dm.ComputeNeighbors();
+            int same = dm.Areas.Count(a => a.Neighbors.OrderBy(x => x).SequenceEqual(old[a.Id]));
+            o.Add($"fronteiras calculadas iguais às do arquivo: {same} de {dm.Areas.Count}");
+            var m2 = DomainMap.Parse(bytes);
+            ds.Match(m2);
+            o.Add($"par igual depois de Match: {ds.Build().AsSpan().SequenceEqual(sb2)}");
+            File.WriteAllLines(args[3], o);
+            MyAceEditor.UI.DomainEditorWindow.Shot(args[1], args[4]);
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--atlas-test")   // <tasks.data> <saída>: põe e tira um ponto do Atlas Geográfico na memória e relê
         {
             var o = new List<string>();
