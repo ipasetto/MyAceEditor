@@ -594,6 +594,9 @@ public sealed class LocalServer
         Parallel.ForEach(want, new ParallelOptions { MaxDegreeOfParallelism = 4 }, kv =>
         {
             if (have.TryGetValue(kv.Key, out var h) && h == Md5(kv.Value, cache)) return;
+            // a instalação passa os .conf para fim de linha do Linux (dos2unix): só isso não é diferença
+            if (h is not null && kv.Key.EndsWith(".conf", StringComparison.OrdinalIgnoreCase)
+                && Convert.ToHexString(MD5.HashData(File.ReadAllBytes(kv.Value).Where(b => b != 13).ToArray())).Equals(h, StringComparison.OrdinalIgnoreCase)) return;
             diff.Add(new SendFile(kv.Key, kv.Value));
         });
         SaveHashCache(cache);
