@@ -12,10 +12,11 @@ Pendencias de outras versoes foram tiradas daqui (usuario 06/11). GM: opcao A, p
 06/11 noite: confirmados pelo usuario 4, 10, 11, 16, 24. Feitos, falta conferir: 17, 19, 27, 28 (ferramenta Criar), 29, 31 (agua e musica). 30: so estudo, em docs/TELEPORTE-3D.md, aguarda decidir se constroi. Ferramenta Criar nao testada no jogo nem por clique na tela.
 06/11 noite 2: confirmados 2, 3, 4, 5, 9 (fornalha), 10 (loja compra e venda). Feitos, falta conferir: 1 (gshop), 6, 7, 8, 11, 13, 28, 29, 30, 31 e GM lado a lado.
 Regra de desenho para leigos: docs/superpowers/specs/2026-11-06-teleportes-leigos-design.md.
-Editor de zonas (precinct) e zoom no mapa de territorios: estudo e desenho em docs/superpowers/specs/2026-11-06-editor-de-zonas-design.md, aguardando revisao do usuario. Junto vem a correcao de PrecinctFile.At (prioridade invertida: erra a zona da musica e do territorio do teleporte novo).
+Editor de zonas (precinct) e zoom no mapa de territorios: estudo e desenho em docs/superpowers/specs/2026-11-06-editor-de-zonas-design.md, aprovado pelo usuario em 06/11, falta o plano. Junto vem a correcao de PrecinctFile.At (prioridade invertida: erra a zona da musica e do territorio do teleporte novo).
 Feito: Salvar confere destinos e pontos dos NPCs com o .sev (ItemRules.CheckTeleports, pergunta em vez de barrar). Aberto: teste no jogo do teleporte; editor de zonas (precinct), esperando o desenho. Aberto agua: cor quase branca do lago da cidade. Aberto territorio novo: nao testado no gdeliveryd.
 06/11 fim: confirmados 17, 19, 27, 29. Feitos, falta conferir: Testes 1, 2, 3, 4, 5, 28, 30, 31. Ferramenta Teleportes e Criar > Teleportador prontos, testados por dentro, nao testados no jogo.
 Aberto agua: cor quase branca do mapa (lago da cidade) ainda fica leitosa; ver como A3DTerrainWaterRender usa a cor. Aberto regra: ItemRules nao confere se idTarget existe no .sev (precisa da pasta do servidor).
+06/11 fim 2: usuario confirmou teleporte no jogo com Atlas (teste 33) e desenho do editor de zonas; falta plano. Testes abertos: 1 (aba GShop sem moldura no tema 0: desenha so controles do version01), 2 (Recompensa da Missao em branco), 7, 8, 13, 28 (redesenho: ferramenta NPC com Criar e Editar), 32 (GM lado a lado: metade da tela e layout estreito), 34 (cachoeira: superficie .sdr desenhada opaca), 4 (lago claro).
 
 ## FASE 1 — base
 [x] elements.data leitura ~98,6% (§E3)            [ ] cauda Territory War ~1,4% (§Q1)
