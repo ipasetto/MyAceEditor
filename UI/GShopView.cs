@@ -566,6 +566,9 @@ internal sealed class GShopView : UserControl
         GameDialog? D => _v._dlg;
         Size Win => D?.Size is { Width: > 0 } s ? s : new Size(787, 581);
 
+        /// <summary>Figuras de fundo do qshop.xml do tema novo; o resto da janela é desenhado com os dados da loja.</summary>
+        static readonly HashSet<string> Backdrop = new(StringComparer.OrdinalIgnoreCase) { "Edi_BG", "Img_Frame", "Edi_BG01", "Edi_BG02", "Img_BG05", "itemback", "Img_Bg01", "Img_BG06", "Img_Cutoff", "Btn_Close" };
+
         // posições do jogo; se o qshop.xml não estiver disponível, usa as do 1.4.4
         Rectangle R(string name, Rectangle fallback) => D?[name]?.Rect is { Width: > 0 } r ? r : fallback;
         Rectangle MainBtn(int i) => R($"Btn_MainType{i}", new Rectangle(57 + i * 84, 101, 81, 33));
@@ -602,6 +605,8 @@ internal sealed class GShopView : UserControl
 
             var f = _v._shops[_v._which];
             if (Img(D?.Frame) is { } frame) g.DrawImage(frame, new Rectangle(Point.Empty, win));
+            else if (D is { } theme && theme.Controls.ContainsKey("Img_Frame"))   // tema novo: a moldura são figuras soltas, não o fundo da janela (teste 1)
+                GameDraw.Dialog(g, theme, _v._tex, c => Backdrop.Contains(c.Name) ? GameDraw.Box(c) : new Rectangle(-5000, 0, 0, 0));
             else using (var b = new SolidBrush(Color.FromArgb(28, 40, 58))) g.FillRectangle(b, new Rectangle(Point.Empty, win));
             GameDraw.Text(g, D?["titletxt"]?.Text ?? Loc.T("gshop.pvTitle", "LOJA"), R("titletxt", new Rectangle(291, 37, 206, 35)), Gold, 24, false, ContentAlignment.MiddleCenter, D?["titletxt"]?.FontName);   // fonte do título do jogo (隶二)
 
@@ -661,7 +666,7 @@ internal sealed class GShopView : UserControl
             if (_v._sel is { } s)
             {
                 if (Img(s.Surface) is { } big) g.DrawImage(big, R("Img_Item", new Rectangle(89, 162, 128, 128)));
-                Text(g, s.Name, new Rectangle(R("Img_Item", new Rectangle(89, 162, 128, 128)).X - 40, R("Txt_ItemName", new Rectangle(150, 144, 0, 0)).Y + 1, 208, 18), Gold, 12, true);
+                Text(g, s.Name, new Rectangle(R("Img_Item", new Rectangle(89, 162, 128, 128)).X - 40, (D?["Txt_ItemName"]?.Rect.Y ?? 144) + 1, 208, 18), Gold, 12, true);
                 var dr = R("Txt_ItemDesc", new Rectangle(71, 315, 160, 180));
                 DrawRich(g, s.Description, new Rectangle(dr.X, dr.Y + 14, dr.Width, Math.Max(20, dr.Height - 14)));   // abaixo do nome e da figura, como no jogo
             }
