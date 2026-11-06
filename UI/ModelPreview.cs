@@ -20,6 +20,20 @@ internal sealed class ModelPreview : IDisposable
     }
 
     readonly Dictionary<string, (SkiModel Ski, string Dir)?> _skis = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, bool> _cutout = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Alfa é recorte (cabelo, folhas) quando quase tudo é 0 ou 255. Muita armadura guarda brilho no alfa, com valores no meio: recortar por ele deixa o modelo em pontinhos.</summary>
+    static bool IsCutout(int[] px)
+    {
+        int edge = 0, n = 0;
+        for (int i = 0; i < px.Length; i += 7)
+        {
+            int a = (px[i] >> 24) & 0xFF;
+            if (a <= 24 || a >= 232) edge++;
+            n++;
+        }
+        return n > 0 && edge >= n * 0.8;
+    }
 
     /// <summary>Imagem do modelo girado yaw graus (arrastar na prévia gira). Guarda as imagens por ângulo de 10°.</summary>
     public Image? Render(string? ecm, int size = 240, float yaw = 0, bool transparent = false)
@@ -65,6 +79,7 @@ internal sealed class ModelPreview : IDisposable
         foreach (var m in ski.Meshes)
         {
             (int[] Px, int W, int H)? tex = null;
+            bool cut = false;
             if (m.Texture >= 0 && m.Texture < ski.Textures.Count && WorldModels.FindTexture(_pck!, dir, ski.Textures[m.Texture], ref _ddsByName) is { } te)
             {
                 if (!_texCache.TryGetValue(te.Path, out tex))
@@ -72,6 +87,7 @@ internal sealed class ModelPreview : IDisposable
                     if (_texCache.Count > 128) _texCache.Clear();
                     tex = _texCache[te.Path] = DdsDecoder.Decode(_pck!.Read(te)) is { } img ? (img.Pixels, img.Width, img.Height) : null;
                 }
+                if (tex is { } decoded && !_cutout.TryGetValue(te.Path, out cut)) _cutout[te.Path] = cut = IsCutout(decoded.Px);
             }
             var v = m.Vertices;
             for (int t = 0; t + 2 < m.Indices.Length; t += 3)
@@ -105,7 +121,7 @@ internal sealed class ModelPreview : IDisposable
                             float u = w0 * v[a + 6] + w1 * v[b + 6] + w2 * v[c + 6], vv = w0 * v[a + 7] + w1 * v[b + 7] + w2 * v[c + 7];
                             int tu = (int)((u - MathF.Floor(u)) * tx.W) % tx.W, tv = (int)((vv - MathF.Floor(vv)) * tx.H) % tx.H;
                             rgb = tx.Px[tv * tx.W + tu];
-                            if (((rgb >> 24) & 0xFF) < 80) continue;   // partes transparentes (cabelo, folhas)
+                            if (cut && ((rgb >> 24) & 0xFF) < 80) continue;   // partes transparentes (cabelo, folhas)
                         }
                         depth[k] = z;
                         int r = Math.Min(255, (int)(((rgb >> 16) & 0xFF) * light)), g = Math.Min(255, (int)(((rgb >> 8) & 0xFF) * light)), bl = Math.Min(255, (int)((rgb & 0xFF) * light));

@@ -224,13 +224,14 @@ internal sealed partial class WorldView : Form
             _mapBox.DropDownClosed += (_, _) => BeginInvoke(Commit);
         };
         _gl.Paint += (_, _) => Render();
+        Deactivate += (_, _) => { if (_music is not null) _music.Paused = true; };
+        Activated += (_, _) => { if (_music is not null) _music.Paused = false; };
         _gl.Resize += (_, _) => _gl.Invalidate();
         _gl.MouseDown += (_, e) =>
         {
             _gl.Focus(); _down = _drag = e.Location;
             if (e.Button == MouseButtons.Left && _legendOpen && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
             if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
-            if (TeleportMouseDown(e)) return;   // ferramenta Teleportes: clique num pilar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
             // setas / anel do ponto selecionado têm preferência
@@ -271,6 +272,7 @@ internal sealed partial class WorldView : Form
                 _status.Text = info; ShowObjPanel(); _gl.Invalidate();
                 return;
             }
+            if (_movingTag is null && e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4 && TeleportClick(e.Location)) return;
             if (_movingTag is { } tag)
             {
                 bool moved = _movePos is not null && (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4);
@@ -372,6 +374,7 @@ internal sealed partial class WorldView : Form
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (PathKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }
         if (e.KeyCode == Keys.Escape && _placing is not null) { CancelPlacing(); return; }
+        if (e.KeyCode == Keys.Escape && ActiveServiceWindow is { Visible: true } openWin) { openWin.Visible = false; return; }
         if (e.KeyCode == Keys.Escape && _pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return; }
         if (e.KeyCode == Keys.Escape && _pickMine is not null) { _pickMine = null; _status.Text = Loc.T("qe.pickMineCancel", "Escolha de coleta cancelada."); return; }
         if (e.KeyCode == Keys.Escape && _pickMonster is not null) { _pickMonster = null; _status.Text = Loc.T("qe.pickMonsterCancel", "Escolha de monstro cancelada."); return; }

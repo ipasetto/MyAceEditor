@@ -59,11 +59,25 @@ internal interface IQuestHost
     /// <summary>Acrescenta o destino ou muda a taxa e o nível dele. <paramref name="copy"/>: cópia do serviço só para este NPC.</summary>
     string? SetTransmit(int npc, int point, int fee, int level, bool copy) => null;
     string? RemoveTransmit(int npc, int point, bool copy) => null;
+    IReadOnlyList<PerfectWorld.TeleportStop> StopsOfNpc(int npc) => [];
+    /// <summary>Troca todos os destinos do NPC.</summary>
+    string? SetStops(int npc, IReadOnlyList<PerfectWorld.TeleportStop> stops, bool copy) => null;
+    /// <summary>Nome do item Atlas Geográfico; null se este cliente não tem o item ou a quest dele.</summary>
+    string? AtlasName => null;
+    bool AtlasHas(int point) => false;
+    string? SetAtlas(PerfectWorld.WorldTarget point, bool on) => null;
+    /// <summary>Ferramenta Criar: rascunho do NPC que já existe e gravação das mudanças. Null = deu certo.</summary>
+    PerfectWorld.NpcDraft? LoadNpc(int id) => null;
+    int ServiceUsersOf(PerfectWorld.NpcDraft draft) => 0;
+    string? UpdateNpc(PerfectWorld.NpcDraft draft, bool copy) => null;
+    PerfectWorld.RecipeDraft? ReadRecipe(int id) => null;
     /// <summary>Favoritos e recentes do editor de elements, para a janela de busca.</summary>
     IReadOnlyList<int> FavoriteIds() => [];
     IReadOnlyList<int> RecentIds() => [];
     /// <summary>Item escolhido na janela de busca: entra nos recentes.</summary>
     void ItemPicked(int id) { }
+    /// <summary>Preço de venda do item nas lojas (shop_price); null se o item não tem.</summary>
+    int? ShopPrice(int id) => null;
     /// <summary>Ícone do item, para a janela de escolher item.</summary>
     Image? ItemIcon(int id) => null;
     /// <summary>Linhas da dica do item, como na lista do editor de elements.</summary>

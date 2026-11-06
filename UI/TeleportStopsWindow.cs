@@ -23,7 +23,7 @@ internal sealed class TeleportStopsWindow : Form
     public List<TeleportStop> Stops { get; private set; }
     public int Discover { get; private set; }
 
-    public TeleportStopsWindow(IReadOnlyList<WorldTarget> points, IEnumerable<TeleportStop> stops, int discover)
+    public TeleportStopsWindow(IReadOnlyList<WorldTarget> points, IEnumerable<TeleportStop> stops, int discover, bool showDiscover = true)
     {
         _points = points;
         Stops = [.. stops];
@@ -65,6 +65,7 @@ internal sealed class TeleportStopsWindow : Form
         find.Controls.Add(new Label { Text = Loc.T("tp.discovers", "Ao falar com ele, o jogador ativa:"), AutoSize = true, ForeColor = Color.Gainsboro, Margin = new Padding(0, 6, 8, 0) });
         find.Controls.Add(_discover);
         layout.Controls.Add(find, 0, 1); layout.SetColumnSpan(find, 3);
+        find.Visible = showDiscover;
         _discover.Items.Add(Loc.T("tp.noDiscover", "(nenhum ponto)"));
         foreach (var p in _points) _discover.Items.Add($"{p.Name}  ·  {p.Id}");
         _discover.SelectedIndex = Math.Max(0, _points.ToList().FindIndex(p => p.Id == discover) + 1);

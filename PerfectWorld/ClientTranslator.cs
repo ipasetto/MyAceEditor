@@ -128,12 +128,13 @@ public static class ClientTranslator
 
         ctx?.Report(0.55, Loc.T("ct.stShop", "Loja (gshop)"), force: true);
         // ---- loja do cliente: nomes e descrições pelo ID do item, qualquer formato (1380/1436 B) ----
+        var itemNames = new Lazy<Dictionary<int, string>>(() => ItemNames(source));
         foreach (var name in new[] { "gshop.data", "gshop1.data" })
         {
             var dst = Path.Combine(target, "data", name); var src = Path.Combine(source, "data", name);
             if (!File.Exists(src) || !File.Exists(dst)) continue;
             int n;
-            try { n = TranslateShop(GShopFile.ReadClient(File.ReadAllBytes(dst)), GShopFile.ReadClient(File.ReadAllBytes(src)), dryRun: true); }
+            try { n = TranslateShop(GShopFile.ReadClient(File.ReadAllBytes(dst)), GShopFile.ReadClient(File.ReadAllBytes(src)), dryRun: true, itemNames.Value); }
             catch (Exception ex) { steps.Add(new Step { Title = name, Detail = Loc.T("ct.readFail", "não consegui ler: ") + ex.Message, Enabled = false }); continue; }
             if (n == 0) continue;
             steps.Add(new Step
@@ -144,7 +145,7 @@ public static class ClientTranslator
                 Apply = log =>
                 {
                     var shop = GShopFile.ReadClient(File.ReadAllBytes(dst));
-                    int k = TranslateShop(shop, GShopFile.ReadClient(File.ReadAllBytes(src)), dryRun: false);
+                    int k = TranslateShop(shop, GShopFile.ReadClient(File.ReadAllBytes(src)), dryRun: false, itemNames.Value);
                     var bk = AtomicFileSave.Write(dst, shop.WriteClient());
                     log(string.Format(Loc.T("ct.pckTextsLog", "{0}: {1:N0} textos em {2} arquivo(s)"), name, k, 1) + (bk is null ? "" : $" (backup {Path.GetFileName(bk)})"));
                     return dst;
@@ -603,24 +604,39 @@ public static class ClientTranslator
         }
     }
 
+    /// <summary>Nome de todo item do elements.data do cliente, sem a cor. Vazio se não abre.</summary>
+    static Dictionary<int, string> ItemNames(string element)
+    {
+        var o = new Dictionary<int, string>();
+        try
+        {
+            foreach (var list in CfgCatalog.Load(Path.Combine(element, "data", "elements.data")).Module.Lists.Where(l => l.Name.EndsWith("_ESSENCE", StringComparison.Ordinal)))
+                foreach (var it in list.Items)
+                    if (int.TryParse(it.Id, out var id)) o.TryAdd(id, TasksFile.SplitColor(it.Name).Text);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("elements", ex); }
+        return o;
+    }
+
     // ---------- loja (gshop.data / gshop1.data do cliente) ----------
     /// <summary>
     /// Nome e descrição de cada item da loja pelo ID do item (a 2ª vez que o mesmo ID aparece casa com a 2ª do outro…) e
     /// os nomes das categorias pela posição. Só texto: preço, ordem e timestamp ficam (o par com o gshopsev não muda).
     /// </summary>
-    public static int TranslateShop(GShopFile dst, GShopFile src, bool dryRun)
+    public static int TranslateShop(GShopFile dst, GShopFile src, bool dryRun, IReadOnlyDictionary<int, string>? itemNames = null)
     {
         int n = 0;
-        void Take(string cur, string other, Action<string> set) { if (other.Length == 0 || other == cur) return; n++; if (!dryRun) set(other); }
+        static bool Cjk(string s) => s.Any(c => c is >= '⺀' and <= '鿿');
+        void Take(string cur, string other, Action<string> set) { if (other.Length == 0 || other == cur || Cjk(other) && !Cjk(cur)) return; n++; if (!dryRun) set(other); }
         var byId = src.Items.GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.ToList());
         var seen = new Dictionary<int, int>();
         foreach (var it in dst.Items)
         {
             int k = seen[it.ItemId] = seen.GetValueOrDefault(it.ItemId) + 1;
-            if (!byId.TryGetValue(it.ItemId, out var same)) continue;
-            var s = same[Math.Min(k, same.Count) - 1];
-            Take(it.Name, s.Name, v => it.Name = v);
-            Take(it.Description, s.Description, v => it.Description = v);
+            var s = byId.TryGetValue(it.ItemId, out var same) ? same[Math.Min(k, same.Count) - 1] : null;
+            if (s is not null) { Take(it.Name, s.Name, v => it.Name = v); Take(it.Description, s.Description, v => it.Description = v); }
+            // item que a loja do outro cliente não vende: o nome vem do elements.data dele
+            if (itemNames is not null && Cjk(s is null || Cjk(s.Name) ? it.Name : "") && itemNames.TryGetValue(it.ItemId, out var named)) Take(it.Name, named, v => it.Name = v);
         }
         for (int c = 0; c < dst.Categories.Count && c < src.Categories.Count; c++)
         {

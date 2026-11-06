@@ -12,8 +12,10 @@ public sealed class ShopDraft
 {
     public string[] Titles = Enumerable.Repeat("", 8).ToArray();
     public int[][] Goods = Enumerable.Range(0, 8).Select(_ => new int[32]).ToArray();
+    /// <summary>Preço novo por item (shop_price do item: vale em todas as lojas do jogo).</summary>
+    public Dictionary<int, int> Prices = [];
     public int Count => Goods.Sum(p => p.Count(g => g > 0));
-    public ShopDraft Copy() => new() { Titles = (string[])Titles.Clone(), Goods = Goods.Select(p => (int[])p.Clone()).ToArray() };
+    public ShopDraft Copy() => new() { Titles = (string[])Titles.Clone(), Prices = new(Prices), Goods = Goods.Select(p => (int[])p.Clone()).ToArray() };
 }
 
 /// <summary>Receita de um espaço da fornalha: RecipeId &gt; 0 usa uma que já existe; 0 cria uma nova com os outros campos.</summary>
@@ -46,6 +48,8 @@ public sealed class NpcDraft
     public List<TeleportStop> Stops = [];
     /// <summary>Ponto que o jogador ativa ao falar com ele (id_to_discover); 0 = nenhum.</summary>
     public int Discover;
+    /// <summary>Editar: ID do NPC que já existe. 0 = NPC novo.</summary>
+    public int Editing;
 }
 
 /// <summary>
@@ -56,6 +60,8 @@ public sealed class NpcDraft
 public static class NpcBuilder
 {
     public const int Pages = 8, Slots = 32, MaxMaterials = 32, MaxStops = 32;
+    /// <summary>combined_services 0x08: sem este bit o gs e o cliente ignoram id_to_discover (npcgenerator.cpp, CECNPCServer::GetWayPointID).</summary>
+    public const long DiscoverBit = 8;
 
     static string? F(Item i, string k) => i.Fields.TryGetValue(k, out var f) ? f.Value : null;
     static void Set(Item i, string k, string v) { if (i.Fields.TryGetValue(k, out var f)) i.Fields[k] = Field.Of(f.Type, v); }
@@ -219,7 +225,7 @@ public static class NpcBuilder
             Set(npc, "id_sell_service", svc.Id);
             if (m.FindListByName("NPC_BUY_SERVICE")?.Items.FirstOrDefault() is { } buy) Set(npc, "id_buy_service", buy.Id);   // o jogador também vende para ele
         }
-        if (d.Discover > 0) Set(npc, "id_to_discover", d.Discover.ToString());
+        if (d.Discover > 0) { Set(npc, "id_to_discover", d.Discover.ToString()); Set(npc, "combined_services", WithDiscover(F(npc, "combined_services"), true)); }
         if (d.Kind == NpcKind.Teleporter)
         {
             var svc = Service("NPC_TRANSMIT_SERVICE", npc.Name);
@@ -229,11 +235,86 @@ public static class NpcBuilder
         }
         if (d.Kind == NpcKind.Forge)
         {
-            var make = d.Make!;
-            int skill = SkillOf(m, make, out _);
-            var recipes = m.FindListByName("RECIPE_ESSENCE")!;
             var svc = Service("NPC_MAKE_SERVICE", npc.Name);
             insert(m.FindListByName("NPC_MAKE_SERVICE")!, svc);
+            FillMake(m, d.Make!, svc, blank, insert, nameOf);
+            Set(npc, "id_make_service", svc.Id);
+        }
+        return int.Parse(npc.Id);
+    }
+
+    /// <summary>combined_services com o bit de descobrir ligado ou desligado.</summary>
+    public static string WithDiscover(string? now, bool on)
+    {
+        long v = long.TryParse(now, out var n) ? n : 0;
+        return (on ? v | DiscoverBit : v & ~DiscoverBit).ToString();
+    }
+
+    /// <summary>Rascunho com o que o NPC tem hoje, para a ferramenta Criar editar. Null se o ID não é de NPC.</summary>
+    public static NpcDraft? Load(Module m, int id)
+    {
+        if (Find(m, "NPC_ESSENCE", id) is not { } n) return null;
+        int Num(Item i, string k) => int.TryParse(F(i, k), out var v) ? v : 0;
+        var d = new NpcDraft { Editing = id, BaseId = id, Kind = NpcKind.Npc, Name = TasksFile.SplitColor(n.Name).Text, Discover = Num(n, "id_to_discover") };
+        if (Find(m, "NPC_SELL_SERVICE", Num(n, "id_sell_service")) is { } sell)
+        {
+            d.Kind = NpcKind.Seller;
+            var shop = new ShopDraft();
+            for (int p = 0; p < Pages; p++)
+            {
+                shop.Titles[p] = F(sell, $"pages_{p + 1}_page_title") ?? "";
+                for (int g = 0; g < Slots; g++)
+                    shop.Goods[p][g] = int.TryParse(F(sell, $"pages_{p + 1}_goods_{g + 1}_id") ?? F(sell, $"pages_{p + 1}_id_goods_{g + 1}"), out var v) ? v : 0;
+            }
+            d.Shop = shop;
+        }
+        else if (Find(m, "NPC_MAKE_SERVICE", Num(n, "id_make_service")) is { } mk)
+        {
+            d.Kind = NpcKind.Forge;
+            var make = new MakeDraft { Skill = Num(mk, "id_make_skill") };
+            for (int p = 0; p < Pages; p++)
+            {
+                make.Titles[p] = F(mk, $"pages_{p + 1}_page_title") ?? "";
+                for (int g = 0; g < Slots; g++)
+                    if (Num(mk, $"pages_{p + 1}_id_goods_{g + 1}") is > 0 and var r) make.Goods[p][g] = new RecipeDraft { RecipeId = r };
+            }
+            d.Make = make;
+        }
+        else if (Find(m, "NPC_TRANSMIT_SERVICE", Num(n, "id_transmit_service")) is { } tr)
+        {
+            d.Kind = NpcKind.Teleporter;
+            d.Stops = StopsOf(tr);
+        }
+        return d;
+    }
+
+    /// <summary>Receita que já existe como rascunho, para abrir na janela e mudar: ao gravar vira uma receita nova, a antiga fica para quem usa.</summary>
+    public static RecipeDraft? ReadRecipe(Module m, int id)
+    {
+        if (Find(m, "RECIPE_ESSENCE", id) is not { } r) return null;
+        int Num(string k) => int.TryParse(F(r, k), out var v) ? v : 0;
+        var d = new RecipeDraft { Product = Num("targets_1_id_to_make"), Count = Math.Max(1, Num("num_to_make")), Price = Num("price"), SkillLevel = Num("skill_level"),
+            Duration = float.TryParse(F(r, "duration"), System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 2 };
+        for (int i = 1; r.Fields.ContainsKey($"materials_{i}_id"); i++)
+            if (Num($"materials_{i}_id") is > 0 and var id2) d.Materials.Add((id2, Math.Max(1, Num($"materials_{i}_num"))));
+        return d;
+    }
+
+    /// <summary>Campos que mudam neste serviço para ficar como o rascunho. Receitas novas entram pelo insert.</summary>
+    public static List<(string Key, string Value)> ServiceChanges(Module m, NpcDraft d, Item svc, Func<ItemList, Item> blank, Action<ItemList, Item> insert, Func<int, string> nameOf)
+    {
+        var after = new Item { Id = svc.Id, Name = svc.Name, Fields = svc.Fields.Clone() };
+        if (d.Kind == NpcKind.Seller) FillShop(after, d.Shop!);
+        if (d.Kind == NpcKind.Forge) FillMake(m, d.Make!, after, blank, insert, nameOf);
+        if (d.Kind == NpcKind.Teleporter) FillStops(after, d.Stops);
+        return after.Fields.Where(f => F(svc, f.Key) != f.Value.Value).Select(f => (f.Key, f.Value.Value)).ToList();
+    }
+
+    static void FillMake(Module m, MakeDraft make, Item svc, Func<ItemList, Item> blank, Action<ItemList, Item> insert, Func<int, string> nameOf)
+    {
+        {
+            int skill = SkillOf(m, make, out _);
+            var recipes = m.FindListByName("RECIPE_ESSENCE")!;
             Set(svc, "id_make_skill", skill.ToString()); Set(svc, "produce_type", "0");
             var type = recipes.Items.FirstOrDefault();
             for (int p = 0; p < Pages; p++)
@@ -259,8 +340,6 @@ public static class NpcBuilder
                     Set(svc, $"pages_{p + 1}_id_goods_{g + 1}", id.ToString());
                 }
             }
-            Set(npc, "id_make_service", svc.Id);
         }
-        return int.Parse(npc.Id);
     }
 }

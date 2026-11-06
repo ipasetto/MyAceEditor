@@ -75,7 +75,6 @@ internal sealed class ItemSearchWindow : Form
             int i = _list.GetItemAt(e.X, e.Y)?.Index ?? -1;
             int id = i >= 0 && i < _rows.Count ? _rows[i].Id : 0;
             _tip?.Hover(id);
-            if (id > 0) ShowModelLater(id);
         };
         _list.MouseLeave += (_, _) => _tip?.Hide();
         _list.SelectedIndexChanged += (_, _) => { if (_list.SelectedIndices.Count > 0 && _list.SelectedIndices[0] < _rows.Count) ShowModelLater(_rows[_list.SelectedIndices[0]].Id); };

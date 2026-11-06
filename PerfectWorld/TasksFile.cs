@@ -272,6 +272,20 @@ public sealed class TasksFile
         return copy;
     }
 
+    /// <summary>Tira a subquest da árvore.</summary>
+    public void RemoveChild(QuestNode parent, QuestNode child)
+    {
+        parent.Children.Remove(child);
+        Index = new TaskIndex(Roots!, Quests);
+    }
+
+    /// <summary>Devolve a subquest ao lugar dela.</summary>
+    public void InsertChild(QuestNode parent, QuestNode child, int at)
+    {
+        parent.Children.Insert(Math.Clamp(at, 0, parent.Children.Count), child);
+        Index = new TaskIndex(Roots!, Quests);
+    }
+
     /// <summary>Próximo ID de quest livre (maior ID + 1).</summary>
     public int NextFreeId() => Index.Nodes.Count == 0 ? 1 : Index.Nodes.Max(n => n.Id) + 1;
 

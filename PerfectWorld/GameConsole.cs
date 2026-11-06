@@ -46,6 +46,16 @@ public static class GameConsole
 
     public static bool Running => Window() != IntPtr.Zero;
 
+    /// <summary>Encosta a janela do jogo no canto da área dada, sem mudar o tamanho, e devolve onde ela termina à direita; null = jogo fechado.</summary>
+    public static int? MoveToCorner(System.Drawing.Rectangle area)
+    {
+        var w = Window();
+        if (w == IntPtr.Zero || !GetWindowRect(w, out var r)) return null;
+        int width = r.Right - r.Left, height = r.Bottom - r.Top;
+        MoveWindow(w, area.Left, area.Top, width, height, true);
+        return area.Left + width;
+    }
+
     /// <summary>
     /// Abre o console, digita cada linha com Enter e fecha com Esc; o foco fica no jogo. false = jogo não aberto ou não
     /// deu para trazê-lo à frente. O console abre no "apertar" da tecla e o caractere dela (a aspa no teclado ABNT2)
@@ -103,6 +113,9 @@ public static class GameConsole
     [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
     [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
 
+    [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr w, out RECT r);
+    [DllImport("user32.dll")] static extern bool MoveWindow(IntPtr w, int x, int y, int width, int height, bool repaint);
     [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
     [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint type);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();

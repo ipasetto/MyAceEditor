@@ -20,7 +20,7 @@ internal sealed class WorldMusic : IDisposable
     PrecinctFile.Area? _area;
     int _next;
     long _waitUntil;
-    bool _songOpen, _muted;
+    bool _songOpen, _muted, _paused;
     int _volume = 25;
     string _ambientNow = "";
 
@@ -64,6 +64,20 @@ internal sealed class WorldMusic : IDisposable
         mciSendString($"setaudio {Ambient} volume to {_volume * 6}", null, 0, IntPtr.Zero);
     }
 
+    /// <summary>Janela sem foco: música e som param no ponto em que estão e voltam daí.</summary>
+    public bool Paused
+    {
+        get => _paused;
+        set
+        {
+            if (_paused == value) return;
+            _paused = value;
+            string verb = value ? "pause" : "resume";
+            mciSendString($"{verb} {Song}", null, 0, IntPtr.Zero);
+            mciSendString($"{verb} {Ambient}", null, 0, IntPtr.Zero);
+        }
+    }
+
     public bool Muted
     {
         get => _muted;
@@ -79,7 +93,7 @@ internal sealed class WorldMusic : IDisposable
     /// <summary>Chamado cerca de 1 vez por segundo com a posição da câmera (x e z do jogo).</summary>
     public void Update(float x, float z, bool night)
     {
-        if (_muted || _file is null) return;
+        if (_muted || _paused || _file is null) return;
         var area = _file.At(x, z);
         if (!ReferenceEquals(area, _area))
         {

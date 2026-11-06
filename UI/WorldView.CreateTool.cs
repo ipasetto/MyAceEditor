@@ -24,6 +24,9 @@ internal sealed partial class WorldView
     Label _stepWho = null!, _stepGoods = null!, _stepWhere = null!;
     Button _whoBtn = null!, _goodsBtn = null!, _placeBtn = null!, _confirmBtn = null!, _abandonBtn = null!;
     Control[] _whereOrder = [];
+    int _editing, _lastCreated;
+    Button _fixBtn = null!;
+    FlowLayoutPanel _kindsCard = null!, _editCard = null!;
     Vector3? _placeAt;
     NpcKind? _createKind;
     int _createBase;
@@ -45,7 +48,16 @@ internal sealed partial class WorldView
             _kindBtns.Add((kind, b));
             kinds.Controls.Add(b);
         }
+        _kindsCard = kinds;
         _createPage.Controls.Add(kinds);
+
+        _editCard = ToolCard();
+        _fixBtn = SmallButton("\uE70F", "", () => LoadForEdit(_lastCreated));
+        _editCard.Controls.Add(SectionLabel(Loc.T("create.editTitle", "Ou mudar um NPC que já existe")));
+        _editCard.Controls.Add(_fixBtn);
+        _editCard.Controls.Add(SmallButton("\uE7C9", Loc.T("tp.clickNpc", "Clicar no NPC no mundo"), () => PickInWorld(LoadForEdit)));
+        _editCard.Controls.Add(SmallButton("\uE721", Loc.T("tp.searchNpc", "Procurar na lista…"), () => { if (_host?.PickCreatureId(this, true) is { } id) LoadForEdit(id); }));
+        _createPage.Controls.Add(_editCard);
 
         var who = ToolCard();
         _stepWho = SectionLabel(Loc.T("create.step2", "2. Quem é"));
@@ -109,20 +121,58 @@ internal sealed partial class WorldView
         UpdateCreatePanel();
     }
 
+    GameServiceWindow? ServiceWindow(bool forge)
+    {
+        if (_host?.ElementDir is not { } dir) return null;
+        var win = forge ? _forgeWin : _shopWin;
+        if (win is not null) return win;
+        win = new GameServiceWindow(dir, forge, _host) { Visible = false };
+        win.Changed += UpdateCreatePanel;
+        win.VisibleChanged += (_, _) => UpdateCreatePanel();
+        if (forge) _forgeWin = win; else _shopWin = win;
+        Controls.Add(win);
+        return win;
+    }
+
+    /// <summary>Abre o NPC que já existe nos mesmos passos da criação (teste 8). Mudar não cria nada novo, só grava por cima.</summary>
+    void LoadForEdit(int id)
+    {
+        if (_host?.LoadNpc(id) is not { } d) { _createError.Text = Loc.T("create.notNpc", "Esse ID não é de um NPC."); UpdateCreatePanel(); return; }
+        if (!AskAbandon()) return;
+        _editing = id; _createKind = d.Kind; _createBase = id; _nameBox.Text = d.Name; _stops = d.Stops; _stopDiscover = d.Discover;
+        if (d.Shop is { } shop) ServiceWindow(false)?.Load(shop);
+        if (d.Make is { } make) ServiceWindow(true)?.Load(make);
+        _status.Text = "";
+        UpdateCreatePanel();
+    }
+
+    void SaveEdit()
+    {
+        if (_host is null) return;
+        var d = Draft();
+        var errors = _host.ValidateNpc(d);
+        _createError.Text = string.Join("\n", errors.Take(4));
+        if (errors.Count > 0) { UpdateCreatePanel(); return; }
+        bool copy = false;
+        if (_host.ServiceUsersOf(d) is > 1 and var users)
+        {
+            var r = MessageBox.Show(this, string.Format(Loc.T("create.sharedAsk", "Este serviço é usado por {0} NPCs.\n\nSim: muda só este, com uma cópia.\nNão: muda todos."), users), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (r == DialogResult.Cancel) return;
+            copy = r == DialogResult.Yes;
+        }
+        if (_host.UpdateNpc(d, copy) is { } error) { _createError.Text = error; UpdateCreatePanel(); return; }
+        int id = _editing;
+        ResetCreate();
+        _status.Text = string.Format(Loc.T("create.edited", "{0} alterado. Ctrl+Z desfaz. Salve e envie ao servidor para ver no jogo."), _host.NameOf(id) ?? id.ToString());
+        UpdateCreatePanel();
+    }
+
     void OpenGoods()
     {
         if (_createKind == NpcKind.Teleporter) { OpenStops(); return; }
-        if (_host?.ElementDir is not { } dir) return;
         bool forge = _createKind == NpcKind.Forge;
-        var win = forge ? _forgeWin : _shopWin;
-        if (win is null)
-        {
-            win = new GameServiceWindow(dir, forge, _host);
-            win.Changed += UpdateCreatePanel;
-            win.VisibleChanged += (_, _) => UpdateCreatePanel();
-            if (forge) _forgeWin = win; else _shopWin = win;
-            Controls.Add(win);
-        }
+        if (ServiceWindow(forge) is not { } win) return;
+        if (win.Visible) { win.Visible = false; return; }   // o mesmo botão fecha
         win.Visible = true;
         CenterServiceWindow();
         win.BringToFront();
@@ -139,10 +189,10 @@ internal sealed partial class WorldView
     {
         Kind = _createKind ?? NpcKind.Creature, BaseId = _createBase, Name = _nameBox.Text,
         Shop = _createKind == NpcKind.Seller ? _shopWin?.Shop : null, Make = _createKind == NpcKind.Forge ? _forgeWin?.Make : null,
-        Stops = _createKind == NpcKind.Teleporter ? _stops : [], Discover = _createKind == NpcKind.Teleporter ? _stopDiscover : 0,
+        Stops = _createKind == NpcKind.Teleporter ? _stops : [], Discover = _createKind == NpcKind.Teleporter ? _stopDiscover : 0, Editing = _editing,
     };
 
-    bool HasCreateDraft => _createKind is not null && (_createBase > 0 || _nameBox.Text.Length > 0 || _placeAt is not null || _shopWin?.Shop.Count > 0 || _forgeWin?.Make.Count > 0 || _stops.Count > 0);
+    bool HasCreateDraft => _createKind is not null && _editing == 0 && (_createBase > 0 || _nameBox.Text.Length > 0 || _placeAt is not null || _shopWin?.Shop.Count > 0 || _forgeWin?.Make.Count > 0 || _stops.Count > 0);
 
     /// <summary>Abandonar o rascunho: pergunta se há algo feito. Falso = o usuário quis continuar.</summary>
     bool AskAbandon()
@@ -154,7 +204,7 @@ internal sealed partial class WorldView
 
     void ResetCreate()
     {
-        _placing = null; _placeAt = null; _createBase = 0; _createKind = null; _nameBox.Text = ""; _createError.Text = ""; _stops = []; _stopDiscover = 0;
+        _placing = null; _placeAt = null; _createBase = 0; _createKind = null; _editing = 0; _nameBox.Text = ""; _createError.Text = ""; _stops = []; _stopDiscover = 0;
         if (_shopWin is not null) { _shopWin.Visible = false; _shopWin.Load(new ShopDraft()); }
         if (_forgeWin is not null) { _forgeWin.Visible = false; _forgeWin.Load(new MakeDraft()); }
         _gl.Invalidate();
@@ -180,6 +230,7 @@ internal sealed partial class WorldView
 
     void ConfirmCreate()
     {
+        if (_editing > 0) { SaveEdit(); return; }
         if (_host is null || _placeAt is not { } at) return;
         var errors = _host.ValidateNpc(Draft());
         _createError.Text = string.Join("\n", errors.Take(4));
@@ -193,6 +244,7 @@ internal sealed partial class WorldView
         }
         PlaceCreature?.Invoke(at, id, _host.IsNpc(id));
         RefreshMarkers();
+        if (d.Kind != NpcKind.Creature) _lastCreated = id;
         var kind = _createKind;
         ResetCreate();
         _createKind = kind;
@@ -203,7 +255,7 @@ internal sealed partial class WorldView
     /// <summary>Lugar escolhido: anel verde no chão até confirmar.</summary>
     void DrawPlaceMark()
     {
-        if ((_tool == Tool.Teleports ? _tpAt : _tool == Tool.Create ? _placeAt : null) is not { } p) return;
+        if ((_tool == Tool.Teleports ? _tpd?.At : _tool == Tool.Create ? _placeAt : null) is not { } p) return;
         GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.DepthTest);
         GL.Color3(0.16f, 0.86f, 0.35f); GL.LineWidth(3);
         GL.Begin(PrimitiveType.LineLoop);
@@ -217,8 +269,13 @@ internal sealed partial class WorldView
     {
         var kind = _createKind;
         foreach (var (k, b) in _kindBtns) b.BackColor = k == kind ? UiKit.Accent : Color.FromArgb(40, 45, 54);
-        bool any = kind is not null, named = any && kind != NpcKind.Creature, goods = kind is NpcKind.Seller or NpcKind.Forge or NpcKind.Teleporter;
-        _stepWho.Visible = _whoBtn.Visible = any;
+        bool any = kind is not null, named = any && kind != NpcKind.Creature, goods = kind is NpcKind.Seller or NpcKind.Forge or NpcKind.Teleporter, editing = _editing > 0;
+        _kindsCard.Visible = !editing;
+        _editCard.Visible = !any;
+        _fixBtn.Visible = _lastCreated > 0;
+        if (_lastCreated > 0) _fixBtn.Text = "  " + string.Format(Loc.T("create.fix", "Corrigir {0}"), _host?.NameOf(_lastCreated) ?? _lastCreated.ToString());
+        _stepWho.Visible = any;
+        _whoBtn.Visible = any && !editing;
         _stepWho.Text = kind == NpcKind.Creature ? Loc.T("create.step2", "2. Quem é") : Loc.T("create.step2Base", "2. Aparência e nome");
         _whoName.Visible = any;
         _whoName.Text = _createBase > 0 ? _host?.NameOf(_createBase) ?? _createBase.ToString() : Loc.T("create.nobody", "Ninguém escolhido");
@@ -227,12 +284,16 @@ internal sealed partial class WorldView
         _stepGoods.Visible = _goodsBtn.Visible = goods;
         _goodsBtn.Text = "  " + (kind == NpcKind.Teleporter ? string.Format(Loc.T("create.openStops", "Escolher os destinos ({0})"), _stops.Count)
             : kind == NpcKind.Forge
-            ? string.Format(Loc.T("create.openForge", "Montar a fabricação ({0} receitas)"), _forgeWin?.Make.Count ?? 0)
-            : string.Format(Loc.T("create.openShop", "Montar a loja ({0} itens)"), _shopWin?.Shop.Count ?? 0));
-        _stepWhere.Visible = _placeBtn.Visible = _abandonBtn.Visible = any;
-        _placeWhere.Visible = _confirmBtn.Visible = _placeAt is not null;
+            ? ActiveServiceWindow is { Visible: true } ? Loc.T("create.closeForge", "Fechar a fabricação") : string.Format(Loc.T("create.openForge", "Montar a fabricação ({0} receitas)"), _forgeWin?.Make.Count ?? 0)
+            : ActiveServiceWindow is { Visible: true } ? Loc.T("create.closeShop", "Fechar a loja") : string.Format(Loc.T("create.openShop", "Montar a loja ({0} itens)"), _shopWin?.Shop.Count ?? 0));
+        _stepWhere.Visible = _abandonBtn.Visible = any;
+        _placeBtn.Visible = any && !editing;
+        _placeWhere.Visible = _placeAt is not null;
+        _confirmBtn.Visible = _placeAt is not null || editing;
+        _confirmBtn.Text = "  " + (editing ? Loc.T("create.saveEdit", "Salvar as mudanças") : Loc.T("create.confirm", "Confirmar a criação"));
+        _abandonBtn.Text = "  " + (editing ? Loc.T("create.stopEdit", "Cancelar") : Loc.T("create.abandon", "Abandonar a criação"));
         if (_placeAt is { } at) _placeWhere.Text = FormattableString.Invariant($"{at.X:0.0}, {at.Y:0.0}, {at.Z:0.0}");
-        _stepWhere.Text = (goods ? "4. " : "3. ") + Loc.T("create.stepWhere", "Onde fica");
+        _stepWhere.Text = editing ? Loc.T("create.stepSave", "Terminar") : (goods ? "4. " : "3. ") + Loc.T("create.stepWhere", "Onde fica");
         _placeBtn.Text = "  " + (_placing is not null ? Loc.T("create.placing", "Clique no chão… (cancelar)") : _placeAt is not null ? Loc.T("create.placeAgain", "Trocar o lugar") : Loc.T("create.place", "Escolher o lugar no mundo"));
         KeepOrder(_stepWhere.Parent!, _whereOrder);
         if (_tool == Tool.Create) LayoutTools();

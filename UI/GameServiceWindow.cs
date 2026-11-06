@@ -12,7 +12,7 @@ internal sealed class GameServiceWindow : Panel
 {
     const float Scale = 1.25f;
     const int Pad = 14;
-    int Foot => _forge ? 174 : 140;   // fornalha tem mais uma linha: o que precisa
+    const int Foot = 174;   // título, linha do que precisa ou do preço, ajuda, botões
     static readonly Color Gold = Color.FromArgb(255, 203, 74), Sel = Color.FromArgb(255, 220, 90), TextC = Color.FromArgb(235, 235, 235);
 
     readonly IQuestHost _host;
@@ -27,6 +27,8 @@ internal sealed class GameServiceWindow : Panel
     readonly Label _hint = new() { AutoSize = false, ForeColor = Color.Silver };
     readonly List<object> _undo = [], _redo = [];
     readonly Dictionary<string, Rectangle> _own = [];
+    readonly NumericUpDown _price = new() { Maximum = 999_999_999, Width = 120, ThousandsSeparator = true, BackColor = Color.FromArgb(44, 50, 60), ForeColor = Color.White, Enabled = false };
+    readonly Label _priceNote = new() { AutoSize = false, ForeColor = Color.Silver };
     readonly ComboBox _skill = new() { DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(44, 50, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
     readonly List<int> _skills = [];
     int _page, _sel = -1;
@@ -68,12 +70,24 @@ internal sealed class GameServiceWindow : Panel
         var pageName = new Label { Text = Loc.T("gs.pageName", "Nome da aba"), AutoSize = true, ForeColor = Color.Silver, Location = new Point(Pad, y + 4) };
         _title.Location = new Point(Pad + 86, y);
         _title.TextChanged += (_, _) => { if (_binding) return; Remember(); Titles[_page] = _title.Text; Invalidate(); Changed?.Invoke(); };
-        _hint.Location = new Point(Pad, y + (forge ? 66 : 32)); _hint.Size = new Size(Width - Pad * 2, 38);
+        _hint.Location = new Point(Pad, y + 66); _hint.Size = new Size(Width - Pad * 2, 38);
         _hint.Text = forge ? Loc.T("gs.hintMake", "Clique num espaço para pôr uma receita. Botão direito tira.")
-            : Loc.T("gs.hintShop", "Clique num espaço para pôr um item à venda. Botão direito tira.");
+            : Loc.T("gs.hintShop2", "Clique num espaço vazio para pôr um item. Clique num item para ver o preço; de novo, para trocar. Botão direito tira.");
+        if (!forge)
+        {
+            var label = new Label { Text = Loc.T("gs.price", "Preço de venda"), AutoSize = true, ForeColor = Color.Silver, Location = new Point(Pad, y + 38) };
+            _price.Location = new Point(Pad + 100, y + 34);
+            _priceNote.Location = new Point(Pad + 240, y + 30); _priceNote.Size = new Size(Width - Pad - 240 - Pad, 34);
+            _price.ValueChanged += (_, _) => PriceTyped();
+            Controls.Add(label); Controls.Add(_price); Controls.Add(_priceNote);
+        }
+        var close = new Button { Text = "\u2715", Size = new Size(26, 24), Location = new Point(Width - Pad - 30, 6), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(60, 45, 40), TabStop = false, Cursor = Cursors.Hand };
+        close.FlatAppearance.BorderSize = 0;
+        close.Click += (_, _) => Visible = false;
+        Controls.Add(close);
         Button Btn(string glyph, string text, Action a, int x, int w, bool main = false)
         {
-            var b = new Button { Text = "  " + text, Location = new Point(x, y + (forge ? 110 : 76)), Size = new Size(w, 30), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
+            var b = new Button { Text = "  " + text, Location = new Point(x, y + 110), Size = new Size(w, 30), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
                 Image = UiKit.Icon(glyph, Color.White, 16), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText };
             b.FlatAppearance.BorderSize = main ? 0 : 1; b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 92);
             b.Click += (_, _) => a();
@@ -128,7 +142,7 @@ internal sealed class GameServiceWindow : Panel
     }
 
     object Snapshot() => _forge ? Make.Copy() : Shop.Copy();
-    void Restore(object s) { if (s is MakeDraft m) Make = m; else if (s is ShopDraft d) Shop = d; _sel = -1; BindTitle(); Invalidate(); Changed?.Invoke(); }
+    void Restore(object s) { if (s is MakeDraft m) Make = m; else if (s is ShopDraft d) Shop = d; _sel = -1; BindTitle(); ShowPrice(); Invalidate(); Changed?.Invoke(); }
     void Remember() { _undo.Add(Snapshot()); if (_undo.Count > 100) _undo.RemoveAt(0); _redo.Clear(); }
 
     public bool Undo()
@@ -206,7 +220,7 @@ internal sealed class GameServiceWindow : Panel
         base.OnMouseDown(e);
         var d = ToDialog(e.Location);
         for (int p = 0; p < NpcBuilder.Pages; p++)
-            if (R($"Btn_Set{p + 1}").Contains(d)) { _page = p; _sel = -1; BindTitle(); Invalidate(); return; }
+            if (R($"Btn_Set{p + 1}").Contains(d)) { _page = p; _sel = -1; BindTitle(); ShowPrice(); Invalidate(); return; }
         int s = SlotAt(d);
         if (s < 0) return;
         _tip.Hide();
@@ -220,26 +234,56 @@ internal sealed class GameServiceWindow : Panel
         if (IdIn(s) == 0 && (!_forge || Make.Goods[_page][s] is null)) return;
         Remember();
         if (_forge) Make.Goods[_page][s] = null; else Shop.Goods[_page][s] = 0;
-        if (_sel == s) _sel = -1;
+        if (_sel == s) { _sel = -1; ShowPrice(); }
         Invalidate(); Changed?.Invoke();
     }
 
     void PickItem(int s)
     {
+        if (Shop.Goods[_page][s] > 0 && _sel != s) { _sel = s; ShowPrice(); Invalidate(); return; }   // 1º clique mostra o preço, o 2º troca o item
         if (_host.PickItemId(this, false) is not { } picked) return;
         Remember();
         Shop.Goods[_page][s] = picked.Id;
+        _sel = s;
+        ShowPrice();
         Invalidate(); Changed?.Invoke();
+    }
+
+    int PriceItem => _sel >= 0 && !_forge ? Shop.Goods[_page][_sel] : 0;
+
+    /// <summary>Preço do item marcado. O preço é do item, não da loja: quem compra paga isso em todas as lojas, mais o imposto do NPC.</summary>
+    void ShowPrice()
+    {
+        if (_forge) return;
+        int id = PriceItem;
+        int? now = id > 0 ? Shop.Prices.TryGetValue(id, out var p) ? p : _host.ShopPrice(id) : null;
+        _binding = true;
+        _price.Enabled = now is not null;
+        _price.Value = Math.Clamp(now ?? 0, 0, (int)_price.Maximum);
+        _binding = false;
+        _priceNote.Text = id == 0 ? Loc.T("gs.priceNone", "Clique num item da loja para ver o preço.")
+            : now is null ? Loc.T("gs.priceNo", "Este item não tem preço de loja.")
+            : Loc.T("gs.priceNote", "É o preço do item: muda em todas as lojas do jogo.");
+    }
+
+    void PriceTyped()
+    {
+        if (_binding || PriceItem == 0) return;
+        Remember();
+        Shop.Prices[PriceItem] = (int)_price.Value;
+        Changed?.Invoke();
     }
 
     void EditRecipe(int s)
     {
         var had = Make.Goods[_page][s];
         if (had is not null && _sel != s) { _sel = s; Invalidate(); return; }   // 1º clique mostra os materiais, o 2º edita
-        using var w = new RecipeWindow(_host, had?.Copy(), Make.Skill > 0);
+        var start = had is { RecipeId: > 0 } ? _host.ReadRecipe(had.RecipeId) ?? had : had;   // receita do jogo abre preenchida; mudar cria outra, a original fica
+        using var w = new RecipeWindow(_host, start?.Copy(), Make.Skill);
         if (w.ShowDialog(FindForm()) != DialogResult.OK) return;
         Remember();
         Make.Goods[_page][s] = w.Result;
+        if (w.Result?.RecipeId == 0) { Make.Skill = w.Skill; BindTitle(); }   // profissão é uma por fornalha
         _sel = s;
         Invalidate(); Changed?.Invoke();
     }

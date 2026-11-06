@@ -19,7 +19,7 @@ internal sealed class QuestPreview : Panel
     QuestPreview(PckArchive interfaces, PckArchive surfaces, GameDialog dialog)
     {
         _interfaces = interfaces; _surfaces = surfaces; _dialog = dialog; _tex = new GameTextures(surfaces);
-        DoubleBuffered = true; Size = dialog.Size; BackColor = Color.Black;
+        DoubleBuffered = true; Size = dialog.Size; BackColor = Color.FromArgb(24, 27, 33);
     }
 
     /// <summary>Null se o cliente não tem a janela (pacotes faltando ou outro formato).</summary>
@@ -63,7 +63,13 @@ internal sealed class QuestPreview : Panel
         var g = e.Graphics;
         bool reward = _data is { } r && (r.Gold > 0 || r.Exp > 0 || r.Spirit > 0 || r.Items.Count > 0);
         // sem prêmio o jogo não mostra o bloco de recompensa
-        GameDraw.Dialog(g, _dialog, _tex, c => c.Name is "Img_New" or "Btn_GotoNPC" or "Btn_FinishTask" or "Btn_TreasureMap" || !reward && (c.Name.StartsWith("Img_Item") || c.Name == "Txt_ItemAward" || c.Name == "Txt_BaseAward" || c.Tag == "LABEL" && c.Rect.Y > 280 && c.Rect.Y < 320) ? new Rectangle(-5000, 0, 0, 0) : GameDraw.Box(c));
+        // só o que a quest mostra: rodapé e rótulos de exemplo da janela ficam de fora, senão um texto cai em cima do outro (teste 11)
+        var icons = Area("Img_Item0", new Rectangle(213, 328, 32, 32));
+        bool Noise(GameDialog.Control c) => c.Name is "Img_New" or "Btn_GotoNPC" or "Btn_FinishTask" or "Btn_TreasureMap"
+            || c.Rect.Y >= icons.Bottom && c.Rect.Height < 60
+            || c.Tag == "LABEL" && c.Rect.Y + c.Rect.Height > icons.Y
+            || !reward && (c.Name.StartsWith("Img_Item") || c.Name == "Txt_ItemAward" || c.Name == "Txt_BaseAward" || c.Tag == "LABEL" && c.Rect.Y > 280 && c.Rect.Y < 320);
+        GameDraw.Dialog(g, _dialog, _tex, c => Noise(c) ? new Rectangle(-5000, 0, 0, 0) : GameDraw.Box(c));
         if (_data is not { } d) return;
         using var font = new Font("Segoe UI", 9f);
         void Write(string text, Rectangle box, Color c) => TextRenderer.DrawText(g, text, font, box, c, TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
@@ -88,7 +94,7 @@ internal sealed class QuestPreview : Panel
         if (d.Exp > 0) parts.Add(string.Format(Loc.T("qp.exp", "EXP {0:N0}"), d.Exp));
         if (d.Spirit > 0) parts.Add(string.Format(Loc.T("qp.spirit", "Espírito {0:N0}"), d.Spirit));
         Write(string.Join("   ", parts), Area("Txt_BaseAward", new Rectangle(211, 309, 325, 15)), Color.White);
-        for (int i = 0; i < d.Items.Count && i < 4; i++)
+        for (int i = 0; i < d.Items.Count && i < 8; i++)
             if (d.Items[i] is { } icon) g.DrawImage(icon, Area("Img_Item" + i, new Rectangle(213 + i * 40, 328, 32, 32)));
     }
 

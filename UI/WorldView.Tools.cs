@@ -92,7 +92,7 @@ internal sealed partial class WorldView
         foreach (Control c in page.Controls)
         {
             if (c is Button or TextBox or ListBox) c.Width = Width;
-            if (c is Label { AutoSize: true }) c.MaximumSize = new Size(Width - 4, 0);
+            if (c is Label { AutoSize: true }) c.MaximumSize = new Size(Width - 8, 0);
             FitToScroll(c);
         }
     }
@@ -111,7 +111,7 @@ internal sealed partial class WorldView
         _toolBack.FlatAppearance.BorderSize = 0; _toolFold.FlatAppearance.BorderSize = 0;
         _toolBack.Image = UiKit.Icon("", Color.White, 16);
         _toolTip.SetToolTip(_toolBack, Loc.T("tools.back", "Voltar ao menu de ferramentas"));
-        _toolBack.Click += (_, _) => { if (_tool != Tool.Create || AskAbandon()) CloseTool(); _gl.Focus(); };
+        _toolBack.Click += (_, _) => { if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
         _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
@@ -122,7 +122,7 @@ internal sealed partial class WorldView
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
         _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.create", "Criar"), Loc.T("tools.createSub", "Criatura, NPC, vendedor ou fornalha, direto no mundo."), () => OpenTool(Tool.Create)));
-        _toolMenu.Controls.Add(ToolButton("\uE8AB", Loc.T("tools.teleports", "Teleportes"), Loc.T("tools.teleportsSub", "Pontos de viagem deste mapa: criar, quem descobre e quem leva."), () => OpenTool(Tool.Teleports)));
+        _toolMenu.Controls.Add(ToolButton("\uE8AB", Loc.T("tools.teleports", "Teleportes"), Loc.T("tools.teleportsSub2", "Lugares do mapa de viagem e o NPC que atende em cada um."), () => OpenTool(Tool.Teleports)));
         // sempre por último: grava tudo e leva ao servidor (a janela principal abre na aba Servidor)
         var send = ToolButton("\uE898", Loc.T("tools.send", "Salvar e enviar ao servidor"), Loc.T("tools.sendSub", "Grava tudo o que mudou e reinicia o servidor local com isso"), () =>
         {
@@ -212,7 +212,7 @@ internal sealed partial class WorldView
     {
         if (_tool == Tool.Scene) SetSceneObjects(false);
         if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _gl.Invalidate(); }
-        if (_tool == Tool.Teleports) { _placing = null; _tpNew = false; _tpAt = null; _gl.Invalidate(); }
+        if (_tool == Tool.Teleports) { _placing = null; _tpd = null; _gl.Invalidate(); }
         if (_tool == Tool.Create) { CancelPlacing(); if (_shopWin is not null) _shopWin.Visible = false; if (_forgeWin is not null) _forgeWin.Visible = false; }
         _tool = Tool.None;
         _toolBack.Visible = false;
@@ -233,7 +233,7 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Para a captura (--world-shot): abre a ferramenta Editar cenário ou volta ao menu.</summary>
-    internal void ShotTool(int tool) { CloseTool(); if (tool == 5) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); if (_tpPoints.Count > 0) ChoosePoint(_tpPoints[0]); return; } if (tool == 4) { OpenTool(Tool.Create); PickKind(NpcKind.Seller); return; } if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
+    internal void ShotTool(int tool) { CloseTool(); if (tool == 5) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); return; } if (tool == 6) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); NewTeleport(); _tpFilling = true; _tpName.Text = "Vila Nova"; _tpFilling = false; _tpd!.At = new OpenTK.Mathematics.Vector3(100, 220, 100); _tpd.BaseNpc = 2171; _tpd.NpcName = "Teleportadora"; _tpd.Stops = [new TeleportStop(1001, 500, 0)]; UpdateTeleportPanel(); return; } if (tool == 4) { OpenTool(Tool.Create); PickKind(NpcKind.Seller); return; } if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
 
     /// <summary>Aviso de mudança não salva no painel da ferramenta.</summary>
     void UpdateSideState()

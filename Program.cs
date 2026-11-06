@@ -533,6 +533,38 @@ internal static class Program
             File.WriteAllLines(args[4], o);
             return;
         }
+        if (args.Length >= 3 && args[0] == "--atlas-test")   // <tasks.data> <saída>: põe e tira um ponto do Atlas Geográfico na memória e relê
+        {
+            var o = new List<string>();
+            var tf = new TasksFile(args[1]);
+            var group = ((QuestNode)tf.Index.Find(6940)!).Children[^1];
+            int before = group.Children.Count;
+            var made = TeleportAtlas.Add(tf, 6940, "Vila de Teste", 9100)!;
+            o.Add($"nova subquest {made.Id} {made.Name}, grupo {group.Children.Count - before} a mais; acha pelo ponto: {TeleportAtlas.Find(tf, 6940, 9100)?.Id}");
+            var saved = tf.Build();
+            var again = new TasksFile(saved);
+            var back = TeleportAtlas.Find(again, 6940, 9100);
+            o.Add($"depois de gravar e reler: {back?.Id} {back?.Name}, pai {back?.Parent?.Id}, quests {again.Index.Nodes.Count} contra {tf.Index.Nodes.Count}");
+            TeleportAtlas.Remove(tf, made);
+            var bytes = new TasksFile(args[1]).Build();
+            o.Add($"tirar volta ao original: {tf.Build().AsSpan().SequenceEqual(bytes)}");
+            File.WriteAllLines(args[2], o);
+            return;
+        }
+        if (args.Length >= 4 && args[0] == "--quest-tree")   // <tasks.data> <id> <saída>: nó, filhos e campos com valor
+        {
+            var tf = new TasksFile(args[1]);
+            var sb = new StringBuilder();
+            void Walk(QuestNode n, int depth)
+            {
+                sb.AppendLine(new string(' ', depth * 2) + $"{n.Id} {n.Name} filhos {n.Children.Count} fixed {n.Fixed.Length}");
+                if (depth <= 1) foreach (var f in n.Fields) { var raw = f.Offset + 4 <= n.Fixed.Length ? BitConverter.ToInt32(n.Fixed, f.Offset) : 0; if (raw != 0) sb.AppendLine(new string(' ', depth * 2 + 2) + $"{f.Group}/{f.Name}@{f.Offset} = {raw}"); }
+                foreach (var c in n.Children) Walk(c, depth + 1);
+            }
+            Walk((QuestNode)tf.Index.Find(int.Parse(args[2]))!, 0);
+            File.WriteAllText(args[3], sb.ToString());
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--teleport-report")   // <pasta element> <saída>: qual NPC leva aonde, por quanto, e quem descobre cada ponto
         {
             var mod = CfgCatalog.Load(Path.Combine(args[1], "data", "elements.data")).Module;
@@ -1381,7 +1413,7 @@ internal static class Program
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
-        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png"), (4, "window-create.png"), (5, "window-teleports.png") })
+        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png"), (4, "window-create.png"), (5, "window-teleports.png"), (6, "window-teleport-new.png") })
         {
             w.ShotTool(scene); Application.DoEvents();
             using var full = new System.Drawing.Bitmap(w.Width, w.Height);

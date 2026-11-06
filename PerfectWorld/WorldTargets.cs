@@ -130,6 +130,15 @@ public sealed class WorldTargets
         return t;
     }
 
+    /// <summary>Troca nome e lugar do ponto nos dois arquivos, sem mudar o ID.</summary>
+    public WorldTarget Update(WorldTarget t)
+    {
+        int c = Client.FindIndex(x => x.Id == t.Id), s = Server.FindIndex(x => x.Id == t.Id);
+        if (c >= 0) Client[c] = t;
+        if (s >= 0) Server[s] = t;
+        return t;
+    }
+
     public void Remove(int id) { Client.RemoveAll(t => t.Id == id); Server.RemoveAll(t => t.Id == id); }
 
     /// <summary>Foto das duas listas, para o Ctrl+Z.</summary>

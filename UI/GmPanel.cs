@@ -36,6 +36,7 @@ public sealed class GmPanel : Form
         top.Controls.Add(_dir, 1, 0);
         top.Controls.Add(Btn(Loc.T("gm.browse", "Procurar…"), PickDir), 2, 0);
         top.Controls.Add(Btn(Loc.T("gm.launch", "▶ Abrir o jogo com console"), LaunchGame, blue: true), 3, 0);
+        top.Controls.Add(Btn(Loc.T("gm.side", "◧ Lado a lado com o jogo"), ToggleSide), 4, 0);
 
         // ordem do uso: o próprio personagem, ir a algum lugar, criar coisas, cuidar de jogadores, eventos do mundo;
         // cada aba diz no topo do que precisa (jogo aberto com console / servidor neste PC)
@@ -115,6 +116,24 @@ public sealed class GmPanel : Form
         var p = new Panel { AutoScroll = true };
         foreach (var g in groups.Reverse()) p.Controls.Add(g);
         return p;
+    }
+
+    Rectangle? _before;
+
+    /// <summary>
+    /// Opção A do GM: o jogo encosta à esquerda e o painel fica no espaço à direita, sempre por cima, para o clique no jogo
+    /// não esconder o painel. Um segundo clique volta como estava. O tamanho do jogo não muda: ele não aceita bem mudar de tamanho aberto.
+    /// </summary>
+    void ToggleSide()
+    {
+        if (_before is { } was) { TopMost = false; Bounds = was; _before = null; return; }
+        var area = Screen.FromControl(this).WorkingArea;
+        if (GameConsole.MoveToCorner(area) is not { } right) { AddLog("⚠ " + Loc.T("gm.sideNoGame", "Abra o jogo primeiro: não achei a janela dele.")); return; }
+        const int MinWidth = 460;
+        _before = Bounds;
+        int left = Math.Min(right, area.Right - MinWidth);
+        TopMost = true;
+        Bounds = new Rectangle(left, area.Top, area.Right - left, area.Height);
     }
 
     bool Ask(string text) => MessageBox.Show(this, text, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;

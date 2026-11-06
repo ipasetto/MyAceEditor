@@ -3197,6 +3197,7 @@ public sealed class EditorForm : Form
         public IReadOnlyList<string> ValidateNpc(NpcDraft draft) => f._store.Current is { } m
             ? NpcBuilder.Validate(m, draft, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null) : [Loc.T("status.openFirst", "Abra um elements.data primeiro")];
         public int? BuildNpc(NpcDraft draft) => f.BuildNpc(draft);
+        public int? ShopPrice(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h && h.Item.Fields.TryGetValue("shop_price", out var v) && int.TryParse(v.Value, out var n) ? n : null;
         public IReadOnlyList<TeleportLink> TeleportersTo(int point) => f.TeleportersTo(point);
         public IReadOnlyList<(int Id, string Name)> DiscoverersOf(int point) => f.DiscoverersOf(point);
         public int DiscoverOf(int npc) => f.NpcById(npc) is { } n ? NpcNumber(n, "id_to_discover") : 0;
@@ -3204,6 +3205,15 @@ public sealed class EditorForm : Form
         public int ServiceUsers(int npc) => f.ServiceUsers(npc);
         public string? SetTransmit(int npc, int point, int fee, int level, bool copy) => f.SetTransmit(npc, point, fee, level, copy);
         public string? RemoveTransmit(int npc, int point, bool copy) => f.RemoveTransmit(npc, point, copy);
+        public IReadOnlyList<TeleportStop> StopsOfNpc(int npc) => f.NpcById(npc) is { } n && f.ServiceById(NpcNumber(n, "id_transmit_service")) is { } s ? NpcBuilder.StopsOf(s) : [];
+        public string? SetStops(int npc, IReadOnlyList<TeleportStop> stops, bool copy) => f.SetStops(npc, stops, copy);
+        public string? AtlasName => f.AtlasRoot() > 0 ? f.CreatureNameOrItem(TeleportAtlas.AtlasItem) : null;
+        public bool AtlasHas(int point) => f.AtlasRoot() is > 0 and var root && f._tasks is { } t && TeleportAtlas.Find(t, root, point) is not null;
+        public string? SetAtlas(WorldTarget point, bool on) => f.SetAtlas(point, on);
+        public NpcDraft? LoadNpc(int id) => f._store.Current is { } m ? NpcBuilder.Load(m, id) : null;
+        public int ServiceUsersOf(NpcDraft draft) => f.ServiceUsersOf(draft);
+        public string? UpdateNpc(NpcDraft draft, bool copy) => f.UpdateNpc(draft, copy);
+        public RecipeDraft? ReadRecipe(int id) => f._store.Current is { } m ? NpcBuilder.ReadRecipe(m, id) : null;
         public Image? ItemIcon(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? f.IconFor(h.Item) : null;
         public IReadOnlyList<int> FavoriteIds() => f.FavoriteIds();
         public IReadOnlyList<int> RecentIds() => f.RecentIds();
@@ -3801,7 +3811,27 @@ public sealed class EditorForm : Form
         o.Add("Ctrl+Z duas vezes: " + Line());
         o.Add("descobre: " + (SetDiscover(c, point) ?? "ok") + "  " + string.Join(", ", DiscoverersOf(point)));
         _edits.Undo();
-        o.Add("Ctrl+Z: " + DiscoverersOf(point).Count);
+        o.Add("Ctrl+Z: " + DiscoverersOf(point).Count + ", bit " + NpcNumber(free, "combined_services"));
+        var host = new QuestHostImpl(this);
+        o.Add("Atlas: " + host.AtlasName + " tem o ponto " + host.AtlasHas(point));
+        o.Add("põe: " + (host.SetAtlas(new WorldTarget(point, "Ponto X", 1, 10, 220, 30, -1), true) ?? "ok") + " tem " + host.AtlasHas(point));
+        _edits.Undo();
+        o.Add("Ctrl+Z: tem " + host.AtlasHas(point));
+        var seller = npcs.First(n => NpcNumber(n, "id_sell_service") > 0);
+        var loaded = host.LoadNpc(int.Parse(seller.Id))!;
+        int first = loaded.Shop!.Goods[0][0];
+        o.Add($"editar {seller.Id} {loaded.Name}: {loaded.Kind}, {loaded.Shop.Count} itens, usuários do serviço {host.ServiceUsersOf(loaded)}");
+        loaded.Shop.Goods[0][0] = 0; loaded.Name = "Nome novo";
+        o.Add("grava: " + (host.UpdateNpc(loaded, copy: true) ?? "ok") + " nome " + seller.Name + " agora itens " + host.LoadNpc(int.Parse(seller.Id))!.Shop!.Count);
+        _edits.Undo();
+        o.Add("Ctrl+Z: " + seller.Name + " item1 " + host.LoadNpc(int.Parse(seller.Id))!.Shop!.Goods[0][0] + " era " + first);
+        var forge = npcs.FirstOrDefault(n => NpcNumber(n, "id_make_service") > 0);
+        if (forge is not null && host.LoadNpc(int.Parse(forge.Id)) is { Make: { } fm } fl)
+        {
+            var r0 = fm.Goods.SelectMany(p => p).First(g => g is not null)!;
+            var rd = host.ReadRecipe(r0.RecipeId);
+            o.Add($"fornalha {forge.Id}: {fm.Count} receitas, profissão {fm.Skill}; 1ª {r0.RecipeId}: faz {rd?.Product} x{rd?.Count}, {rd?.Materials.Count} materiais, nível {rd?.SkillLevel}");
+        }
         File.WriteAllLines(file, o);
     }
 
@@ -3925,7 +3955,107 @@ public sealed class EditorForm : Form
     private string? SetDiscover(int npc, int point)
     {
         if (NpcById(npc) is not { } n) return Loc.T("status.openFirst", "Abra um elements.data primeiro.");
-        SetField(n, "id_to_discover", point.ToString(), refresh: false);
+        using (_edits.Batch(string.Format(Loc.T("hist.discover", "Ponto {0} em {1}"), point, npc)))
+        {
+            SetField(n, "id_to_discover", point.ToString(), refresh: false);
+            SetField(n, "combined_services", NpcBuilder.WithDiscover(n.Fields["combined_services"].Value, point > 0), refresh: false);
+        }
+        return null;
+    }
+
+    private string? SetStops(int npc, IReadOnlyList<TeleportStop> stops, bool copy)
+    {
+        if (_store.Current is not { } m || NpcById(npc) is not { } n) return Loc.T("status.openFirst", "Abra um elements.data primeiro.");
+        if (stops.Count > NpcBuilder.MaxStops) return string.Format(Loc.T("nb.manyStops", "Mais de {0} destinos."), NpcBuilder.MaxStops);
+        using (_edits.Batch(string.Format(Loc.T("hist.stops", "Destinos de {0}"), npc)))
+        {
+            if (stops.Count == 0) SetField(n, "id_transmit_service", "0", refresh: false);
+            else WriteStops(TransmitFor(m, n, copy), stops);
+        }
+        _refs = new RefIndex(m);
+        RefreshView();
+        return null;
+    }
+
+    /// <summary>Quest do Atlas Geográfico: a primeira da lista do item (TASKDICE). 0 = este cliente não tem.</summary>
+    private int AtlasRoot()
+    {
+        if (_store.Current?.FindListByName("TASKDICE_ESSENCE")?.Items.FirstOrDefault(i => i.Id == TeleportAtlas.AtlasItem.ToString()) is not { } it) return 0;
+        int root = NpcNumber(it, "task_lists_1_id");
+        return _tasks is { FullSchema: true, CanWrite: true } t && t.Index.Find(root) is QuestNode ? root : 0;
+    }
+
+    private string? CreatureNameOrItem(int id) => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
+
+    /// <summary>Põe ou tira o ponto do Atlas, com Ctrl+Z.</summary>
+    private string? SetAtlas(WorldTarget point, bool on)
+    {
+        if (_tasks is not { } t || AtlasRoot() is not (> 0 and var root)) return Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.");
+        var label = string.Format(Loc.T("hist.atlas", "Atlas: ponto {0}"), point.Id);
+        var old = TeleportAtlas.Find(t, root, point.Id);
+        var group = old?.Parent;
+        int at = group?.Children.IndexOf(old!) ?? -1;
+        QuestNode? made = null;
+        _edits.Custom(label,
+            () =>
+            {
+                if (old is not null) TeleportAtlas.Remove(t, old);
+                if (on) made = TeleportAtlas.Add(t, root, point.Name, point.Id);
+                MarkTasksDirty(label);
+            },
+            () =>
+            {
+                if (made is not null) TeleportAtlas.Remove(t, made);
+                if (old is not null) TeleportAtlas.Restore(t, group!, old, at);
+                MarkTasksDirty(label);
+            });
+        return on && made is null ? Loc.T("tp.atlasFail", "Não achei uma subquest do Atlas para copiar.") : null;
+    }
+
+    private static string ServiceField(NpcKind kind) => kind switch { NpcKind.Seller => "id_sell_service", NpcKind.Forge => "id_make_service", _ => "id_transmit_service" };
+    private static string ServiceBlock(NpcKind kind) => kind switch { NpcKind.Seller => "NPC_SELL_SERVICE", NpcKind.Forge => "NPC_MAKE_SERVICE", _ => "NPC_TRANSMIT_SERVICE" };
+
+    private int ServiceUsersOf(NpcDraft d)
+    {
+        if (d.Kind is not (NpcKind.Seller or NpcKind.Forge or NpcKind.Teleporter) || NpcById(d.Editing) is not { } n) return 0;
+        int svc = NpcNumber(n, ServiceField(d.Kind));
+        return svc == 0 ? 0 : _store.Current!.FindListByName("NPC_ESSENCE")!.Items.Count(i => NpcNumber(i, ServiceField(d.Kind)) == svc);
+    }
+
+    /// <summary>Grava o rascunho sobre o NPC que já existe, num passo do Ctrl+Z.</summary>
+    private string? UpdateNpc(NpcDraft d, bool copy)
+    {
+        if (_store.Current is not { } m || NpcById(d.Editing) is not { } n) return Loc.T("status.openFirst", "Abra um elements.data primeiro.");
+        void Insert(ItemList block, Item it)
+        {
+            _edits.AddItem(block, it, string.Format(Loc.T("hist.add", "Novo item {0}"), it.Id));
+            _owner[it] = block;
+        }
+        string NameOf(int id) => _refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : id.ToString();
+        using (_edits.Batch(string.Format(Loc.T("hist.editNpc", "Editar NPC {0}"), n.Id)))
+        {
+            if (TasksFile.SplitColor(n.Name).Text != d.Name.Trim()) { SetField(n, "Name", d.Name.Trim(), refresh: false); n.Name = d.Name.Trim(); }
+            if (d.Kind is NpcKind.Seller or NpcKind.Forge or NpcKind.Teleporter && _store.Current.FindListByName(ServiceBlock(d.Kind)) is { } block
+                && block.Items.FirstOrDefault(i => i.Id == NpcNumber(n, ServiceField(d.Kind)).ToString()) is { } svc)
+            {
+                if (copy)
+                {
+                    svc = NpcBuilder.CopyService(m, block, svc);
+                    Insert(block, svc);
+                    SetField(n, ServiceField(d.Kind), svc.Id, refresh: false);
+                }
+                foreach (var (k, v) in NpcBuilder.ServiceChanges(m, d, svc, BlankRecord, Insert, NameOf)) SetField(svc, k, v, refresh: false);
+            }
+            if (d.Kind == NpcKind.Teleporter && NpcNumber(n, "id_to_discover") != d.Discover)
+            {
+                SetField(n, "id_to_discover", d.Discover.ToString(), refresh: false);
+                SetField(n, "combined_services", NpcBuilder.WithDiscover(n.Fields["combined_services"].Value, d.Discover > 0), refresh: false);
+            }
+            foreach (var (item, price) in d.Shop?.Prices ?? [])
+                if (_refs?.Resolve(FieldKind.ItemRef, item.ToString()) is { } hit && hit.Item.Fields.ContainsKey("shop_price")) SetField(hit.Item, "shop_price", price.ToString(), refresh: false);
+        }
+        _refs = new RefIndex(m);
+        RefreshView();
         return null;
     }
 
@@ -3995,6 +4125,8 @@ public sealed class EditorForm : Form
             _owner[it] = block;
         }, n => _refs?.Resolve(FieldKind.ItemRef, n.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : n.ToString());
         _refs = new RefIndex(m);
+        foreach (var (item, price) in d.Shop?.Prices ?? [])
+            if (_refs.Resolve(FieldKind.ItemRef, item.ToString()) is { } hit && hit.Item.Fields.ContainsKey("shop_price")) SetField(hit.Item, "shop_price", price.ToString(), refresh: false);
         RefreshView();
         return id;
     }
