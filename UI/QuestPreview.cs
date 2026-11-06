@@ -32,7 +32,7 @@ internal sealed class QuestPreview : Panel
             if (!File.Exists(uiPath) || !File.Exists(sfPath)) return null;
             ui = new PckArchive(uiPath); sf = new PckArchive(sfPath);
             GameFonts.Load(element);
-            var dialog = GameDialog.Load(ui, @"interfaces\version01\quest.xml") ?? GameDialog.Load(ui, @"interfaces\quest.xml");
+            var dialog = GameSkin.Load(ui, element, "quest.xml");
             if (dialog is not null) return new QuestPreview(ui, sf, dialog);
         }
         catch (Exception ex) { AppLog.Error("janela de quest do jogo", ex); }

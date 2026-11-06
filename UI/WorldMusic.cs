@@ -21,6 +21,7 @@ internal sealed class WorldMusic : IDisposable
     int _next;
     long _waitUntil;
     bool _songOpen, _muted;
+    int _volume = 25;
     string _ambientNow = "";
 
     static string MuteFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "world_mute.txt");
@@ -30,6 +31,8 @@ internal sealed class WorldMusic : IDisposable
         _element = elementDir;
         _file = PrecinctFile.Read(Path.Combine(mapDir, "precinct.clt"));
         _muted = File.Exists(MuteFile);
+        try { if (File.Exists(VolumeFile) && int.TryParse(File.ReadAllText(VolumeFile), out var v)) _volume = Math.Clamp(v, 0, 100); }
+        catch (IOException ex) { AppLog.Info("world_volume: " + ex.Message); }
     }
 
     /// <summary>Diagnóstico: o Windows abre este mp3? Abre e fecha sem tocar.</summary>
@@ -38,6 +41,27 @@ internal sealed class WorldMusic : IDisposable
         bool ok = mciSendString($"open \"{file}\" type mpegvideo alias pwtest", null, 0, IntPtr.Zero) == 0;
         mciSendString("close pwtest", null, 0, IntPtr.Zero);
         return ok;
+    }
+
+    static string VolumeFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "world_volume.txt");
+
+    /// <summary>Volume de 0 a 100, guardado entre as sessões. Começa baixo: o jogo é alto.</summary>
+    public int Volume
+    {
+        get => _volume;
+        set
+        {
+            _volume = Math.Clamp(value, 0, 100);
+            try { File.WriteAllText(VolumeFile, _volume.ToString()); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Info("world_volume: " + ex.Message); }
+            ApplyVolume();
+        }
+    }
+
+    void ApplyVolume()
+    {
+        mciSendString($"setaudio {Song} volume to {_volume * 10}", null, 0, IntPtr.Zero);
+        mciSendString($"setaudio {Ambient} volume to {_volume * 6}", null, 0, IntPtr.Zero);
     }
 
     public bool Muted
@@ -80,7 +104,7 @@ internal sealed class WorldMusic : IDisposable
         if (file is null) return;
         if (mciSendString($"open \"{file}\" type mpegvideo alias {Song}", null, 0, IntPtr.Zero) != 0) return;
         _songOpen = true;
-        mciSendString($"setaudio {Song} volume to 450", null, 0, IntPtr.Zero);
+        mciSendString($"setaudio {Song} volume to {_volume * 10}", null, 0, IntPtr.Zero);
         mciSendString($"play {Song}", null, 0, IntPtr.Zero);
     }
 
@@ -99,7 +123,7 @@ internal sealed class WorldMusic : IDisposable
         _ambientNow = sound;
         if (Resolve(sound) is not { } file) return;
         if (mciSendString($"open \"{file}\" type mpegvideo alias {Ambient}", null, 0, IntPtr.Zero) != 0) return;
-        mciSendString($"setaudio {Ambient} volume to 300", null, 0, IntPtr.Zero);
+        mciSendString($"setaudio {Ambient} volume to {_volume * 6}", null, 0, IntPtr.Zero);
         mciSendString($"play {Ambient} repeat", null, 0, IntPtr.Zero);
     }
 

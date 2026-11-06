@@ -962,6 +962,22 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 ### 1.8.0 (cliente 180 BR, elements v531, tasks v198)
 - So cliente no acervo; sem servidor para levantar comandos.
 
+## §S36 PONTOS DE TELEPORTE, PRECINCT, DOMINIO E AJUDA (06/11; estudo do teste 30 + ferramenta Teleportes)
+- [C] cliente `element\maps\world\world_targets.txt`: UTF-16 com BOM, linha `id<TAB>"nome"<TAB>tag<TAB>"x,y,z"<TAB>dominio\r\n` (`%d\t"%s"\t%d\t"%.3f,%.3f,%.3f"\t%d\r\n`, CCommon/globaldataman.cpp). nome = wide_char[32]. [T] regravar da byte igual ao original (155 BR, 92 pontos).
+- [C] servidor `gamed/config/world_targets.sev`: i32 n + 24 B por ponto (id, tag, x, y, z, dominio). gs.conf: `Root = ./config/`, `GlobalData = world_targets.sev`. [T] regravar da byte igual (162-155, 126 pontos). `config/world/world_targets.sev` (1300 B) existe no 162-155 e NAO e o que o gs le.
+- [C] `globalsave` na linha de comando do cliente grava o .sev a partir do .txt.
+- [C] jogador guarda os pontos ativados em `_waypoint_list` (unsigned short), `IsWaypointActived(target & 0xFFFF)`, `short wp`: ID util ate 32767. MAX_WAYPOINT_COUNT 1024.
+- [C] NPC `id_to_discover`: 1 ponto por NPC, ativa ao falar (waypoint_service_provider); tambem e o inicio do caminho em `c2s_CmdNPCSevTransmitDirect`.
+- [C] NPC_TRANSMIT_SERVICE: num_targets + targets_N_idTarget/fee/required_level, N ate 32. ASSERT(num_targets): 0 derruba o gs. idTarget fora do .sev: log e destino (0,0,0).
+- [C] mapa de viagem desenha pelo x,z do ponto (`GetPixelsByPos`, InGame\WayPoint.dds); `m_RegionWayPointsMap` liga o ponto as regioes do region.clt. Nao precisa de imagem nova.
+- [C] precinct.clt: UTF-16, `version 7`, carimbo; por area: nome; id pontos marcas prioridade instancia musicas intervalo laco [origem v4] [dominio v6] [pk v7]; cidade xyz; pontos; marcas (nome x y z); som; musicas; [som de noite v3]. Nome da area = nome em cima do minimapa.
+- [T] o ID da area REPETE dentro do mesmo arquivo em alguns mapas (ex.: 12003): casar entre clientes por ID + ordem dentro do ID.
+- [T] dominio do ponto = idDomain da area de maior prioridade no x,z, -1 fora: 64 de 65 pontos do mapa 1 batem no 155 BR. Excecao: 9046 Altar da Ilusao, arquivo -1 e precinct 52. Nas instancias o dominio e -1.
+- [T] 155 BR x servidor 162-155: 34 pontos so no servidor (IDs a partir de 9055); o cliente nao mostra esses.
+- [C] help\script.pck: arquivos `1011.nome.script` UTF-8: `#id`, `#type`, `#name "..."`, `#force_pop`, `#steps "..."`, `#define NOME "..."` e comandos. Comando que o executavel nao registrou derruba o cliente: traduzir so os textos, casando pelo numero do arquivo. [T] 155 BR x PWI: 229 textos em 84 arquivos.
+- [T] tema do cliente: `element\userdata\systemsettings.ini` `Theme`; 0 = interfaces\ingame.dcf (xml na raiz), outro = ingame-v1.dcf (Version01\...). CECUIManager::GetUIDcf.
+- [T] cor da agua no mapa pode vir quase branca (FFC0C0C0 no lago da cidade do mapa 1): pintar direto com ela deixa a agua leitosa. Como o jogo usa essa cor: ver A3DTerrainWaterRender.cpp (nao estudado).
+
 ## §Z RESOLVIDOS (use SEMPRE estes; ignore versoes antigas)
 - [31/10] interfaces.pck: a raiz NAO e "antiga, o jogo nao usa". ingame.dcf (interface classica) carrega so a raiz; ingame-v1.dcf (nova) carrega version01\ + 40-110 janelas da raiz. A janela que vale e a que o .dcf cita (§S20b) [T]
 - lancamento: jan/2006 (nao 2005)

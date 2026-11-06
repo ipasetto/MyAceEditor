@@ -9,6 +9,9 @@ namespace MyAceEditor.UI;
 internal sealed record QuestWorld(Action<Action<int>> PickNpc, Action<Action<QuestArea>> PickArea, Action<IReadOnlyList<QuestArea>, int> ShowAreas, Func<int> MapTag,
     Action<Action<int>> PickMonster, Action<Action<int>> PickMine);
 
+/// <summary>NPC que leva a um ponto de teleporte, com a taxa e o nível do destino.</summary>
+internal readonly record struct TeleportLink(int Npc, string Name, int Fee, int Level);
+
 /// <summary>O que o Mundo 3D pede ao editor para criar e ligar quests (elements + tasks carregados, com desfazer).</summary>
 internal interface IQuestHost
 {
@@ -40,10 +43,22 @@ internal interface IQuestHost
     int? PickCreatureId(IWin32Window owner, bool npcOnly) => null;
     int? PickRecipeId(IWin32Window owner) => null;
     int RecipeProduct(int recipe) => 0;
+    /// <summary>Habilidades de fabricação do jogo (ferreiro, alfaiate...): as que as receitas usam.</summary>
+    IReadOnlyList<(int Id, string Name)> MakeSkills() => [];
     List<(int Id, int Num)> RecipeMaterials(int recipe) => [];
     /// <summary>Ferramenta Criar: o que impede de criar (vazio = pode) e criação dos registros; devolve o ID do NPC.</summary>
     IReadOnlyList<string> ValidateNpc(PerfectWorld.NpcDraft draft) => [];
     int? BuildNpc(PerfectWorld.NpcDraft draft) => null;
+    /// <summary>Ferramenta Teleportes: quem leva e quem descobre o ponto, e as mudanças no elements (com Ctrl+Z). Null = deu certo.</summary>
+    IReadOnlyList<TeleportLink> TeleportersTo(int point) => [];
+    IReadOnlyList<(int Id, string Name)> DiscoverersOf(int point) => [];
+    int DiscoverOf(int npc) => 0;
+    string? SetDiscover(int npc, int point) => null;
+    /// <summary>Quantos NPCs usam o serviço de teleporte deste NPC.</summary>
+    int ServiceUsers(int npc) => 0;
+    /// <summary>Acrescenta o destino ou muda a taxa e o nível dele. <paramref name="copy"/>: cópia do serviço só para este NPC.</summary>
+    string? SetTransmit(int npc, int point, int fee, int level, bool copy) => null;
+    string? RemoveTransmit(int npc, int point, bool copy) => null;
     /// <summary>Favoritos e recentes do editor de elements, para a janela de busca.</summary>
     IReadOnlyList<int> FavoriteIds() => [];
     IReadOnlyList<int> RecentIds() => [];

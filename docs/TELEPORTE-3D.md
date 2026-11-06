@@ -1,6 +1,6 @@
 # Estudo: pontos de teleporte novos no Mundo 3D (teste 30)
 
-Só estudo: nada foi implementado. Lista completa de quem leva aonde no 1.5.5: [TELEPORTE-155.txt](TELEPORTE-155.txt)
+Implementado em 06/11: ferramenta **Teleportes** do Mundo 3D e **Criar > Teleportador**. Falta o teste no jogo. Lista completa de quem leva aonde no 1.5.5: [TELEPORTE-155.txt](TELEPORTE-155.txt)
 (`--teleport-report <pasta element> <saída>`).
 
 ## Como funciona hoje
@@ -37,8 +37,14 @@ Novo ladrilho **Teleportes** no Mundo 3D, no padrão das ferramentas:
    todos ou cria uma cópia só para este, como nos caminhos.
 5. **Conferir antes de salvar:** ponto sem quem descobre, destino que não existe nos dois arquivos, ID acima de 16 bits.
 
-## O que falta saber antes de construir
+## O que o estudo de precinct e domínio resolveu
 
-- Como o mapa de viagem (`CDlgWorldMap::BuildTravelMap`) posiciona o ponto: se usa só o x e z do `.txt` ou também a imagem do mapa.
-- Se existe limite de destinos por serviço na janela do cliente: o bloco tem espaço para 32.
-- Teste no jogo: criar um ponto, ativar e viajar.
+- O mapa de viagem usa só o x e o z do ponto, pelo `GetPixelsByPos`: ponto novo aparece sem imagem nova.
+- O bloco aceita 32 destinos; a ferramenta para em 32.
+- O domínio do ponto novo vem da área do `precinct.clt` de maior prioridade naquele x e z; fora de área fica -1. Confere com 64 dos 65 pontos do mapa 1.
+- O gs lê `config/world_targets.sev` (gs.conf: `Root` + `GlobalData`), não o de `config/world/`.
+- ID útil até 32767: o jogador guarda o ponto em 16 bits com sinal.
+
+## O que falta
+
+- Teste no jogo: criar um ponto, ativar falando com o NPC e viajar.

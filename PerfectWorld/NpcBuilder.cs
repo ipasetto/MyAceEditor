@@ -2,7 +2,10 @@ using MyAceEditor.Model;
 
 namespace MyAceEditor.PerfectWorld;
 
-public enum NpcKind { Creature, Npc, Seller, Forge }
+public enum NpcKind { Creature, Npc, Seller, Forge, Teleporter }
+
+/// <summary>Destino de um teleportador: ponto, taxa e nível mínimo.</summary>
+public readonly record struct TeleportStop(int Point, int Fee, int Level);
 
 /// <summary>Loja em rascunho: 8 páginas de 32 itens, como NPC_SELL_SERVICE.</summary>
 public sealed class ShopDraft
@@ -16,19 +19,21 @@ public sealed class ShopDraft
 /// <summary>Receita de um espaço da fornalha: RecipeId &gt; 0 usa uma que já existe; 0 cria uma nova com os outros campos.</summary>
 public sealed class RecipeDraft
 {
-    public int RecipeId, Product, Count = 1, Price;
+    public int RecipeId, Product, Count = 1, Price, SkillLevel;
     public float Duration = 2;
     public List<(int Id, int Num)> Materials = [];
-    public RecipeDraft Copy() => new() { RecipeId = RecipeId, Product = Product, Count = Count, Price = Price, Duration = Duration, Materials = [.. Materials] };
+    public RecipeDraft Copy() => new() { RecipeId = RecipeId, Product = Product, Count = Count, Price = Price, Duration = Duration, SkillLevel = SkillLevel, Materials = [.. Materials] };
 }
 
 /// <summary>Fabricação em rascunho: 8 páginas de 32 receitas, como NPC_MAKE_SERVICE.</summary>
 public sealed class MakeDraft
 {
+    /// <summary>Habilidade que o jogador precisa ter (0 = nada): uma por NPC, como id_make_skill.</summary>
+    public int Skill;
     public string[] Titles = Enumerable.Repeat("", 8).ToArray();
     public RecipeDraft?[][] Goods = Enumerable.Range(0, 8).Select(_ => new RecipeDraft?[32]).ToArray();
     public int Count => Goods.Sum(p => p.Count(g => g is not null));
-    public MakeDraft Copy() => new() { Titles = (string[])Titles.Clone(), Goods = Goods.Select(p => p.Select(g => g?.Copy()).ToArray()).ToArray() };
+    public MakeDraft Copy() => new() { Skill = Skill, Titles = (string[])Titles.Clone(), Goods = Goods.Select(p => p.Select(g => g?.Copy()).ToArray()).ToArray() };
 }
 
 public sealed class NpcDraft
@@ -38,6 +43,9 @@ public sealed class NpcDraft
     public string Name = "";
     public ShopDraft? Shop;
     public MakeDraft? Make;
+    public List<TeleportStop> Stops = [];
+    /// <summary>Ponto que o jogador ativa ao falar com ele (id_to_discover); 0 = nenhum.</summary>
+    public int Discover;
 }
 
 /// <summary>
@@ -47,7 +55,7 @@ public sealed class NpcDraft
 /// </summary>
 public static class NpcBuilder
 {
-    public const int Pages = 8, Slots = 32, MaxMaterials = 32;
+    public const int Pages = 8, Slots = 32, MaxMaterials = 32, MaxStops = 32;
 
     static string? F(Item i, string k) => i.Fields.TryGetValue(k, out var f) ? f.Value : null;
     static void Set(Item i, string k, string v) { if (i.Fields.TryGetValue(k, out var f)) i.Fields[k] = Field.Of(f.Type, v); }
@@ -67,6 +75,7 @@ public static class NpcBuilder
     {
         var skills = d.Goods.SelectMany(p => p).Where(g => g is { RecipeId: > 0 })
             .Select(g => Find(m, "RECIPE_ESSENCE", g!.RecipeId) is { } r && int.TryParse(F(r, "id_skill"), out var s) ? s : 0).Distinct().ToList();
+        if (d.Skill > 0 && !skills.Contains(d.Skill)) skills.Add(d.Skill);
         mixed = skills.Count > 1;
         return skills.FirstOrDefault();
     }
@@ -86,6 +95,11 @@ public static class NpcBuilder
             else foreach (int id in shop.Goods.SelectMany(p => p).Where(g => g > 0).Distinct())
                     if (!isItem(id)) e.Add(string.Format(T("nb.noItem", "O item {0} não existe no elements.data."), id));
             if (m.FindListByName("NPC_SELL_SERVICE") is null) e.Add(T("nb.noSellBlock", "Este elements.data não tem o bloco de lojas."));
+        }
+        if (d.Kind == NpcKind.Teleporter)
+        {
+            if (d.Stops.Count == 0) e.Add(T("nb.noStops", "Escolha pelo menos um destino: sem destino o gs cai ao iniciar."));
+            if (d.Stops.Count > MaxStops) e.Add(string.Format(T("nb.manyStops", "Mais de {0} destinos."), MaxStops));
         }
         if (d.Kind == NpcKind.Forge)
         {
@@ -121,11 +135,57 @@ public static class NpcBuilder
         }
     }
 
-    static void FillRecipe(Item rec, RecipeDraft r, int skill, string name)
+    /// <summary>Serviço em branco com o próximo ID livre do bloco.</summary>
+    public static Item NewService(Module m, string block, string name, Func<ItemList, Item> blank)
+    {
+        var list = m.FindListByName(block)!;
+        var s = blank(list);
+        s.Id = IdRefactor.NextFreeId(m, list).ToString(); s.Name = name;
+        Set(s, "ID", s.Id); Set(s, "Name", name);
+        return s;
+    }
+
+    /// <summary>Cópia do serviço com ID novo, para mudar um NPC sem mexer nos outros que usam o mesmo.</summary>
+    public static Item CopyService(Module m, ItemList block, Item from)
+    {
+        var s = new Item { Id = IdRefactor.NextFreeId(m, block).ToString(), Name = from.Name, Fields = from.Fields.Clone(), Raw = from.Raw?.ToArray() };
+        Set(s, "ID", s.Id);
+        return s;
+    }
+
+    /// <summary>Campos do serviço de teleporte para estes destinos: num_targets e a lista, o resto zerado.</summary>
+    public static IEnumerable<(string Key, string Value)> StopFields(Item svc, IReadOnlyList<TeleportStop> stops)
+    {
+        yield return ("num_targets", stops.Count.ToString());
+        for (int i = 1; svc.Fields.ContainsKey($"targets_{i}_idTarget"); i++)
+        {
+            bool has = i <= stops.Count;
+            yield return ($"targets_{i}_idTarget", has ? stops[i - 1].Point.ToString() : "0");
+            yield return ($"targets_{i}_fee", has ? stops[i - 1].Fee.ToString() : "0");
+            yield return ($"targets_{i}_required_level", has ? stops[i - 1].Level.ToString() : "0");
+        }
+    }
+
+    public static void FillStops(Item svc, IReadOnlyList<TeleportStop> stops)
+    {
+        foreach (var (k, v) in StopFields(svc, stops)) Set(svc, k, v);
+    }
+
+    /// <summary>Destinos que o serviço tem hoje.</summary>
+    public static List<TeleportStop> StopsOf(Item svc)
+    {
+        var o = new List<TeleportStop>();
+        int n = int.TryParse(F(svc, "num_targets"), out var c) ? c : 0;
+        for (int i = 1; i <= n && svc.Fields.ContainsKey($"targets_{i}_idTarget"); i++)
+            o.Add(new TeleportStop(int.Parse(F(svc, $"targets_{i}_idTarget") ?? "0"), int.Parse(F(svc, $"targets_{i}_fee") ?? "0"), int.Parse(F(svc, $"targets_{i}_required_level") ?? "0")));
+        return o;
+    }
+
+    static void FillRecipe(Item rec, RecipeDraft r, int skill, string name)   // recipe_level dá a experiência da habilidade; skill_level é o mínimo exigido
     {
         rec.Name = name;
         Set(rec, "Name", name);
-        Set(rec, "id_skill", skill.ToString()); Set(rec, "skill_level", "0"); Set(rec, "recipe_level", "1"); Set(rec, "bind_type", "0");
+        Set(rec, "id_skill", skill.ToString()); Set(rec, "skill_level", (skill > 0 ? r.SkillLevel : 0).ToString()); Set(rec, "recipe_level", Math.Max(1, r.SkillLevel).ToString()); Set(rec, "bind_type", "0");
         Set(rec, "targets_1_id_to_make", r.Product.ToString()); Set(rec, "targets_1_probability", "1");
         for (int t = 2; t <= 4; t++) { Set(rec, $"targets_{t}_id_to_make", "0"); Set(rec, $"targets_{t}_probability", "0"); }
         Set(rec, "fail_probability", "0"); Set(rec, "num_to_make", r.Count.ToString()); Set(rec, "price", r.Price.ToString());
@@ -149,14 +209,7 @@ public static class NpcBuilder
         Set(npc, "ID", npc.Id); Set(npc, "Name", npc.Name);
         insert(npcs, npc);
 
-        Item Service(string block, string name)
-        {
-            var list = m.FindListByName(block)!;
-            var s = blank(list);
-            s.Id = IdRefactor.NextFreeId(m, list).ToString(); s.Name = name;
-            Set(s, "ID", s.Id); Set(s, "Name", name);
-            return s;
-        }
+        Item Service(string block, string name) => NewService(m, block, name, blank);
 
         if (d.Kind == NpcKind.Seller)
         {
@@ -165,6 +218,14 @@ public static class NpcBuilder
             FillShop(svc, d.Shop!);
             Set(npc, "id_sell_service", svc.Id);
             if (m.FindListByName("NPC_BUY_SERVICE")?.Items.FirstOrDefault() is { } buy) Set(npc, "id_buy_service", buy.Id);   // o jogador também vende para ele
+        }
+        if (d.Discover > 0) Set(npc, "id_to_discover", d.Discover.ToString());
+        if (d.Kind == NpcKind.Teleporter)
+        {
+            var svc = Service("NPC_TRANSMIT_SERVICE", npc.Name);
+            insert(m.FindListByName("NPC_TRANSMIT_SERVICE")!, svc);
+            FillStops(svc, d.Stops);
+            Set(npc, "id_transmit_service", svc.Id);
         }
         if (d.Kind == NpcKind.Forge)
         {

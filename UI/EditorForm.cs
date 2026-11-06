@@ -387,7 +387,10 @@ public sealed class EditorForm : Form
         });
         tb.Items.Add(lang);
         // servidor e pastas do cliente aberto: ao lado da bandeira (à esquerda dela), um lugar só para os caminhos
-        UiKit.Cmd(tb, UiKit.Server, "tb.rServerSetup", "Servidor", () => { if (_tabs is not null && _tabServer is not null) { _tabs.SelectedTab = _tabServer; if (_serverPages is not null) _serverPages.SelectedIndex = 0; } }, "tb.rServerTip", "Servidor de teste: ligar, enviar arquivos, pastas, verificar e corrigir");
+        var serverBtn = UiKit.Cmd(tb, UiKit.Server, "tb.rServerSetup", "Servidor", () => { if (_tabs is not null && _tabServer is not null) { _tabs.SelectedTab = _tabServer; if (_serverPages is not null) _serverPages.SelectedIndex = 0; } }, "tb.rServerTip", "Servidor de teste: ligar, enviar arquivos, pastas, verificar e corrigir");
+        serverBtn.Alignment = ToolStripItemAlignment.Right;   // à esquerda da bandeira, com leve destaque
+        serverBtn.BackColor = Color.FromArgb(222, 233, 251); serverBtn.ForeColor = UiKit.Accent;
+        serverBtn.Font = new Font("Segoe UI Semibold", 9f); serverBtn.Image = UiKit.Icon(UiKit.Server, UiKit.Accent, 22);
         UiKit.Cmd(tb, UiKit.Globe, "tb.rWorld", "Mundo 3D", () => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); }, "tb.rWorldTip", "Abre o mapa do jogo em 3D com os pontos do NPCGen.");
         return tb;
     }
@@ -502,6 +505,7 @@ public sealed class EditorForm : Form
         tSrv.Controls.Add(new SegmentBar(serverPages, pg => pg == tChk ? UiKit.CheckList : UiKit.Server));
         _serverPages = serverPages;
         _serverView.VerifyRequested += () => { ShowCheck(); RunCheck(0); };
+        _serverView.PluginsRequested += () => { if (_tabs is not null && _tabPlugins is not null) _tabs.SelectedTab = _tabPlugins; };
         // Plugins de evento (docs/PLUGINS.md): programa do servidor que sorteia/chama eventos (usuário 01/11)
         var tPl = new TabPage() { BackColor = CBg };
         _tabPlugins = tPl;
@@ -537,11 +541,10 @@ public sealed class EditorForm : Form
             (UiKit.Cart, "tab.gshop", "nav.gshopTip", "Loja de cash, na mesma tela do jogo"),
             (UiKit.MapPin, "tab.npcgen", "nav.npcgenTip", "Onde nascem monstros, NPCs e recursos; Mundo 3D"),
             (UiKit.Robot, "tab.aipolicy", "nav.aiTip", "Comportamento dos monstros (aipolicy.data)"),
-            (UiKit.Play, "tab.plugins", "nav.pluginsTip", "Eventos automáticos no servidor: monstro raro por sorteio, chamar pelo GM"),
             (UiKit.Layers, "tab.interfaces", "nav.uiTip", "Janelas do jogo: editar na tela, importar, trocar com outro cliente, telas de carregamento"),
             (UiKit.Box, "tab.pck", "nav.pckTip2", "Pacotes .pck: abrir, ver e extrair arquivos"),
         };
-        var tools = tabs.TabPages.Cast<TabPage>().Where(p => p != _tabServer).ToList();   // o Servidor abre pelo botão de cima
+        var tools = tabs.TabPages.Cast<TabPage>().Where(p => p != _tabServer && p != _tabPlugins).ToList();   // o Servidor abre pelo botão de cima, e os Plugins por dentro dele
         for (int i = 0; i < pages.Length && i < tools.Count; i++)
         {
             var (g, key, tip, tipPt) = pages[i];
@@ -3179,6 +3182,9 @@ public sealed class EditorForm : Form
         }
         public int? PickCreatureId(IWin32Window owner, bool npcOnly) => f.PickCreature(owner, npcOnly);
         public int? PickRecipeId(IWin32Window owner) => f.PickRecipe(owner);
+        public IReadOnlyList<(int Id, string Name)> MakeSkills() => f._store.Current?.FindListByName("RECIPE_ESSENCE")?.Items
+            .Select(r => r.Fields.TryGetValue("id_skill", out var v) && int.TryParse(v.Value, out var n) ? n : 0).Where(n => n > 0).Distinct().OrderBy(n => n)
+            .Select(n => (n, f._cfgs?.SkillNames.TryGetValue(n, out var sn) == true ? TasksFile.SplitColor(sn!).Text : n.ToString())).ToList() ?? [];
         public int RecipeProduct(int recipe) => f.RecipeOf(recipe) is { } r && r.Fields.TryGetValue("targets_1_id_to_make", out var v) && int.TryParse(v.Value, out var n) ? n : 0;
         public List<(int Id, int Num)> RecipeMaterials(int recipe)
         {
@@ -3191,6 +3197,13 @@ public sealed class EditorForm : Form
         public IReadOnlyList<string> ValidateNpc(NpcDraft draft) => f._store.Current is { } m
             ? NpcBuilder.Validate(m, draft, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null) : [Loc.T("status.openFirst", "Abra um elements.data primeiro")];
         public int? BuildNpc(NpcDraft draft) => f.BuildNpc(draft);
+        public IReadOnlyList<TeleportLink> TeleportersTo(int point) => f.TeleportersTo(point);
+        public IReadOnlyList<(int Id, string Name)> DiscoverersOf(int point) => f.DiscoverersOf(point);
+        public int DiscoverOf(int npc) => f.NpcById(npc) is { } n ? NpcNumber(n, "id_to_discover") : 0;
+        public string? SetDiscover(int npc, int point) => f.SetDiscover(npc, point);
+        public int ServiceUsers(int npc) => f.ServiceUsers(npc);
+        public string? SetTransmit(int npc, int point, int fee, int level, bool copy) => f.SetTransmit(npc, point, fee, level, copy);
+        public string? RemoveTransmit(int npc, int point, bool copy) => f.RemoveTransmit(npc, point, copy);
         public Image? ItemIcon(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? f.IconFor(h.Item) : null;
         public IReadOnlyList<int> FavoriteIds() => f.FavoriteIds();
         public IReadOnlyList<int> RecentIds() => f.RecentIds();
@@ -3762,10 +3775,41 @@ public sealed class EditorForm : Form
     }
 
     /// <summary>Diagnóstico (--create-shot): janelas da ferramenta Criar e dicas com os dados do cliente aberto, fora da tela.</summary>
+    /// <summary>--create-shot: as mudanças da ferramenta Teleportes na memória, com Ctrl+Z, sem gravar nada.</summary>
+    private void TeleportHostCheck(string file)
+    {
+        var o = new List<string>();
+        var npcs = _store.Current!.FindListByName("NPC_ESSENCE")!.Items;
+        var shared = npcs.GroupBy(n => NpcNumber(n, "id_transmit_service")).First(g => g.Key > 0 && ServiceById(g.Key) is not null && g.Count() > 1).ToList();
+        int a = int.Parse(shared[0].Id), b = int.Parse(shared[1].Id), service = NpcNumber(shared[0], "id_transmit_service");
+        var free = npcs.First(n => NpcNumber(n, "id_transmit_service") == 0);
+        int c = int.Parse(free.Id), point = 9999;
+        int Stops(int npc) => ServiceById(NpcNumber(NpcById(npc)!, "id_transmit_service")) is { } s ? NpcBuilder.StopsOf(s).Count : 0;
+        string Line() => $"A serviço {NpcNumber(NpcById(a)!, "id_transmit_service")} ({Stops(a)})  B serviço {NpcNumber(NpcById(b)!, "id_transmit_service")} ({Stops(b)})  C serviço {NpcNumber(free, "id_transmit_service")} ({Stops(c)})  itens de serviço {_store.Current!.FindListByName("NPC_TRANSMIT_SERVICE")!.Items.Count}";
+        o.Add($"início, {shared.Count} NPCs no serviço {service}: " + Line());
+        o.Add("cópia só para A: " + (SetTransmit(a, point, 700, 20, copy: true) ?? "ok") + "  " + Line());
+        o.Add("A leva: " + string.Join(", ", TeleportersTo(point)));
+        _edits.Undo();
+        o.Add("Ctrl+Z: " + Line() + "  leva " + TeleportersTo(point).Count);
+        o.Add("para todos: " + (SetTransmit(a, point, 700, 20, copy: false) ?? "ok") + "  " + Line() + "  leva " + TeleportersTo(point).Count);
+        o.Add("muda taxa: " + (SetTransmit(a, point, 900, 30, copy: false) ?? "ok") + "  " + string.Join(", ", TeleportersTo(point).Take(1)));
+        _edits.Undo(); _edits.Undo();
+        o.Add("Ctrl+Z duas vezes: " + Line());
+        o.Add("C sem serviço: " + (SetTransmit(c, point, 0, 0, copy: false) ?? "ok") + "  " + Line());
+        o.Add("tira o último de C: " + (RemoveTransmit(c, point, copy: false) ?? "ok") + "  " + Line());
+        _edits.Undo(); _edits.Undo();
+        o.Add("Ctrl+Z duas vezes: " + Line());
+        o.Add("descobre: " + (SetDiscover(c, point) ?? "ok") + "  " + string.Join(", ", DiscoverersOf(point)));
+        _edits.Undo();
+        o.Add("Ctrl+Z: " + DiscoverersOf(point).Count);
+        File.WriteAllLines(file, o);
+    }
+
     internal void CreateShots(string dir)
     {
         Directory.CreateDirectory(dir);
         if (_store.Current is not { } m || _dataPath is null || Path.GetDirectoryName(Path.GetDirectoryName(_dataPath)) is not { } element) return;
+        TeleportHostCheck(Path.Combine(dir, "teleport-host.txt"));
         var host = new QuestHostImpl(this);
         var ids = host.AllItems().Where(r => host.ItemIcon(r.Id) is not null).Take(12).Select(r => r.Id).ToList();
         void Save(Control c, string name)
@@ -3846,6 +3890,90 @@ public sealed class EditorForm : Form
                 foreach (var (k, f) in template.Fields) ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
         }
         return ni;
+    }
+
+    // ---------- ferramenta Teleportes do Mundo 3D: id_to_discover e NPC_TRANSMIT_SERVICE ----------
+    private static int NpcNumber(Item i, string key) => i.Fields.TryGetValue(key, out var v) && int.TryParse(v.Value, out var n) ? n : 0;
+    private Item? NpcById(int id) => _store.Current?.FindListByName("NPC_ESSENCE")?.Items.FirstOrDefault(i => i.Id == id.ToString());
+    private Item? ServiceById(int id) => id <= 0 ? null : _store.Current?.FindListByName("NPC_TRANSMIT_SERVICE")?.Items.FirstOrDefault(i => i.Id == id.ToString());
+    private static string CleanName(Item i) => TasksFile.SplitColor(i.Name).Text;
+
+    private List<TeleportLink> TeleportersTo(int point)
+    {
+        var o = new List<TeleportLink>();
+        if (_store.Current is not { } m || m.FindListByName("NPC_ESSENCE") is not { } npcs) return o;
+        var stops = new Dictionary<string, TeleportStop>();
+        foreach (var s in m.FindListByName("NPC_TRANSMIT_SERVICE")?.Items ?? [])
+            if (NpcBuilder.StopsOf(s).FirstOrDefault(t => t.Point == point) is { Point: > 0 } hit) stops[s.Id] = hit;
+        foreach (var n in npcs.Items)
+            if (stops.TryGetValue(NpcNumber(n, "id_transmit_service").ToString(), out var t)) o.Add(new TeleportLink(int.Parse(n.Id), CleanName(n), t.Fee, t.Level));
+        return o;
+    }
+
+    private List<(int Id, string Name)> DiscoverersOf(int point) => _store.Current?.FindListByName("NPC_ESSENCE")?.Items
+        .Where(n => NpcNumber(n, "id_to_discover") == point).Select(n => (int.Parse(n.Id), CleanName(n))).ToList() ?? [];
+
+    private string? SetDiscover(int npc, int point)
+    {
+        if (NpcById(npc) is not { } n) return Loc.T("status.openFirst", "Abra um elements.data primeiro.");
+        SetField(n, "id_to_discover", point.ToString(), refresh: false);
+        return null;
+    }
+
+    private int ServiceUsers(int npc)
+    {
+        int svc = NpcById(npc) is { } n ? NpcNumber(n, "id_transmit_service") : 0;
+        return svc == 0 ? 0 : _store.Current?.FindListByName("NPC_ESSENCE")?.Items.Count(i => NpcNumber(i, "id_transmit_service") == svc) ?? 0;
+    }
+
+    /// <summary>Serviço que vai mudar: o do NPC, uma cópia só dele ou um novo se ele não tem. Faz parte do mesmo passo do Ctrl+Z.</summary>
+    private Item TransmitFor(Module m, Item npc, bool copy)
+    {
+        var block = m.FindListByName("NPC_TRANSMIT_SERVICE")!;
+        var now = ServiceById(NpcNumber(npc, "id_transmit_service"));
+        if (now is not null && !copy) return now;
+        var s = now is null ? NpcBuilder.NewService(m, "NPC_TRANSMIT_SERVICE", npc.Name, BlankRecord) : NpcBuilder.CopyService(m, block, now);
+        _edits.AddItem(block, s, string.Format(Loc.T("hist.add", "Novo item {0}"), s.Id));
+        _owner[s] = block;
+        SetField(npc, "id_transmit_service", s.Id, refresh: false);
+        return s;
+    }
+
+    private void WriteStops(Item svc, IReadOnlyList<TeleportStop> stops)
+    {
+        foreach (var (k, v) in NpcBuilder.StopFields(svc, stops))
+            if (svc.Fields.TryGetValue(k, out var f) && f.Value != v) SetField(svc, k, v, refresh: false);
+    }
+
+    private string? SetTransmit(int npc, int point, int fee, int level, bool copy)
+    {
+        if (_store.Current is not { } m || NpcById(npc) is not { } n) return Loc.T("status.openFirst", "Abra um elements.data primeiro.");
+        var stops = ServiceById(NpcNumber(n, "id_transmit_service")) is { } now ? NpcBuilder.StopsOf(now) : [];
+        var stop = new TeleportStop(point, fee, level);
+        int at = stops.FindIndex(s => s.Point == point);
+        if (at >= 0) stops[at] = stop;
+        else if (stops.Count >= NpcBuilder.MaxStops) return string.Format(Loc.T("nb.manyStops", "Mais de {0} destinos."), NpcBuilder.MaxStops);
+        else stops.Add(stop);
+        using (_edits.Batch(string.Format(Loc.T("hist.transmit", "Destino {0} em {1}"), point, npc))) WriteStops(TransmitFor(m, n, copy), stops);
+        _refs = new RefIndex(m);
+        RefreshView();
+        return null;
+    }
+
+    private string? RemoveTransmit(int npc, int point, bool copy)
+    {
+        if (_store.Current is not { } m || NpcById(npc) is not { } n) return Loc.T("status.openFirst", "Abra um elements.data primeiro.");
+        if (ServiceById(NpcNumber(n, "id_transmit_service")) is not { } now) return null;
+        var stops = NpcBuilder.StopsOf(now).Where(s => s.Point != point).ToList();
+        using (_edits.Batch(string.Format(Loc.T("hist.transmitOut", "Tira o destino {0} de {1}"), point, npc)))
+        {
+            // sem destino o gs cai (num_targets 0): o NPC só deixa de ter o serviço, que continua igual para quem mais usa
+            if (stops.Count == 0) SetField(n, "id_transmit_service", "0", refresh: false);
+            else WriteStops(TransmitFor(m, n, copy), stops);
+        }
+        _refs = new RefIndex(m);
+        RefreshView();
+        return null;
     }
 
     /// <summary>Ferramenta Criar do Mundo 3D: NPC, loja, fabricação e receitas, cada um com o seu passo no Ctrl+Z do editor.</summary>

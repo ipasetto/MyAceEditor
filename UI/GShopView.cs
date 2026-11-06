@@ -148,8 +148,8 @@ internal sealed class GShopView : UserControl
             _surfacesPck = TryPck(Path.Combine(element, "surfaces.pck"));
             _tex = _surfacesPck is null ? null : new GameTextures(_surfacesPck);
             GameFonts.Load(element);
-            _dlg = _interfacesPck is null ? null : GameDialog.Load(_interfacesPck, @"interfaces\version01\qshop.xml");
-            _cell = _interfacesPck is null ? null : GameDialog.Load(_interfacesPck, @"interfaces\version01\qshopitemdefault0.xml");
+            _dlg = _interfacesPck is null ? null : GameSkin.Load(_interfacesPck, element, "qshop.xml");
+            _cell = _interfacesPck is null ? null : GameSkin.Load(_interfacesPck, element, "qshopitemdefault0.xml");
             FillSurfaceList();
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, Loc.T("gshop.openFail", "Não consegui abrir a loja"), MessageBoxButtons.OK, MessageBoxIcon.Error); }

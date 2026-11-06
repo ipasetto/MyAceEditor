@@ -35,18 +35,26 @@ internal sealed class WorldWater : IDisposable
             vec3 n2 = bump(w / 71.0 - vec2(uTime * 0.005, -uTime * 0.008));
             float dist = length(uCam - vPos);
             float calm = 1.0 / (1.0 + dist / 260.0);          // longe a onda vira textura lisa, como no jogo
-            vec2 slope = (n1.xy + n2.xy * 0.7) * (0.20 * calm + 0.03);
+            vec2 slope = (n1.xy + n2.xy * 0.7) * (0.24 * calm + 0.04);
             vec3 N = normalize(vec3(slope.x, 1.0, slope.y));
             vec3 V = normalize(uCam - vPos);
-            float f = pow(1.0 - max(dot(V, N), 0.0), 3.0);
-            f = clamp(0.06 + 0.94 * f, 0.0, 1.0);
+            // o jogo mistura pouco reflexo (fresnel fraco) e a cor da água manda; reflexo forte vira espelho
+            float f = pow(1.0 - max(dot(V, N), 0.0), 5.0);
+            f = clamp(0.04 + 0.5 * f, 0.0, 0.55);
             vec2 p = vClip.xy / vClip.w * 0.5 + 0.5;
             vec3 refl = uSky;
-            if (uHasRef > 0.5) refl = texture2D(uRef, clamp(p + slope * 0.32, 0.002, 0.998)).rgb;
+            if (uHasRef > 0.5) {
+                vec2 q = p + slope * 0.24; vec2 r = vec2(0.006, 0.004) + abs(slope) * 0.05;   // várias amostras: reflexo mole, sem contorno
+                vec3 s = texture2D(uRef, clamp(q, 0.002, 0.998)).rgb;
+                s += texture2D(uRef, clamp(q + r, 0.002, 0.998)).rgb + texture2D(uRef, clamp(q - r, 0.002, 0.998)).rgb;
+                s += texture2D(uRef, clamp(q + vec2(r.x, -r.y), 0.002, 0.998)).rgb + texture2D(uRef, clamp(q - vec2(r.x, -r.y), 0.002, 0.998)).rgb;
+                refl = mix(s / 5.0, uSky, 0.3);
+            }
             vec3 col = mix(vCol.rgb, refl, f);
             vec3 H = normalize(V + uSun);
-            col += uSunColor * pow(max(dot(N, H), 0.0), 220.0) * 0.9;
-            float a = mix(vCol.a, 1.0, f * 0.85);
+            vec3 Ns = normalize(vec3(slope.x * 0.4, 1.0, slope.y * 0.4));   // brilho com a onda suave: com a onda toda a água fica leitosa de sol baixo
+            col += uSunColor * pow(max(dot(Ns, H), 0.0), 320.0) * 0.5;
+            float a = mix(vCol.a, 1.0, f * 0.6);
             if (uFog > 0.5) col = mix(gl_Fog.color.rgb, col, clamp((gl_Fog.end - vDepth) * gl_Fog.scale, 0.0, 1.0));
             gl_FragColor = vec4(col, a);
         }

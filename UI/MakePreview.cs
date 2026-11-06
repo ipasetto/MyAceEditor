@@ -11,7 +11,6 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed class MakePreview : Panel
 {
-    const string Xml = @"interfaces\version01\produce_icon.xml";
     const float Scale = 1.35f;
     const int Pad = 12;
     static readonly Color Gold = Color.FromArgb(255, 203, 74), Sel = Color.FromArgb(255, 220, 90), TextC = Color.FromArgb(235, 235, 235);
@@ -56,7 +55,7 @@ internal sealed class MakePreview : Panel
             if (!File.Exists(ip) || !File.Exists(sp)) return;
             _ifc = new PckArchive(ip); _surf = new PckArchive(sp); _tex = new GameTextures(_surf);
             GameFonts.Load(dir);
-            _dlg = GameDialog.Load(_ifc, Xml);
+            _dlg = GameSkin.Load(_ifc, dir, "produce_icon.xml");
             if (_dlg is not null) _base = GameDraw.Render(_dlg, _tex, outlines: false);
         }
         catch { _dlg = null; }

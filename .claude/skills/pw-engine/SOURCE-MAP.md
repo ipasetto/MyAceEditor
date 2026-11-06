@@ -7,6 +7,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 ## §M0 Indice por assunto -> arquivo:simbolo (servidor S=`source_server_153/cgame/gs`, cliente C=`source_client_153/CElementClient`)
 Arvores: speedtreert.dll (cliente) FUN_100029e0 CBranch::Compute, 1002d230 curva, 100286f0 LOD galhos, 1000d450 LOD frondes, 1000ab90/1000bde0 fita e extrusao (PW-KB §S35)
 Fabricacao/loja: gs serviceprovider.cpp produce_provider, npcgenerator.cpp recipe_manager; cliente DlgProduce.cpp, DlgShop.cpp
+Pontos de teleporte: CCommon/globaldataman.cpp globaldata_load, globaldata_loadserver, globaldata_save_to (.txt e .sev); ponto ativado: gplayer_imp::CheckWaypoint; tema da interface: CECUIManager::GetUIDcf
 Musica por area: CCommon/EL_Precinct.cpp CELPrecinct::Load; agua: Angelica3D/Source/A3DTerrainWaterRender.cpp; teleporte: serviceprovider.cpp transmit_provider
 
 scripts de ajuda do cliente (element\help\script.pck, "Help\Script\" + list.txt) -> source_client_153/CElementClient/ECScriptManInGame.cpp:CECScriptManInGame (Init), ECScriptController.cpp:LoadScriptList, comandos em ECScriptFunctionInGame.cpp:REGISTER_TO_ECSCRIPTFUNCTION_FACTORY; comando desconhecido = ponteiro nulo no build 2305 (PW-KB §S2)

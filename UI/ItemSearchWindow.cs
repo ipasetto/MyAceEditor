@@ -136,9 +136,7 @@ internal sealed class ItemSearchWindow : Form
     void DrawModel()
     {
         if (_model is null || _modelId <= 0) return;
-        var old = _pic.Image;
-        _pic.Image = _model(_modelId, _yaw);
-        old?.Dispose();
+        _pic.Image = _model(_modelId, _yaw);   // a imagem é da cache do ModelPreview: não descartar aqui
         _picName.Text = _all.FirstOrDefault(r => r.Id == _modelId).Name;
     }
 

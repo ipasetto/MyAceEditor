@@ -474,11 +474,63 @@ internal static class Program
             var ms = mod.FindListByName("NPC_MAKE_SERVICE")!.Items.First(i => i.Id == fn.Fields["id_make_service"].Value);
             var rc = mod.FindListByName("RECIPE_ESSENCE")!.Items.First(i => i.Id == ms.Fields["pages_1_id_goods_1"].Value);
             sb.AppendLine($"fornalha {fid} servico {ms.Id} receita {rc.Id} produto {rc.Fields["targets_1_id_to_make"].Value} chance {rc.Fields["targets_1_probability"].Value} qtd {rc.Fields["num_to_make"].Value} material {rc.Fields["materials_1_id"].Value}x{rc.Fields["materials_1_num"].Value}");
+            sb.AppendLine("teleportador sem destino acusa: " + NpcBuilder.Validate(mod, new NpcDraft { Kind = NpcKind.Teleporter, BaseId = baseNpc, Name = "x" }, IsItem).Count);
+            var tele = new NpcDraft { Kind = NpcKind.Teleporter, BaseId = baseNpc, Name = "Teleportador de teste", Stops = [new TeleportStop(3101, 500, 10), new TeleportStop(1901, 0, 0)], Discover = 3101 };
+            sb.AppendLine("teleportador erros: " + string.Join("; ", NpcBuilder.Validate(mod, tele, IsItem)));
+            int tid = NpcBuilder.Build(mod, tele, Blank, Insert, n => "Item " + n);
+            var tn = mod.FindListByName("NPC_ESSENCE")!.Items.First(i => i.Id == tid.ToString());
+            var ts = mod.FindListByName("NPC_TRANSMIT_SERVICE")!.Items.First(i => i.Id == tn.Fields["id_transmit_service"].Value);
+            sb.AppendLine($"teleportador {tid} servico {ts.Id} destinos {ts.Fields["num_targets"].Value}: {string.Join(", ", NpcBuilder.StopsOf(ts))} descobre {tn.Fields["id_to_discover"].Value}");
             var ids = mod.Lists.Where(l => l.Name is "NPC_ESSENCE" or "NPC_SELL_SERVICE" or "NPC_MAKE_SERVICE").SelectMany(l => l.Items).Where(i => i.Id == sid.ToString() || i.Id == fid.ToString() || i.Id == sv.Id || i.Id == ms.Id).Count();
             sb.AppendLine("ids sem repetir: " + (ids == 4));
             var novos = ItemRules.Check(mod).Where(x => !before.Contains(x.Key)).ToList();
             sb.AppendLine("problemas novos: " + novos.Count + " " + string.Join(" | ", novos.Take(5).Select(x => x.Rule + " " + x.Id + " " + x.Detail)));
             File.WriteAllText(args[2], sb.ToString());
+            return;
+        }
+        if (args.Length >= 5 && args[0] == "--teleport-test")   // <element> <world_targets.sev> <element de outro cliente> <saída>: leitura e escrita dos pontos, domínio, regiões e ajuda; não grava no jogo
+        {
+            var o = new List<string>();
+            var dir = Path.Combine(Path.GetTempPath(), "myace-tp-" + Environment.ProcessId);
+            Directory.CreateDirectory(Path.Combine(dir, "maps", "world"));
+            var txt = Path.Combine(dir, "maps", "world", "world_targets.txt");
+            File.Copy(Path.Combine(args[1], "maps", "world", "world_targets.txt"), txt);
+            File.Copy(args[2], Path.Combine(dir, "world_targets.sev"));
+            var t = WorldTargets.Open(dir, dir)!;
+            var txtBytes = File.ReadAllBytes(txt); var sevBytes = File.ReadAllBytes(Path.Combine(dir, "world_targets.sev"));
+            o.Add($"cliente {t.Client.Count} pontos, servidor {t.Server.Count}, proximo ID {t.NextId()}");
+            o.Add($"txt igual ao regravar: {t.ClientBytes().AsSpan().SequenceEqual(txtBytes)} ({t.ClientBytes().Length} x {txtBytes.Length})");
+            o.Add($"sev igual ao regravar: {WorldTargets.WriteServer(t.Server).AsSpan().SequenceEqual(sevBytes)}");
+            var (oc, os) = t.Differences();
+            o.Add($"so no cliente {oc.Count}: {string.Join(",", oc.Take(12))}; so no servidor {os.Count}: {string.Join(",", os.Take(12))}");
+            var p = t.Add("Ponto de teste", 1, 100.5f, 220.25f, -300.75f, -1);
+            t.Save();
+            var r = WorldTargets.Open(dir, dir)!;
+            o.Add($"depois de gravar: {r.Client.Count}/{r.Server.Count}, volta {r.Client.Find(x => x.Id == p.Id)} / {r.Server.Find(x => x.Id == p.Id)}");
+            var prec = PrecinctFile.Read(Path.Combine(args[1], "maps", "world", "precinct.clt"));
+            int same = 0, diff = 0;
+            foreach (var w in t.Client.Where(x => x.Tag == 1 && x.Id != p.Id))
+            {
+                int d = prec?.At(w.X, w.Z)?.Domain ?? 0;
+                if ((d > 0 ? d : -1) == w.Domain) same++; else { diff++; if (diff <= 12) o.Add($"  dominio difere: {w.Id} {w.Name}: arquivo {w.Domain}, precinct {d}"); }
+            }
+            o.Add($"dominio pelo precinct, mapa 1: {same} iguais, {diff} diferentes; areas com dominio {prec?.Areas.Count(a => a.Domain > 0)} de {prec?.Areas.Count}");
+            foreach (var map in Directory.GetDirectories(Path.Combine(args[1], "maps")))
+            {
+                var mine = Path.Combine(map, "precinct.clt"); var other = Path.Combine(args[3], "maps", Path.GetFileName(map), "precinct.clt");
+                if (!File.Exists(mine) || !File.Exists(other)) continue;
+                var b = PrecinctFile.Translate(File.ReadAllBytes(mine), File.ReadAllBytes(other), out int n);
+                if (b is null) continue;
+                var f = Path.Combine(dir, "precinct.clt"); File.WriteAllBytes(f, b);
+                var was = PrecinctFile.Read(mine)!; var now = PrecinctFile.Read(f)!;
+                bool keep = was.Areas.Count == now.Areas.Count && was.Areas.Zip(now.Areas).All(z => z.First.Points.SequenceEqual(z.Second.Points) && z.First.Music.SequenceEqual(z.Second.Music) && z.First.Sound == z.Second.Sound && z.First.Domain == z.Second.Domain);
+                o.Add($"precinct {Path.GetFileName(map)}: {n} nomes, resto igual {keep}, ex.: {was.Areas.Zip(now.Areas).Where(z => z.First.Name != z.Second.Name).Select(z => z.First.Name + " -> " + z.Second.Name).FirstOrDefault()}");
+            }
+            var (texts, files) = HelpScripts.Plan(Path.Combine(args[1], "help", "script.pck"), Path.Combine(args[3], "help", "script.pck"));
+            o.Add($"ajuda: {texts} textos em {files.Count} arquivos");
+            if (files.Count > 0) { var e = files.First(); o.Add($"  ex.: {e.Key}: {string.Join(" | ", Encoding.UTF8.GetString(e.Value).Split('\n').Where(l => l.StartsWith("#name") || l.StartsWith("#steps")).Take(2))}"); }
+            Directory.Delete(dir, true);
+            File.WriteAllLines(args[4], o);
             return;
         }
         if (args.Length >= 3 && args[0] == "--teleport-report")   // <pasta element> <saída>: qual NPC leva aonde, por quanto, e quem descobre cada ponto
@@ -1329,7 +1381,7 @@ internal static class Program
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
-        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png"), (4, "window-create.png") })
+        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png"), (4, "window-create.png"), (5, "window-teleports.png") })
         {
             w.ShotTool(scene); Application.DoEvents();
             using var full = new System.Drawing.Bitmap(w.Width, w.Height);

@@ -179,6 +179,57 @@ public static class ClientTranslator
             });
         }
 
+        // ---- regiões do minimapa: nomes do precinct.clt de cada mapa, pelo ID da área ----
+        var mapsT = Path.Combine(target, "maps"); var mapsS = Path.Combine(source, "maps");
+        if (Directory.Exists(mapsT) && Directory.Exists(mapsS))
+        {
+            var regions = new List<(string File, byte[] Bytes, int Count)>();
+            foreach (var dir in Directory.GetDirectories(mapsT))
+            {
+                string mine = Path.Combine(dir, "precinct.clt"), other = Path.Combine(mapsS, Path.GetFileName(dir), "precinct.clt");
+                if (!File.Exists(mine) || !File.Exists(other)) continue;
+                try { if (PrecinctFile.Translate(File.ReadAllBytes(mine), File.ReadAllBytes(other), out int n) is { } b) regions.Add((mine, b, n)); }
+                catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("precinct.clt", ex); }
+            }
+            if (regions.Count > 0)
+                steps.Add(new Step
+                {
+                    Title = string.Format(Loc.T("ct.regions", "Regiões do minimapa: {0:N0} nomes em {1} mapas"), regions.Sum(r => r.Count), regions.Count),
+                    Detail = Loc.T("ct.regionsDetail", "os nomes que aparecem em cima do minimapa, pelo ID de cada área (precinct.clt)."),
+                    Default = true, Enabled = true,
+                    Apply = log =>
+                    {
+                        foreach (var (file, bytes, _) in regions) { BackupStore.Save(file); File.WriteAllBytes(file, bytes); }
+                        log(string.Format(Loc.T("ct.regionsLog", "precinct.clt: {0} mapas"), regions.Count));
+                        return regions[0].File;
+                    },
+                });
+        }
+
+        // ---- textos da ajuda: só os textos, em qualquer versão; os comandos ficam os do cliente ----
+        var helpT = Path.Combine(target, "help", "script.pck"); var helpS = Path.Combine(source, "help", "script.pck");
+        if (File.Exists(helpT) && File.Exists(helpS) && !SameFile(helpT, helpS))
+        {
+            try
+            {
+                var (texts, files) = HelpScripts.Plan(helpT, helpS);
+                if (files.Count > 0)
+                    steps.Add(new Step
+                    {
+                        Title = string.Format(Loc.T("ct.helpTexts", "Ajuda: {0:N0} textos em {1} arquivos"), texts, files.Count),
+                        Detail = Loc.T("ct.helpTextsDetail", "só os textos dos scripts de ajuda, pelo número do arquivo; os comandos continuam os deste cliente."),
+                        Default = true, Enabled = true,
+                        Apply = log =>
+                        {
+                            PckWriter.Write(helpT, files);
+                            log(string.Format(Loc.T("ct.helpTextsLog", "help\\script.pck: {0} arquivos"), files.Count));
+                            return helpT;
+                        },
+                    });
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("help", ex); }
+        }
+
         // ---- nomes das instâncias: tabela do MyAce (Assets/map_names.tsv), no idioma do próprio cliente ----
         var cfg = Path.Combine(target, "configs.pck");
         if (File.Exists(cfg))
@@ -315,7 +366,7 @@ public static class ClientTranslator
             {
                 Title = string.Format(Loc.T("ct.wholeFile", "{0} (arquivo inteiro)"), p),
                 Detail = what + " — " + (same ? why : Loc.T("ct.notRecommended", "NÃO recomendado: ") + why),
-                Default = same, Enabled = true,
+                Default = false, Enabled = true,   // o que tem texto já vem nos passos acima: o arquivo inteiro só por escolha
                 Apply = log =>
                 {
                     var bk = BackupStore.Save(dst)!;

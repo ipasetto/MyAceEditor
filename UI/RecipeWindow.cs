@@ -15,6 +15,7 @@ internal sealed class RecipeWindow : Form
     readonly NumericUpDown _count = new() { Minimum = 1, Maximum = 9999, Value = 1, Width = 80, BackColor = Field, ForeColor = Color.White };
     readonly NumericUpDown _price = new() { Minimum = 0, Maximum = 999999999, Width = 120, BackColor = Field, ForeColor = Color.White, ThousandsSeparator = true };
     readonly NumericUpDown _time = new() { Minimum = 0.1m, Maximum = 500, DecimalPlaces = 1, Value = 2, Width = 80, BackColor = Field, ForeColor = Color.White };
+    readonly NumericUpDown _level = new() { Minimum = 0, Maximum = 10, Width = 70, BackColor = Field, ForeColor = Color.White };
     readonly Label _error = new() { AutoSize = true, ForeColor = Color.FromArgb(248, 113, 113), MaximumSize = new Size(470, 0), Margin = new Padding(0, 6, 0, 0) };
     readonly ItemTipHost _tip;
     readonly List<(int Id, int Num)> _list = [];
@@ -22,7 +23,7 @@ internal sealed class RecipeWindow : Form
 
     public RecipeDraft? Result { get; private set; }
 
-    public RecipeWindow(IQuestHost host, RecipeDraft? had)
+    public RecipeWindow(IQuestHost host, RecipeDraft? had, bool needsSkill = false)
     {
         _host = host; _tip = new ItemTipHost(this, id => host.TipImage(id));
         Text = Loc.T("rw.title", "Receita da fornalha");
@@ -71,6 +72,12 @@ internal sealed class RecipeWindow : Form
         cost.Controls.Add(Name(Loc.T("rw.time", "Tempo (s)"))); cost.Controls.Add(_time);
         cost.Margin = new Padding(0, 10, 0, 2);
         body.Controls.Add(cost);
+        if (needsSkill)
+        {
+            var lv = Row();
+            lv.Controls.Add(Name(Loc.T("rw.level", "Nível da habilidade"))); lv.Controls.Add(_level);
+            body.Controls.Add(lv);
+        }
         body.Controls.Add(_error);
 
         var end = Row();
@@ -85,6 +92,7 @@ internal sealed class RecipeWindow : Form
         {
             _product = had.Product; _count.Value = Math.Clamp(had.Count, 1, 9999); _price.Value = Math.Clamp(had.Price, 0, 999999999);
             _time.Value = Math.Clamp((decimal)had.Duration, 0.1m, 500); _list.AddRange(had.Materials);
+            _level.Value = Math.Clamp(had.SkillLevel, 0, 10);
         }
         ShowProduct(); ShowMaterials();
     }
@@ -134,7 +142,7 @@ internal sealed class RecipeWindow : Form
     {
         if (_product <= 0) { _error.Text = Loc.T("rw.needProduct", "Escolha o item que a receita faz."); return; }
         if (_list.Count == 0) { _error.Text = Loc.T("rw.needMaterial", "Adicione pelo menos um material."); return; }
-        Result = new RecipeDraft { Product = _product, Count = (int)_count.Value, Price = (int)_price.Value, Duration = (float)_time.Value, Materials = [.. _list] };
+        Result = new RecipeDraft { Product = _product, Count = (int)_count.Value, Price = (int)_price.Value, Duration = (float)_time.Value, SkillLevel = (int)_level.Value, Materials = [.. _list] };
         DialogResult = DialogResult.OK;
     }
 }

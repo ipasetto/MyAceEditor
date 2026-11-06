@@ -9,7 +9,7 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed partial class WorldView
 {
-    enum Tool { None, Scene, Paths, Quests, Create }
+    enum Tool { None, Scene, Paths, Quests, Create, Teleports }
     /// <summary>Salvar tudo e enviar ao servidor (EditorForm.SaveAndSend).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Action? SaveAndSendAll { get; set; }
     Tool _tool;
@@ -74,7 +74,7 @@ internal sealed partial class WorldView
     static FlowLayoutPanel ToolCard()
     {
         // todos com a mesma largura; quadro sem nada visível some (fica com altura 0)
-        var card = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(39, 45, 54), MinimumSize = new Size(268, 0) };
+        var card = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(39, 45, 54), MinimumSize = new Size(246, 0) };
         void Fit()
         {
             bool any = card.Controls.Cast<Control>().Any(c => c.Visible);
@@ -85,6 +85,24 @@ internal sealed partial class WorldView
         return card;
     }
 
+    /// <summary>Página que rola: a barra de rolagem toma largura, então nada pode encostar na borda do quadro.</summary>
+    static void FitToScroll(Control page)
+    {
+        const int Width = 228;
+        foreach (Control c in page.Controls)
+        {
+            if (c is Button or TextBox or ListBox) c.Width = Width;
+            if (c is Label { AutoSize: true }) c.MaximumSize = new Size(Width - 4, 0);
+            FitToScroll(c);
+        }
+    }
+
+    /// <summary>Volta os controles à ordem certa: quadro que nasce escondido pode inverter a ordem ao aparecer.</summary>
+    static void KeepOrder(Control parent, IReadOnlyList<Control> order)
+    {
+        for (int i = 0; i < order.Count; i++) parent.Controls.SetChildIndex(order[i], i);
+    }
+
     static Label Hint(string text) => new() { Text = text, AutoSize = true, MaximumSize = new Size(245, 0), ForeColor = Color.Gainsboro, Margin = new Padding(3, 4, 3, 6) };
 
     void InitToolMenu()
@@ -93,7 +111,7 @@ internal sealed partial class WorldView
         _toolBack.FlatAppearance.BorderSize = 0; _toolFold.FlatAppearance.BorderSize = 0;
         _toolBack.Image = UiKit.Icon("", Color.White, 16);
         _toolTip.SetToolTip(_toolBack, Loc.T("tools.back", "Voltar ao menu de ferramentas"));
-        _toolBack.Click += (_, _) => { CloseTool(); _gl.Focus(); };
+        _toolBack.Click += (_, _) => { if (_tool != Tool.Create || AskAbandon()) CloseTool(); _gl.Focus(); };
         _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
@@ -104,6 +122,7 @@ internal sealed partial class WorldView
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
         _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.create", "Criar"), Loc.T("tools.createSub", "Criatura, NPC, vendedor ou fornalha, direto no mundo."), () => OpenTool(Tool.Create)));
+        _toolMenu.Controls.Add(ToolButton("\uE8AB", Loc.T("tools.teleports", "Teleportes"), Loc.T("tools.teleportsSub", "Pontos de viagem deste mapa: criar, quem descobre e quem leva."), () => OpenTool(Tool.Teleports)));
         // sempre por último: grava tudo e leva ao servidor (a janela principal abre na aba Servidor)
         var send = ToolButton("\uE898", Loc.T("tools.send", "Salvar e enviar ao servidor"), Loc.T("tools.sendSub", "Grava tudo o que mudou e reinicia o servidor local com isso"), () =>
         {
@@ -137,8 +156,9 @@ internal sealed partial class WorldView
         InitPathPage();
         InitQuestPage();
         InitCreatePage();
+        InitTeleportPage();
 
-        _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_questsPage); _tools.Controls.Add(_createPage); _tools.Controls.Add(_toolHead);
+        _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_questsPage); _tools.Controls.Add(_createPage); _tools.Controls.Add(_tpPage); _tools.Controls.Add(_toolHead);
         Controls.Add(_tools);
         _tools.BringToFront();
         _gl.Resize += (_, _) => LayoutTools();
@@ -148,10 +168,10 @@ internal sealed partial class WorldView
     /// <summary>Tamanho e lugar do menu: solto à direita, um pouco abaixo da barra de cima; recolhido = só o cabeçalho.</summary>
     void LayoutTools()
     {
-        var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, Tool.Create => _createPage, _ => _toolMenu };
-        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, Tool.Create => _createPage, Tool.Teleports => _tpPage, _ => _toolMenu };
+        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Teleports => Math.Min(_tpPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
-        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage, _createPage }) p.Visible = !_toolsFolded && p == page;
+        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage, _createPage, _tpPage }) p.Visible = !_toolsFolded && p == page;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);
         _toolTip.SetToolTip(_toolFold, _toolsFolded ? Loc.T("tools.unfold", "Abrir o menu") : Loc.T("tools.fold", "Recolher o menu"));
         _tools.Location = new Point(Math.Max(0, _gl.Right - _tools.Width - 16), _gl.Top + 16);
@@ -174,7 +194,7 @@ internal sealed partial class WorldView
         // só o que a ferramenta faz: sai o painel de baixo (quests/criatura) e a legenda
         HideBottomPanels();
         if (_legendOpen) { _legendOpen = false; _gl.Invalidate(); }
-        _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "\uF158" : t == Tool.Quests ? "\uE7C1" : t == Tool.Create ? "\uE710" : "\uE707", Color.White, 18);
+        _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "\uF158" : t == Tool.Quests ? "\uE7C1" : t == Tool.Create ? "\uE710" : t == Tool.Teleports ? "\uE8AB" : "\uE707", Color.White, 18);
         if (t == Tool.Quests)
         {
             _toolTitle.Text = "       " + Loc.T("tools.quests", "Quests");
@@ -183,6 +203,7 @@ internal sealed partial class WorldView
         if (t == Tool.Scene) { _toolTitle.Text = "       " + Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
         if (t == Tool.Paths) { _toolTitle.Text = "       " + Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
         if (t == Tool.Create) { _toolTitle.Text = "       " + Loc.T("tools.create", "Criar"); UpdateCreatePanel(); }
+        if (t == Tool.Teleports) { _toolTitle.Text = "       " + Loc.T("tools.teleports", "Teleportes"); OpenTeleports(); }
         LayoutTools();
     }
 
@@ -191,6 +212,7 @@ internal sealed partial class WorldView
     {
         if (_tool == Tool.Scene) SetSceneObjects(false);
         if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _gl.Invalidate(); }
+        if (_tool == Tool.Teleports) { _placing = null; _tpNew = false; _tpAt = null; _gl.Invalidate(); }
         if (_tool == Tool.Create) { CancelPlacing(); if (_shopWin is not null) _shopWin.Visible = false; if (_forgeWin is not null) _forgeWin.Visible = false; }
         _tool = Tool.None;
         _toolBack.Visible = false;
@@ -211,7 +233,7 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Para a captura (--world-shot): abre a ferramenta Editar cenário ou volta ao menu.</summary>
-    internal void ShotTool(int tool) { CloseTool(); if (tool == 4) { OpenTool(Tool.Create); PickKind(NpcKind.Seller); return; } if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
+    internal void ShotTool(int tool) { CloseTool(); if (tool == 5) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); if (_tpPoints.Count > 0) ChoosePoint(_tpPoints[0]); return; } if (tool == 4) { OpenTool(Tool.Create); PickKind(NpcKind.Seller); return; } if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
 
     /// <summary>Aviso de mudança não salva no painel da ferramenta.</summary>
     void UpdateSideState()

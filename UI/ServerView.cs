@@ -32,6 +32,7 @@ public sealed class ServerView : UserControl
 
     /// <summary>Botão Verificar e corrigir: a janela principal abre a Verificação nesta mesma tela.</summary>
     public event Action? VerifyRequested;
+    public event Action? PluginsRequested;
 
     public ServerView(Color bg, Color fg, Color accent, Func<string> client, Func<string> serverHome, Func<string, string?> load, Action<string, string> save)
     {
@@ -46,6 +47,7 @@ public sealed class ServerView : UserControl
         Cmd(rb, UiKit.Refresh, "srv.rRefresh", "Atualizar", RefreshStatus, "srv.rRefreshTip", "Confere agora se o servidor está no ar.");
         UiKit.Sep(rb);
         Cmd(rb, UiKit.People, "srv.rAdmin", "Administrar", OpenAdmin, "srv.rAdminTip", "Contas, personagens, quem está no jogo, mapas e instâncias.");
+        Cmd(rb, UiKit.Play, "srv.rPlugins", "Plugins", () => PluginsRequested?.Invoke(), "srv.rPluginsTip", "Eventos automáticos no servidor: monstro raro por sorteio, chamar pelo GM.");
         Cmd(rb, UiKit.Game, "srv.rGm", "Painel do GM", OpenGmPanel, "srv.rGmTip", "Comandos de GM no jogo aberto (programa à parte).");
         UiKit.Sep(rb);
         Cmd(rb, UiKit.Download, "srv.rInstall", "Instalar", Install, "srv.rInstallTip", "Instala ou completa o servidor local no Linux do Windows (WSL). Só precisa uma vez.");

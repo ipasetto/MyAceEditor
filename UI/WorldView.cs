@@ -230,6 +230,7 @@ internal sealed partial class WorldView : Form
             _gl.Focus(); _down = _drag = e.Location;
             if (e.Button == MouseButtons.Left && _legendOpen && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
             if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
+            if (TeleportMouseDown(e)) return;   // ferramenta Teleportes: clique num pilar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
             // setas / anel do ponto selecionado têm preferência
@@ -598,6 +599,8 @@ internal sealed partial class WorldView : Form
         DrawSpawnArea();
         DrawPaths();
         DrawPathEdit();
+        DrawPlaceMark();
+        DrawTeleports();
         DrawSceneObjects();
         DrawGizmo();
 
@@ -605,6 +608,7 @@ internal sealed partial class WorldView : Form
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
         GL.Enable(EnableCap.Texture2D); GL.Color3(1f, 1f, 1f);
         _newLabels = 0;
+        DrawTeleportLabels();
         foreach (var m in _nearMarks.Where(m => Dist2(m) < 70 * 70 || m.Tag == sel && Dist2(m) < 400 * 400).OrderBy(Dist2).Take(40))
         {
             var lp = PosOf(m);
@@ -1335,7 +1339,7 @@ internal sealed partial class WorldView : Form
     bool _pickShown;
     void SyncPickCursor()
     {
-        bool picking = _pickNpc is not null || _pickArea is not null || _pickMonster is not null || _pickMine is not null;
+        bool picking = _placing is not null || _pickNpc is not null || _pickArea is not null || _pickMonster is not null || _pickMine is not null;
         if (picking == _pickShown) return;
         _pickShown = picking;
         if (picking && _pickCursor is null)
@@ -1825,12 +1829,24 @@ internal sealed partial class WorldView : Form
     }
 
     // a ação mais recente é desfeita primeiro: quest (se nada de ponto mudou depois dela) ou ponto do NPCGen
+    /// <summary>Som: volume e desligar, numa janelinha embaixo do botão.</summary>
     void ToggleSound()
     {
-        if (_music is null) return;
-        _music.Muted = !_music.Muted;
-        ShowSoundState();
-        _gl.Focus();
+        if (_music is not { } music) return;
+        var box = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, BackColor = Color.FromArgb(36, 41, 49), Padding = new Padding(12, 10, 12, 14) };
+        var title = new Label { AutoSize = true, ForeColor = Color.White, Margin = new Padding(0, 0, 0, 4) };
+        void Show() => title.Text = string.Format(Loc.T("world.volume", "Volume: {0}%"), music.Volume);
+        var bar = new TrackBar { Minimum = 0, Maximum = 100, TickFrequency = 10, Width = 210, Value = music.Volume, BackColor = box.BackColor, AutoSize = false, Height = 36 };
+        bar.ValueChanged += (_, _) => { music.Volume = bar.Value; Show(); };
+        var off = new CheckBox { Text = Loc.T("world.soundMute", "Desligar o som"), AutoSize = true, ForeColor = Color.White, Checked = music.Muted };
+        off.CheckedChanged += (_, _) => { music.Muted = off.Checked; ShowSoundState(); };
+        box.Controls.Add(title); box.Controls.Add(bar); box.Controls.Add(off);
+        Show();
+        var host = new ToolStripControlHost(box) { Margin = Padding.Empty, Padding = Padding.Empty };
+        var drop = new ToolStripDropDown { Padding = Padding.Empty, BackColor = box.BackColor };
+        drop.Items.Add(host);
+        drop.Closed += (_, _) => { _gl.Focus(); BeginInvoke(drop.Dispose); };
+        if (_soundBtn is { } b) drop.Show(_bar, new Point(b.Bounds.Left, b.Bounds.Bottom));
     }
 
     void ShowSoundState()
@@ -1860,13 +1876,16 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
         if (PathUndo(redo: false)) return true;    // caminhos idem
+        if (TeleportUndo(redo: false)) return true;   // pontos de teleporte idem
         if (_qUndo.Count > 0 && _qUndo[^1] == (UndoDepth?.Invoke() ?? 0) && _host?.Undo() == true)
         {
             _qUndo.RemoveAt(_qUndo.Count - 1); _qRedo.Add(RedoDepth?.Invoke() ?? 0);
             RefreshQuestPanel(); _status.Text = Loc.T("qe.undone", "Quest desfeita (Ctrl+Y refaz).");
             return true;
         }
-        return UndoAction?.Invoke() ?? false;
+        bool undone = UndoAction?.Invoke() ?? false;
+        if (_tool == Tool.Teleports) UpdateTeleportPanel();
+        return undone;
     }
 
     bool RedoAny()
@@ -1874,13 +1893,16 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Redo();
         if (SceneUndo(redo: true)) return true;
         if (PathUndo(redo: true)) return true;
+        if (TeleportUndo(redo: true)) return true;
         if (_qRedo.Count > 0 && _qRedo[^1] == (RedoDepth?.Invoke() ?? 0) && _host?.Redo() == true)
         {
             _qRedo.RemoveAt(_qRedo.Count - 1); _qUndo.Add(UndoDepth?.Invoke() ?? 0);
             RefreshQuestPanel(); _status.Text = Loc.T("qe.redone", "Quest refeita.");
             return true;
         }
-        return RedoAction?.Invoke() ?? false;
+        bool redone = RedoAction?.Invoke() ?? false;
+        if (_tool == Tool.Teleports) UpdateTeleportPanel();
+        return redone;
     }
 
     void QuestDone(int npcId)

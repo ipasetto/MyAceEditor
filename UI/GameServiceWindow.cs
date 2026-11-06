@@ -4,14 +4,15 @@ using MyAceEditor.PerfectWorld;
 namespace MyAceEditor.UI;
 
 /// <summary>
-/// Janela do jogo no centro do Mundo 3D para montar a loja (interfaces\version01\shop.xml) ou a fornalha
-/// (produce_icon.xml): abas Btn_Set1..8 = páginas, U_01..U_32 = espaços. Clique escolhe, botão direito tira, passar o mouse
+/// Janela do jogo no centro do Mundo 3D para montar a loja (shop.xml) ou a fornalha (produce_icon.xml), do tema do cliente
+/// aberto (GameSkin); sem a janela no cliente, uma grade própria faz o mesmo trabalho. Abas Btn_Set1..8 = páginas, U_01..U_32 = espaços. Clique escolhe, botão direito tira, passar o mouse
 /// mostra a dica do item. Trabalha num rascunho com Ctrl+Z próprio; nada entra no elements.data até o Concluir.
 /// </summary>
 internal sealed class GameServiceWindow : Panel
 {
     const float Scale = 1.25f;
-    const int Pad = 14, Foot = 108;
+    const int Pad = 14;
+    int Foot => _forge ? 174 : 140;   // fornalha tem mais uma linha: o que precisa
     static readonly Color Gold = Color.FromArgb(255, 203, 74), Sel = Color.FromArgb(255, 220, 90), TextC = Color.FromArgb(235, 235, 235);
 
     readonly IQuestHost _host;
@@ -25,6 +26,9 @@ internal sealed class GameServiceWindow : Panel
     readonly TextBox _title = new() { Width = 180, BackColor = Color.FromArgb(44, 50, 60), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
     readonly Label _hint = new() { AutoSize = false, ForeColor = Color.Silver };
     readonly List<object> _undo = [], _redo = [];
+    readonly Dictionary<string, Rectangle> _own = [];
+    readonly ComboBox _skill = new() { DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(44, 50, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+    readonly List<int> _skills = [];
     int _page, _sel = -1;
     bool _binding;
 
@@ -44,7 +48,7 @@ internal sealed class GameServiceWindow : Panel
             {
                 _ifc = new PckArchive(ip); _surf = new PckArchive(sp); _tex = new GameTextures(_surf);
                 GameFonts.Load(elementDir);
-                _dlg = GameDialog.Load(_ifc, forge ? @"interfaces\version01\produce_icon.xml" : @"interfaces\version01\shop.xml");
+                _dlg = GameSkin.Load(_ifc, elementDir, forge ? "produce_icon.xml" : "shop.xml");
                 if (_dlg is not null)
                 {
                     // textos de exemplo do arquivo da janela ficariam por baixo do que desenhamos
@@ -56,25 +60,37 @@ internal sealed class GameServiceWindow : Panel
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("janela do jogo", ex); }
-        var size = _dlg?.Size ?? new Size(420, 360);
+        if (_dlg is null) BuildOwnGrid();
+        var size = _dlg?.Size ?? new Size(372, forge ? 372 : 236);
         Size = new Size((int)(size.Width * Scale) + Pad * 2, (int)(size.Height * Scale) + Pad * 2 + Foot);
 
         int y = Height - Foot + 4;
         var pageName = new Label { Text = Loc.T("gs.pageName", "Nome da aba"), AutoSize = true, ForeColor = Color.Silver, Location = new Point(Pad, y + 4) };
         _title.Location = new Point(Pad + 86, y);
         _title.TextChanged += (_, _) => { if (_binding) return; Remember(); Titles[_page] = _title.Text; Invalidate(); Changed?.Invoke(); };
-        _hint.Location = new Point(Pad, y + 32); _hint.Size = new Size(Width - Pad * 2, 20);
+        _hint.Location = new Point(Pad, y + (forge ? 66 : 32)); _hint.Size = new Size(Width - Pad * 2, 38);
         _hint.Text = forge ? Loc.T("gs.hintMake", "Clique num espaço para pôr uma receita. Botão direito tira.")
             : Loc.T("gs.hintShop", "Clique num espaço para pôr um item à venda. Botão direito tira.");
         Button Btn(string glyph, string text, Action a, int x, int w, bool main = false)
         {
-            var b = new Button { Text = "  " + text, Location = new Point(x, y + 56), Size = new Size(w, 30), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
+            var b = new Button { Text = "  " + text, Location = new Point(x, y + (forge ? 110 : 76)), Size = new Size(w, 30), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
                 Image = UiKit.Icon(glyph, Color.White, 16), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText };
             b.FlatAppearance.BorderSize = main ? 0 : 1; b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 92);
             b.Click += (_, _) => a();
             return b;
         }
         Controls.Add(pageName); Controls.Add(_title); Controls.Add(_hint);
+        if (forge)
+        {
+            // habilidade que o jogador precisa ter: uma por NPC (o gs compara com id_make_skill)
+            var need = new Label { Text = Loc.T("gs.needs", "O que precisa"), AutoSize = true, ForeColor = Color.Silver, Location = new Point(Pad, y + 38) };
+            _skill.Location = new Point(Pad + 86, y + 34); _skill.Width = 180;
+            _skill.Items.Add(Loc.T("gs.noSkill", "Nada")); _skills.Add(0);
+            foreach (var (id, name) in host.MakeSkills()) { _skill.Items.Add(name); _skills.Add(id); }
+            _skill.SelectedIndex = 0;
+            _skill.SelectedIndexChanged += (_, _) => { if (_binding) return; Remember(); Make.Skill = _skills[_skill.SelectedIndex]; Changed?.Invoke(); };
+            Controls.Add(need); Controls.Add(_skill);
+        }
         Controls.Add(Btn("", Loc.T("gs.undo", "Desfazer"), () => Undo(), Pad, 104));
         Controls.Add(Btn("", Loc.T("gs.redo", "Refazer"), () => Redo(), Pad + 110, 104));
         Controls.Add(Btn("", Loc.T("gs.done", "Pronto"), () => Visible = false, Width - Pad - 110, 110, main: true));
@@ -86,7 +102,30 @@ internal sealed class GameServiceWindow : Panel
     public void Load(ShopDraft shop) { Shop = shop; _undo.Clear(); _redo.Clear(); _page = 0; _sel = -1; BindTitle(); Invalidate(); }
     public void Load(MakeDraft make) { Make = make; _undo.Clear(); _redo.Clear(); _page = 0; _sel = -1; BindTitle(); Invalidate(); }
 
-    void BindTitle() { _binding = true; _title.Text = Titles[_page]; _binding = false; }
+    void BindTitle()
+    {
+        _binding = true;
+        _title.Text = Titles[_page];
+        if (_forge && _skills.Count > 0) _skill.SelectedIndex = Math.Max(0, _skills.IndexOf(Make.Skill));
+        _binding = false;
+    }
+
+    /// <summary>Cliente sem a janela do jogo: mesma função numa grade do MyAce, com as mesmas áreas de clique.</summary>
+    void BuildOwnGrid()
+    {
+        for (int p = 0; p < NpcBuilder.Pages; p++) _own[$"Btn_Set{p + 1}"] = new Rectangle(4 + p * 46, 4, 44, 24);
+        for (int i = 0; i < NpcBuilder.Slots; i++) _own[$"U_{i + 1:00}"] = new Rectangle(4 + i % 8 * 46, 34 + i / 8 * 46, 42, 42);
+        if (!_forge) return;
+        for (int m = 0; m < 8; m++) { _own[$"Item_{m + 1:00}"] = new Rectangle(4 + m % 4 * 92, 226 + m / 4 * 46, 42, 42); _own[$"Txt_no{m + 1}"] = new Rectangle(48 + m % 4 * 92, 236 + m / 4 * 46, 44, 20); }
+        _own["Item_out"] = new Rectangle(4, 326, 42, 42); _own["Txt_out"] = new Rectangle(52, 330, 220, 20); _own["Txt_Gold"] = new Rectangle(280, 330, 86, 20);
+    }
+
+    void DrawOwnGrid(Graphics g)
+    {
+        using var slot = new SolidBrush(Color.FromArgb(38, 44, 54)); using var line = new Pen(Color.FromArgb(70, 80, 96));
+        foreach (var (name, r) in _own)
+            if (!name.StartsWith("Txt", StringComparison.Ordinal)) { g.FillRectangle(slot, r); g.DrawRectangle(line, r); }
+    }
 
     object Snapshot() => _forge ? Make.Copy() : Shop.Copy();
     void Restore(object s) { if (s is MakeDraft m) Make = m; else if (s is ShopDraft d) Shop = d; _sel = -1; BindTitle(); Invalidate(); Changed?.Invoke(); }
@@ -106,7 +145,7 @@ internal sealed class GameServiceWindow : Panel
         return true;
     }
 
-    Rectangle R(string name) => _dlg?[name]?.Rect ?? Rectangle.Empty;
+    Rectangle R(string name) => _dlg is null ? _own.GetValueOrDefault(name) : _dlg[name]?.Rect ?? Rectangle.Empty;
     Point ToDialog(Point p) => new((int)((p.X - Pad) / Scale), (int)((p.Y - Pad) / Scale));
     int SlotAt(Point d) { for (int i = 0; i < NpcBuilder.Slots; i++) if (R($"U_{i + 1:00}").Contains(d)) return i; return -1; }
     int IdIn(int slot) => slot < 0 ? 0 : _forge ? Make.Goods[_page][slot] is { } r ? ProductOf(r) : 0 : Shop.Goods[_page][slot];
@@ -123,16 +162,12 @@ internal sealed class GameServiceWindow : Panel
     {
         base.OnPaint(e);
         var g = e.Graphics;
-        if (_dlg is null || _base is null)
-        {
-            TextRenderer.DrawText(g, Loc.T("make.noUi", "Janela do jogo não encontrada (interfaces.pck / surfaces.pck ao lado do elements.data)."), Font, new Rectangle(Pad, Pad, Width - Pad * 2, 60), Color.Gainsboro, TextFormatFlags.WordBreak);
-            return;
-        }
         var state = g.Save();
         g.TranslateTransform(Pad, Pad);
         g.ScaleTransform(Scale, Scale);
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-        g.DrawImage(_base, 0, 0, _dlg.Size.Width, _dlg.Size.Height);
+        if (_dlg is not null && _base is not null) g.DrawImage(_base, 0, 0, _dlg.Size.Width, _dlg.Size.Height);
+        else DrawOwnGrid(g);
         for (int p = 0; p < NpcBuilder.Pages; p++)
         {
             var r = R($"Btn_Set{p + 1}");
@@ -169,7 +204,6 @@ internal sealed class GameServiceWindow : Panel
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (_dlg is null) return;
         var d = ToDialog(e.Location);
         for (int p = 0; p < NpcBuilder.Pages; p++)
             if (R($"Btn_Set{p + 1}").Contains(d)) { _page = p; _sel = -1; BindTitle(); Invalidate(); return; }
@@ -202,7 +236,7 @@ internal sealed class GameServiceWindow : Panel
     {
         var had = Make.Goods[_page][s];
         if (had is not null && _sel != s) { _sel = s; Invalidate(); return; }   // 1º clique mostra os materiais, o 2º edita
-        using var w = new RecipeWindow(_host, had?.Copy());
+        using var w = new RecipeWindow(_host, had?.Copy(), Make.Skill > 0);
         if (w.ShowDialog(FindForm()) != DialogResult.OK) return;
         Remember();
         Make.Goods[_page][s] = w.Result;
@@ -213,7 +247,6 @@ internal sealed class GameServiceWindow : Panel
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (_dlg is null) return;
         var d = ToDialog(e.Location);
         int id = IdIn(SlotAt(d));
         if (id == 0 && _forge && _sel >= 0 && Make.Goods[_page][_sel] is { } rec)
