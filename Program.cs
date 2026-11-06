@@ -431,6 +431,20 @@ internal static class Program
                 catch (Exception ex) { o.WriteLine(Path.GetFileName(p) + "	ERRO " + ex.Message); }
             return;
         }
+        if (args.Length >= 3 && args[0] == "--spt-stats")   // <pasta com .spt> <saída tsv>: nome, Z mínimo, mediano e máximo, raio mediano e máximo (o par do --stats do Tests/SptOracle)
+        {
+            using var o = new StreamWriter(args[2]);
+            foreach (var p in Directory.GetFiles(args[1], "*.spt", SearchOption.AllDirectories))
+            {
+                var m = SptGrower.Build(new SptFile(File.ReadAllBytes(p)));
+                var pts = m.Pos.Concat(m.FrondPos).ToList();
+                if (pts.Count == 0) continue;
+                var z = pts.Select(v => v.Y).OrderBy(v => v).ToList();
+                var r = pts.Select(v => MathF.Sqrt(v.X * v.X + v.Z * v.Z)).OrderBy(v => v).ToList();
+                o.WriteLine(FormattableString.Invariant($"{Path.GetFileName(p).ToLowerInvariant()}\t{z[0]:0.00}\t{z[z.Count / 2]:0.00}\t{z[^1]:0.00}\t{r[r.Count / 2]:0.00}\t{r[^1]:0.00}"));
+            }
+            return;
+        }
         if (args.Length >= 3 && args[0] == "--spt-obj")   // <.spt> <saída>: vértices dos galhos em eixos do SpeedTree
         {
             var m = SptGrower.Build(new SptFile(File.ReadAllBytes(args[1])));
@@ -951,25 +965,6 @@ internal static class Program
                 }
             }
             File.WriteAllText("spt-levels.txt", sb.ToString(), new UTF8Encoding(false));
-            return;
-        }
-        if (args.Length >= 3 && args[0] == "--spt-seeds")   // <trees.pck> <trecho do nome>: forma da árvore com 40 sementes de variação (spt-seeds.txt)
-        {
-            using var pck = new PckArchive(args[1]);
-            var sb = new StringBuilder();
-            foreach (var e in pck.Entries.Where(e => e.Path.EndsWith(".spt", StringComparison.OrdinalIgnoreCase) && e.Path.Contains(args[2], StringComparison.OrdinalIgnoreCase)))
-            {
-                var f = new SptFile(pck.Read(e));
-                int under = 0; var lows = new List<float>();
-                for (int sd = 1; sd <= 40; sd++)
-                {
-                    var m = SptGrower.Build(f, sd);
-                    float low = m.Leaves.Count > 0 ? m.Leaves.Min(l => l.Pos.Y) : 0;
-                    lows.Add(low); if (low < 0) under++;
-                }
-                sb.AppendLine($"{e.Path}: copa abaixo do chão em {under}/40 · folha mais baixa min {lows.Min():0.0} mediana {lows.OrderBy(x => x).ElementAt(20):0.0} máx {lows.Max():0.0}");
-            }
-            File.WriteAllText("spt-seeds.txt", sb.ToString(), new UTF8Encoding(false));
             return;
         }
         if (args.Length >= 2 && args[0] == "--mox-check") { MoxCheck(args[1]); return; }   // <grasses.pck>: lê todo .mox e acha a textura (mox-check.txt)
