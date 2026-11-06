@@ -45,6 +45,9 @@ internal sealed class WorldBuildings : IDisposable
 
     PckArchive? _lit;   // trocado no Reopen (depois de gravar construções)
     readonly PckArchive? _tex;
+    readonly PckArchive? _shaders;
+    /// <summary>Malhas com superfície .sdr: textura da malha → rolagem da textura. Desenhadas por último, translúcidas.</summary>
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, (float U, float V)> _surfaces = new(StringComparer.OrdinalIgnoreCase);
     readonly WorldLoader _load;
     readonly string _map;
     readonly Dictionary<int, List<PckEntry>> _byPiece = new();
@@ -68,6 +71,7 @@ internal sealed class WorldBuildings : IDisposable
             if (elementDir is null) return;
             if (PckArchive.Exists(Path.Combine(elementDir, "litmodels.pck"))) _lit = new PckArchive(Path.Combine(elementDir, "litmodels.pck"));
             if (PckArchive.Exists(Path.Combine(elementDir, "building.pck"))) _tex = new PckArchive(Path.Combine(elementDir, "building.pck"));
+            if (PckArchive.Exists(Path.Combine(elementDir, "shaders.pck"))) _shaders = new PckArchive(Path.Combine(elementDir, "shaders.pck"));
         }
         catch { _lit = null; }
         IndexPieces();
@@ -154,6 +158,7 @@ internal sealed class WorldBuildings : IDisposable
             {
                 bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
                 if (!need || _tex is null) continue;
+                if (Surface(mesh.Texture) is { } surface) { tex[mesh.Texture] = surface; continue; }
                 byte[]? td; lock (_tex) td = _tex.Find(mesh.Texture.ToLowerInvariant()) is { } te ? _tex.Read(te) : null;
                 try
                 {
@@ -198,6 +203,25 @@ internal sealed class WorldBuildings : IDisposable
             list.Add(new Placed(c.World, parts, c.Center, c.Radius, c.File));
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+    }
+
+    /// <summary>
+    /// Textura de verdade de uma superfície .sdr, como o jogo: o "x.sdr.tga" do building.pck não é o que aparece, e sim o 1º estágio
+    /// do shader (cachoeira da fonte do dragão: desenhar o arquivo direto dava coluna opaca de fundo preto, teste 34).
+    /// </summary>
+    (int[] Px, int W, int H)? Surface(string texture)
+    {
+        if (_shaders is null || SurfaceShader.NameOf(texture) is not { } name) return null;
+        try
+        {
+            byte[]? Read(string path) { lock (_shaders) return _shaders.Find(path.ToLowerInvariant()) is { } e ? _shaders.Read(e) : null; }
+            if (Read($@"shaders\{name}.sdr") is not { } sdr || SurfaceShader.Read(sdr) is not { } s || Read(s.Texture) is not { } data) return null;
+            var ext = Path.GetExtension(s.Texture).ToLowerInvariant();
+            var img = ext == ".tga" ? FromTga(data) : ext is ".bmp" or ".jpg" or ".png" ? FromImage(data) : DdsDecoder.DecodeMax(data, 512);
+            if (img is not null) _surfaces[texture] = (s.ScrollU, s.ScrollV);
+            return img;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException) { AppLog.Info($"{texture}: {ex.Message}"); return null; }
     }
 
     // textura .tga (algumas construções e as superfícies .sdr.tga): mesmo leitor dos ícones, em BGRA
@@ -269,6 +293,7 @@ internal sealed class WorldBuildings : IDisposable
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 2f);              // RGB_SCALE = 2
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8572, 0x1E01);          // ALFA = REPLACE
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8588, 0x1702);          //   da textura
+        var late = new List<(Matrix4 World, Part Part)>();
         foreach (var list in _loaded.Values)
             foreach (var p in list)
             {
@@ -286,6 +311,7 @@ internal sealed class WorldBuildings : IDisposable
                     if (Night && part.NightVbo != 0) { GL.BindBuffer(BufferTarget.ArrayBuffer, part.NightVbo); GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 4, 0); }
                     else GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);   // GL_BGRA
                     if (HideTex.Length > 0 && part.Tex.Contains(HideTex, StringComparison.OrdinalIgnoreCase)) continue;   // teste
+                    if (_surfaces.ContainsKey(part.Tex)) { late.Add((w, part)); continue; }
                     int tex = _textures.GetValueOrDefault(part.Tex);
                     // superfície de shader (.sdr: escudo do tempo na a33, poça de sangue na a17) sem a textura: no jogo é
                     // efeito translúcido; desenhada opaca na cor do vértice virava domo/faixa sólida — fica de fora
@@ -302,6 +328,7 @@ internal sealed class WorldBuildings : IDisposable
                 }
                 GL.PopMatrix();
             }
+        DrawSurfaces(late);
         GL.Disable(EnableCap.CullFace); GL.FrontFace(FrontFaceDirection.Ccw);
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 1f);
         GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
@@ -310,10 +337,37 @@ internal sealed class WorldBuildings : IDisposable
         GL.Disable(EnableCap.AlphaTest); GL.Disable(EnableCap.Texture2D);
     }
 
+    /// <summary>Superfícies .sdr depois do que é sólido: a cor é só a textura (SELECTARG1), com o alfa dela e a rolagem no tempo.</summary>
+    void DrawSurfaces(List<(Matrix4 World, Part Part)> parts)
+    {
+        if (parts.Count == 0) return;
+        float seconds = Environment.TickCount64 % 3600000 / 1000f;
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Replace);
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        GL.DepthMask(false); GL.Disable(EnableCap.AlphaTest); GL.Enable(EnableCap.Texture2D); GL.Disable(EnableCap.CullFace);
+        foreach (var (world, part) in parts)
+        {
+            var (u, v) = _surfaces[part.Tex];
+            GL.MatrixMode(MatrixMode.Texture); GL.LoadIdentity(); GL.Translate(u * seconds % 1, v * seconds % 1, 0);
+            GL.MatrixMode(MatrixMode.Modelview); GL.PushMatrix();
+            var m = world; GL.MultMatrix(ref m);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, part.Vbo);
+            GL.VertexPointer(3, VertexPointerType.Float, 24, 0);
+            GL.TexCoordPointer(2, TexCoordPointerType.Float, 24, 16);
+            GL.ColorPointer(0x80E1, ColorPointerType.UnsignedByte, 24, 12);
+            GL.BindTexture(TextureTarget.Texture2D, _textures.GetValueOrDefault(part.Tex));
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, part.Ibo);
+            GL.DrawElements(PrimitiveType.Triangles, part.Count, DrawElementsType.UnsignedShort, 0);
+            GL.PopMatrix();
+        }
+        GL.MatrixMode(MatrixMode.Texture); GL.LoadIdentity(); GL.MatrixMode(MatrixMode.Modelview);
+        GL.DepthMask(true); GL.Disable(EnableCap.Blend);
+    }
+
     public void Dispose()
     {
         foreach (var p in _loaded.Keys.ToList()) Unload(p);
         foreach (var t in _textures.Values) if (t != 0) GL.DeleteTexture(t);
-        _lit?.Dispose(); _tex?.Dispose();
+        _lit?.Dispose(); _tex?.Dispose(); _shaders?.Dispose();
     }
 }

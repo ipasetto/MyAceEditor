@@ -69,7 +69,8 @@ internal sealed class QuestPreview : Panel
             || c.Rect.Y >= icons.Bottom && c.Rect.Height < 60
             || c.Tag == "LABEL" && c.Rect.Y + c.Rect.Height > icons.Y
             || !reward && (c.Name.StartsWith("Img_Item") || c.Name == "Txt_ItemAward" || c.Name == "Txt_BaseAward" || c.Tag == "LABEL" && c.Rect.Y > 280 && c.Rect.Y < 320);
-        GameDraw.Dialog(g, _dialog, _tex, c => Noise(c) ? new Rectangle(-5000, 0, 0, 0) : GameDraw.Box(c));
+        // título "Recompensa da Missão": no pergaminho a cor do XML quase some (teste 2)
+        GameDraw.Dialog(g, _dialog, _tex, c => Noise(c) ? new Rectangle(-5000, 0, 0, 0) : GameDraw.Box(c), c => c.Tag == "LABEL" && c.Rect.Y > 280 && c.Rect.Y < 320 ? Color.White : null);
         if (_data is not { } d) return;
         using var font = new Font("Segoe UI", 9f);
         void Write(string text, Rectangle box, Color c) => TextRenderer.DrawText(g, text, font, box, c, TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);

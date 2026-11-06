@@ -757,7 +757,7 @@ internal static class GameDraw
     }
 
     /// <summary>Janela inteira como no jogo (moldura + controles na ordem do XML).</summary>
-    public static void Dialog(Graphics g, GameDialog d, GameTextures? tex, Func<GameDialog.Control, Rectangle> rectOf)
+    public static void Dialog(Graphics g, GameDialog d, GameTextures? tex, Func<GameDialog.Control, Rectangle> rectOf, Func<GameDialog.Control, Color?>? colorOf = null)
     {
         Frame(g, tex?.Get(d.Frame), new Rectangle(Point.Empty, d.Size));
         foreach (var c in d.Controls.Values)
@@ -765,7 +765,7 @@ internal static class GameDraw
             var r = rectOf(c);
             if (r.X < -1000) continue;   // escondido fora da tela pelo próprio jogo
             var img = c.Images.Count > 0 ? tex?.Get(c.Images[0], c.Frames) : null;
-            var col = c.Color is { A: > 0 } cc ? cc : Color.White;
+            var col = colorOf?.Invoke(c) ?? (c.Color is { A: > 0 } cc ? cc : Color.White);
             void T(string t, Rectangle area, ContentAlignment al) => Text(g, t, area, col, c.FontSize, c.Bold, al, c.FontName, noClip: true);
             var align = c.Align == 1 ? ContentAlignment.MiddleCenter : c.Align == 2 ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft;
             switch (c.Tag)
