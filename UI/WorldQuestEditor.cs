@@ -142,7 +142,7 @@ internal sealed class WorldQuestEditor : Panel
     // todo campo de item passa por aqui: a janela escolhe o item e a quantidade, o resto vai pelo "adicionar" de cada lista
     void PickItem(NumericUpDown id, NumericUpDown? qty, Action add)
     {
-        using var w = new ItemSearchWindow(_host.AllItems(), _host.ItemIcon, qty is not null, _host.ItemTip, _host.FavoriteIds(), _host.RecentIds());
+        using var w = new ItemSearchWindow(_host.AllItems(), _host.ItemIcon, qty is not null, _host.TipImage, _host.FavoriteIds(), _host.RecentIds());
         if (w.ShowDialog(this) != DialogResult.OK) return;
         _host.ItemPicked(w.Picked);
         id.Value = w.Picked;

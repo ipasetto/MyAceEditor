@@ -228,6 +228,7 @@ internal sealed partial class WorldView : Form
         {
             _gl.Focus(); _down = _drag = e.Location;
             if (e.Button == MouseButtons.Left && _legendOpen && LegendRect().Contains(e.Location)) { ToggleLegend(); return; }
+            if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
             // setas / anel do ponto selecionado têm preferência
@@ -1752,6 +1753,7 @@ internal sealed partial class WorldView : Form
     // a ação mais recente é desfeita primeiro: quest (se nada de ponto mudou depois dela) ou ponto do NPCGen
     bool UndoAny()
     {
+        if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
         if (PathUndo(redo: false)) return true;    // caminhos idem
         if (_qUndo.Count > 0 && _qUndo[^1] == (UndoDepth?.Invoke() ?? 0) && _host?.Undo() == true)
@@ -1765,6 +1767,7 @@ internal sealed partial class WorldView : Form
 
     bool RedoAny()
     {
+        if (ActiveServiceWindow is { Visible: true } svc) return svc.Redo();
         if (SceneUndo(redo: true)) return true;
         if (PathUndo(redo: true)) return true;
         if (_qRedo.Count > 0 && _qRedo[^1] == (RedoDepth?.Invoke() ?? 0) && _host?.Redo() == true)

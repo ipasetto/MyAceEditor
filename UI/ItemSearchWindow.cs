@@ -1,4 +1,4 @@
-using MyAceEditor.PerfectWorld;
+﻿using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
 
@@ -19,9 +19,16 @@ internal sealed class ItemSearchWindow : Form
     readonly NumericUpDown _qty = new() { Minimum = 1, Maximum = 99999, Value = 1, Width = 90, BackColor = Field, ForeColor = Color.White };
     readonly Label _count = new() { AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(0, 9, 16, 0) };
     List<(int Id, string Name, string Block)> _rows = [];
-    readonly Func<int, List<List<(string Text, Color Color, bool Bold)>>>? _tipOf;
-    ItemTip? _tipForm;
-    int _tipRow = -1;
+    readonly ItemTipHost? _tip;
+    readonly Func<int, float, Image?>? _model;
+    readonly PictureBox _pic = new() { Dock = DockStyle.Top, Height = 250, SizeMode = PictureBoxSizeMode.CenterImage, BackColor = Color.FromArgb(14, 16, 20), Cursor = Cursors.SizeWE };
+    readonly Label _picName = new() { Dock = DockStyle.Top, Height = 44, TextAlign = ContentAlignment.TopCenter, ForeColor = Color.Silver, Padding = new Padding(6, 6, 6, 0) };
+    readonly System.Windows.Forms.Timer _later = new() { Interval = 700 };
+    readonly System.Windows.Forms.Timer _modelWait = new() { Interval = 180 };
+    readonly Dictionary<int, int> _tries = [];
+    bool _missing;
+    int _modelId;
+    float _yaw;
 
     public int Picked { get; private set; }
     public int Quantity => (int)_qty.Value;
@@ -29,9 +36,10 @@ internal sealed class ItemSearchWindow : Form
     readonly IReadOnlyList<int> _favorites, _recent;
     const int AllRow = 0, FavRow = 1, RecentRow = 2, FirstBlockRow = 3;
 
-    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, List<List<(string Text, Color Color, bool Bold)>>>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null)
+    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null)
     {
-        _all = items; _icon = icon ?? (_ => null); _tipOf = tip;
+        _all = items; _icon = icon ?? (_ => null); _model = model;
+        if (tip is not null) _tip = new ItemTipHost(this, tip);
         var known = items.Select(i => i.Id).ToHashSet();
         _favorites = (favorites ?? []).Where(known.Contains).ToList();
         _recent = (recent ?? []).Where(known.Contains).Distinct().ToList();
@@ -65,13 +73,17 @@ internal sealed class ItemSearchWindow : Form
         _list.MouseMove += (_, e) =>
         {
             int i = _list.GetItemAt(e.X, e.Y)?.Index ?? -1;
-            if (i == _tipRow) { _tipForm?.Follow(); return; }
-            _tipRow = i;
-            HideTip();
-            if (i >= 0 && i < _rows.Count && _tipOf?.Invoke(_rows[i].Id) is { Count: > 0 } lines) { _tipForm = new ItemTip(lines); _tipForm.Show(this); _tipForm.Follow(); }
+            int id = i >= 0 && i < _rows.Count ? _rows[i].Id : 0;
+            _tip?.Hover(id);
+            if (id > 0) ShowModelLater(id);
         };
-        _list.MouseLeave += (_, _) => { _tipRow = -1; HideTip(); };
-        FormClosed += (_, _) => HideTip();
+        _list.MouseLeave += (_, _) => _tip?.Hide();
+        _list.SelectedIndexChanged += (_, _) => { if (_list.SelectedIndices.Count > 0 && _list.SelectedIndices[0] < _rows.Count) ShowModelLater(_rows[_list.SelectedIndices[0]].Id); };
+        FormClosed += (_, _) => { _tip?.Dispose(); _later.Dispose(); _modelWait.Dispose(); };
+        // miniatura de monstro e NPC é feita em segundo plano: pede de novo as que ainda não chegaram
+        _later.Tick += (_, _) => { if (!_missing) return; _missing = false; _list.Invalidate(); };
+        _later.Start();
+        _modelWait.Tick += (_, _) => { _modelWait.Stop(); DrawModel(); };
 
         var add = new Button { Text = Loc.T("is.add", "Adicionar"), AutoSize = true, Height = 32, FlatStyle = FlatStyle.Flat, BackColor = UiKit.Accent, ForeColor = Color.White, Margin = new Padding(12, 0, 0, 0) };
         add.FlatAppearance.BorderSize = 0;
@@ -87,7 +99,19 @@ internal sealed class ItemSearchWindow : Form
 
         var left = new Panel { Dock = DockStyle.Left, Width = 230, BackColor = Side };
         left.Controls.Add(_blocks);
-        Controls.Add(_list); Controls.Add(top); Controls.Add(left); Controls.Add(foot);
+        Controls.Add(_list); Controls.Add(top); Controls.Add(left);
+        if (_model is not null)
+        {
+            Width += 250;
+            var right = new Panel { Dock = DockStyle.Right, Width = 250, BackColor = Side };
+            right.Controls.Add(_picName); right.Controls.Add(_pic);
+            Controls.Add(right);
+            int from = -1;
+            _pic.MouseDown += (_, e) => from = e.X;
+            _pic.MouseUp += (_, _) => from = -1;
+            _pic.MouseMove += (_, e) => { if (from < 0 || Math.Abs(e.X - from) < 6) return; _yaw += (e.X - from) * 1.2f; from = e.X; DrawModel(); };
+        }
+        Controls.Add(foot);
 
         KeyDown += (_, e) =>
         {
@@ -99,49 +123,20 @@ internal sealed class ItemSearchWindow : Form
         Fill();
     }
 
-    void HideTip() { _tipForm?.Close(); _tipForm = null; }
-
-    /// <summary>Dica flutuante do item, com os mesmos dados da lista do editor de elements.</summary>
-    sealed class ItemTip : Form
+    void ShowModelLater(int id)
     {
-        readonly List<List<(string Text, Color Color, bool Bold)>> _lines;
-        static readonly Font Plain = new("Segoe UI", 9f), Strong = new("Segoe UI", 9f, FontStyle.Bold);
-        const TextFormatFlags Flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+        if (_model is null || id == _modelId) return;
+        _modelId = id; _yaw = 0;
+        _modelWait.Stop(); _modelWait.Start();
+    }
 
-        public ItemTip(List<List<(string Text, Color Color, bool Bold)>> lines)
-        {
-            _lines = lines;
-            FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual; BackColor = Color.FromArgb(16, 17, 20); DoubleBuffered = true;
-            int w = 120;
-            foreach (var l in lines) w = Math.Max(w, l.Sum(r => TextRenderer.MeasureText(r.Text, r.Bold ? Strong : Plain, Size.Empty, Flags).Width));
-            ClientSize = new Size(w + 22, lines.Count * 18 + 16);
-        }
-
-        protected override bool ShowWithoutActivation => true;
-
-        public void Follow()
-        {
-            var at = Cursor.Position; var area = Screen.FromPoint(at).WorkingArea;
-            Location = new Point(Math.Min(at.X + 18, area.Right - Width - 4), Math.Max(area.Top, Math.Min(at.Y + 12, area.Bottom - Height - 4)));
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            using var pen = new Pen(Color.FromArgb(70, 74, 82));
-            e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
-            int y = 8;
-            foreach (var l in _lines)
-            {
-                int x = 10;
-                foreach (var (t, c, bold) in l)
-                {
-                    var f = bold ? Strong : Plain;
-                    TextRenderer.DrawText(e.Graphics, t, f, new Point(x, y), c, Flags);
-                    x += TextRenderer.MeasureText(t, f, Size.Empty, Flags).Width;
-                }
-                y += 18;
-            }
-        }
+    void DrawModel()
+    {
+        if (_model is null || _modelId <= 0) return;
+        var old = _pic.Image;
+        _pic.Image = _model(_modelId, _yaw);
+        old?.Dispose();
+        _picName.Text = _all.FirstOrDefault(r => r.Id == _modelId).Name;
     }
 
     void DrawBlock(object? s, DrawItemEventArgs e)
@@ -173,7 +168,12 @@ internal sealed class ItemSearchWindow : Form
         if (e.ColumnIndex == 0 && e.ItemIndex < _rows.Count)
         {
             int id = _rows[e.ItemIndex].Id;
-            if (!_icons.TryGetValue(id, out var img)) _icons[id] = img = _icon(id);
+            if (!_icons.TryGetValue(id, out var img))
+            {
+                img = _icon(id);
+                _tries[id] = _tries.GetValueOrDefault(id) + 1;
+                if (img is not null || _tries[id] >= 10) _icons[id] = img; else _missing = true;   // 10 tentativas: sem modelo, fica sem ícone
+            }
             if (img is not null) e.Graphics.DrawImage(img, e.Bounds.X + 6, e.Bounds.Y + 1, 32, 32);
             return;
         }

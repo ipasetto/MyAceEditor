@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
@@ -884,6 +884,21 @@ internal sealed class NpcGenView : UserControl
             finally { _pickOwner = null; w.Activate(); w.RefreshMarkers(); }
         };
         w.DeletePoint = o => { SelectObject(o); DeletePoint(); };
+        // ferramenta Criar: ponto novo parado, com os padrões de um ponto do mesmo tipo (nascer sozinho, voltar ao morrer)
+        w.PlaceCreature = (g, id, npc) =>
+        {
+            if (Cur is not { } here) return;
+            int type = npc ? 1 : 0;
+            var from = here.Spawns.FirstOrDefault(x => x.Type == type && x.Creatures.Count == 1 && x.Trigger == 0 && x.InitGen != 0 && x.AutoRevive != 0);
+            var s = from?.Clone() ?? new NpcGenSpawn { Type = type, Direction = new Vec3(0, 0, 1), InitGen = 1, AutoRevive = 1 };
+            var c = s.Creatures.FirstOrDefault()?.Clone() ?? new NpcGenCreature();
+            c.Id = id; c.Amount = 1; c.PathId = 0; c.PathLoop = 0; c.DiedTimes = 0; c.DeadTime = 0;
+            if (c.Respawn <= 0) c.Respawn = 30;
+            s.Creatures.Clear(); s.Creatures.Add(c);
+            s.Position = new Vec3(g.X, g.Y, g.Z); s.Spread = new Vec3(0, 0, 0); s.Location = 0; s.Trigger = 0; s.LifeTime = 0; s.MaxNum = 0;
+            SetKind(npc ? Kind.Npc : Kind.Monster);
+            InsertPoint(here.Spawns.Count, s);
+        };
         w.ClearSelection = () => _list.SelectedIndices.Clear();
         // anel de giro do Mundo 3D: criatura = vetor de direção (x, z); coletável = eixo comprimido + ângulo 0..255 de
         // 360° (AIGenExportor: a3d_CompressDir do eixo; eixo para cima = 0, 0)
@@ -1041,7 +1056,7 @@ internal sealed class NpcGenView : UserControl
         {
             var s = near is NpcGenSpawn ns ? ns.Clone() : new NpcGenSpawn { Type = _kind == Kind.Npc ? 1 : 0, Direction = new Vec3(0, 0, 1) };
             var c = s.Creatures.FirstOrDefault()?.Clone() ?? new NpcGenCreature();
-            c.Id = id; c.Amount = 1; if (c.Respawn <= 0) c.Respawn = 30;
+            c.Id = id; c.Amount = 1; c.PathId = 0; c.PathLoop = 0; if (c.Respawn <= 0) c.Respawn = 30;   // caminho do vizinho não vem junto
             s.Creatures.Clear(); s.Creatures.Add(c);
             s.Trigger = 0;
             if (at is { } a2) { s.Position = a2; s.Location = 0; }   // clicado no chão: nasce no chão

@@ -1,4 +1,4 @@
-using MyAceEditor.Model;
+﻿using MyAceEditor.Model;
 using MyAceEditor.PerfectWorld;
 using MyAceEditor.Store;
 
@@ -3180,28 +3180,28 @@ public sealed class EditorForm : Form
         public string? NameOf(int id) => f.CreatureItem(id) is { } c ? TasksFile.SplitColor(c.Item.Name).Text
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
         public string? ElementDir => f._dataPath is { } dp ? Path.GetDirectoryName(Path.GetDirectoryName(dp)) : null;
-        public List<List<(string Text, Color Color, bool Bold)>>? ItemTip(int id)
+        public Bitmap? TipImage(int id) => f.TipImage(id);
+        public (int Id, int Quantity)? PickItemId(IWin32Window owner, bool quantity)
         {
-            if (f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not { } hit) return null;
-            f.BuildTip(hit.Item);
-            var lines = f._tipRuns.Where(l => l.Count > 0 && l[0].Text != "\u0001").Select(l => l.ToList()).ToList();
-            if (f._cfgs is not null && f._cfgs.ItemDescs.TryGetValue(id, out var desc))
-            {
-                lines.Add([]);
-                var line = new List<(string Text, Color Color, bool Bold)>(); int width = 0;
-                foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg))
-                    foreach (var part in System.Text.RegularExpressions.Regex.Split(t, "(?<=[ \\n])"))
-                    {
-                        bool end = part.EndsWith('\n'), wrap = width + part.Length > 58;
-                        if (wrap && line.Count > 0) { lines.Add(line); line = []; width = 0; }
-                        var text = part.TrimEnd('\n', '\r');
-                        if (text.Length > 0) { line.Add((text, c, false)); width += text.Length; }
-                        if (end) { lines.Add(line); line = []; width = 0; }
-                    }
-                if (line.Count > 0) lines.Add(line);
-            }
-            return lines;
+            using var w = new ItemSearchWindow(AllItems(), ItemIcon, quantity, f.TipImage, f.FavoriteIds(), f.RecentIds());
+            if (w.ShowDialog(owner) != DialogResult.OK) return null;
+            f.NotePicked(w.Picked);
+            return (w.Picked, w.Quantity);
         }
+        public int? PickCreatureId(IWin32Window owner, bool npcOnly) => f.PickCreature(owner, npcOnly);
+        public int? PickRecipeId(IWin32Window owner) => f.PickRecipe(owner);
+        public int RecipeProduct(int recipe) => f.RecipeOf(recipe) is { } r && r.Fields.TryGetValue("targets_1_id_to_make", out var v) && int.TryParse(v.Value, out var n) ? n : 0;
+        public List<(int Id, int Num)> RecipeMaterials(int recipe)
+        {
+            var l = new List<(int, int)>();
+            if (f.RecipeOf(recipe) is not { } r) return l;
+            for (int i = 1; r.Fields.TryGetValue($"materials_{i}_id", out var id); i++)
+                if (int.TryParse(id.Value, out var mid) && mid > 0) l.Add((mid, int.TryParse(r.Fields[$"materials_{i}_num"].Value, out var n) ? n : 1));
+            return l;
+        }
+        public IReadOnlyList<string> ValidateNpc(NpcDraft draft) => f._store.Current is { } m
+            ? NpcBuilder.Validate(m, draft, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null) : [Loc.T("status.openFirst", "Abra um elements.data primeiro")];
+        public int? BuildNpc(NpcDraft draft) => f.BuildNpc(draft);
         public Image? ItemIcon(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? f.IconFor(h.Item) : null;
         public IReadOnlyList<int> FavoriteIds() => f.FavoriteIds();
         public IReadOnlyList<int> RecentIds() => f.RecentIds();
@@ -3720,12 +3720,7 @@ public sealed class EditorForm : Form
 
     /// <summary>NPC novo nasce limpo (pedido de 30/10): sem fala de boas-vindas e sem NENHUM serviço (conversa, quests,
     /// loja, teleporte…), para o usuário definir depois; aparência, nível, monstro de origem etc. vêm da base.</summary>
-    private static void ClearNpc(Item npc)
-    {
-        foreach (var (k, f) in npc.Fields.ToList())
-            if (k == "hello_msg") npc.Fields[k] = Field.Of(f.Type, "");
-            else if (k is "combined_services" or "combined_services2" || k.StartsWith("id_") && k.EndsWith("_service")) npc.Fields[k] = Field.Of(f.Type, "0");
-    }
+    private static void ClearNpc(Item npc) => NpcBuilder.Clear(npc);
 
     // NPCGen: escolher o monstro, NPC ou coletável de um ponto (mesma janela de escolha, com prévia do modelo)
     private int? PickSpawn(IWin32Window owner, NpcGenView.Kind kind, int current)
@@ -3751,11 +3746,23 @@ public sealed class EditorForm : Form
     private int? PickShopItem(IWin32Window owner, int current)
     {
         IQuestHost host = new QuestHostImpl(this);
-        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: host.ItemTip, favorites: FavoriteIds(), recent: RecentIds());
+        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds());
         if (w.ShowDialog(owner) != DialogResult.OK) return null;
         NotePicked(w.Picked);
         return w.Picked;
     }
+
+    // monstro e NPC não têm ícone no jogo: a miniatura do modelo 3D chega depois, em segundo plano
+    private Image? CreatureIcon(int id)
+    {
+        if (CreatureItem(id) is not { } c) return null;
+        int at = IconIndexFor(c.Item);
+        return at >= 0 ? _treeIcons.Images[at] : null;
+    }
+
+    private Image? CreatureModel(int id, float yaw) =>
+        CreatureItem(id) is { } c && c.Item.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value is { } fm && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase)
+            ? ModelPreviewer()?.Render(fm, 240, yaw) : null;
 
     private List<int> FavoriteIds() => _favorites.Select(k => k[(k.LastIndexOf('|') + 1)..]).Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToList();
     private List<int> RecentIds() => _recentKeys.Select(k => int.TryParse(k.Id, out var n) ? n : 0).Where(n => n > 0).ToList();
@@ -3765,14 +3772,62 @@ public sealed class EditorForm : Form
         if (_store.Current?.Lists.SelectMany(l => l.Items).FirstOrDefault(i => i.Id == text) is { } it) RememberRecent(it);
     }
 
-    private int? PickCreature(IWin32Window owner)
+    private Item? RecipeOf(int id) => _store.Current?.FindListByName("RECIPE_ESSENCE")?.Items.FirstOrDefault(i => i.Id == id.ToString());
+
+    private int? PickRecipe(IWin32Window owner)
+    {
+        if (_store.Current?.FindListByName("RECIPE_ESSENCE") is not { } list) return null;
+        int Product(Item r) => r.Fields.TryGetValue("targets_1_id_to_make", out var v) && int.TryParse(v.Value, out var n) ? n : 0;
+        var map = new Dictionary<int, int>();
+        var rows = new List<(int Id, string Name, string Block)>();
+        foreach (var r in list.Items)
+            if (int.TryParse(r.Id, out var id)) { rows.Add((id, TasksFile.SplitColor(r.Name).Text, Pretty(list.Name))); map[id] = Product(r); }
+        var host = new QuestHostImpl(this);
+        using var w = new ItemSearchWindow(rows, id => map.TryGetValue(id, out var p) ? host.ItemIcon(p) : null, askQuantity: false, tip: id => map.TryGetValue(id, out var p) ? TipImage(p) : null) { Text = Loc.T("is.titleRecipe", "Escolher receita") };
+        return w.ShowDialog(owner) == DialogResult.OK ? w.Picked : null;
+    }
+
+    private Item BlankRecord(ItemList block)
+    {
+        Item ni;
+        if ((_store.Current?.Source as ElementsLayout)?.Blocks.FirstOrDefault(b => ReferenceEquals(b.List, block)) is { } span)
+        {
+            ni = CfgElementsReader.ReadRecord(span.Block, new byte[span.RecordSize]);
+            ni.Raw = null;
+        }
+        else
+        {
+            ni = new Item();
+            if (block.Items.FirstOrDefault() is { } template)
+                foreach (var (k, f) in template.Fields) ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
+        }
+        return ni;
+    }
+
+    /// <summary>Ferramenta Criar do Mundo 3D: NPC, loja, fabricação e receitas, cada um com o seu passo no Ctrl+Z do editor.</summary>
+    private int? BuildNpc(NpcDraft d)
+    {
+        if (_store.Current is not { } m) return null;
+        int id = NpcBuilder.Build(m, d, BlankRecord, (block, it) =>
+        {
+            _edits.AddItem(block, it, string.Format(Loc.T("hist.add", "Novo item {0}"), it.Id));
+            _owner[it] = block;
+        }, n => _refs?.Resolve(FieldKind.ItemRef, n.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : n.ToString());
+        _refs = new RefIndex(m);
+        RefreshView();
+        return id;
+    }
+
+    private int? PickCreature(IWin32Window owner) => PickCreature(owner, false);
+
+    private int? PickCreature(IWin32Window owner, bool npcOnly)
     {
         var rows = new List<(int Id, string Name, string Block)>();
-        foreach (var name in new[] { "MONSTER_ESSENCE", "NPC_ESSENCE" })
+        foreach (var name in npcOnly ? new[] { "NPC_ESSENCE" } : new[] { "MONSTER_ESSENCE", "NPC_ESSENCE" })
             if (_store.Current?.FindListByName(name) is { } l)
                 foreach (var it in l.Items)
                     if (int.TryParse(it.Id, out var id)) rows.Add((id, TasksFile.SplitColor(it.Name).Text, Pretty(l.Name)));
-        using var w = new ItemSearchWindow(rows, id => CreatureItem(id) is { } c ? IconFor(c.Item) : null, askQuantity: false, favorites: FavoriteIds(), recent: RecentIds()) { Text = Loc.T("is.titleCreature", "Escolher criatura") };
+        using var w = new ItemSearchWindow(rows, CreatureIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds(), model: CreatureModel) { Text = Loc.T("is.titleCreature", "Escolher criatura") };
         return w.ShowDialog(owner) == DialogResult.OK ? w.Picked : null;
     }
 
@@ -4481,19 +4536,8 @@ public sealed class EditorForm : Form
     {
         var name = "NPC_" + key.ToUpperInvariant().Replace("ID_", "");
         if (_store.Current?.FindListByName(name) is not { } block) { Status(string.Format(Loc.T("svc.noBlock", "Este elements.data não tem o bloco {0}."), name)); return; }
-        Item ni;
         long code = NextCode(block);
-        if ((_store.Current.Source as ElementsLayout)?.Blocks.FirstOrDefault(b => ReferenceEquals(b.List, block)) is { } span)
-        {
-            ni = CfgElementsReader.ReadRecord(span.Block, new byte[span.RecordSize]);
-            ni.Raw = null;
-        }
-        else
-        {
-            ni = new Item();
-            if (block.Items.FirstOrDefault() is { } template)
-                foreach (var (k, f) in template.Fields) ni.Fields[k] = Field.Of(f.Type, f.Type == FieldType.String ? "" : "0");
-        }
+        var ni = BlankRecord(block);
         ni.Id = code.ToString(); ni.Name = TasksFile.SplitColor(npc.Name).Text;
         SetIdName(ni);
         SetField(npc, key, ni.Id, refresh: false);
@@ -4683,10 +4727,33 @@ public sealed class EditorForm : Form
     }
 
     /// <summary>Diagnóstico (--snapshot ... tip): desenha o tooltip da lista do item atual num bitmap.</summary>
-    internal Bitmap? RenderListTip()
+    internal Bitmap? RenderListTip() => _current is null ? null : RenderTip(_current);
+
+    /// <summary>A mesma dica da lista do editor, pronta para as janelas de itens, loja e fornalha. Com a descrição do jogo no fim.</summary>
+    internal Bitmap? TipImage(int id)
     {
-        if (_current is null) return null;
-        BuildTip(_current);
+        var it = CreatureItem(id)?.Item ?? _refs?.Resolve(FieldKind.ItemRef, id.ToString())?.Item;
+        return it is null ? null : RenderTip(it, id);
+    }
+
+    private Bitmap RenderTip(Item item, int descId = 0)
+    {
+        BuildTip(item);
+        if (descId > 0 && _cfgs is not null && _cfgs.ItemDescs.TryGetValue(descId, out var desc))
+        {
+            _tipRuns.Add(new());
+            var line = new List<(string Text, Color Color, bool Bold)>(); int width = 0;
+            foreach (var (t, c) in GameConfigs.Runs(desc, CTreeFg))
+                foreach (var part in System.Text.RegularExpressions.Regex.Split(t, "(?<=[ \\n])"))
+                {
+                    bool end = part.EndsWith('\n'), wrap = width + part.Length > 58;
+                    if (wrap && line.Count > 0) { _tipRuns.Add(line); line = new(); width = 0; }
+                    var text = part.TrimEnd('\n', '\r');
+                    if (text.Length > 0) { line.Add((text, c, false)); width += text.Length; }
+                    if (end) { _tipRuns.Add(line); line = new(); width = 0; }
+                }
+            if (line.Count > 0) _tipRuns.Add(line);
+        }
         var pe = new PopupEventArgs(_list, _list, false, Size.Empty);
         SizeTip(_tip, pe);
         var bmp = new Bitmap(pe.ToolTipSize.Width, pe.ToolTipSize.Height);

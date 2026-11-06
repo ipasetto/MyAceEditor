@@ -434,6 +434,53 @@ internal static class Program
             bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
             return;
         }
+        if (args.Length >= 4 && args[0] == "--item-fields")   // <elements.data> <bloco> <id ou 0 = 1º com serviço> [saída]: campos preenchidos de um registro
+        {
+            var mod = CfgCatalog.Load(args[1]).Module;
+            var list = mod.FindListByName(args[2]);
+            var it = list?.Items.FirstOrDefault(i => i.Id == args[3]) ?? list?.Items.FirstOrDefault(i => args[3].Contains('=') ? i.Fields.TryGetValue(args[3].Split('=')[0], out var ff) && ff.Value is not ("0" or "") : true);
+            var sbf = new StringBuilder($"{args[2]}: {list?.Items.Count} registros, campos {it?.Fields.Count}\n");
+            if (it is not null) foreach (var (k, f) in it.Fields) sbf.AppendLine($"{k} [{f.Type}] = {f.Value}");
+            File.WriteAllText(args.Length > 4 ? args[4] : "item-fields.txt", sbf.ToString());
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--npc-builder-test")   // <elements.data> <saída>: cria vendedor e fornalha na memória e confere as regras
+        {
+            var mod = CfgCatalog.Load(args[1]).Module;
+            var sb = new StringBuilder();
+            var before = ItemRules.Check(mod).Select(x => x.Key).ToHashSet();
+            var items = mod.FindListByName("WEAPON_ESSENCE")!.Items.Take(3).Select(i => int.Parse(i.Id)).ToList();
+            var known = mod.Lists.Where(l => l.Name.EndsWith("_ESSENCE")).SelectMany(l => l.Items).Select(i => i.Id).ToHashSet();
+            bool IsItem(int id) => known.Contains(id.ToString());
+            Model.Item Blank(Model.ItemList l) { var it = new Model.Item(); foreach (var (k, f) in l.Items[0].Fields) it.Fields[k] = Model.Field.Of(f.Type, f.Type == Model.FieldType.String ? "" : "0"); return it; }
+            void Insert(Model.ItemList l, Model.Item it) => l.Items.Add(it);
+            int baseNpc = int.Parse(mod.FindListByName("NPC_ESSENCE")!.Items[0].Id);
+            var shop = new ShopDraft(); shop.Goods[0][0] = items[0]; shop.Goods[0][5] = items[1]; shop.Titles[0] = "Armas";
+            var seller = new NpcDraft { Kind = NpcKind.Seller, BaseId = baseNpc, Name = "Vendedor de teste", Shop = shop };
+            sb.AppendLine("loja vazia acusa: " + NpcBuilder.Validate(mod, new NpcDraft { Kind = NpcKind.Seller, BaseId = baseNpc, Name = "x", Shop = new ShopDraft() }, IsItem).Count);
+            sb.AppendLine("vendedor erros: " + string.Join("; ", NpcBuilder.Validate(mod, seller, IsItem)));
+            int sid = NpcBuilder.Build(mod, seller, Blank, Insert, n => "Item " + n);
+            var sn = mod.FindListByName("NPC_ESSENCE")!.Items.First(i => i.Id == sid.ToString());
+            var sv = mod.FindListByName("NPC_SELL_SERVICE")!.Items.First(i => i.Id == sn.Fields["id_sell_service"].Value);
+            sb.AppendLine($"vendedor {sid} loja {sv.Id} item1 {sv.Fields["pages_1_goods_1_id"].Value} item6 {sv.Fields["pages_1_goods_6_id"].Value} titulo {sv.Fields["pages_1_page_title"].Value} compra {sn.Fields["id_buy_service"].Value}");
+            var make = new MakeDraft(); make.Goods[0][0] = new RecipeDraft { Product = items[2], Count = 2, Price = 100, Materials = [(items[0], 3), (items[1], 1)] };
+            make.Goods[0][1] = new RecipeDraft { RecipeId = int.Parse(mod.FindListByName("RECIPE_ESSENCE")!.Items.First(r => r.Fields["id_skill"].Value == "0").Id) };
+            var forge = new NpcDraft { Kind = NpcKind.Forge, BaseId = baseNpc, Name = "Fornalha de teste", Make = make };
+            sb.AppendLine("fornalha erros: " + string.Join("; ", NpcBuilder.Validate(mod, forge, IsItem)));
+            var bad = make.Copy(); bad.Goods[0][0]!.Materials = [(items[0], 0)];
+            sb.AppendLine("material 0 acusa: " + NpcBuilder.Validate(mod, new NpcDraft { Kind = NpcKind.Forge, BaseId = baseNpc, Name = "x", Make = bad }, IsItem).Count);
+            int fid = NpcBuilder.Build(mod, forge, Blank, Insert, n => "Item " + n);
+            var fn = mod.FindListByName("NPC_ESSENCE")!.Items.First(i => i.Id == fid.ToString());
+            var ms = mod.FindListByName("NPC_MAKE_SERVICE")!.Items.First(i => i.Id == fn.Fields["id_make_service"].Value);
+            var rc = mod.FindListByName("RECIPE_ESSENCE")!.Items.First(i => i.Id == ms.Fields["pages_1_id_goods_1"].Value);
+            sb.AppendLine($"fornalha {fid} servico {ms.Id} receita {rc.Id} produto {rc.Fields["targets_1_id_to_make"].Value} chance {rc.Fields["targets_1_probability"].Value} qtd {rc.Fields["num_to_make"].Value} material {rc.Fields["materials_1_id"].Value}x{rc.Fields["materials_1_num"].Value}");
+            var ids = mod.Lists.Where(l => l.Name is "NPC_ESSENCE" or "NPC_SELL_SERVICE" or "NPC_MAKE_SERVICE").SelectMany(l => l.Items).Where(i => i.Id == sid.ToString() || i.Id == fid.ToString() || i.Id == sv.Id || i.Id == ms.Id).Count();
+            sb.AppendLine("ids sem repetir: " + (ids == 4));
+            var novos = ItemRules.Check(mod).Where(x => !before.Contains(x.Key)).ToList();
+            sb.AppendLine("problemas novos: " + novos.Count + " " + string.Join(" | ", novos.Take(5).Select(x => x.Rule + " " + x.Id + " " + x.Detail)));
+            File.WriteAllText(args[2], sb.ToString());
+            return;
+        }
         if (args.Length >= 5 && args[0] == "--path-near")   // <saída> <pasta do mapa> <x> <z>: caminhos perto do ponto e quem anda neles (teste 24)
         {
             float px = float.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture), pz = float.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);

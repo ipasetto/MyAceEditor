@@ -35,6 +35,9 @@
 | `MONSTER_ADDON.param1` de 0 a 9 nos atributos que o tipo do monstro usa | o gs cai ao iniciar | idem |
 | NPC com serviço de teleporte: o serviço tem pelo menos 1 destino | o gs cai ao iniciar | idem |
 | NPC com serviço de redistribuir atributos: nenhum valor negativo | o gs cai ao iniciar | idem |
+| Receita: chances dos produtos (`targets_N_probability`) somam 1 | o gs ignora a receita ao carregar | `recipe_manager` em `npcgenerator.cpp`; `ItemRules` "recipe-chance" |
+| Serviço de fabricação só aponta para receita que existe | o NPC oferece o que o gs não conhece | `ItemRules` "make-recipe" |
+| NPC com serviço apontando para registro do tipo errado | o gs pula o NPC | `npc_stubs_manager::LoadTemplate` |
 | Pedra (`STONE_ESSENCE.level`) de 1 a 20 | o gs cai quando a pedra é usada | `player.cpp` |
 | Configs buscadas por ID fixo continuam com o mesmo ID: 696, 701, 801, 854, 1022–1027, 1038, 1064, 1290, 1424 (renascer), 1425, 1444, 1637, 1735, 1740, 2013 | a função cai ou para (renascer faz ASSERT sem a 1424) | `get_data_ptr(<ID>, ID_SPACE_CONFIG)` |
 

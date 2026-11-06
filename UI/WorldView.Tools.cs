@@ -7,7 +7,7 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed partial class WorldView
 {
-    enum Tool { None, Scene, Paths, Quests }
+    enum Tool { None, Scene, Paths, Quests, Create }
     /// <summary>Salvar tudo e enviar ao servidor (EditorForm.SaveAndSend).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Action? SaveAndSendAll { get; set; }
     Tool _tool;
@@ -19,6 +19,7 @@ internal sealed partial class WorldView
     readonly FlowLayoutPanel _toolMenu = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(9, 10, 0, 0) };
     readonly FlowLayoutPanel _scenePage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
     readonly FlowLayoutPanel _pathsPage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
+    readonly FlowLayoutPanel _createPage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
     readonly Label _sceneState = new() { AutoSize = true, MaximumSize = new Size(240, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
     readonly ToolTip _toolTip = new();
     bool _toolsFolded;
@@ -100,6 +101,7 @@ internal sealed partial class WorldView
         _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
+        _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.create", "Criar"), Loc.T("tools.createSub", "Criatura, NPC, vendedor ou fornalha, direto no mundo."), () => OpenTool(Tool.Create)));
         // sempre por último: grava tudo e leva ao servidor (a janela principal abre na aba Servidor)
         var send = ToolButton("\uE898", Loc.T("tools.send", "Salvar e enviar ao servidor"), Loc.T("tools.sendSub", "Grava tudo o que mudou e reinicia o servidor local com isso"), () =>
         {
@@ -132,8 +134,9 @@ internal sealed partial class WorldView
         // ---- Caminhos e áreas ----
         InitPathPage();
         InitQuestPage();
+        InitCreatePage();
 
-        _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_questsPage); _tools.Controls.Add(_toolHead);
+        _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_questsPage); _tools.Controls.Add(_createPage); _tools.Controls.Add(_toolHead);
         Controls.Add(_tools);
         _tools.BringToFront();
         _gl.Resize += (_, _) => LayoutTools();
@@ -143,10 +146,10 @@ internal sealed partial class WorldView
     /// <summary>Tamanho e lugar do menu: solto à direita, um pouco abaixo da barra de cima; recolhido = só o cabeçalho.</summary>
     void LayoutTools()
     {
-        var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, _ => _toolMenu };
-        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, Tool.Create => _createPage, _ => _toolMenu };
+        int body = _tool switch { Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
-        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage }) p.Visible = !_toolsFolded && p == page;
+        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage, _createPage }) p.Visible = !_toolsFolded && p == page;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);
         _toolTip.SetToolTip(_toolFold, _toolsFolded ? Loc.T("tools.unfold", "Abrir o menu") : Loc.T("tools.fold", "Recolher o menu"));
         _tools.Location = new Point(Math.Max(0, _gl.Right - _tools.Width - 16), _gl.Top + 16);
@@ -169,7 +172,7 @@ internal sealed partial class WorldView
         // só o que a ferramenta faz: sai o painel de baixo (quests/criatura) e a legenda
         HideBottomPanels();
         if (_legendOpen) { _legendOpen = false; _gl.Invalidate(); }
-        _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "\uF158" : t == Tool.Quests ? "\uE7C1" : "\uE707", Color.White, 18);
+        _toolTitle.Image = UiKit.Icon(t == Tool.Scene ? "\uF158" : t == Tool.Quests ? "\uE7C1" : t == Tool.Create ? "\uE710" : "\uE707", Color.White, 18);
         if (t == Tool.Quests)
         {
             _toolTitle.Text = "       " + Loc.T("tools.quests", "Quests");
@@ -177,6 +180,7 @@ internal sealed partial class WorldView
         }
         if (t == Tool.Scene) { _toolTitle.Text = "       " + Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
         if (t == Tool.Paths) { _toolTitle.Text = "       " + Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
+        if (t == Tool.Create) { _toolTitle.Text = "       " + Loc.T("tools.create", "Criar"); UpdateCreatePanel(); }
         LayoutTools();
     }
 
@@ -185,6 +189,7 @@ internal sealed partial class WorldView
     {
         if (_tool == Tool.Scene) SetSceneObjects(false);
         if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _gl.Invalidate(); }
+        if (_tool == Tool.Create) { CancelPlacing(); if (_shopWin is not null) _shopWin.Visible = false; if (_forgeWin is not null) _forgeWin.Visible = false; }
         _tool = Tool.None;
         _toolBack.Visible = false;
         _toolTitle.Text = "       " + Loc.T("tools.title", "Ferramentas");

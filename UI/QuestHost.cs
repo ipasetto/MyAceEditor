@@ -34,6 +34,16 @@ internal interface IQuestHost
     string? NameOf(int id);
     /// <summary>Todos os itens do elements.data, para a janela de busca.</summary>
     IReadOnlyList<(int Id, string Name, string Block)> AllItems() => [];
+    /// <summary>Janela de itens: ID e quantidade escolhidos.</summary>
+    (int Id, int Quantity)? PickItemId(IWin32Window owner, bool quantity) => null;
+    /// <summary>Janela de criaturas (ícone, dica e modelo 3D); npcOnly mostra só NPCs.</summary>
+    int? PickCreatureId(IWin32Window owner, bool npcOnly) => null;
+    int? PickRecipeId(IWin32Window owner) => null;
+    int RecipeProduct(int recipe) => 0;
+    List<(int Id, int Num)> RecipeMaterials(int recipe) => [];
+    /// <summary>Ferramenta Criar: o que impede de criar (vazio = pode) e criação dos registros; devolve o ID do NPC.</summary>
+    IReadOnlyList<string> ValidateNpc(PerfectWorld.NpcDraft draft) => [];
+    int? BuildNpc(PerfectWorld.NpcDraft draft) => null;
     /// <summary>Favoritos e recentes do editor de elements, para a janela de busca.</summary>
     IReadOnlyList<int> FavoriteIds() => [];
     IReadOnlyList<int> RecentIds() => [];
@@ -42,7 +52,7 @@ internal interface IQuestHost
     /// <summary>Ícone do item, para a janela de escolher item.</summary>
     Image? ItemIcon(int id) => null;
     /// <summary>Linhas da dica do item, como na lista do editor de elements.</summary>
-    List<List<(string Text, Color Color, bool Bold)>>? ItemTip(int id) => null;
+    Bitmap? TipImage(int id) => null;
     /// <summary>Pasta element do cliente aberto.</summary>
     string? ElementDir => null;
     bool IsNpc(int id);

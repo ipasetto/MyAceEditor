@@ -62,6 +62,7 @@ public static class ItemRules
         }
 
         CheckNpcTemplates(m, list, N);
+        CheckRecipes(m, list, N);
 
         // pedra: player.cpp faz ASSERT(level 1..20) ao herdar/encaixar — o gs cai na hora em que o jogador usa
         if (m.FindListByName("STONE_ESSENCE") is { } stones)
@@ -95,6 +96,27 @@ public static class ItemRules
 
     static string? F(Item i, string k) => i.Fields.TryGetValue(k, out var f) ? f.Value : null;
     static float Fl(string? v) => float.TryParse(v?.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) ? x : 0f;
+
+    // recipe_manager (npcgenerator.cpp): chances dos targets somando diferente de 1 = o gs ignora a receita;
+    // serviço de fabricação apontando para receita que não existe: o NPC oferece o que o gs não conhece
+    static void CheckRecipes(Module m, List<Problem> list, Func<Item, string> N)
+    {
+        if (m.FindListByName("RECIPE_ESSENCE") is not { } recipes) return;
+        var ids = new HashSet<string>();
+        foreach (var r in recipes.Items)
+        {
+            ids.Add(r.Id);
+            float sum = 0;
+            for (int t = 1; t <= 4; t++) sum += Fl(F(r, $"targets_{t}_probability"));
+            if (MathF.Abs(sum - 1) > 1e-5f)
+                list.Add(new("recipe-chance", recipes.Name, r.Id, N(r), string.Format(UI.Loc.T("rule.recipeChance", "chances dos produtos somam {0:0.##}: o gs ignora a receita (tem de somar 1)"), sum)));
+        }
+        if (m.FindListByName("NPC_MAKE_SERVICE") is not { } services) return;
+        foreach (var s in services.Items)
+            foreach (var (k, f) in s.Fields)
+                if (k.Contains("_id_goods_") && f.Value is not ("0" or "") && !ids.Contains(f.Value))
+                    list.Add(new("make-recipe", services.Name, s.Id, N(s), string.Format(UI.Loc.T("rule.makeRecipe", "aponta para a receita {0}, que não existe"), f.Value)));
+    }
 
     // npc_stubs_manager::LoadTemplate (npcgenerator.cpp): ASSERTs que derrubam o gs ao subir
     static void CheckNpcTemplates(Module m, List<Problem> list, Func<Item, string> N)
