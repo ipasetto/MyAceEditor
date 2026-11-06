@@ -87,6 +87,19 @@ quando regravar o bloco a partir do rascunho dá o mesmo bloco (`QuestBuilder.Fr
   (só roda chamado pela operação "executar gatilho") e nem o registra (`policy_loader.cpp`: `if(IsRun()) continue`).
   Os anúncios do editor nascem com 0 e os antigos são corrigidos ao abrir (`AiAnnounce.FixRun`).
 
+### Zonas (`precinct.clt` e `precinct.sev`)
+
+Vêm das fontes do jogo. A checagem entra em `PerfectWorld/ZoneRules.cs` junto com o editor de zonas.
+
+| Regra | Se quebrar |
+|---|---|
+| Carimbo igual nos dois arquivos | o jogador vê erro de dados da instância ao entrar |
+| Mesma lista de áreas, na mesma ordem, nos dois arquivos | cliente e servidor discordam de onde o jogador está |
+| Menor número de prioridade ganha; no empate, a última do arquivo | a zona errada vale no lugar |
+| Pelo menos 3 cantos, sem a borda cruzar a si mesma | o exportador oficial recusa; o ponto dentro da área fica imprevisível |
+| ID diferente de 0 para mostrar nome | o jogador não vê o nome da zona |
+| Lugar sem zona | a música para, quem morre renasce ali, voltar à cidade falha |
+
 ## 5. Regras de trabalho do projeto
 
 - Editar dado do jogo = editar o **par cliente + servidor** (elements, tasks, loja, IA). Salvar não envia; o
