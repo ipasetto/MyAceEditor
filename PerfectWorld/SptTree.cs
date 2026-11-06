@@ -819,33 +819,43 @@ public static class SptGrower
     /// uma borda ao centro e n−1 de volta (2n−1 no total): lado = ±s·w, altura = (perfil(s) − perfil(0))·w, s = 1 … 0 … 1 —
     /// girada pelo giro sorteado e arrastada pelo eixo do galho; s da textura atravessa a seção, t vai da base à ponta.
     /// </summary>
-    static void Extrude(SptFrond fr, SptMesh m, Vector3[] centers, Vector3[] dirs, Vector3 side, float w, float tilt, float s0, float s1, float t0, float t1)
+    /// <summary>
+    /// Fronde extrudada (FUN_1000bde0 e FUN_1000cda0): perfil espelhado, cada ponto sorteia a variação da curva. O ponto fica
+    /// na média dos eixos deste vértice e do anterior, girados pela inclinação.
+    /// </summary>
+    static void Extrude(SptFrond fr, SptMesh m, Guide g, SptRandom rng, float s0, float s1, float t0, float t1)
     {
-        int n = fr.Segments, cols = 2 * n - 1, rows = centers.Length;
+        int n = fr.Segments, cols = 2 * n - 1, rows = g.Centers.Length;
+        float w = g.Half, baseZ = fr.Profile.Eval(0, rng) * w;
         var prof = new (float Y, float Z)[cols];
-        float baseZ = fr.Profile.Shape(0);
         for (int i = 0; i < n; i++)
         {
-            float s = 1 - i / (float)(n - 1);
-            prof[i] = (-s * w, (fr.Profile.Shape(s) - baseZ) * w);
-            prof[cols - 1 - i] = (s * w, prof[i].Item2);
+            float a = 1 - i / (float)(n - 1);
+            prof[i] = (-a * w, fr.Profile.Eval(a, rng) * w - baseZ);
+            prof[cols - 1 - i] = (a * w, prof[i].Item2);
         }
+        float rad = MathHelper.DegreesToRadians(g.Tilt), ca = MathF.Cos(rad), sa = MathF.Sin(rad);
+        (Vector3 Y, Vector3 Z) Axes(Frame t) { var y = Ours(t.Y); var z = Ours(t.Z); return (y * ca + z * sa, z * ca - y * sa); }
         int first = m.FrondPos.Count;
-        var ss = side;
+        var grid = new Vector3[rows * cols];
         for (int i = 0; i < rows; i++)
         {
-            var a = dirs[i];
-            ss = Vector3.Cross(Vector3.Cross(a, ss), a); if (ss.LengthSquared < 1e-6f) ss = Vector3.Cross(a, Vector3.UnitZ); ss.Normalize();
-            var across = Rotate(ss, a, tilt);
-            var up = Vector3.Cross(a, across).Normalized();
-            if (up.Y < 0) up = -up;   // a curva do perfil fica para cima
-            float tt = Lerp(t1, t0, i / (float)(rows - 1));
+            var (ay, az) = Axes(g.Tms[i]);
+            var (by, bz) = Axes(g.Tms[i == 0 ? 0 : i - 1]);
+            for (int j = 0; j < cols; j++)
+                grid[i * cols + j] = g.Centers[i] + (ay * prof[j].Y + az * prof[j].Z + by * prof[j].Y + bz * prof[j].Z) * 0.5f;
+        }
+        var run = new float[rows * cols];
+        for (int j = 0; j < cols; j++)
+            for (int i = 1; i < rows; i++)
+                run[i * cols + j] = run[(i - 1) * cols + j] + (grid[i * cols + j] - grid[(i - 1) * cols + j]).Length;
+        for (int i = 0; i < rows; i++)
             for (int j = 0; j < cols; j++)
             {
-                m.FrondPos.Add(centers[i] + across * prof[j].Y + up * prof[j].Z);
-                m.FrondUv.Add(new Vector2(Lerp(s0, s1, j / (float)(cols - 1)), tt));
+                float v = run[i * cols + j] / MathF.Max(run[(rows - 1) * cols + j], 1e-6f) * 0.999f;
+                m.FrondPos.Add(grid[i * cols + j]);
+                m.FrondUv.Add(new Vector2(Lerp(s0, s1, j / (float)(cols - 1)), Lerp(t1, t0, v)));
             }
-        }
         for (int i = 0; i < rows - 1; i++)
             for (int j = 0; j < cols - 1; j++)
             {
@@ -900,18 +910,18 @@ public static class SptGrower
         {
             if (sum > target) break;
             sum += g.Area;
-            Frond(fr, m, g);
+            Frond(fr, m, g, rng);
         }
     }
 
-    static void Frond(SptFrond fr, SptMesh m, Guide g)
+    static void Frond(SptFrond fr, SptMesh m, Guide g, SptRandom rng)
     {
         var (map, centers, dirs, side, half, tilt) = (g.Map, g.Centers, g.Dirs, g.Side, g.Half, g.Tilt);
         var uv = map.Uv;
         float s0 = MathF.Min(MathF.Min(uv[0], uv[2]), MathF.Min(uv[4], uv[6])), s1 = MathF.Max(MathF.Max(uv[0], uv[2]), MathF.Max(uv[4], uv[6]));
         float t0 = MathF.Min(MathF.Min(uv[1], uv[3]), MathF.Min(uv[5], uv[7])), t1 = MathF.Max(MathF.Max(uv[1], uv[3]), MathF.Max(uv[5], uv[7]));
         int n = centers.Length;
-        if (fr.Type == 1) { Extrude(fr, m, centers, dirs, side, half, tilt, s0, s1, t0, t1); return; }
+        if (fr.Type == 1) { Extrude(fr, m, g, rng, s0, s1, t0, t1); return; }
         // cada lâmina nos eixos do ponto: o último usa os do anterior e os do meio ficam na média dos dois (FUN_1000ab90)
         float step = 180f / fr.Blades;
         var cross = new Vector3[n]; var plus = new Vector3[n]; var minus = new Vector3[n];
