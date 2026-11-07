@@ -23,12 +23,164 @@ public static class ZoneSelfTest
         Client(r, maps);
         if (config is not null) Server(r, maps, config);
         Rules(r, maps);
+        if (config is not null) Pair(r, maps, config);
         lines.Add($"falhas: {r.Failed}");
         File.WriteAllLines(output, lines);
     }
 
     static IEnumerable<string> ClientFiles(string maps) =>
         Directory.GetDirectories(maps).Select(d => Path.Combine(d, "precinct.clt")).Where(File.Exists);
+
+    /// <summary>Cópia de um mapa em pasta temporária: (pasta do cliente, pasta do servidor).</summary>
+    static (string Client, string Server) Copy(string temp, string maps, string config, string map, int n)
+    {
+        string c = Path.Combine(temp, $"c{n}", map), s = Path.Combine(temp, $"s{n}", map);
+        Directory.CreateDirectory(c); Directory.CreateDirectory(s);
+        File.Copy(Path.Combine(maps, map, "precinct.clt"), Path.Combine(c, "precinct.clt"));
+        if (File.Exists(Path.Combine(config, map, "precinct.sev"))) File.Copy(Path.Combine(config, map, "precinct.sev"), Path.Combine(s, "precinct.sev"));
+        return (c, s);
+    }
+
+    static byte[] Bytes(string dir, string file) => File.ReadAllBytes(Path.Combine(dir, file));
+    static bool Same(byte[] a, byte[] b) => a.AsSpan().SequenceEqual(b);
+    /// <summary>Área como texto: dois valores iguais só se tudo que vai para o arquivo for igual.</summary>
+    static string Line(PrecinctFile.Area a) { var f = new PrecinctFile(); f.Areas.Add(a); return System.Text.Encoding.Unicode.GetString(f.Render()); }
+    static PrecinctFile.Area Moved(PrecinctFile.Area a) => a with { Points = [.. a.Points.Select((p, i) => i == 0 ? (p.X + 1, p.Z) : p)] };
+
+    static void Pair(Report r, string maps, string config)
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "MyAceZoneTest" + Environment.ProcessId);
+        Directory.CreateDirectory(temp);
+        try
+        {
+            int n = 0;
+            ZonePair Fresh(string map, out string c, out string s) { (c, s) = Copy(temp, maps, config, map, ++n); return ZonePair.Open(c, s); }
+
+            var p = Fresh("a01", out var c, out var s);
+            var sev0 = Bytes(s, "precinct.sev");
+            uint stamp0 = p.Client.Stamp;
+            var w = p.Working();
+            w.Areas[1] = w.Areas[1] with { Name = "Nome novo" };
+            var named = p.Save(w);
+            r.Check("so-nome-nao-toca-servidor", named.Kind == SaveKind.ClientOnly && Same(sev0, Bytes(s, "precinct.sev")) && p.Client.Stamp == stamp0 && p.Client.Areas[1].Name == "Nome novo", named.Message);
+            w = p.Working();
+            w.Areas[1] = Moved(w.Areas[1]);
+            var moved = p.Save(w);
+            r.Check("carimbo-so-com-servidor", moved.Kind == SaveKind.Both && p.Client.Stamp != stamp0 && p.Server!.Stamp == p.Client.Stamp && p.State == PairState.Ok, moved.Message);
+
+            p = Fresh("a01", out c, out s);
+            var others = p.Client.Areas.Skip(1).Select(Line).ToList();
+            w = p.Working();
+            w.Areas[0] = Moved(w.Areas[0]) with { Name = "Mudada" };
+            w.Areas.Add(w.Areas[0] with { Id = ZoneRules.FreeId(w), Name = "Nova" });
+            p.Save(w);
+            var again = ZonePair.Open(c, s);
+            r.Check("outras-zonas-iguais", again.Client.Areas.Skip(1).Take(others.Count).Select(Line).SequenceEqual(others) && again.Client.Areas[^1].Name == "Nova" && again.State == PairState.Ok);
+
+            foreach (var map in new[] { "a72", "b01" })
+            {
+                if (!File.Exists(Path.Combine(maps, map, "precinct.clt"))) continue;
+                p = Fresh(map, out c, out s);
+                int main = p.Client.MainInstance;
+                var keep = p.Client.Areas.Where(a => a.SrcInstance != main).Select(Line).ToList();
+                w = p.Working();
+                w.Areas.Remove(w.Areas.First(a => a.SrcInstance == main));
+                var res = p.Save(w);
+                r.Check("origens-separadas-" + map, keep.Count > 0 && ZonePair.Open(c, s).Client.Areas.Where(a => a.SrcInstance != main).Select(Line).SequenceEqual(keep), $"{keep.Count} de outra origem; {res.Kind}");
+            }
+
+            p = Fresh("a01", out c, out s);
+            var clt0 = Bytes(c, "precinct.clt");
+            w = p.Working();
+            w.Areas[0] = Moved(w.Areas[0]);
+            SaveResult locked;
+            using (new FileStream(Path.Combine(s, "precinct.sev"), FileMode.Open, FileAccess.Read, FileShare.None)) locked = p.Save(w);
+            r.Check("falha-segundo-arquivo", locked.Kind is SaveKind.RolledBack or SaveKind.Locked && Same(clt0, Bytes(c, "precinct.clt")), locked.Kind.ToString());
+
+            // o .sev recusa só na hora de gravar: o .clt, que já foi, tem de voltar
+            p = Fresh("a01", out c, out s);
+            clt0 = Bytes(c, "precinct.clt");
+            var sevFile = Path.Combine(s, "precinct.sev");
+            File.SetAttributes(sevFile, FileAttributes.ReadOnly);
+            w = p.Working();
+            w.Areas[0] = Moved(w.Areas[0]);
+            var back = p.Save(w);
+            File.SetAttributes(sevFile, FileAttributes.Normal);
+            r.Check("volta-do-primeiro", back.Kind == SaveKind.RolledBack && Same(clt0, Bytes(c, "precinct.clt")), back.Kind + " " + back.Message);
+
+            p = Fresh("a01", out c, out s);
+            File.AppendAllText(Path.Combine(c, "precinct.clt"), " ");
+            var outside = Bytes(c, "precinct.clt");
+            w = p.Working();
+            w.Areas[0] = w.Areas[0] with { Name = "X" };
+            var stale = p.Save(w);
+            r.Check("mudou-no-disco", stale.Kind == SaveKind.ChangedOnDisk && Same(outside, Bytes(c, "precinct.clt")), stale.Kind.ToString());
+            r.Check("gravar-por-cima", p.Save(w, overwriteExternal: true).Kind == SaveKind.ClientOnly);
+
+            p = Fresh("a01", out c, out s);
+            var photo = p.Snapshot();
+            clt0 = Bytes(c, "precinct.clt");
+            w = p.Working();
+            w.Areas[0] = Moved(w.Areas[0]);
+            p.Save(w);
+            var undo = p.Restore(photo);
+            r.Check("restore-volta", undo.Kind == SaveKind.Both && p.Client.Areas[0].Points[0] == ZonePair.Open(c, s).Client.Areas[0].Points[0] && p.State == PairState.Ok
+                && PrecinctFile.Parse(clt0).Areas[0].Points[0] == p.Client.Areas[0].Points[0], undo.Kind.ToString());
+            w = p.Working();
+            w.Areas[0] = Moved(w.Areas[0]);
+            p.Save(w);
+            var saved = Bytes(c, "precinct.clt");
+            File.Delete(Path.Combine(s, "precinct.sev"));
+            var gone = p.Restore(photo);
+            r.Check("restore-sem-servidor", gone.Kind == SaveKind.Failed && Same(saved, Bytes(c, "precinct.clt")), gone.Kind.ToString());
+
+            r.Check("estado-a23", Fresh("a23", out _, out _).State == PairState.StampDiffers);
+            p = Fresh("a40", out c, out s);
+            r.Check("estado-a40", p.State == PairState.ListsDiffer, p.State.ToString());
+            w = p.Working(); w.Areas[0] = Moved(w.Areas[0]);
+            r.Check("a40-barra-forma", p.Save(w).Kind == SaveKind.Failed);
+            w = p.Working(); w.Areas[0] = w.Areas[0] with { Name = "So nome" };
+            r.Check("a40-deixa-nome", p.Save(w).Kind == SaveKind.ClientOnly);
+            r.Check("a40-cliente-certo", p.UseClientAsTruth().Kind == SaveKind.Both && p.State == PairState.Ok, p.State.ToString());
+
+            p = Fresh("a23", out c, out s);
+            r.Check("igualar-carimbo", p.Save(p.Working()).Kind == SaveKind.Both && p.State == PairState.Ok);
+
+            // .sev v6 sobe para a v7 ao mudar o que ele guarda
+            p = Fresh("a01", out c, out s);
+            using (var ms = new MemoryStream())
+            using (var bw = new BinaryWriter(ms))
+            {
+                bw.Write(6u); bw.Write(p.Client.Areas.Count); bw.Write(p.Client.Stamp);
+                foreach (var a in p.Client.Areas)
+                {
+                    bw.Write(a.Points.Count); bw.Write(a.Priority); bw.Write(a.DstInstance); bw.Write(a.SrcInstance); bw.Write(a.Domain);
+                    bw.Write(a.City.X); bw.Write(a.City.Y); bw.Write(a.City.Z);
+                    for (int i = 0; i < a.Points.Count; i++) { bw.Write(a.Points[i].X); bw.Write(a.PointY[i]); bw.Write(a.Points[i].Z); }
+                }
+                bw.Flush();
+                File.WriteAllBytes(Path.Combine(s, "precinct.sev"), ms.ToArray());
+            }
+            p = ZonePair.Open(c, s);
+            w = p.Working(); w.Areas[0] = Moved(w.Areas[0]);
+            p.Save(w);
+            r.Check("v6-sobe", BitConverter.ToUInt32(Bytes(s, "precinct.sev"), 0) == 7 && p.State == PairState.Ok, p.State.ToString());
+
+            var dirBad = Path.Combine(temp, "ruim"); Directory.CreateDirectory(dirBad);
+            File.WriteAllText(Path.Combine(dirBad, "precinct.clt"), "lixo");
+            var bad = ZonePair.Open(dirBad, null);
+            r.Check("quebrado-so-leitura", bad.State == PairState.ReadOnly && bad.Save(bad.Working()).Kind == SaveKind.Failed && File.ReadAllText(Path.Combine(dirBad, "precinct.clt")) == "lixo");
+
+            string d1 = Path.Combine(temp, "novo-c"), d2 = Path.Combine(temp, "novo-s");
+            Directory.CreateDirectory(d1); Directory.CreateDirectory(d2);
+            p = ZonePair.Open(d1, d2);
+            w = p.Working();
+            w.Areas.Add(new PrecinctFile.Area("Primeira", 0, 0, 1, "", "", [], [(0, 0), (5, 0), (5, 5)]) { Id = 1, SrcInstance = 1, City = (1, 0, 1) });
+            var made = p.Save(w);
+            r.Check("sem-arquivo-cria-par", p.Empty == false && File.Exists(Path.Combine(d1, "precinct.clt")) && File.Exists(Path.Combine(d2, "precinct.sev")) && p.State == PairState.Ok, made.Message);
+        }
+        finally { Directory.Delete(temp, true); }
+    }
 
     static void Rules(Report r, string maps)
     {
