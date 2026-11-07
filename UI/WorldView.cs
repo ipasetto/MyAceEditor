@@ -366,7 +366,7 @@ internal sealed partial class WorldView : Form
         InitToolMenu();    // menu flutuante de ferramentas por último: usa a grama e os outros desenhos já criados
         FormClosed += (_, _) =>
         {
-            _tick.Dispose(); _load.Dispose(); _gl.MakeCurrent();
+            _tick.Dispose(); _load.Dispose(); DraftDispose(); _gl.MakeCurrent();
             _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _grass.Dispose(); _sky.Dispose(); _worldMap?.Dispose(); _instMap?.Dispose();
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
@@ -610,6 +610,7 @@ internal sealed partial class WorldView : Form
                         if (r >= 0 && c >= 0 && r < _t.Rows && c < _t.Cols) pieces.Add(r * _t.Cols + c + 1);
             }
             _buildings.Update(pieces);
+            if (_tool == Tool.Scene && _draft is not null) DraftWant(pieces);
         }
         if (_showBuildings) _buildings.Draw(_cam, Forward);
         _trees.Draw(_cam, Forward);

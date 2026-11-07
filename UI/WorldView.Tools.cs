@@ -310,7 +310,7 @@ internal sealed partial class WorldView
     void SetSceneObjects(bool on)
     {
         _sceneObjs = on; _gl.Invalidate();
-        if (_sceneObjs) LoadSceneForEdit(); else { _sceneSel = null; ShowObjPanel(); }
+        if (_sceneObjs) { LoadSceneForEdit(); DraftOpen(); } else { _sceneSel = null; ShowObjPanel(); }
         _status.Text = ObjScene is not { } sc ? Loc.T("world.noScene", "Este mapa não tem .ecwld no cliente.")
             : _sceneObjs ? string.Format(Loc.T("world.objsOn2", "Edição do cenário ligada: {0} efeitos, {1} sons, {2} grupos de bichos — clique num ponto para escolher"), sc.Effects.Count, sc.Sounds.Count, sc.Critters.Count)
             : "";

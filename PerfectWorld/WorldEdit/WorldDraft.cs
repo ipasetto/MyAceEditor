@@ -83,6 +83,25 @@ public sealed class WorldDraft(string map)
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Solta os pedaços que não estão em <paramref name="wanted"/> e não têm mudança (pedaço sujo fica até o Salvar);
+    /// os passos de desfazer/refazer dos objetos soltos saem junto (não teriam mais em quem agir).
+    /// </summary>
+    public void Retain(IReadOnlyCollection<int> wanted)
+    {
+        var drop = _pieces.Values.Where(p => !wanted.Contains(p.Id) && !p.Dirty).ToList();
+        if (drop.Count == 0) return;
+        var gone = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in drop)
+        {
+            _pieces.Remove(p.Id);
+            foreach (var o in p.Objects.Concat(p.Added)) { _byKey.Remove(o.Key); gone.Add(o.Key); }
+        }
+        _undo.RemoveAll(s => gone.Contains(s.Key));
+        _redo.RemoveAll(s => gone.Contains(s.Key));
+        Changed?.Invoke();
+    }
+
     /// <summary>Aplica a mudança. null = aplicada; senão, o motivo da recusa em palavras simples (nada muda).</summary>
     public string? Apply(DraftOp op)
     {

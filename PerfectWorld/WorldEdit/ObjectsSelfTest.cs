@@ -90,6 +90,16 @@ public static class ObjectsSelfTest
         int fired = 0; var ev = OneObject(out _); ev.Changed += () => fired++;
         ev.Apply(new MoveOp("a", to)); ev.Undo(); ev.Redo();
         r.Check("draft-avisa-mudanca", fired == 3, $"{fired} avisos");
+
+        var k = new WorldDraft("teste");
+        var dirty = Obj("suja", 1); var clean = Obj("limpa", 2);
+        k.Put(new DraftPiece(1) { Loaded = true, Objects = { dirty } });
+        k.Put(new DraftPiece(2) { Loaded = true, Objects = { clean } });
+        k.Apply(new MoveOp("suja", dirty.Original with { Pos = new Vector3(1, 2, 3) }));
+        k.Apply(new MoveOp("limpa", clean.Original with { Pos = new Vector3(4, 5, 6) })); k.Undo();   // limpa de novo, com refazer
+        k.Retain([3]);
+        r.Check("pedaco-sujo-fica", k.Pieces.ContainsKey(1) && !k.Pieces.ContainsKey(2) && k.Find("suja") is not null && k.Find("limpa") is null && k.RedoCount == 0 && k.UndoCount == 1,
+            $"pedaços {string.Join(",", k.Pieces.Keys)}, desfazer {k.UndoCount}, refazer {k.RedoCount}");
     }
 
 
