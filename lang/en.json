@@ -5486,5 +5486,7 @@
   "zp.savedBoth": "Saved on client and server. Restart the map on the server and the game.",
   "zp.savedClient": "Saved. Close and open the game to see it.",
   "zp.locked": "Close the program using the file and try again.",
-  "zp.restoreNoServer": "Cannot undo: the server file is no longer there. Nothing changed."
+  "zp.restoreNoServer": "Cannot undo: the server file is no longer there. Nothing changed.",
+  "map.all": "All",
+  "map.meters": "{0} m"
 }

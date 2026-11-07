@@ -5488,5 +5488,7 @@
   "zp.savedBoth": "已保存到客户端和服务器。请重启服务器上的地图和游戏。",
   "zp.savedClient": "已保存。关闭并重新打开游戏即可看到。",
   "zp.locked": "请关闭正在使用该文件的程序后重试。",
-  "zp.restoreNoServer": "无法撤销:服务器文件已不存在。没有任何更改。"
+  "zp.restoreNoServer": "无法撤销:服务器文件已不存在。没有任何更改。",
+  "map.all": "全部",
+  "map.meters": "{0} 米"
 }

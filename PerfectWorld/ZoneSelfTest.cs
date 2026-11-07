@@ -23,6 +23,7 @@ public static class ZoneSelfTest
         Client(r, maps);
         if (config is not null) Server(r, maps, config);
         Rules(r, maps);
+        Canvas(r);
         if (config is not null) Pair(r, maps, config);
         lines.Add($"falhas: {r.Failed}");
         File.WriteAllLines(output, lines);
@@ -180,6 +181,39 @@ public static class ZoneSelfTest
             r.Check("sem-arquivo-cria-par", p.Empty == false && File.Exists(Path.Combine(d1, "precinct.clt")) && File.Exists(Path.Combine(d2, "precinct.sev")) && p.State == PairState.Ok, made.Message);
         }
         finally { Directory.Delete(temp, true); }
+    }
+
+    static void Canvas(Report r)
+    {
+        using var c = new UI.MapCanvas { Size = new System.Drawing.Size(500, 400) };
+        c.WorldSize = new System.Drawing.SizeF(1000, 800);
+        var spot = new System.Drawing.Point(120, 90);
+        bool back = true, still = true;
+        foreach (float z in new[] { 1f, 4, 16 })
+        {
+            c.FitAll(); c.ZoomAt(spot, z);
+            var map = c.ToMap(spot);
+            var screen = c.ToScreen(map);
+            back &= MathF.Abs(screen.X - spot.X) < 0.5f && MathF.Abs(screen.Y - spot.Y) < 0.5f;
+            var before = c.ToMap(spot);
+            c.ZoomAt(spot, 1.25f);
+            var after = c.ToMap(spot);
+            still &= c.Zoom >= 16 || MathF.Abs(before.X - after.X) * z < 0.5f && MathF.Abs(before.Y - after.Y) * z < 0.5f;
+        }
+        r.Check("canvas-ida-e-volta", back);
+        r.Check("canvas-cursor-parado", still);
+        c.ZoomAt(spot, 1000);
+        bool top = c.Zoom == UI.MapCanvas.MaxZoom;
+        c.ZoomAt(spot, 1e-4f);
+        r.Check("canvas-limites", top && c.Zoom == 1);
+        c.Size = new System.Drawing.Size(1, 1);
+        c.ZoomAt(new System.Drawing.Point(0, 0), 3);
+        var tiny = c.ToMap(new System.Drawing.Point(0, 0));
+        r.Check("canvas-janela-minima", float.IsFinite(tiny.X) && float.IsFinite(tiny.Y) && float.IsFinite(c.ToScreen(tiny).X));
+        c.Size = new System.Drawing.Size(500, 400);
+        c.Frame(new System.Drawing.RectangleF(900, 700, 40, 40));
+        var mid = c.ToScreen(new System.Drawing.PointF(920, 720));
+        r.Check("canvas-enquadra", MathF.Abs(mid.X - 250) < 1 && MathF.Abs(mid.Y - 200) < 1 && c.Zoom > 1);
     }
 
     static void Rules(Report r, string maps)

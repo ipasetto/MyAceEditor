@@ -19,7 +19,7 @@ internal sealed class DomainEditorWindow : Form
     readonly DomainServer? _server;
     readonly IReadOnlySet<int> _usedInWorld;
     readonly Bitmap? _image;
-    readonly Panel _canvas = new DoubleBufferedPanel { Dock = DockStyle.Fill, BackColor = Bg };
+    readonly MapCanvas _canvas = new() { Dock = DockStyle.Fill, BackColor = Bg };
     readonly ListBox _list = new() { Dock = DockStyle.Fill, BackColor = Side, ForeColor = Color.White, BorderStyle = BorderStyle.None, IntegralHeight = false };
     readonly TextBox _name = new() { Width = 250, BackColor = Box, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, MaxLength = DomainMap.NameChars - 1 };
     readonly ComboBox _type = new() { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Box, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -30,8 +30,6 @@ internal sealed class DomainEditorWindow : Form
     DomainArea? _sel;
     int _dragVertex = -1;
     bool _dragCenter, _binding, _dirty, _moved;
-
-    sealed class DoubleBufferedPanel : Panel { public DoubleBufferedPanel() { DoubleBuffered = true; ResizeRedraw = true; } }
 
     DomainEditorWindow(string dataPath, string? sevPath, DomainMap map, DomainServer? server, Bitmap? image, IReadOnlySet<int> usedInWorld)
     {
@@ -67,11 +65,14 @@ internal sealed class DomainEditorWindow : Form
         Controls.Add(_canvas); Controls.Add(_status); Controls.Add(side);
 
         _status.Text = Loc.T("dm.hint", "Clique num território para escolher. Arraste as bolinhas para mudar a área e o quadrado para mudar o ícone. Duplo clique na borda: mais um canto. Botão direito num canto: tira.");
-        _canvas.Paint += PaintMap;
-        _canvas.MouseDown += Down;
-        _canvas.MouseMove += Move2;
-        _canvas.MouseUp += (_, _) => { if (_moved && _sel is { } a) a.Faces = DomainMap.Triangulate(a.Vertices); _dragVertex = -1; _dragCenter = false; _moved = false; };
-        _canvas.MouseDoubleClick += AddCorner;
+        _canvas.Map = _image;
+        _canvas.WorldSize = _image?.Size ?? new Size(1024, 768);
+        _canvas.PaintOver += PaintMap;
+        _canvas.HitSomething = p => VertexAt(p) >= 0 || CenterAt(p);
+        _canvas.MapDown += (e, _) => Down(null, e);
+        _canvas.MapMove += (e, _) => Move2(null, e);
+        _canvas.MapUp += (_, _) => { if (_moved && _sel is { } a) a.Faces = DomainMap.Triangulate(a.Vertices); _dragVertex = -1; _dragCenter = false; _moved = false; };
+        _canvas.MapDoubleClick += (e, _) => AddCorner(null, e);
         _list.SelectedIndexChanged += (_, _) => { if (!_binding && _list.SelectedIndex >= 0) Choose(_map.Areas[_list.SelectedIndex]); };
         _name.TextChanged += (_, _) => Field(a => a.Name = _name.Text);
         _type.SelectedIndexChanged += (_, _) => Field(a => a.Type = _type.SelectedIndex + 1);   // DOMAIN_TYPE: 1 = 3ª classe, 3 = 1ª
@@ -187,22 +188,18 @@ internal sealed class DomainEditorWindow : Form
         _canvas.Invalidate();
     }
 
-    (float Scale, float X, float Y) View()
+    PointF ToScreen(Point p) => _canvas.ToScreen(p);
+    Point ToMap(Point p) => Point.Round(_canvas.ToMap(p));
+
+    bool CenterAt(Point p)
     {
-        int w = _image?.Width ?? 1024, h = _image?.Height ?? 768;
-        float s = Math.Min((_canvas.Width - 20f) / w, (_canvas.Height - 20f) / h);
-        return (s, (_canvas.Width - w * s) / 2, (_canvas.Height - h * s) / 2);
+        if (_sel is not { } s) return false;
+        var c = ToScreen(s.Center);
+        return MathF.Abs(c.X - p.X) <= Grab && MathF.Abs(c.Y - p.Y) <= Grab;
     }
 
-    PointF ToScreen(Point p) { var (s, x, y) = View(); return new PointF(x + p.X * s, y + p.Y * s); }
-    Point ToMap(Point p) { var (s, x, y) = View(); return new Point((int)MathF.Round((p.X - x) / s), (int)MathF.Round((p.Y - y) / s)); }
-
-    void PaintMap(object? sender, PaintEventArgs e)
+    void PaintMap(Graphics g)
     {
-        var g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        var (s, ox, oy) = View();
-        if (_image is not null) g.DrawImage(_image, ox, oy, _image.Width * s, _image.Height * s);
         using var font = new Font("Segoe UI", 8.5f);
         foreach (var a in _map.Areas)
         {
@@ -248,11 +245,7 @@ internal sealed class DomainEditorWindow : Form
         }
         if (e.Button != MouseButtons.Left) return;
         if (v >= 0) { _dragVertex = v; return; }
-        if (_sel is { } s)
-        {
-            var c = ToScreen(s.Center);
-            if (MathF.Abs(c.X - e.X) <= Grab && MathF.Abs(c.Y - e.Y) <= Grab) { _dragCenter = true; return; }
-        }
+        if (CenterAt(e.Location)) { _dragCenter = true; return; }
         var p = ToMap(e.Location);
         Choose(_map.Areas.Where(a => a.Contains(p)).OrderBy(a => a.Vertices.Count).FirstOrDefault() ?? _sel);
     }
@@ -362,6 +355,7 @@ internal sealed class DomainEditorWindow : Form
             { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000) };
         w.Show(); Application.DoEvents();
         w.Choose(w._map.Areas[5]);
+        w._canvas.Frame(new RectangleF(w._map.Areas[5].Center.X - 60, w._map.Areas[5].Center.Y - 60, 120, 120));
         Application.DoEvents();
         using var b = new Bitmap(w.Width, w.Height);
         w.DrawToBitmap(b, new Rectangle(0, 0, w.Width, w.Height));
