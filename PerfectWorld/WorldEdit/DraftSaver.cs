@@ -20,6 +20,8 @@ public static class DraftSaver
 {
     /// <summary>Só teste: lança depois de N arquivos gravados (-1 = nunca).</summary>
     internal static int FailAfter = -1;
+    /// <summary>Só teste: erro lançado no lugar da gravação do pacote (null = nenhum).</summary>
+    internal static Func<Exception>? FailWith;
 
     static readonly ConditionalWeakTable<DraftSources, Dictionary<string, Dictionary<string, List<string>>>> Twins = new();
 
@@ -231,9 +233,10 @@ public static class DraftSaver
                 written.Add(f);
             }
             if (FailAfter >= 0 && written.Count >= FailAfter) throw new IOException("falha simulada (teste)");
+            if (FailWith is { } fw) throw fw();
             if (p.PckFiles.Count > 0) PckWriter.Write(src.LitPath, p.PckFiles);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or FileSaveException)
+        catch (Exception ex)
         {
             AppLog.Error("objetos: gravar", ex);
             var stuck = new List<string>();
@@ -265,7 +268,7 @@ public static class DraftChecks
             var t = o.Now;
             int piece = src.PieceAt(t.Pos.X, t.Pos.Z);
             if (piece == 0) { list.Add(new(true, string.Format(Loc.T("obj.chkOut", "{0}: ficou fora do mapa."), name), o.Key)); continue; }
-            if (o.Kind == ObjKind.Building && piece != o.Piece)
+            if (piece != o.Piece)
             { list.Add(new(true, string.Format(Loc.T("obj.chkPiece", "{0}: saiu do pedaço de 1 km dela; o jogo só carrega a construção no pedaço onde ela nasceu."), name), o.Key)); continue; }
             var (mn, mx) = WorldBox(o);
             if (groundAt is not null)

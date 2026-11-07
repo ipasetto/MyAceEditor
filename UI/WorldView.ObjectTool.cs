@@ -318,8 +318,7 @@ internal sealed partial class WorldView
         bool server = plan.Files.Keys.Any(k => k.EndsWith("map.bht", StringComparison.OrdinalIgnoreCase));
         try { if (_element is not null && plan.PckFiles.Count > 0) _buildings.Reopen(_element); }
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("objetos: reabrir litmodels.pck", ex); }
-        _sceneSel = null; ShowObjPanel();
-        _draftSrc.Dispose(); _draftSrc = null; _draft = null; _draftAsked.Clear();
+        ObjectsSaved();
         DraftOpen();
         UpdateSideState();
         _status.Text = res.Message;
@@ -348,6 +347,41 @@ internal sealed partial class WorldView
         bool deleted = o.Deleted;
         bool undo = ObjectUndo(false) && !o.Deleted;
         return load + $" | dftcard: {System.IO.Path.GetFileName(near.File)} girou={turned} moveu5={moved} apagou={deleted} ctrlz={undo} conferencias={checks.Count} plano=[{string.Join(" ", plan?.Summary ?? [])}] arquivos={plan?.Files.Count}+{plan?.PckFiles.Count} {planErr} cartão=\"{card}\"";
+    }
+
+    /// <summary>Depois de gravar: solta a seleção e o rascunho (relido do disco no DraftOpen).</summary>
+    void ObjectsSaved()
+    {
+        _sceneSel = null; ShowObjPanel();
+        _draftSrc?.Dispose(); _draftSrc = null; _draft = null; _draftAsked.Clear();
+        // as cópias do Ctrl+Z do cenário são de ANTES do salvar (traziam de volta construção apagada, modelo...): saem
+        _sUndo.Clear(); _sRedo.Clear();
+    }
+
+    /// <summary>Para a captura ("dftfix"): Ctrl+Z do cenário depois de salvar e fechar a janela com salvar recusado; não grava.</summary>
+    internal string DraftFixTest()
+    {
+        string load = DraftLoadTest();
+        // 2) uma mudança no cenário guarda cópia; depois de "salvar", o Ctrl+Z do cenário não pode voltar a cópia velha
+        string stale = "sem efeito";
+        if (ObjScene?.Effects.FirstOrDefault() is { } fx)
+        {
+            _sceneSel = fx; ShowObjPanel();
+            _objXYZ[0].Value += 1;
+            ObjectsSaved(); DraftOpen();
+            bool undid = SceneUndo(false);
+            stale = $"ctrlz-depois-de-salvar={undid}";
+        }
+        // 3) fechar com Sim e o salvar recusado (construção fora do pedaço): o fechamento tem que ser cancelado
+        string close = "sem construção";
+        DraftLoadTest();
+        if (_buildings.Nearest(_cam) is { } nb && _draft?.Find(nb.File) is { } o)
+        {
+            _draft.Apply(new MoveOp(o.Key, o.Original with { Pos = o.Original.Pos + new System.Numerics.Vector3(5000, 0, 0) }));
+            close = $"cancela-fechar={CancelClose(DialogResult.Yes, interactive: false)}";
+            _draft.Undo();
+        }
+        return load + $" | dftfix: {stale} {close}";
     }
 
     /// <summary>Leva a câmera até o objeto (conferência "levar até ele").</summary>

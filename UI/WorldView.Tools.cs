@@ -151,7 +151,7 @@ internal sealed partial class WorldView
         _scenePage.Controls.Add(_sceneState);
         _scenePage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
         _scenePage.Controls.Add(SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
-        var sceneSave = SmallButton("\uE74E", Loc.T("world.objSave", "Salvar cenário"), SaveScene, main: true);
+        var sceneSave = SmallButton("\uE74E", Loc.T("world.objSave", "Salvar cenário"), () => SaveScene(), main: true);
         _toolTip.SetToolTip(sceneSave, ".ecwld\n.ecbsd\nlitmodels.pck\nmap.bht");
         _scenePage.Controls.Add(sceneSave);
 

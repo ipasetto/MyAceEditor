@@ -92,9 +92,8 @@ internal sealed partial class WorldView
         FormClosing += (_, e) =>
         {
             if (!SceneDirty) return;
-            var r = MessageBox.Show(this, Loc.T("world.sceneAskSave2", "O cenário (efeitos, sons e bichos) tem mudanças não salvas. Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-            if (r == DialogResult.Cancel) e.Cancel = true;
-            else if (r == DialogResult.Yes) SaveScene();
+            var r = MessageBox.Show(this, Loc.T("obj.askSave", "Há mudanças não salvas nos objetos do mundo (construções, modelos, efeitos, sons ou bichos). Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            e.Cancel = CancelClose(r, interactive: true);
         };
     }
 
@@ -302,18 +301,26 @@ internal sealed partial class WorldView
         return $"salvar: efeito {fx.Id} X {fx.X:0.0} → no disco {back?.X:0.0} · blocos {disk.BlocksExact}/{disk.BlocksTotal} · sujo depois {SceneDirty} · status: {_status.Text}";
     }
 
-    void SaveScene()
+    /// <summary>Resposta da pergunta ao fechar → cancelar o fechamento?</summary>
+    bool CancelClose(DialogResult answer, bool interactive)
     {
-        if (_draft?.Dirty == true) { SaveObjects(); return; }
-        if (_ecw is null || _ecwPath is null) return;
+        if (answer == DialogResult.Cancel) return true;
+        if (answer == DialogResult.Yes) return !SaveScene(interactive);   // salvar recusado/falhou: fica aberto, nada se perde
+        return false;
+    }
+
+    bool SaveScene(bool interactive = true)
+    {
+        if (_draft?.Dirty == true) return SaveObjects(interactive);
+        if (_ecw is null || _ecwPath is null) return false;
         // construções primeiro: gravam litmodels.pck + map.bht e mexem no ornamento do .ecbsd (gravado logo abaixo)
         bool built = false;
-        if (_buildings.Offsets.Count > 0) { if (!SaveBuildings()) { UpdateSideState(); return; } built = true; }
+        if (_buildings.Offsets.Count > 0) { if (!SaveBuildings()) { UpdateSideState(); return false; } built = true; }
         var bytes = _ecw.Write();
         bool ecwChanged = _ecwSaved is null || !bytes.AsSpan().SequenceEqual(_ecwSaved);
         bool bsdChanged = _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved);
-        if (built && !ecwChanged && !bsdChanged) { UpdateSideState(); return; }
-        if (!ecwChanged && !bsdChanged) { _status.Text = Loc.T("world.sceneNothing", "Cenário: nada a salvar."); UpdateSideState(); return; }
+        if (built && !ecwChanged && !bsdChanged) { UpdateSideState(); return false; }
+        if (!ecwChanged && !bsdChanged) { _status.Text = Loc.T("world.sceneNothing", "Cenário: nada a salvar."); UpdateSideState(); return false; }
         try
         {
             // regra: o que vai para o disco tem que ser relido igual (formato entendido)
@@ -327,11 +334,12 @@ internal sealed partial class WorldView
             if (ecwChanged) { AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
             if (bsdChanged && _bsdPath is not null) { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
             UpdateSideState();
-            BeginInvoke(() => SavedDialog.Show(this, Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.")));
+            if (interactive) BeginInvoke(() => SavedDialog.Show(this, Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.")));
             _status.Text = string.Format(Loc.T("world.sceneSaved", "Cenário salvo em {0} (backup feito). Só o cliente muda; não precisa enviar ao servidor."),
                 string.Join(" + ", new[] { ecwChanged ? Path.GetFileName(_ecwPath) : null, bsdChanged ? Path.GetFileName(_bsdPath) : null }.Where(s => s is not null)));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or FileSaveException)
-        { MessageBox.Show(this, ex.Message, Loc.T("world.objSave", "Salvar cenário"), MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        { if (interactive) MessageBox.Show(this, ex.Message, Loc.T("world.objSave", "Salvar cenário"), MessageBoxButtons.OK, MessageBoxIcon.Warning); _status.Text = ex.Message; return false; }
+        return true;
     }
 }

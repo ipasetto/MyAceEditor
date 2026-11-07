@@ -1467,7 +1467,8 @@ internal static class Program
                 Application.DoEvents(); Thread.Sleep(30);
                 if (w.Loading) quiet = DateTime.MaxValue; else if (quiet == DateTime.MaxValue) quiet = DateTime.Now; else if ((DateTime.Now - quiet).TotalSeconds > 1.5) break;
             }
-            if (c.Name?.StartsWith("dftcard") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCardTest(outDir) + Environment.NewLine);
+            if (c.Name?.StartsWith("dftfix") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftFixTest() + Environment.NewLine);
+            else if (c.Name?.StartsWith("dftcard") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCardTest(outDir) + Environment.NewLine);
             else if (c.Name?.StartsWith("dftmove") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftMoveTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftload") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftLoadTest() + Environment.NewLine);   // "dftload…": rascunho dos objetos (3x3)
             else if (c.Name?.StartsWith("bldplan") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.BuildingPlanTest() + Environment.NewLine);

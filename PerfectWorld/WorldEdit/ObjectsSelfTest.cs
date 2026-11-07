@@ -270,6 +270,11 @@ public static class ObjectsSelfTest
         var pm = DraftSaver.Plan(dm, world);
         var wNew = pm.Files.GetValueOrDefault(world.EcwldPath);
         var hit = wNew is null ? null : new EcwldFile(wNew).Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.EcModel]).FirstOrDefault(i => DraftLoader.KeyOf(EcwldFile.Kind.EcModel, EcwldFile.IdOf(i)) == mo.Key);
+        var dmp = DraftOf(world, mo.Piece); var omp = dmp.Find(mo.Key)!;
+        int other = Enumerable.Range(1, world.PieceCount).First(i => i != mo.Piece && Enumerable.Range(0, 100).Any(k => world.PieceAt(-5000 + k * 100, 0) == i));
+        var far = Enumerable.Range(0, 100).Select(k => new Vector3(-5000 + k * 100, omp.Original.Pos.Y, 0)).First(v => world.PieceAt(v.X, v.Z) == other);
+        dmp.Apply(new MoveOp(mo.Key, omp.Original with { Pos = far }));
+        r.Check("modelo-fora-do-pedaco-bloqueia", DraftChecks.Run(dmp, world, null, []).Any(c => c.Blocks && c.Key == mo.Key));
         r.Check("plano-modelo", hit is not null && ObjectFormats.ReadEcModel(hit) == tom && wNew!.Length == new FileInfo(world.EcwldPath).Length && pm.PckFiles.Count == 0);
 
         // conferências
@@ -308,6 +313,10 @@ public static class ObjectsSelfTest
             SaveResult rb;
             try { rb = DraftSaver.Write(fake, tsrc); } finally { DraftSaver.FailAfter = -1; }
             r.Check("falha-no-meio-volta-tudo", rb.Kind == SaveKind.RolledBack && targets.Select(Hash).SequenceEqual(before), rb.Message);
+            DraftSaver.FailWith = () => new NotSupportedException("pacote acima de 4 GB (teste)");
+            SaveResult anyErr;
+            try { anyErr = DraftSaver.Write(fake, tsrc); } catch (Exception ex) { anyErr = new SaveResult(SaveKind.Failed, "escapou: " + ex.GetType().Name); } finally { DraftSaver.FailWith = null; }
+            r.Check("falha-qualquer-erro-volta-tudo", anyErr.Kind == SaveKind.RolledBack && targets.Select(Hash).SequenceEqual(before), anyErr.Message);
             var ok = DraftSaver.Write(fake, tsrc);
             bool inPck; using (var reread = new PckArchive(pck)) inPck = reread.Find(@"litmodels\teste\1\x.bmd") is not null;
             r.Check("grava-tudo", ok.Kind == SaveKind.Both && Hash(ecwT) != before[1] && inPck, ok.Message);
