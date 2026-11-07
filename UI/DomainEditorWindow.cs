@@ -21,6 +21,7 @@ internal sealed class DomainEditorWindow : Form
     readonly Bitmap? _image;
     readonly MapCanvas _canvas = new() { Dock = DockStyle.Fill, BackColor = Bg };
     readonly Panel _side;
+    Button? _saveBtn;
     readonly ListBox _list = new() { Dock = DockStyle.Fill, BackColor = Side, ForeColor = Color.White, BorderStyle = BorderStyle.None, IntegralHeight = false };
     readonly TextBox _name = new() { Width = 250, BackColor = Box, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, MaxLength = DomainMap.NameChars - 1 };
     readonly ComboBox _type = new() { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Box, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -58,7 +59,7 @@ internal sealed class DomainEditorWindow : Form
             Btn("", Loc.T("dm.new", "Novo território"), NewArea),
             Btn("", Loc.T("dm.delete", "Excluir este território"), DeleteArea),
             Btn("", Loc.T("dm.neighbors", "Recalcular quem faz fronteira"), Neighbors),
-            Btn("", Loc.T("dm.save", "Salvar territórios"), () => Save(), main: true),
+            _saveBtn = Btn("", Loc.T("dm.save", "Salvar territórios"), () => Save(), main: true),
         }) form.Controls.Add(c);
         side.Controls.Add(_list);
         side.Controls.Add(new Label { Dock = DockStyle.Top, Height = 28, Text = string.Format(Loc.T("dm.list", "{0} territórios"), _map.Areas.Count), ForeColor = Color.FromArgb(96, 165, 250), Font = new Font("Segoe UI Semibold", 10f) });
@@ -90,6 +91,7 @@ internal sealed class DomainEditorWindow : Form
         FormClosing += AskSave;
         FormClosed += (_, _) => _image?.Dispose();
         FillList();
+        UpdateSave();
     }
 
     /// <summary>
@@ -179,7 +181,19 @@ internal sealed class DomainEditorWindow : Form
         _about.Text = string.Format(Loc.T("dm.about", "ID {0}. Faz fronteira com: {1}."), a.Id, a.Neighbors.Count == 0 ? Loc.T("dm.nobody", "ninguém") : string.Join(", ", names));
     }
 
-    void Remember() { _undo.Add(_map.Snapshot()); if (_undo.Count > 100) _undo.RemoveAt(0); _redo.Clear(); _dirty = true; }
+    void Remember() { _undo.Add(_map.Snapshot()); if (_undo.Count > 100) _undo.RemoveAt(0); _redo.Clear(); _dirty = true; UpdateSave(); }
+
+    /// <summary>Salvar fica azul só quando há o que salvar.</summary>
+    void UpdateSave()
+    {
+        if (_saveBtn is null) return;
+        _saveBtn.Enabled = _dirty;
+        _saveBtn.BackColor = _dirty ? UiKit.Accent : Color.FromArgb(52, 58, 68);
+    }
+
+    /// <summary>Mundo 3D: Salvar e enviar ao servidor.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Action? SendToServer { get; set; }
 
     void Step(List<List<DomainArea>> from, List<List<DomainArea>> to)
     {
@@ -352,6 +366,9 @@ internal sealed class DomainEditorWindow : Form
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("domain.data", ex); MessageBox.Show(this, ex.Message, Text); return false; }
         _dirty = false;
+        UpdateSave();
+        if (_sevPath is not null) ServerNotice.Notify(@"gdeliveryd\domain.sev");
+        SavedDialog.Show(this, _sevPath is null ? Loc.T("dm.savedClient2", "Salvo no cliente. Sem a pasta do servidor o domain.sev não mudou.") : Loc.T("dm.saved2", "Salvo no cliente e no servidor."), _sevPath is null ? null : SendToServer);
         _status.Text = _sevPath is null ? Loc.T("dm.savedClient", "Salvo no cliente. Sem a pasta do servidor o domain.sev não mudou: o gdeliveryd segue com os territórios antigos.")
             : Loc.T("dm.saved", "Salvo no cliente e no servidor. Reinicie o gdeliveryd para valer no jogo.");
         return true;

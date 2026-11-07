@@ -1389,6 +1389,7 @@ internal static class Program
     private static void WorldShot(string mapDir, string outDir, string[] shots)
     {
         var t = TerrainFile.Open(mapDir) ?? throw new FileNotFoundException("terreno não encontrado", mapDir);
+        MyAceEditor.UI.SavedDialog.Quiet = true;
         Directory.CreateDirectory(outDir);
         // diagnóstico: água do cliente e alturas do chão numa grade de 9 × 9 (world-shot.txt)
         var diag = new StringBuilder($"{t.Name} {t.Width}×{t.Height} m\n");

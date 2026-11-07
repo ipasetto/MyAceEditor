@@ -21,6 +21,7 @@ Aberto agua: cor quase branca do mapa (lago da cidade) ainda fica leitosa; ver c
 06/11 fim 4: editor de zonas pronto no codigo (plano docs/superpowers/plans/2026-11-06-editor-de-zonas.md, tarefas 1 a 9), falta conferir na tela e no jogo: renomear e ver o aviso, entrar sem erro de dados, morrer e renascer, protecao de novato, musica, zona nova, zona apagada. Conferir tambem Territorios com zoom, GM com foco e plugins, requisito da fornalha, excluir NPC com ponto.
 06/11 fim 5: usuario confirmou Testes 2, 7, 13, 32, 35, 36, 37, 39. Falta 38 (zonas no jogo). Feitos, falta conferir: Territorios dentro da ferramenta com legenda, legenda das Zonas, nome e quantidade na fornalha, cliente sem perder foco, editar quest do jogo no assistente. Aberto: etapas de quest do jogo ainda so na aba Quests.
 06/11 fim 6: usuario confirmou 40, 41, 42, 43. Esc sai de toda ferramenta do Mundo 3D (EscapeStep, LeaveTool), falta conferir (44).
+07/11: usuario testou 38 (zona renomeada aparece no jogo). Feitos, falta conferir: territorio no envio (domain.sev do gdeliveryd), janela de salvo, Esc limpa a tela, painel do coletavel, lista de plugins automatica. Aberto: NPCs de eventos no mesmo lugar (proposta: Verificacao separa), portabilidade (precisa entrevista).
 
 ## FASE 1 — base
 [x] elements.data leitura ~98,6% (§E3)            [ ] cauda Territory War ~1,4% (§Q1)

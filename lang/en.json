@@ -5588,5 +5588,18 @@
   "zone.legMark": "Minimap place",
   "qb.keepItems": "This quest has more than one reward group: change the items in the Quests tab.",
   "qe.keepNote": "Game quest: name, texts, requirements and rewards change here. The rest stays as it is; NPC, type and steps change in the Quests tab.",
-  "create.stopEditAsk": "Leave without saving the changes to this NPC?"
+  "create.stopEditAsk": "Leave without saving the changes to this NPC?",
+  "saved.sendNow": "Send to the server now",
+  "saved.title": "Saved",
+  "saved.heading": "Saved successfully",
+  "saved.needSend": "To take effect in the game, the server needs to receive the new files (it restarts).",
+  "saved.later": "Later",
+  "dm.savedClient2": "Saved on the client. Without the server folder, domain.sev did not change.",
+  "dm.saved2": "Saved on client and server.",
+  "tp.savedShort": "Teleport {0} saved.",
+  "path.savedShort": "Paths saved. The monster's link to the path goes in npcgen.data: it is saved along when sending.",
+  "world.sceneSavedShort": "Scenery saved. Only the client changes: close and open the game to see it.",
+  "world.bldSavedShort": "{0} building(s) saved.",
+  "wc.pageGives": "What it gives",
+  "wc.mineAbout": "At this point: {0} · respawns in {1} s"
 }

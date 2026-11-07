@@ -314,6 +314,7 @@ internal sealed partial class WorldView
             if (ecwChanged) { AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
             if (bsdChanged && _bsdPath is not null) { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
             UpdateSideState();
+            BeginInvoke(() => SavedDialog.Show(this, Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.")));
             _status.Text = string.Format(Loc.T("world.sceneSaved", "Cenário salvo em {0} (backup feito). Só o cliente muda; não precisa enviar ao servidor."),
                 string.Join(" + ", new[] { ecwChanged ? Path.GetFileName(_ecwPath) : null, bsdChanged ? Path.GetFileName(_bsdPath) : null }.Where(s => s is not null)));
         }

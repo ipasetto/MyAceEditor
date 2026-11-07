@@ -1,4 +1,4 @@
-using MyAceEditor.Model;
+﻿using MyAceEditor.Model;
 using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
@@ -507,8 +507,7 @@ public sealed class GmPanel : Form
             Group(Loc.T("gm.gPlugins", "Plugins de evento (programa do servidor)"),
                 Row(L(Loc.T("gm.plugin", "Plugin")), _plugins,
                     _plFire = Btn(Loc.T("gm.pluginFire", "Chamar agora"), () => PluginCmd("fire"), blue: true),
-                    Btn(Loc.T("gm.pluginStop", "Encerrar"), () => PluginCmd("stop")),
-                    Btn(Loc.T("gm.pluginReload", "Atualizar lista"), FillPlugins)),
+                    Btn(Loc.T("gm.pluginStop", "Encerrar"), () => PluginCmd("stop"))),
                 Row(_plInfo)),
             Group(Loc.T("gm.gMobs", "Monstros"),
                 Row(Need(10855, Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); })))),
@@ -561,17 +560,31 @@ public sealed class GmPanel : Form
 
     // plugins de evento (docs/PLUGINS.md): o GM chama na hora o mesmo evento que o programa sorteia (fica no histórico)
     sealed record GmPlugin(string Id, string Name) { public override string ToString() => Name.Length > 0 ? Name : Id; }   // o "Nome (só desta cópia)" da tela Plugins
-    void FillPlugins()
+    /// <summary>
+    /// Lista do que está instalado no servidor agora, ligado. Relê sozinha a cada 15 s: plugin excluído e enviado pela tela Plugins some,
+    /// plugin novo aparece, sem botão de atualizar. Mantém o escolhido.
+    /// </summary>
+    void FillPlugins(bool quiet = false)
     {
-        Task.Run(() => { try { return LocalAdmin().PluginsLoad(); } catch (Exception ex) { AppLog.Error("painel do GM: plugins", ex); return new List<PluginRule>(); } }).ContinueWith(t => BeginInvoke(() =>
+        if (_plLoading) return;
+        _plLoading = true;
+        Task.Run(() => { try { return LocalServerUp() || LocalServer.DistroExists() ? LocalAdmin().PluginsLoad() : []; } catch (Exception ex) { AppLog.Error("painel do GM: plugins", ex); return new List<PluginRule>(); } }).ContinueWith(t => BeginInvoke(() =>
         {
+            _plLoading = false;
             if (_plTimer is null) { _plTimer = new System.Windows.Forms.Timer { Interval = 1000 }; _plTimer.Tick += (_, _) => PluginTick(); _plTimer.Start(); Disposed += (_, _) => _plTimer.Dispose(); }
+            if (_plRefresh is null) { _plRefresh = new System.Windows.Forms.Timer { Interval = 15000 }; _plRefresh.Tick += (_, _) => FillPlugins(quiet: true); _plRefresh.Start(); Disposed += (_, _) => _plRefresh.Dispose(); }
+            var now = t.Result.Where(r => r.Enabled).Select(r => new GmPlugin(r.Id, r.Name)).ToList();
+            var had = _plugins.Items.Cast<GmPlugin>().ToList();
+            if (now.SequenceEqual(had)) return;
+            var keep = (_plugins.SelectedItem as GmPlugin)?.Id;
             _plugins.Items.Clear();
-            foreach (var r in t.Result) _plugins.Items.Add(new GmPlugin(r.Id, r.Name));
-            if (_plugins.Items.Count > 0) _plugins.SelectedIndex = 0;
-            AddLog(string.Format(Loc.T("gm.pluginsLoaded", "{0} plugin(s) no servidor."), _plugins.Items.Count));
+            foreach (var r in now) _plugins.Items.Add(r);
+            if (_plugins.Items.Count > 0) _plugins.SelectedIndex = Math.Max(0, now.FindIndex(r => r.Id == keep));
+            if (!quiet || had.Count > 0) AddLog(string.Format(Loc.T("gm.pluginsLoaded", "{0} plugin(s) no servidor."), _plugins.Items.Count));
         }));
     }
+    bool _plLoading;
+    System.Windows.Forms.Timer? _plRefresh;
 
     void PluginCmd(string cmd)
     {

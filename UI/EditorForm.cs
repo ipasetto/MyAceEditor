@@ -442,6 +442,8 @@ public sealed class EditorForm : Form
         _npcgen.CreateCreature = (owner, kind) => { var id = CreateCreatureWizard(owner, kind); return id; };
         _npcgen.QuestsOfNpc = NpcQuests;
         // Mundo 3D, fim do menu de ferramentas: salvar tudo e enviar, com a janela principal na aba Servidor
+        // Mundo 3D gravou algo que o servidor precisa: entra na lista do brilho
+        PerfectWorld.ServerNotice.Saved += file => BeginInvoke(() => { _unsent.Add(file); UpdateSendGlow(); });
         _npcgen.SaveAndSendAll = () =>
         {
             SaveAndSend();
@@ -1009,6 +1011,21 @@ public sealed class EditorForm : Form
     /// <summary>Drops do monstro para o painel do Mundo 3D: chance de cair N itens e os itens, do mais provável ao menos. Null = não é monstro.</summary>
     private CreatureDrops? DropsOfCreature(int id)
     {
+        if (_store.Current?.FindListByName("MINE_ESSENCE")?.Items.FirstOrDefault(i => i.Id == id.ToString()) is { } mine)
+        {
+            var host = new QuestHostImpl(this);
+            var gives = host.MineProducts(id).Select(p =>
+            {
+                string name = p.Item.ToString(); Image? icon = null;
+                if (_refs?.Resolve(FieldKind.ItemRef, p.Item.ToString()) is { } hit)
+                {
+                    name = TasksFile.SplitColor(hit.Item.Name).Text;
+                    if (IconIndexFor(hit.Item) is >= 0 and var at) icon = _treeIcons.Images[at];
+                }
+                return new DropRow(p.Item, name, icon, p.Prob);
+            }).ToList();
+            return new([], gives);
+        }
         if (CreatureItem(id) is not { Block.Name: "MONSTER_ESSENCE" } c) return null;
         double Num(string key) => c.Item.Fields.TryGetValue(key, out var f) && double.TryParse(f.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
         var rows = new List<DropRow>();
@@ -1346,6 +1363,7 @@ public sealed class EditorForm : Form
         UpdateSendGlow();
         if (checkServer && done.Count > 0) CheckServer(ask: !quiet);
         Status((quiet ? Loc.T("status.autoSaved", "Salvo automaticamente: ") : Loc.T("status.savedAll", "Salvo: ")) + (done.Count == 0 ? "—" : string.Join(", ", done)) + $" ({DateTime.Now:HH:mm})");
+        if (!quiet && checkServer && done.Count > 0) SavedDialog.Show(this, string.Join("\n", done.Select(d => "• " + d)), done.Any(d => !d.Equals("configs.pck", StringComparison.OrdinalIgnoreCase)) ? SaveAndSend : null);
     }
 
     // ---------- brilho do "Salvar e enviar ao servidor" (docs/QUESTS-3D.md) ----------

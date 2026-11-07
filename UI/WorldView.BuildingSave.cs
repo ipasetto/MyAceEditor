@@ -136,6 +136,8 @@ internal sealed partial class WorldView
         _piece = -1;
         _sceneSel = null; _sUndo.Clear(); _sRedo.Clear();
         ShowObjPanel(); _gl.Invalidate();
+        ServerNotice.Notify("map.bht");
+        BeginInvoke(() => SavedDialog.Show(this, string.Format(Loc.T("world.bldSavedShort", "{0} construção(ões) gravada(s)."), plan.Buildings), SaveAndSendAll));
         _status.Text = string.Format(Loc.T("world.bldSaved", "{0} construção(ões) gravada(s): litmodels.pck + map.bht (backup feito)."), plan.Buildings);
         return true;
     }

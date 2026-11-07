@@ -31,6 +31,7 @@ internal sealed class WorldCreaturePanel : Panel
     readonly Panel _pages = new() { Dock = DockStyle.Top, Height = 38, Padding = new Padding(0, 2, 0, 4) };
     readonly Panel _dropsBox = new() { Dock = DockStyle.Fill, BackColor = Card };
     readonly TableLayoutPanel _sheet;
+    Panel _questBox = null!;
     int _target, _token, _id;
     bool _filling;
     IReadOnlyList<SpawnRow> _rows = Array.Empty<SpawnRow>();
@@ -95,7 +96,7 @@ internal sealed class WorldCreaturePanel : Panel
         _dropsBox.Controls.Add(_drops); _dropsBox.Controls.Add(_dropCount);
         sheetBox.Controls.Add(sheet); sheetBox.Controls.Add(_dropsBox); sheetBox.Controls.Add(_pages);
 
-        var questBox = new Panel { Dock = DockStyle.Fill, Padding = new Padding(4, 2, 8, 8) };
+        var questBox = _questBox = new Panel { Dock = DockStyle.Fill, Padding = new Padding(4, 2, 8, 8) };
         _quests.Columns.Add("", 64); _quests.Columns.Add("", 220); _quests.Columns.Add("", 150);
         _quests.Resize += (_, _) => _quests.Columns[1].Width = Math.Max(120, _quests.ClientSize.Width - _quests.Columns[0].Width - _quests.Columns[2].Width - 4);
         _quests.HandleCreated += (_, _) => SetWindowTheme(_quests.Handle, "DarkMode_Explorer", null);
@@ -140,8 +141,26 @@ internal sealed class WorldCreaturePanel : Panel
     SpawnRow? Current => _group.SelectedIndex >= 0 && _group.SelectedIndex < _rows.Count ? _rows[_group.SelectedIndex] : null;
 
     /// <summary>Mostra o ponto escolhido; as quests vêm em segundo plano (a 1ª busca leva alguns segundos).</summary>
+    /// <summary>Coletável (mina, planta): o que dá, com ícone e chance, e uma linha com quantidade e renascer. Editar abre no Elements.</summary>
+    public void ShowMine(int id, string name, CreatureDrops? products, string about)
+    {
+        _announce.Visible = false;
+        _id = id; _rows = [];
+        _token++;
+        _title.Text = string.Format(Loc.T("wc.title", "{0}   ·   ID {1}"), name, id);
+        FillDrops(products, about);
+        _pagePoint.Visible = _editDrops.Visible = false;
+        _pageDrops.Text = Loc.T("wc.pageGives", "O que dá");
+        _questBox.Visible = false;
+        ShowPage(true);
+        Visible = true; BringToFront();
+        _target = Full; _anim.Start();
+    }
+
     public void ShowCreature(int id, string name, IReadOnlyList<SpawnRow> rows, Func<IReadOnlyList<QuestUse>>? quests)
     {
+        _pagePoint.Visible = _questBox.Visible = true;
+        _pageDrops.Text = Loc.T("wc.pageDrops", "Drops");
         _announce.Visible = Announce is not null;
         _id = id; _rows = rows;
         _title.Text = string.Format(Loc.T("wc.title", "{0}   ·   ID {1}"), name, id);
@@ -170,8 +189,14 @@ internal sealed class WorldCreaturePanel : Panel
     bool LoadDrops()
     {
         var d = DropsOf?.Invoke(_id);
-        _pages.Visible = d is not null;
         _editDrops.Visible = EditDrops is not null;
+        FillDrops(d, null);
+        return d is not null;
+    }
+
+    void FillDrops(CreatureDrops? d, string? about)
+    {
+        _pages.Visible = d is not null;
         _drops.BeginUpdate(); _drops.Items.Clear(); _dropIcons.Images.Clear();
         foreach (var r in d?.Items ?? [])
         {
@@ -187,9 +212,8 @@ internal sealed class WorldCreaturePanel : Panel
             for (int n = 0; n < d.Count.Count; n++)
                 if (d.Count[n] > 0)
                     parts.Add(string.Format(n == 0 ? Loc.T("wc.dropZero", "nada {0}") : n == 1 ? Loc.T("wc.dropOne", "1 item {0}") : Loc.T("wc.dropMany", "{1} itens {0}"), d.Count[n].ToString("P0"), n));
-            _dropCount.Text = string.Format(Loc.T("wc.dropCount", "Ao morrer: {0}"), string.Join(" · ", parts));
+            _dropCount.Text = about ?? string.Format(Loc.T("wc.dropCount", "Ao morrer: {0}"), string.Join(" · ", parts));
         }
-        return d is not null;
     }
 
     void ShowPage(bool drops)

@@ -599,6 +599,13 @@ public sealed class LocalServer
                 && Convert.ToHexString(MD5.HashData(File.ReadAllBytes(kv.Value).Where(b => b != 13).ToArray())).Equals(h, StringComparison.OrdinalIgnoreCase)) return;
             diff.Add(new SendFile(kv.Key, kv.Value));
         });
+        // fora do config: o gdeliveryd lê a guerra territorial do domain.sev da pasta dele (territórios salvos não chegavam ao jogo)
+        foreach (var (rel, src) in new[] { ("../../gdeliveryd/domain.sev", Path.Combine(cfg, "..", "..", "gdeliveryd", "domain.sev")) })
+        {
+            if (!File.Exists(src)) continue;
+            var there = Bash($"md5sum '/home/gamed/config/{rel}' 2>/dev/null", Log, timeoutMs: 60_000).Output.Trim();
+            if (there.Length < 32 || !there[..32].Equals(Md5(src, cache), StringComparison.OrdinalIgnoreCase)) diff.Add(new SendFile(rel, Path.GetFullPath(src)));
+        }
         SaveHashCache(cache);
         // a lista do Linux sai de 4 md5sum escrevendo no mesmo arquivo: às vezes um registro embaralha e um arquivo igual
         // parecia diferente (aviso "servidor desatualizado: a22/map/1.hmap" ao abrir, toda vez). Confere de novo um a um.

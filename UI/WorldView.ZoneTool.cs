@@ -289,11 +289,13 @@ internal sealed partial class WorldView
             var text = string.Format(Loc.T("zone.truthAsk", "O servidor passa a ter as {0} zonas do cliente ({1} a mais ou a menos). Continuar?"), _zones.Client.Areas.Count, Math.Abs(gone));
             if (MessageBox.Show(this, text, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             _zSavedUndo.Add(_zones.Snapshot());
-            AfterZoneSave(_zones.UseClientAsTruth());
+            var truth = _zones.UseClientAsTruth();
+            AfterZoneSave(truth); ZoneSaved(truth);
             return;
         }
         _zSavedUndo.Add(_zones.Snapshot());
-        AfterZoneSave(_zones.Save(_zones.Working()));   // igualar: grava o mesmo carimbo nos dois
+        var same = _zones.Save(_zones.Working());   // igualar: grava o mesmo carimbo nos dois
+        AfterZoneSave(same); ZoneSaved(same);
     }
 
     // ---------- passos ----------
@@ -426,6 +428,16 @@ internal sealed partial class WorldView
         _zSavedUndo.Add(before); _zSavedRedo.Clear();
         _zUndo.Clear(); _zRedo.Clear();
         AfterZoneSave(result);
+        ZoneSaved(result);
+    }
+
+    /// <summary>Janela de salvo; com o servidor mudado, entra no envio e oferece enviar já.</summary>
+    void ZoneSaved(SaveResult result)
+    {
+        if (result.Kind is not (SaveKind.Both or SaveKind.ClientOnly)) return;
+        bool server = result.Kind == SaveKind.Both;
+        if (server) ServerNotice.Notify(Path.Combine(Path.GetFileName(_t.Dir.TrimEnd('\\', '/')), "precinct.sev"));
+        SavedDialog.Show(this, result.Message, server ? SaveAndSendAll : null);
     }
 
     void AfterZoneSave(SaveResult result)

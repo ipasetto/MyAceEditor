@@ -244,6 +244,36 @@ internal sealed class StatusCard : Control
 /// Navegação lateral da janela principal (no lugar das abas): ícone grande em cima, nome embaixo, destaque no escolhido.
 /// Cada item aponta para uma página do TabControl (as abas continuam por baixo, só sem os cabeçalhos).
 /// </summary>
+/// <summary>
+/// Regra do usuário (07/11): todo salvar mostra que deu certo. Com <paramref name="send"/>, o arquivo ainda precisa chegar ao servidor
+/// e a janela oferece enviar agora.
+/// </summary>
+internal static class SavedDialog
+{
+    /// <summary>Testes de linha de comando: não abre a janela.</summary>
+    public static bool Quiet { get; set; }
+
+    public static void Show(IWin32Window owner, string detail, Action? send = null)
+    {
+        if (Quiet) return;
+        var now = new TaskDialogButton(Loc.T("saved.sendNow", "Enviar ao servidor agora"));
+        var page = new TaskDialogPage
+        {
+            Caption = Loc.T("saved.title", "Salvo"), Heading = Loc.T("saved.heading", "Salvo com sucesso"), Text = detail,
+            Icon = TaskDialogIcon.ShieldSuccessGreenBar, AllowCancel = true,
+        };
+        if (send is not null)
+        {
+            page.Text = detail + "\n\n" + Loc.T("saved.needSend", "Para valer no jogo, o servidor precisa receber os arquivos novos (ele reinicia).");
+            page.Buttons.Add(now);
+            page.Buttons.Add(new TaskDialogButton(Loc.T("saved.later", "Depois")));
+            page.DefaultButton = now;
+        }
+        else page.Buttons.Add(TaskDialogButton.OK);
+        if (TaskDialog.ShowDialog(owner, page) == now) send!();
+    }
+}
+
 internal sealed class NavBar : Control
 {
     sealed record Entry(string Glyph, Func<string> Text, Func<string> Tip, TabPage Page);

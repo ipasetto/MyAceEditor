@@ -271,6 +271,7 @@ internal sealed partial class WorldView
     {
         _domains = DomainEditorWindow.Embedded(this, ElementOfMap, ServerConfigDir, _tpPrecinctDomains(), _toolHead.Height + 8);
         if (_domains is null) return false;
+        _domains.SendToServer = SaveAndSendAll;
         _domains.Bounds = _gl.Bounds;
         Controls.Add(_domains);
         _domains.Show();

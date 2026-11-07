@@ -5590,5 +5590,18 @@
   "zone.legMark": "小地图地点",
   "qb.keepItems": "此任务有多个奖励组:请在任务页修改物品。",
   "qe.keepNote": "游戏任务:此处可改名称、文本、条件和奖励。其余保持不变;NPC、类型和步骤请在任务页修改。",
-  "create.stopEditAsk": "不保存此 NPC 的更改就退出吗?"
+  "create.stopEditAsk": "不保存此 NPC 的更改就退出吗?",
+  "saved.sendNow": "立即发送到服务器",
+  "saved.title": "已保存",
+  "saved.heading": "保存成功",
+  "saved.needSend": "要在游戏中生效,服务器需要接收新文件(会重启)。",
+  "saved.later": "稍后",
+  "dm.savedClient2": "已保存到客户端。没有服务器文件夹,domain.sev 未更改。",
+  "dm.saved2": "已保存到客户端和服务器。",
+  "tp.savedShort": "传送点 {0} 已保存。",
+  "path.savedShort": "路径已保存。怪物与路径的关联在 npcgen.data 中:发送时一并保存。",
+  "world.sceneSavedShort": "场景已保存。只更改客户端:关闭并重新打开游戏即可看到。",
+  "world.bldSavedShort": "已保存 {0} 个建筑。",
+  "wc.pageGives": "产出",
+  "wc.mineAbout": "此处:{0} 个 · {1} 秒后刷新"
 }

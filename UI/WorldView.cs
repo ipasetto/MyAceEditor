@@ -384,9 +384,21 @@ internal sealed partial class WorldView : Form
         if (ActiveCombo()?.DroppedDown == true) return false;   // o Esc fecha a lista aberta
         if (CancelStep()) return true;
         if (_editor is { IsDisposed: false, Parent: not null } editor) { editor.AskCancel(); return true; }
-        if (_tool == Tool.None) return false;
+        if (_tool == Tool.None) return ClearScreen();
         LeaveTool();
         return true;
+    }
+
+    /// <summary>Esc sem ferramenta: fecha os painéis de baixo, a legenda e tira a seleção. Falso = a tela já estava limpa.</summary>
+    bool ClearScreen()
+    {
+        bool any = _quests.Visible || _creature.Visible || _legendOpen || _selected() is not null || _questNpc > 0;
+        HideBottomPanels();
+        _questNpc = 0;
+        if (_legendOpen) _legendOpen = false;
+        if (_selected() is not null) { ClearSelection?.Invoke(); _gizmoHover = 0; }
+        _gl.Invalidate();
+        return any;
     }
 
     ComboBox? ActiveCombo()

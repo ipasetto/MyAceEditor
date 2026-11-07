@@ -849,6 +849,14 @@ internal sealed class NpcGenView : UserControl
         // painel da criatura (monstro): grupos deste ponto + quests; mudar quantidade/renascer/mortes entra no Ctrl+Z do npcgen
         w.ShowCreatureInfo = (o, panel) =>
         {
+            if (o is NpcGenResource res && res.Items.Count > 0)
+            {
+                var it = res.Items[0];
+                panel.EditCreature = _editItem;
+                panel.ShowMine(it.Id, NameOf(it.Id), DropsOf?.Invoke(it.Id),
+                    string.Format(Loc.T("wc.mineAbout", "Neste ponto: {0} · renasce em {1} s"), it.Amount, it.Respawn));
+                return true;
+            }
             if (o is not NpcGenSpawn s || s.Creatures.Count == 0 || _cur is null) return false;
             int id0 = s.Creatures[0].Id;
             var cq = CreatureQuests;
