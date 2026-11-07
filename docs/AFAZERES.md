@@ -11,7 +11,9 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        regravacao identica). Os ~1,4% eram do leitor antigo, ja trocado. Issue #21 fechada. ENGINE-KB §E3.
 [ ] 2. Mundo 3D como editor de mapas (roteiro em docs/MUNDO-3D-EDITOR.md, passos 6 a 8):
        Objetos (construcoes, arvores, grama, modelos, luzes): desenho aprovado 07/11 em
-       docs/superpowers/specs/2026-11-07-objetos-do-mundo-design.md (falta revisar a spec e o plano)
+       docs/superpowers/specs/2026-11-07-objetos-do-mundo-design.md
+       [x] etapa 1 no codigo (07/11): mover, girar e apagar construcoes e modelos, Salvar tudo ou nada; falta testar no jogo
+       [ ] etapa 2 inserir construcoes e modelos | [ ] 3 arvores | [ ] 4 luzes | [ ] 5 pincel de grama
        [ ] terreno: pincel de altura (puxar, empurrar, alisar)
        [ ] textura do chao: pincel por camadas
        [ ] grama: pincel de grama e flores
