@@ -5,6 +5,7 @@ Raiz: `D:/Perfect World/source`. Servidor = `source_server_153` (1.5.3, cgame = 
 **Como usar (barato):** Grep `## §M<n>` para a area ou o nome do arquivo neste mapa; depois Grep o simbolo dentro do arquivo indicado. Nunca ler o mapa inteiro. Textos do cliente em GBK (ler com cp936).
 
 ## §M0 Indice por assunto -> arquivo:simbolo (servidor S=`source_server_153/cgame/gs`, cliente C=`source_client_153/CElementClient`)
+- construcao do mapa carregada pelo bloco (ornamento por ID+offset no .ecbsd) -> source_client_153/CElementClient/EC_SceneBlock.cpp:CECSceneBlock::LoadOrnaments (07/11)
 Arvores: speedtreert.dll (cliente) FUN_100029e0 CBranch::Compute, 1002d230 curva, 100286f0 LOD galhos, 1000d450 LOD frondes, 1000ab90/1000bde0 fita e extrusao (PW-KB §S35)
 Fabricacao/loja: gs serviceprovider.cpp produce_provider, npcgenerator.cpp recipe_manager; cliente DlgProduce.cpp, DlgShop.cpp
 Pontos de teleporte: CCommon/globaldataman.cpp globaldata_load, globaldata_loadserver, globaldata_save_to (.txt e .sev); ponto ativado: gplayer_imp::CheckWaypoint; tema da interface: CECUIManager::GetUIDcf

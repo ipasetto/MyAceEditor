@@ -104,6 +104,32 @@ public sealed class BhtFile
         foreach (int i in brushes) MoveAt(_data, _at[i], dx, dy, dz);
     }
 
+    /// <summary>Gira os brushes em torno de <paramref name="center"/> (planos e caixa; ObjectFormats.RotateBrush).</summary>
+    public void Rotate(IEnumerable<int> brushes, System.Numerics.Quaternion rot, System.Numerics.Vector3 center)
+    {
+        foreach (int i in brushes) WorldEdit.ObjectFormats.RotateBrush(_data, _at[i], rot, center);
+    }
+
+    /// <summary>
+    /// Arquivo novo sem os brushes pedidos: a árvore é uma grade fixa e os brushes entram nela só na carga do gs
+    /// (_AddBrush), então tirar brushes só muda a contagem e a lista; a árvore é copiada igual.
+    /// </summary>
+    public byte[] Without(IEnumerable<int> brushes)
+    {
+        var drop = brushes.ToHashSet();
+        var ms = new MemoryStream(_data.Length);
+        ms.Write(_data, 0, 8);
+        ms.Write(BitConverter.GetBytes(Count - drop.Count(i => i >= 0 && i < Count)));
+        for (int i = 0; i < Count; i++)
+        {
+            if (drop.Contains(i)) continue;
+            int end = i + 1 < Count ? _at[i + 1] : TreeStart;
+            ms.Write(_data, _at[i], end - _at[i]);
+        }
+        ms.Write(_data, TreeStart, _data.Length - TreeStart);
+        return ms.ToArray();
+    }
+
     /// <summary>Desloca 1 brush que começa em <paramref name="at"/> (mesmo formato no map.bht e no fim do .bmd do cliente).</summary>
     public static void MoveAt(byte[] d, int at, float dx, float dy, float dz)
     {

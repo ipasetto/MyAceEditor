@@ -396,6 +396,7 @@ internal static class Program
             File.WriteAllText(args[2], $"quests {total}, assistente completo {strict}, abrem agora {opened}, sem mudar nada igual {noChange}, só o ouro muda {onlyGold}, volta igual {back}\n{first}\n");
             return;
         }
+        if (args.Length >= 4 && args[0] == "--objects-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.Run(args[1], args[2], args[3]); return; }   // <element> <config> <saída>: objetos do mundo sem janela
         if (args.Length >= 4 && args[0] == "--zone-test") { ZoneSelfTest.Run(args[1], args[2], args[3]); return; }   // <maps> <config> <saída>: editor de zonas sem janela
         if (args.Length >= 3 && args[0] == "--quest-preview-shot")   // <png> <pasta element>: janela de quests do jogo com dados de exemplo
         {
