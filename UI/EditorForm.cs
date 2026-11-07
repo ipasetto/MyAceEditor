@@ -3169,6 +3169,7 @@ public sealed class EditorForm : Form
         {
             if (f._tasks is not { } t) return new() { Loc.T("qb.noTasks", "Abra a pasta do PW com o tasks.data.") };
             var e = QuestBuilder.Validate(t, d, IsNpc, id => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not null);
+            if (d.Keep) return e;   // NPCs e etapas não mudam
             // matar monstros: o ID tem que ser um monstro do elements (senão a etapa nunca conta)
             foreach (var (mid, _) in d.Steps.Where(s => s.Kind == QuestStepKind.Kill).SelectMany(s => s.Monsters).Distinct())
                 if (mid > 0 && f.CreatureItem(mid) is not { Block.Name: "MONSTER_ESSENCE" })
@@ -3201,7 +3202,11 @@ public sealed class EditorForm : Form
             if (!t.CanWrite) { why = Loc.T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason; return null; }
             if (t.Index.Find(questId) is not QuestNode q) { why = Loc.T("qb.noQuest", "Quest não encontrada no tasks.data."); return null; }
             while (q.Parent is { } p) q = p;   // subquest (etapa): edita a principal
-            return QuestBuilder.FromQuest(t, q, out why);
+            // quest do jogo que o assistente não remonta: abre mudando só o que a tela mostra
+            var draft = QuestBuilder.FromQuest(t, q, out why);
+            if (draft is not null) return draft;
+            why = null;
+            return QuestBuilder.FromQuestKeep(t, q);
         }
         public string? DeleteAsk(int questId) => f.DeleteQuestAsk(questId);
         public string? Delete(int questId, bool withNext = false) => f.DeleteQuestById(questId, withNext);
@@ -3392,6 +3397,18 @@ public sealed class EditorForm : Form
         var host = new QuestHostImpl(this);
         var errors = host.Validate(d);
         if (errors.Count > 0) return string.Join("\n", errors);
+        if (d.Keep)
+        {
+            if (t.Index.Find(d.Editing) is not QuestNode node) return Loc.T("qb.noQuest", "Quest não encontrada no tasks.data.");
+            var photo = QuestBuilder.Capture(node);
+            var title = string.Format(Loc.T("qb.histEdit", "Editar quest {0}"), d.Editing);
+            string? failed = null;
+            _edits.Custom(title,
+                () => { failed = QuestBuilder.Patch(t, node, d); MarkTasksDirty(title); },
+                () => { QuestBuilder.Restore(t, node, photo); MarkTasksDirty(title); });
+            RefreshQuests();
+            return failed;
+        }
         var links = QuestHostImpl.QuestLinks(d);
         if (links.Any(l => CreatureItem(l.Npc) is null)) return Loc.T("qb.noNpc", "NPC não encontrado no elements.data.");
         // editar: a quest antiga sai (no mesmo lugar entra a nova) e os NPCs que não fazem mais parte dela perdem o ID no serviço

@@ -49,6 +49,24 @@ public static class GameConsole
     /// <summary>Devolve o foco ao jogo. False = jogo fechado ou o Windows não deixou.</summary>
     public static bool FocusGame() => Window() is var w && w != IntPtr.Zero && Front(w);
 
+    static bool _left;
+
+    /// <summary>
+    /// O cliente nunca fica como quem perdeu o foco: sem ele, m_bActive vai a falso, o som para e a janela fica cinza, e rendernofocus só
+    /// segura o desenho. Quando a janela sai da frente, avisa que continua ativa (WM_ACTIVATEAPP, EC_Game.cpp). Uma vez por saída,
+    /// porque cada aviso recomeça a música.
+    /// </summary>
+    public static void KeepActive()
+    {
+        var w = Window();
+        if (w == IntPtr.Zero) { _left = false; return; }
+        if (GetForegroundWindow() == w) { _left = false; return; }
+        if (_left) return;
+        _left = true;
+        PostMessage(w, 0x001C, (IntPtr)1, IntPtr.Zero);   // WM_ACTIVATEAPP
+        PostMessage(w, 0x0086, (IntPtr)1, IntPtr.Zero);   // WM_NCACTIVATE: a barra de título segue acesa
+    }
+
     /// <summary>Onde a janela do jogo está; null = jogo fechado.</summary>
     public static System.Drawing.Rectangle? Bounds() =>
         Window() is var w && w != IntPtr.Zero && GetWindowRect(w, out var r) ? System.Drawing.Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom) : null;
@@ -120,6 +138,7 @@ public static class GameConsole
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr w, out RECT r);
     [DllImport("user32.dll")] static extern bool MoveWindow(IntPtr w, int x, int y, int width, int height, bool repaint);
     [DllImport("user32.dll")] static extern int GetWindowLongW(IntPtr w, int index);
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr w, int message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
     [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint type);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();

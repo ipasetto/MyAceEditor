@@ -71,7 +71,7 @@ internal sealed class RecipeWindow : Form
         var prod = Row();
         var side = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(12, 0, 0, 0) };
         var count = Row();
-        count.Controls.Add(Name(Loc.T("rw.count", "Quantidade"))); count.Controls.Add(_count);
+        count.Controls.Add(Name(Loc.T("rw.count2", "Quantos saem por tentativa"))); count.Controls.Add(_count);
         side.Controls.Add(_productName); side.Controls.Add(count);
         prod.Controls.Add(_productSlot); prod.Controls.Add(side);
         makes.Controls.Add(prod);

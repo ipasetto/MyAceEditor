@@ -1,4 +1,4 @@
-using System.Drawing.Drawing2D;
+﻿using System.Drawing.Drawing2D;
 using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
@@ -20,6 +20,7 @@ internal sealed class DomainEditorWindow : Form
     readonly IReadOnlySet<int> _usedInWorld;
     readonly Bitmap? _image;
     readonly MapCanvas _canvas = new() { Dock = DockStyle.Fill, BackColor = Bg };
+    readonly Panel _side;
     readonly ListBox _list = new() { Dock = DockStyle.Fill, BackColor = Side, ForeColor = Color.White, BorderStyle = BorderStyle.None, IntegralHeight = false };
     readonly TextBox _name = new() { Width = 250, BackColor = Box, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, MaxLength = DomainMap.NameChars - 1 };
     readonly ComboBox _type = new() { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Box, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -38,7 +39,7 @@ internal sealed class DomainEditorWindow : Form
         ClientSize = new Size(1180, 760); MinimumSize = new Size(900, 600); StartPosition = FormStartPosition.CenterParent;
         BackColor = Bg; ForeColor = Color.White; KeyPreview = true; Font = new Font("Segoe UI", 9.5f); ShowInTaskbar = false;
 
-        var side = new Panel { Dock = DockStyle.Right, Width = 290, BackColor = Side, Padding = new Padding(14, 12, 14, 20) };
+        var side = _side = new Panel { Dock = DockStyle.Right, Width = 290, BackColor = Side, Padding = new Padding(14, 12, 14, 20) };
         var form = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         Label Title(string t) => new() { Text = t, AutoSize = true, ForeColor = Color.FromArgb(96, 165, 250), Font = new Font("Segoe UI Semibold", 10f), Margin = new Padding(0, 10, 0, 4) };
         Label Name(string t) => new() { Text = t, AutoSize = true, ForeColor = Color.Gainsboro, Margin = new Padding(0, 6, 0, 2) };
@@ -68,6 +69,9 @@ internal sealed class DomainEditorWindow : Form
         _canvas.Map = _image;
         _canvas.WorldSize = _image?.Size ?? new Size(1024, 768);
         _canvas.PaintOver += PaintMap;
+        _canvas.Legend = [(Classes[1], Loc.T("dm.class3", "3ª classe")), (Classes[2], Loc.T("dm.class2", "2ª classe")), (Classes[3], Loc.T("dm.class1", "1ª classe")),
+            (Color.White, Loc.T("dm.legendSel", "Território escolhido")), (Color.Gold, Loc.T("dm.legendIcon", "Ícone no mapa da guerra"))];
+        _canvas.BottomSpace = 0;
         _canvas.HitSomething = p => VertexAt(p) >= 0 || CenterAt(p);
         _canvas.MapDown += (e, _) => Down(null, e);
         _canvas.MapMove += (e, _) => Move2(null, e);
@@ -88,11 +92,14 @@ internal sealed class DomainEditorWindow : Form
         FillList();
     }
 
-    /// <summary>Abre o editor do cliente aberto; sem o domain.data avisa e não abre.</summary>
-    public static void Open(IWin32Window owner, string element, string? serverConfigDir, IReadOnlySet<int> usedInWorld)
+    /// <summary>
+    /// A ferramenta Territórios: o editor cobre a cena do Mundo 3D, e o título com a seta de voltar fica por cima do painel da direita.
+    /// Null se o cliente não tem o domain.data ou ele não abre (a pessoa já foi avisada).
+    /// </summary>
+    public static DomainEditorWindow? Embedded(IWin32Window owner, string element, string? serverConfigDir, IReadOnlySet<int> usedInWorld, int headHeight)
     {
         var data = Path.Combine(element, "data", "domain.data");
-        if (!File.Exists(data)) { MessageBox.Show(owner, Loc.T("dm.noFile", "Este cliente não tem data\\domain.data."), Loc.T("dm.title", "Territórios")); return; }
+        if (!File.Exists(data)) { MessageBox.Show(owner, Loc.T("dm.noFile", "Este cliente não tem data\\domain.data."), Loc.T("dm.title", "Territórios")); return null; }
         DomainMap map; DomainServer? server = null; string? sev = null;
         try
         {
@@ -104,10 +111,18 @@ internal sealed class DomainEditorWindow : Form
         {
             AppLog.Error("domain.data", ex);
             MessageBox.Show(owner, ex.Message, Loc.T("dm.title", "Territórios"));
-            return;
+            return null;
         }
-        using var w = new DomainEditorWindow(data, sev, map, server, LoadImage(element), usedInWorld);
-        w.ShowDialog(owner);
+        var w = new DomainEditorWindow(data, sev, map, server, LoadImage(element), usedInWorld) { TopLevel = false, FormBorderStyle = FormBorderStyle.None, MinimumSize = Size.Empty };
+        w._side.Padding = new Padding(14, 12 + headHeight, 14, 20);
+        return w;
+    }
+
+    /// <summary>Fecha perguntando se salva. Falso = a pessoa quis continuar.</summary>
+    public bool TryClose()
+    {
+        Close();
+        return IsDisposed;
     }
 
     /// <summary>O gdeliveryd lê o domain.sev da pasta dele; o de gamed\config é uma cópia velha em alguns servidores.</summary>

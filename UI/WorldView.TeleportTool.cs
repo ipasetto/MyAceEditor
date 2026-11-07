@@ -480,29 +480,6 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Tira o ponto do par e de tudo que aponta para ele: sem isso o gs levaria para (0, 0, 0).</summary>
-    /// <summary>
-    /// Excluir um ponto do mundo. Quem descobre um ponto de teleporte recebe a escolha: sem o NPC o ponto continua no mapa de viagem,
-    /// mas ninguém consegue liberá-lo. Sem esse vínculo, é a pergunta de sempre.
-    /// </summary>
-    bool ConfirmDelete(int id)
-    {
-        int point = id > 0 && _host?.IsNpc(id) == true ? _host.DiscoverOf(id) : 0;
-        if (point <= 0) return Confirm();
-        OpenTeleportsQuiet();
-        var only = new TaskDialogButton(Loc.T("del.npcOnly", "Só o NPC"));
-        var both = new TaskDialogButton(Loc.T("del.npcAndPoint", "O NPC e o ponto"));
-        var page = new TaskDialogPage
-        {
-            Caption = Text, Heading = string.Format(Loc.T("del.linkedTitle", "{0} libera um ponto de teleporte"), _host!.NameOf(id) ?? id.ToString()),
-            Text = Loc.T("del.linkedText", "Só o NPC: o ponto fica no mapa de viagem, mas ninguém mais consegue liberar.\nO NPC e o ponto: o ponto sai do mapa de viagem, e os NPCs deixam de levar até lá. Isso grava os pontos na hora."),
-            Buttons = { only, both, TaskDialogButton.Cancel }, DefaultButton = only, Icon = TaskDialogIcon.Warning,
-        };
-        var answer = TaskDialog.ShowDialog(this, page);
-        if (answer == only) return true;
-        if (answer != both) return false;
-        return RemovePoint(point, _host.AtlasHas(point));
-    }
-
     /// <summary>Tira o ponto do par, dos destinos dos NPCs, de quem descobre e do Atlas.</summary>
     bool RemovePoint(int point, bool atlas)
     {

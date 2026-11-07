@@ -64,13 +64,16 @@ public sealed class GmPanel : Form
         _poll.Tick += (_, _) => UpdateState(); _poll.Start();
         Shown += (_, _) => { ApplyCommandSet(); UpdateState(); LoadData(); Compact(); };
         Resize += (_, _) => Compact();
+        // o jogo aberto com o painel nunca perde o foco; digitando aqui, deixa perder, senão as teclas chegam ao personagem
+        _keepActive.Tick += (_, _) => { if (!Typing(ActiveControl is ContainerControl box ? box.ActiveControl : ActiveControl) || !ContainsFocus) GameConsole.KeepActive(); };
+        _keepActive.Start();
         _clicks = new ClickWatch(this);
         _backToGame.Tick += (_, _) => BackToGame();
         ResizeEnd += (_, _) => FollowPanel();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
         FormClosed += (_, _) =>
         {
-            _poll.Dispose(); _backToGame.Dispose();
+            _poll.Dispose(); _backToGame.Dispose(); _keepActive.Dispose();
             Application.RemoveMessageFilter(_clicks);
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
             if (_gameBefore is { } game) GameConsole.Place(game);
@@ -149,6 +152,7 @@ public sealed class GmPanel : Form
     readonly NavBar _nav;
     readonly Dictionary<Control, int> _wide = new();
     readonly System.Windows.Forms.Timer _backToGame = new() { Interval = 350 };
+    readonly System.Windows.Forms.Timer _keepActive = new() { Interval = 300 };
     readonly ClickWatch _clicks;
 
     /// <summary>
@@ -508,10 +512,6 @@ public sealed class GmPanel : Form
                 Row(_plInfo)),
             Group(Loc.T("gm.gMobs", "Monstros"),
                 Row(Need(10855, Btn(Loc.T("gm.killAll", "Matar os monstros do mapa"), () => { if (Ask(Loc.T("gm.killAllAsk", "Matar todos os monstros do mapa atual?"))) Run("d 10855 10855"); })))),
-            // d_rendernofocus: liga/desliga desenhar o jogo sem o foco da janela (EC_DlgCmdConsole.cpp CCMD_RENDERNOFOCUS; PW-KB §S31)
-            Group(Loc.T("gm.gScreen", "Sua tela"),
-                Row(Btn(Loc.T("gm.noFocus", "Não parar o jogo sem foco (liga/desliga)"), () => Run("d_rendernofocus")),
-                    L(Loc.T("gm.noFocusNote2", "Já vem ligado ao abrir o jogo por aqui (rendernofocus:1); o botão desliga e liga de novo.")))),
             Group(Loc.T("gm.gTime", "Hora do dia (só na sua tela)"),
                 Row(hh, L(":"), mm, Btn(Loc.T("gm.apply", "Aplicar"), () => Run($"d_settimeofday {hh.Value},{mm.Value:00}")))),
             Group(Loc.T("gm.gServer", "Servidor"),

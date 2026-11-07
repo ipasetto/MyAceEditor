@@ -41,6 +41,13 @@ internal sealed class MapCanvas : Control
     public Func<Point, bool>? HitSomething { get; set; }
     public float Zoom => _zoom;
 
+    /// <summary>O que cada cor quer dizer: fica no canto de baixo, à esquerda.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public IReadOnlyList<(Color Color, string Text)> Legend { get; set; } = [];
+    /// <summary>Espaço embaixo ocupado por uma barra de quem usa.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int BottomSpace { get; set; }
+
     /// <summary>Desenha por cima do mapa, em pixels da tela.</summary>
     public event Action<Graphics>? PaintOver;
     public event Action<MouseEventArgs, PointF>? MapDown, MapMove, MapUp, MapDoubleClick;
@@ -150,6 +157,26 @@ internal sealed class MapCanvas : Control
         PaintOver?.Invoke(g);
         PaintButtons(g);
         PaintScale(g);
+        PaintLegend(g);
+    }
+
+    void PaintLegend(Graphics g)
+    {
+        if (Legend.Count == 0) return;
+        using var font = new Font("Segoe UI", 8.5f);
+        const int Row = 20, Square = 12;
+        int width = Legend.Max(l => TextRenderer.MeasureText(l.Text, font).Width) + Square + 22;
+        var box = new Rectangle(Margin8, Height - BottomSpace - Margin8 - Legend.Count * Row - 8, width, Legend.Count * Row + 8);
+        using var back = new SolidBrush(Color.FromArgb(225, 32, 36, 44)); using var line = new Pen(Color.FromArgb(70, 80, 96));
+        g.FillRectangle(back, box); g.DrawRectangle(line, box);
+        for (int i = 0; i < Legend.Count; i++)
+        {
+            int y = box.Y + 4 + i * Row;
+            using var fill = new SolidBrush(Legend[i].Color);
+            g.FillRectangle(fill, box.X + 8, y + 4, Square, Square);
+            g.DrawRectangle(Pens.White, box.X + 8, y + 4, Square, Square);
+            TextRenderer.DrawText(g, Legend[i].Text, font, new Point(box.X + Square + 14, y + 2), Color.White);
+        }
     }
 
     void PaintButtons(Graphics g)

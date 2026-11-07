@@ -26,6 +26,11 @@ public sealed class QuestDraft
     public QuestStepOrder Order;
     /// <summary>ID da quest principal que este rascunho substitui (editar quest); 0 = quest nova.</summary>
     public int Editing;
+    /// <summary>
+    /// Quest do jogo que o assistente não sabe remontar: muda só o que a tela mostra (nome, texto, requisitos, prêmio) e o resto fica
+    /// como está. Etapas, NPC e tipo aparecem travados.
+    /// </summary>
+    public bool Keep;
 }
 
 /// <summary>Falar com NPC, ir até um lugar, matar monstros, obter itens (ficam com o jogador), entregar itens a um NPC (ele fica com eles), esperar um tempo.</summary>
@@ -209,6 +214,14 @@ public static class QuestBuilder
         string T(string k, string pt) => FieldKinds.Translate(k, pt);
         var e = new List<string>();
         if (!t.CanWrite) e.Add(T("qb.readOnly", "O tasks.data está só para leitura: ") + t.ReadOnlyReason);
+        if (d.Keep)
+        {
+            if (d.Name.Trim().Length == 0) e.Add(T("qb.noName", "Falta o nome da quest."));
+            else if (d.Name.Length > TasksFile.MaxNameLength) e.Add(string.Format(T("qb.nameLong", "O nome passa de {0} caracteres."), TasksFile.MaxNameLength));
+            if (d.MinLevel < 0 || d.MaxLevel < 0 || d.MaxLevel > 0 && d.MaxLevel < d.MinLevel) e.Add(T("qb.levels", "O nível máximo é menor que o mínimo."));
+            foreach (var (id, _) in d.Items) if (!itemExists(id)) e.Add(string.Format(T("nb.noItem", "O item {0} não existe no elements.data."), id));
+            return e;
+        }
         if (d.Steps.Count == 0) e.Add(T("qb.noSteps", "Ponha pelo menos uma etapa (o que o jogador faz depois de aceitar)."));
         if (d.Id <= 0) e.Add(T("qb.idPositive", "O ID precisa ser maior que zero."));
         else if (Taken(t, d, d.Id)) e.Add(string.Format(T("qb.idUsed", "O ID {0} já é de outra quest."), d.Id));
@@ -534,6 +547,79 @@ public static class QuestBuilder
         return d;
     }
 
+    /// <summary>Rascunho de qualquer quest do jogo: o que a tela mostra. As etapas vêm só para ver.</summary>
+    public static QuestDraft FromQuestKeep(TasksFile t, QuestNode q)
+    {
+        var rec = ReadRec(q, t.Version);
+        var d = new QuestDraft
+        {
+            Keep = true, Id = q.Id, Editing = q.Id, Name = q.Name, Giver = (int)rec.Int("m_ulDelvNPC"), Receiver = (int)rec.Int("m_ulAwardNPC"), Type = (int)rec.Int("m_ulType"), Key = rec.Int("m_bKeyTask") != 0,
+            MinLevel = (int)rec.Int("m_ulPremise_Lev_Min"), MaxLevel = (int)rec.Int("m_ulPremise_Lev_Max"),
+            Gold = rec.Int("m_Award_S.m_ulGoldNum"), Exp = rec.Int("m_Award_S.m_ulExp"), Sp = rec.Int("m_Award_S.m_ulSP"), Reputation = rec.Int("m_Award_S.m_lReputation"),
+            Description = q.Texts[0] ?? "", OfferText = q.Talks.Length > 0 && q.Talks[0].Windows.Count > 0 ? q.Talks[0].Windows[0].Text : "",
+        };
+        if (rec.Int("m_Award_S.m_ulCandItems") > 0)
+        {
+            const string g = "m_Award_S.m_CandItems[0].";
+            d.RandomItem = rec.Int(g + "m_bRandChoose") != 0;
+            for (int i = 0; i < rec.Int(g + "m_ulAwardItems"); i++)
+                d.Items.Add(((int)rec.Int(g + $"m_AwardItems[{i}].m_ulItemTemplId"), (int)rec.Int(g + $"m_AwardItems[{i}].m_ulItemNum")));
+        }
+        d.Choices = QuestOptions.Read(rec, t.Version);
+        foreach (var k in q.Children) d.Steps.Add(new QuestStep { Kind = StepKind(t, k) ?? QuestStepKind.Talk, Name = k.Name, Description = k.Texts[0] ?? "" });
+        return d;
+    }
+
+    static string ChoiceKey(QuestChoice c) => c.Option.Id + "=" + c.Value;
+
+    /// <summary>Grava só o que mudou em relação à quest. Nada mudou = o bloco fica igual byte a byte. Devolve o erro, se houver.</summary>
+    public static string? Patch(TasksFile t, QuestNode q, QuestDraft d)
+    {
+        string T(string k, string pt) => FieldKinds.Translate(k, pt);
+        var was = FromQuestKeep(t, q);
+        var rec = ReadRec(q, t.Version);
+        bool changed = false;
+        void S(string key, long now, long old) { if (now != old) { rec.V[key] = now; changed = true; } }
+        S("m_ulPremise_Lev_Min", d.MinLevel, was.MinLevel); S("m_ulPremise_Lev_Max", d.MaxLevel, was.MaxLevel);
+        S("m_Award_S.m_ulGoldNum", d.Gold, was.Gold); S("m_Award_S.m_ulExp", d.Exp, was.Exp);
+        S("m_Award_S.m_ulSP", d.Sp, was.Sp); S("m_Award_S.m_lReputation", d.Reputation, was.Reputation);
+        if (!d.Items.SequenceEqual(was.Items) || d.RandomItem != was.RandomItem)
+        {
+            if (rec.Int("m_Award_S.m_ulCandItems") > 1) return T("qb.keepItems", "Esta quest tem mais de um grupo de prêmios: mude os itens na aba Quests.");
+            SetItems(rec, d);
+            changed = true;
+        }
+        // repetir fica travado na tela; o resto das opções muda uma a uma
+        var before = was.Choices.Where(c => c.Option.Id is not ("repeat" or "redo")).ToList();
+        var now = d.Choices.Where(c => c.Option.Id is not ("repeat" or "redo")).ToList();
+        foreach (var c in before.Where(c => now.All(n => ChoiceKey(n) != ChoiceKey(c)) && c.Option.Type == QOType.Flag)) { QuestOptions.SetFlag(rec, t.Version, c.Option.Keys[0], false); changed = true; }
+        foreach (var c in now.Where(c => before.All(b => ChoiceKey(b) != ChoiceKey(c)))) { QuestOptions.Apply(rec, t.Version, c); changed = true; }
+        if (changed) WriteRec(q, rec, t.Version);
+        if (d.Name != was.Name) { q.Name = d.Name; q.TextsChanged = true; }
+        if (d.Description != was.Description) { q.Texts[0] = d.Description; q.TextsChanged = true; }
+        if (d.OfferText != was.OfferText && q.Talks.Length > 0 && q.Talks[0].Windows.Count > 0) { q.Talks[0].Windows[0].Text = d.OfferText; q.TextsChanged = true; }
+        return null;
+    }
+
+    /// <summary>Foto da quest para o Ctrl+Z da edição que preserva.</summary>
+    public sealed record QuestState(string Name, byte[] Fixed, string Description, string? Offer, bool TextsChanged);
+
+    public static QuestState Capture(QuestNode q) => new(q.Name, q.Fixed, q.Texts[0] ?? "", q.Talks.Length > 0 && q.Talks[0].Windows.Count > 0 ? q.Talks[0].Windows[0].Text : null, q.TextsChanged);
+
+    public static void Restore(TasksFile t, QuestNode q, QuestState s)
+    {
+        q.Name = s.Name; q.Fixed = s.Fixed; q.ResetFields(t.Version); q.Texts[0] = s.Description; q.TextsChanged = s.TextsChanged;
+        if (s.Offer is not null) q.Talks[0].Windows[0].Text = s.Offer;
+    }
+
+    /// <summary>Chaves do bloco que diferem entre os bytes de antes e a quest agora.</summary>
+    public static List<string> Diff(TasksFile t, byte[] before, QuestNode q)
+    {
+        var a = TaskLayout.ReadFixed(new BinaryReader(new MemoryStream(before, false)), t.Version);
+        var b = ReadRec(q, t.Version);
+        return [.. a.V.Keys.Union(b.V.Keys).Where(k => !a.V.TryGetValue(k, out var x) || !b.V.TryGetValue(k, out var y) || !SameValue(x, y))];
+    }
+
     static readonly System.Text.RegularExpressions.Regex QuestRefKey = new(@"^(m_ulPremise_Tasks|m_ulMutexTasks|m_ulNeededTasks)\[\d+\]$|^m_ulPremise_Cotask$|^m_Award_S\.m_ulNewTask$");
 
     // Ligações de cada nó para outras quests (campo, ID), guardadas por nó e refeitas só quando os bytes dele mudam: ler os
@@ -704,23 +790,27 @@ public static class QuestBuilder
     }
 
     /// <summary>Nível, prêmio e opções escolhidas (requisitos e prêmios a mais) — vão na quest principal.</summary>
+    static void SetItems(TaskRec rec, QuestDraft d)
+    {
+        void S(string k, long v) => rec.V[k] = v;
+        S("m_Award_S.m_ulCandItems", d.Items.Count > 0 ? 1 : 0);
+        if (d.Items.Count == 0) return;
+        const string g = "m_Award_S.m_CandItems[0].";
+        S(g + "m_bRandChoose", d.RandomItem ? 1 : 0); S(g + "m_ulAwardItems", d.Items.Count);
+        for (int i = 0; i < d.Items.Count; i++)
+        {
+            var it = g + $"m_AwardItems[{i}].";
+            S(it + "m_ulItemTemplId", d.Items[i].Id); S(it + "m_bCommonItem", 1); S(it + "m_ulItemNum", d.Items[i].Count);
+            rec.V[it + "m_fProb"] = 1f; S(it + "m_lPeriod", 0);
+        }
+    }
+
     static void ApplyCommon(TaskRec rec, int version, QuestDraft d)
     {
         void S(string k, long v) => rec.V[k] = v;
         S("m_ulPremise_Lev_Min", d.MinLevel); S("m_ulPremise_Lev_Max", d.MaxLevel);
         S("m_Award_S.m_ulGoldNum", d.Gold); S("m_Award_S.m_ulExp", d.Exp); S("m_Award_S.m_ulSP", d.Sp); S("m_Award_S.m_lReputation", d.Reputation);
-        S("m_Award_S.m_ulCandItems", d.Items.Count > 0 ? 1 : 0);
-        if (d.Items.Count > 0)
-        {
-            const string g = "m_Award_S.m_CandItems[0].";
-            S(g + "m_bRandChoose", d.RandomItem ? 1 : 0); S(g + "m_ulAwardItems", d.Items.Count);
-            for (int i = 0; i < d.Items.Count; i++)
-            {
-                var it = g + $"m_AwardItems[{i}].";
-                S(it + "m_ulItemTemplId", d.Items[i].Id); S(it + "m_bCommonItem", 1); S(it + "m_ulItemNum", d.Items[i].Count);
-                rec.V[it + "m_fProb"] = 1f; S(it + "m_lPeriod", 0);
-            }
-        }
+        SetItems(rec, d);
         // liga/desliga que o modelo trouxe ligado (ex.: "pode refazer" não é zerado no Clean): desligado, a não ser que escolhido
         foreach (var o in QuestOptions.All.Where(o => o.Type == QOType.Flag && (rec.V.ContainsKey(o.Keys[0]) || QuestOptions.SwitchIndex(version, o.Keys[0]) >= 0)))
             QuestOptions.SetFlag(rec, version, o.Keys[0], false);

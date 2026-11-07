@@ -5457,10 +5457,6 @@
   "wc.dropOne": "1 item {0}",
   "wc.dropMany": "{1} items {0}",
   "wc.dropCount": "On death: {0}",
-  "del.npcOnly": "Only the NPC",
-  "del.npcAndPoint": "The NPC and the point",
-  "del.linkedTitle": "{0} unlocks a teleport point",
-  "del.linkedText": "Only the NPC: the point stays on the travel map, but nobody can unlock it anymore.\nThe NPC and the point: the point leaves the travel map and NPCs stop taking players there. This saves the points right away.",
   "zone.noName": "Give the zone a name.",
   "zone.fewCorners": "A zone needs at least 3 corners.",
   "zone.crossed": "The border crosses itself: drag the marked corner.",
@@ -5582,5 +5578,14 @@
   "zone.summary": "How it will look",
   "zone.touches": "Touches: {0}",
   "zone.truthAsk": "The server will have the client's {0} zones ({1} more or fewer). Continue?",
-  "zone.useClient": "Use the client as correct"
+  "zone.useClient": "Use the client as correct",
+  "rw.count2": "Made per attempt",
+  "dm.legendSel": "Chosen territory",
+  "dm.legendIcon": "Icon on the war map",
+  "zone.legOpen": "Open zone",
+  "zone.legOther": "Other zones",
+  "zone.legCity": "Where you respawn",
+  "zone.legMark": "Minimap place",
+  "qb.keepItems": "This quest has more than one reward group: change the items in the Quests tab.",
+  "qe.keepNote": "Game quest: name, texts, requirements and rewards change here. The rest stays as it is; NPC, type and steps change in the Quests tab."
 }

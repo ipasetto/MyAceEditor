@@ -204,10 +204,13 @@ internal sealed class GameServiceWindow : Panel
         }
         int prod = ProductOf(rec);
         if (IconOf(prod) is { } pi) g.DrawImage(pi, R("Item_out"));
-        GameDraw.Text(g, _host.NameOf(prod) ?? "", new Rectangle(R("Txt_out").X, R("Txt_out").Y - 2, 160, 21), Gold, 10);
+        // o nome fica acima do campo: o campo é quantos saem numa tentativa (num_to_make)
+        var made = R("Txt_out");
+        GameDraw.Text(g, _host.NameOf(prod) ?? "", new Rectangle(made.X, made.Y - 18, 240, 18), Gold, 10, align: ContentAlignment.MiddleLeft);
         GameDraw.Text(g, rec.Price.ToString(), R("Txt_Gold"), TextC, 10, align: ContentAlignment.MiddleRight);
         // "Requer: Ferreiro   Nível 3", como no jogo: a habilidade é a da própria receita (uma por fornalha, o gs compara com id_make_skill)
         var full = rec.RecipeId > 0 ? _host.ReadRecipe(rec.RecipeId) : rec;
+        GameDraw.Text(g, (full?.Count ?? rec.Count).ToString(), made, TextC, 10);
         int skill = rec.RecipeId > 0 ? full?.Skill ?? 0 : Make.Skill, level = full?.SkillLevel ?? 0;
         var at = R("Txt_SkillName");
         GameDraw.Text(g, _skillNames.GetValueOrDefault(skill) ?? Loc.T("gs.noSkill", "Nada"), new Rectangle(at.X, at.Y - 2, 100, 18), TextC, 10, align: ContentAlignment.MiddleLeft);

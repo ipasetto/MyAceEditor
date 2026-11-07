@@ -56,6 +56,9 @@ internal sealed partial class WorldView
         _zCanvas.Controls.Add(_zBar);
         _gl.Resize += (_, _) => _zCanvas.Bounds = _gl.Bounds;
         _zCanvas.PaintOver += PaintZones;
+        _zCanvas.BottomSpace = _zBar.Height;
+        _zCanvas.Legend = [(Color.FromArgb(109, 183, 255), Loc.T("zone.legOpen", "Zona aberta")), (Color.FromArgb(0, 255, 252), Loc.T("zone.protected", "novatos protegidos")),
+            (Color.FromArgb(216, 222, 232), Loc.T("zone.legOther", "Outras zonas")), (Color.FromArgb(255, 200, 90), Loc.T("zone.legCity", "Onde renasce")), (Color.Gold, Loc.T("zone.legMark", "Lugar do minimapa"))];
         _zCanvas.HitSomething = p => _zDrawing != ZoneDraw.None || _zPick is not null || ZoneCorner(p) >= 0;
         _zCanvas.MapDown += ZoneDown;
         _zCanvas.MapMove += ZoneMove;

@@ -36,6 +36,12 @@ internal static class QuestShotTest
         using var f = new Form { Width = 1100, Height = 760, StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false, BackColor = Color.FromArgb(60, 80, 70) };
         var host = new Stub();
         var draft = host.NewDraft(2001, out _)!;
+        if (page >= 10)   // 10 em diante: quest do jogo aberta só para mudar o que a tela mostra
+        {
+            page -= 10;
+            draft.Keep = true; draft.Editing = draft.Id; draft.Name = "Quest do jogo"; draft.Gold = 5000; draft.Reputation = -20;
+            draft.Steps.Add(new QuestStep { Kind = QuestStepKind.Talk, Name = "Etapa do jogo" });
+        }
         // página Etapas: mostra uma etapa "matar monstros" já preenchida (a 2ª, selecionada ao abrir a página)
         if (page == 1) draft.Steps.AddRange(new[] { new QuestStep { Kind = QuestStepKind.Talk, Npc = 2002 }, new QuestStep { Kind = QuestStepKind.Kill, Name = "Lobos da colina", Monsters = { (3001, 10) }, Drops = { new QuestDrop(3002, 4002, 5, 0.4f, false) } },
             new QuestStep { Kind = QuestStepKind.Wait, Name = "Espere", WaitSeconds = 90 },

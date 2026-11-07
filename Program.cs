@@ -371,6 +371,31 @@ internal static class Program
             return;
         }
         if (args.Length >= 2 && args[0] == "--wq-shot") { MyAceEditor.UI.QuestShotTest.Run(args[1], args.Length >= 3 ? int.Parse(args[2]) : 0); return; }   // <png>: painel e editor de quest do 3D com dados de exemplo
+        if (args.Length >= 3 && args[0] == "--quest-keep-test")   // <tasks.data> <saída>: abrir qualquer quest no assistente e mudar só o que a tela mostra
+        {
+            var tf = new TasksFile(args[1]);
+            int total = 0, strict = 0, opened = 0, noChange = 0, onlyGold = 0, back = 0;
+            string first = "";
+            foreach (var q in tf.Roots!.ToList())
+            {
+                total++;
+                if (QuestBuilder.FromQuest(tf, q, out _) is not null) strict++;
+                var d = QuestBuilder.FromQuestKeep(tf, q);
+                if (d.Keep) opened++;
+                var was = q.Fixed;
+                var state = QuestBuilder.Capture(q);
+                var err = QuestBuilder.Patch(tf, q, d);
+                if (err is null && q.Fixed.AsSpan().SequenceEqual(was)) noChange++; else if (first.Length == 0) first = $"nada mudou {q.Id}: {err}";
+                d.Gold += 1;
+                err = QuestBuilder.Patch(tf, q, d);
+                var diff = QuestBuilder.Diff(tf, was, q);
+                if (err is null && diff.Count == 1 && diff[0] == "m_Award_S.m_ulGoldNum") onlyGold++; else if (first.Length == 0) first = $"ouro {q.Id}: {err} {string.Join(",", diff.Take(4))}";
+                QuestBuilder.Restore(tf, q, state);
+                if (q.Fixed.AsSpan().SequenceEqual(was)) back++;
+            }
+            File.WriteAllText(args[2], $"quests {total}, assistente completo {strict}, abrem agora {opened}, sem mudar nada igual {noChange}, só o ouro muda {onlyGold}, volta igual {back}\n{first}\n");
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--zone-test") { ZoneSelfTest.Run(args[1], args[2], args[3]); return; }   // <maps> <config> <saída>: editor de zonas sem janela
         if (args.Length >= 3 && args[0] == "--quest-preview-shot")   // <png> <pasta element>: janela de quests do jogo com dados de exemplo
         {
@@ -1462,6 +1487,14 @@ internal static class Program
             using var panel = w.ToolsShot();
             panel.Save(Path.Combine(outDir, png.Replace(".png", "-panel.png")), System.Drawing.Imaging.ImageFormat.Png);
             File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.ZoneOrder() + Environment.NewLine);
+        }
+        w.CloseToolForShot();
+        w.DomainShot();
+        for (int k = 0; k < 10; k++) { Application.DoEvents(); Thread.Sleep(30); }
+        using (var full = new System.Drawing.Bitmap(w.Width, w.Height))
+        {
+            w.DrawToBitmap(full, new System.Drawing.Rectangle(0, 0, w.Width, w.Height));
+            full.Save(Path.Combine(outDir, "window-domains.png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         w.CloseToolForShot();
         var zoneTemp = Path.Combine(Path.GetTempPath(), "MyAceZoneFlow" + Environment.ProcessId);

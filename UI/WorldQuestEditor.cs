@@ -920,8 +920,25 @@ internal sealed class WorldQuestEditor : Panel
 
     // ---------- rascunho ----------
 
+    /// <summary>Quest do jogo: NPC, tipo e etapas ficam só para ver. Mudar isso exige a aba Quests.</summary>
+    void LockForKeep()
+    {
+        // valor do jogo pode passar do limite do campo: cortar aqui mudaria a quest sem ninguém pedir
+        foreach (var n in new[] { _minLv, _maxLv, _gold, _exp, _sp, _rep }) { n.Minimum = int.MinValue; n.Maximum = uint.MaxValue; }
+        var note = Loc.T("qe.keepNote", "Quest do jogo: aqui mudam nome, textos, requisitos e prêmios. O resto fica como está; NPC, tipo e etapas se mudam na aba Quests.");
+        foreach (int i in new[] { 0, 1 })
+        {
+            var page = (FlowLayoutPanel)_pages[i].Page;
+            foreach (Control c in page.Controls) if (c != _name) c.Enabled = false;
+            var label = new Label { Text = note, AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Color.FromArgb(250, 204, 21), Margin = new Padding(0, 0, 0, 8) };
+            page.Controls.Add(label);
+            page.Controls.SetChildIndex(label, 0);
+        }
+    }
+
     void Load()
     {
+        if (_d.Keep) LockForKeep();
         _id.Value = Math.Max(1, _d.Id); _giver.Value = _d.Giver; _name.Text = _d.Name;
         foreach (var tb in _typeButtons) tb.Checked = _d.Key ? tb.Name == "key" : tb.Name != "key" && (int)tb.Tag! == (_d.Type is 0 or < 100 ? 101 : _d.Type);
         int rep = _d.Choices.FirstOrDefault(c => c.Option.Id == "repeat")?.Value is long f and >= 1 and <= 3 ? (int)f : _d.Choices.Any(c => c.Option.Id == "redo") ? -1 : 0;
@@ -929,7 +946,7 @@ internal sealed class WorldQuestEditor : Panel
         if (!_repeatButtons.Any(rb => rb.Checked) && _repeatButtons.Count > 0) _repeatButtons[0].Checked = true;
         _order.SelectedIndex = (int)_d.Order;
         RefreshStepList(0);
-        _minLv.Value = _d.MinLevel; _maxLv.Value = _d.MaxLevel;
+        _minLv.Value = Math.Clamp(_d.MinLevel, _minLv.Minimum, _minLv.Maximum); _maxLv.Value = Math.Clamp(_d.MaxLevel, _maxLv.Minimum, _maxLv.Maximum);
         // editar quest: prêmio, itens e textos vêm da quest (na criação estão vazios)
         _gold.Value = Math.Clamp(_d.Gold, (long)_gold.Minimum, (long)_gold.Maximum); _exp.Value = Math.Clamp(_d.Exp, (long)_exp.Minimum, (long)_exp.Maximum);
         _sp.Value = Math.Clamp(_d.Sp, (long)_sp.Minimum, (long)_sp.Maximum); _rep.Value = Math.Clamp(_d.Reputation, (long)_rep.Minimum, (long)_rep.Maximum);
