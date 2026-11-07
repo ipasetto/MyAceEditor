@@ -51,7 +51,7 @@ public sealed record RestoreOp(string Key) : DraftOp(Key);
 /// </summary>
 public sealed class WorldDraft(string map)
 {
-    readonly record struct Step(string Key, ObjTransform BeforeAt, bool BeforeDeleted, ObjTransform AfterAt, bool AfterDeleted);
+    readonly record struct Step(string Key, ObjTransform BeforeAt, bool BeforeDeleted, ObjTransform AfterAt, bool AfterDeleted, object? Tag);
 
     readonly Dictionary<int, DraftPiece> _pieces = new();
     readonly Dictionary<string, DraftObject> _byKey = new(StringComparer.OrdinalIgnoreCase);
@@ -63,6 +63,9 @@ public sealed class WorldDraft(string map)
     public int UndoCount => _undo.Count;
     public int RedoCount => _redo.Count;
     public event Action? Changed;
+    /// <summary>Marca guardada com o passo do topo (a tela usa para a ordem do Ctrl+Z entre ferramentas).</summary>
+    public object? UndoTag => _undo.Count > 0 ? _undo[^1].Tag : null;
+    public object? RedoTag => _redo.Count > 0 ? _redo[^1].Tag : null;
 
     public DraftObject? Find(string key) => _byKey.GetValueOrDefault(key);
 
@@ -103,7 +106,7 @@ public sealed class WorldDraft(string map)
     }
 
     /// <summary>Aplica a mudança. null = aplicada; senão, o motivo da recusa em palavras simples (nada muda).</summary>
-    public string? Apply(DraftOp op)
+    public string? Apply(DraftOp op, object? tag = null)
     {
         if (Find(op.Key) is not { } o) return Loc.T("obj.notFound", "Esse objeto não está mais carregado.");
         if (o.ReadOnlyWhy is not null) return o.ReadOnlyWhy;
@@ -123,7 +126,7 @@ public sealed class WorldDraft(string map)
                 o.Deleted = false; break;
             default: return Loc.T("obj.unknownOp", "Mudança desconhecida.");
         }
-        _undo.Add(new Step(o.Key, before.Now, before.Deleted, o.Now, o.Deleted));
+        _undo.Add(new Step(o.Key, before.Now, before.Deleted, o.Now, o.Deleted, tag));
         _redo.Clear();
         Changed?.Invoke();
         return null;

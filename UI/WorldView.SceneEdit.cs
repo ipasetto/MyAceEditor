@@ -1,3 +1,4 @@
+using MyAceEditor.PerfectWorld.WorldEdit;
 using MyAceEditor.PerfectWorld;
 using OpenTK.Mathematics;
 
@@ -39,7 +40,7 @@ internal sealed partial class WorldView
         return sc;
     }
 
-    bool SceneDirty => _buildings.Offsets.Count > 0 || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
+    bool SceneDirty => _draft?.Dirty == true || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
         || _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved));
 
     /// <summary>Carrega o .ecwld (e o .ecbsd) para editar (na 1ª vez que O liga).</summary>
@@ -166,7 +167,13 @@ internal sealed partial class WorldView
         }, string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), x, z, y));
     }
 
-    Vector3 BldOff(BuildingSel b) => _buildings.Offsets.GetValueOrDefault(b.File);
+    /// <summary>Deslocamento de agora da construção (espaço do OpenGL), vindo do rascunho.</summary>
+    Vector3 BldOff(BuildingSel b)
+    {
+        if (_draft?.Find(b.File) is not { } o || o.Deleted) return Vector3.Zero;
+        var d = o.Now.Pos - o.Original.Pos;
+        return new Vector3(d.X, d.Y, -d.Z);
+    }
 
     /// <summary>
     /// Construção: só o desenho anda (deslocamento guardado no 3D). Gravar = .bmd no litmodels.pck + ornamento no .ecbsd +
@@ -174,13 +181,12 @@ internal sealed partial class WorldView
     /// </summary>
     void MoveBuilding(BuildingSel b, float x, float y, float z)
     {
-        if (_ecw is null) return;
-        SceneEdit(_ =>
-        {
-            var d = new Vector3(x - b.Center.X, y - b.Center.Y, -(z - b.Center.Z));   // espaço do OpenGL (z do jogo invertido)
-            if (d.LengthSquared < 1e-6f) _buildings.Offsets.Remove(b.File); else _buildings.Offsets[b.File] = d;
-            return 0;
-        }, string.Format(Loc.T("world.bldMoved", "Construção movida no 3D para X {0:0.0} Z {1:0.0} altura {2:0.0} (ainda não gravada)"), x, z, y));
+        // b.Center = centro do desenho no lugar ORIGINAL (jogo); a posição nova soma o deslocamento ao cabeçalho original
+        if (_draft?.Find(b.File) is not { } o) { _status.Text = Loc.T("obj.notLoaded", "Esta construção ainda está carregando; tente de novo em instantes."); return; }
+        var to = o.Original with { Pos = o.Original.Pos + new System.Numerics.Vector3(x - b.Center.X, y - b.Center.Y, z - b.Center.Z) };
+        if (DraftApply(new MoveOp(b.File, to)) is null)
+            _status.Text = string.Format(Loc.T("world.bldMoved", "Construção movida no 3D para X {0:0.0} Z {1:0.0} altura {2:0.0} (ainda não gravada)"), x, z, y);
+        ShowObjPanel(); _gl.Invalidate();
     }
 
     void ObjMovedByNumbers()

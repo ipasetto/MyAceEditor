@@ -19,12 +19,37 @@ internal sealed class WorldBuildings : IDisposable
 
     /// <summary>Construções movidas no Mundo 3D e ainda não gravadas (.bmd no pck → deslocamento no espaço do OpenGL).</summary>
     public Dictionary<string, Vector3> Offsets { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Objeto do rascunho da ferramenta Objetos do mundo (mudado = desenhado no lugar novo; apagado = some).</summary>
+    public Func<string, MyAceEditor.PerfectWorld.WorldEdit.DraftObject?>? DraftOf { get; set; }
+
+    /// <summary>Matriz do OpenGL de um lugar do jogo (mesma conta da carga: direita = cima × frente, escala, Z espelhado).</summary>
+    internal static Matrix4 MatrixOf(MyAceEditor.PerfectWorld.WorldEdit.ObjTransform t)
+    {
+        var dir = new Vector3(t.Dir.X, t.Dir.Y, t.Dir.Z); var up = new Vector3(t.Up.X, t.Up.Y, t.Up.Z);
+        if (dir.LengthSquared < 1e-6f || up.LengthSquared < 1e-6f) { dir = Vector3.UnitZ; up = Vector3.UnitY; }
+        var right = Vector3.Cross(up, dir);
+        float s = t.Scale is > 0 and < 1000 ? t.Scale : 1;
+        return new Matrix4(new Vector4(right * s, 0), new Vector4(up * s, 0), new Vector4(dir * s, 0), new Vector4(t.Pos.X, t.Pos.Y, t.Pos.Z, 1)) * Matrix4.CreateScale(1, 1, -1);
+    }
+
+    /// <summary>Matriz e centro de agora (rascunho, depois deslocamento antigo); hidden = apagada no rascunho.</summary>
+    (Matrix4 World, Vector3 Center, bool Hidden) Now(Placed p)
+    {
+        if (DraftOf?.Invoke(p.File) is { Changed: true } d)
+        {
+            if (d.Deleted) return (p.World, p.Center, true);
+            var w = MatrixOf(d.Now);
+            return (w, Vector3.TransformPosition(Vector3.TransformPosition(p.Center, p.World.Inverted()), w), false);
+        }
+        if (Offsets.TryGetValue(p.File, out var off)) return (p.World * Matrix4.CreateTranslation(off), p.Center + off, false);
+        return (p.World, p.Center, false);
+    }
 
     /// <summary>Construção carregada mais perto da câmera (teste do Mundo 3D).</summary>
     public (string File, Vector3 Center)? Nearest(Vector3 cam)
     {
-        var pl = _loaded.Values.SelectMany(l => l).OrderBy(x => (x.Center - cam).LengthSquared).FirstOrDefault();
-        return pl is null ? null : (pl.File, new Vector3(pl.Center.X, pl.Center.Y, -pl.Center.Z));
+        var pl = _loaded.Values.SelectMany(l => l).Select(x => (x.File, n: Now(x))).Where(x => !x.n.Hidden).OrderBy(x => (x.n.Center - cam).LengthSquared).FirstOrDefault();
+        return pl.File is null ? null : (pl.File, new Vector3(pl.n.Center.X, pl.n.Center.Y, -pl.n.Center.Z));
     }
 
     /// <summary>Construção mais perto do clique (centro a até 30 px na tela): arquivo .bmd e centro no espaço do jogo.</summary>
@@ -33,8 +58,8 @@ internal sealed class WorldBuildings : IDisposable
         (string, Vector3)? best = null; float bd = 30;
         foreach (var pl in _loaded.Values.SelectMany(l => l))
         {
-            var c = pl.Center + Offsets.GetValueOrDefault(pl.File);
-            if ((c - cam).LengthSquared > 400 * 400) continue;
+            var (_, c, hidden) = Now(pl);
+            if (hidden || (c - cam).LengthSquared > 400 * 400) continue;
             var game = new Vector3(c.X, c.Y, -c.Z);
             if (project(game) is not { } q) continue;
             float d = MathF.Sqrt((q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y));
@@ -297,11 +322,12 @@ internal sealed class WorldBuildings : IDisposable
         foreach (var list in _loaded.Values)
             foreach (var p in list)
             {
-                var d = p.Center - cam;
+                var (w, pc, hidden) = Now(p);   // movida/apagada no rascunho, ainda não gravada
+                if (hidden) continue;
+                var d = pc - cam;
                 float dist = d.Length;
                 if (dist - p.Radius > 1100 || Vector3.Dot(d, forward) < -p.Radius || p.Radius / Math.Max(dist, 1) < 0.004f) continue;
                 GL.PushMatrix();
-                var w = Offsets.TryGetValue(p.File, out var off) ? p.World * Matrix4.CreateTranslation(off) : p.World;   // movida no 3D, ainda não gravada
                 GL.MultMatrix(ref w);
                 foreach (var part in p.Parts)
                 {

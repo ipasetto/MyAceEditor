@@ -35,7 +35,7 @@ internal sealed partial class WorldView
         try
         {
             _draftSrc ??= new DraftSources(_element, _t.Name, ServerConfigDir, _t.PieceAt, _t.Rows * _t.Cols);
-            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { if (!IsDisposed) _gl.Invalidate(); }; }
+            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); }
             DraftWant(PiecesAroundCamera());
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -84,6 +84,57 @@ internal sealed partial class WorldView
         int ready = _draft is null ? 0 : _draftWanted.Count(_draft.Pieces.ContainsKey);
         var objs = _draft?.Pieces.Values.Sum(p => p.Objects.Count) ?? 0;
         return $"dftload: pedaços {ready}/{_draftWanted.Length} ({string.Join(",", _draftWanted)}), objetos {objs}, aviso \"{_status.Text}\"";
+    }
+
+    /// <summary>Para a captura ("dftmove"): ergue 15 m a construção mais perto, confere o centro e o Ctrl+Z, e deixa erguida para a foto.</summary>
+    internal string DraftMoveTest()
+    {
+        string load = DraftLoadTest();
+        if (_buildings.Nearest(_cam) is not { } near || _draft?.Find(near.File) is not { } o) return load + " | dftmove: nenhuma construção carregada";
+        var before = near.Center;
+        string? why = DraftApply(new MoveOp(o.Key, o.Original with { Pos = o.Original.Pos + new System.Numerics.Vector3(0, 15, 0) }));
+        var after = _buildings.Nearest(_cam + new OpenTK.Mathematics.Vector3(0, 15, 0));
+        bool up = after is { } a && a.File == near.File && MathF.Abs(a.Center.Y - before.Y - 15) < 0.01f;
+        bool undo = ObjectUndo(false) && _buildings.Nearest(_cam) is { } b && MathF.Abs(b.Center.Y - before.Y) < 0.01f;
+        bool redo = ObjectUndo(true);
+        return load + $" | dftmove: {System.IO.Path.GetFileName(near.File)} recusa={why ?? "nenhuma"} subiu15={up} ctrlz={undo} ctrly={redo} sujo={_draft.Dirty}";
+    }
+
+    /// <summary>Marca de ordem de um passo do rascunho: profundidade das outras pilhas de desfazer naquele momento.</summary>
+    sealed record DraftMark(int Npc, int Quests, int Scene);
+
+    /// <summary>Aplica no rascunho com a marca de ordem; recusa vira aviso no rodapé.</summary>
+    string? DraftApply(DraftOp op)
+    {
+        if (_draft is null) return _status.Text = Loc.T("obj.noDraft", "Abra a ferramenta Objetos do mundo para mexer nos objetos.");
+        var why = _draft.Apply(op, new DraftMark(UndoDepth?.Invoke() ?? 0, _qUndo.Count, _sUndo.Count));
+        if (why is not null) _status.Text = why;
+        UpdateSideState();
+        return why;
+    }
+
+    /// <summary>Ctrl+Z/Ctrl+Y do rascunho: só quando o passo do topo foi a última ação (as outras pilhas não andaram depois).</summary>
+    bool ObjectUndo(bool redo)
+    {
+        if (_draft?.UndoTag is null && _draft?.RedoTag is null) return false;
+        if ((redo ? _draft!.RedoTag : _draft!.UndoTag) is not DraftMark m) return false;
+        if (m.Npc != (UndoDepth?.Invoke() ?? 0) || m.Quests != _qUndo.Count || m.Scene != _sUndo.Count) return false;
+        bool ok = redo ? _draft.Redo() : _draft.Undo();
+        if (ok) { _status.Text = redo ? Loc.T("obj.redone", "Objetos: refeito.") : Loc.T("obj.undone", "Objetos: desfeito (Ctrl+Y refaz)."); ShowObjPanel(); UpdateSideState(); _gl.Invalidate(); }
+        return ok;
+    }
+
+    /// <summary>Modelos .ecm fixos do cenário (do .ecwld), parados, dos pedaços abertos no rascunho.</summary>
+    void DrawDraftModels()
+    {
+        if (_draft is null || _tool != Tool.Scene) return;
+        foreach (var piece in _draft.Pieces.Values)
+            foreach (var o in piece.Objects)
+            {
+                if (o.Kind != ObjKind.Model || o.Deleted || o.Source.Length == 0) continue;
+                var t = o.Now;
+                _models.Draw(o.Source, new OpenTK.Mathematics.Vector3(t.Pos.X, t.Pos.Y, t.Pos.Z), MathF.Atan2(t.Dir.X, t.Dir.Z) * 180 / MathF.PI);
+            }
     }
 
     void DraftDispose() { _draftSrc?.Dispose(); _draftSrc = null; }

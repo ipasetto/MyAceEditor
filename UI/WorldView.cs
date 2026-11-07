@@ -613,6 +613,7 @@ internal sealed partial class WorldView : Form
             if (_tool == Tool.Scene && _draft is not null) DraftWant(pieces);
         }
         if (_showBuildings) _buildings.Draw(_cam, Forward);
+        DrawDraftModels();
         _trees.Draw(_cam, Forward);
         _grass.Draw(_cam);   // grama do .ecwld/.ecbsd perto da câmera   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();
@@ -1940,6 +1941,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
         if (_tool == Tool.Domains) return false;   // o editor de territórios tem o Ctrl+Z dele
         if (ZoneUndo(redo: false)) return true;
+        if (ObjectUndo(redo: false)) return true;  // objetos do mundo (rascunho) só se foi a última ação
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
         if (PathUndo(redo: false)) return true;    // caminhos idem
         if (TeleportUndo(redo: false)) return true;   // pontos de teleporte idem
@@ -1959,6 +1961,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Redo();
         if (_tool == Tool.Domains) return false;
         if (ZoneUndo(redo: true)) return true;
+        if (ObjectUndo(redo: true)) return true;
         if (SceneUndo(redo: true)) return true;
         if (PathUndo(redo: true)) return true;
         if (TeleportUndo(redo: true)) return true;
