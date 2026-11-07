@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { Draft(r); }
         catch (Exception ex) { r.Check("rascunho-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
+        try { Load(r, element, config); }
+        catch (Exception ex) { r.Check("leitura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Study(r, element, config); }
         catch (Exception ex) { r.Check("estudo-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         lines.Add($"falhas: {r.Failed}");
@@ -88,6 +90,59 @@ public static class ObjectsSelfTest
         int fired = 0; var ev = OneObject(out _); ev.Changed += () => fired++;
         ev.Apply(new MoveOp("a", to)); ev.Undo(); ev.Redo();
         r.Check("draft-avisa-mudanca", fired == 3, $"{fired} avisos");
+    }
+
+
+    // ---------------- leitura dos pedaços (Task 3) ----------------
+    static DraftSources Sources(string element, string map, string? config)
+    {
+        var t = TerrainFile.Open(Path.Combine(element, "maps", map)) ?? throw new InvalidDataException("terreno de " + map);
+        return new DraftSources(element, map, config, t.PieceAt, t.Rows * t.Cols);
+    }
+
+    static void Load(Report r, string element, string? config)
+    {
+        var src = Sources(element, "world", config);
+        using var lit = new PckArchive(Path.Combine(element, "litmodels.pck"));
+        var perFolder = lit.Entries.Where(e => e.Path.StartsWith(@"litmodels\world\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Path.Split('\\')).Where(p => p.Length == 4 && int.TryParse(p[2], out _)).GroupBy(p => int.Parse(p[2])).ToDictionary(g => g.Key, g => g.Count());
+        var pieces = new List<DraftPiece>();
+        int wrong = 0; string? firstWrong = null;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 1; i <= src.PieceCount; i++)
+        {
+            var p = DraftLoader.ReadPiece(src, i);
+            pieces.Add(p);
+            int b = p.Objects.Count(o => o.Kind == ObjKind.Building), want = perFolder.GetValueOrDefault(i);
+            if (b != want || p.ReadOnlyWhy is not null) { wrong++; firstWrong ??= $"pedaço {i}: {b} de {want} construções, {p.ReadOnlyWhy}"; }
+        }
+        r.Check("le-pedacos-world", wrong == 0, $"{src.PieceCount} pedaços, {pieces.Sum(p => p.Objects.Count)} objetos em {sw.ElapsedMilliseconds} ms" + (firstWrong is null ? "" : "; " + firstWrong));
+
+        var ecw = new EcwldFile(File.ReadAllBytes(src.EcwldPath));
+        int Distinct(EcwldFile.Kind k) => ecw.Blocks.SelectMany(b => b.Items[(int)k]).Select(EcwldFile.IdOf).Distinct().Count();
+        var counts = new[] { (ObjKind.Model, EcwldFile.Kind.EcModel), (ObjKind.Effect, EcwldFile.Kind.Effect), (ObjKind.Sound, EcwldFile.Kind.Sound), (ObjKind.Critter, EcwldFile.Kind.Critter) }
+            .Select(x => (x.Item1, Got: pieces.Sum(p => p.Objects.Count(o => o.Kind == x.Item1)) + DraftLoader.Outside(src, x.Item1), Want: Distinct(x.Item2))).ToList();
+        r.Check("le-modelos-e-cenario", counts.All(c => c.Got == c.Want), string.Join(", ", counts.Select(c => $"{c.Item1} {c.Got}/{c.Want}")));
+
+        var temp = Path.Combine(Path.GetTempPath(), "myace-objtest-" + Environment.ProcessId);
+        try
+        {
+            Directory.CreateDirectory(temp);
+            var bad = Path.Combine(temp, "world.ecwld");
+            var bytes = File.ReadAllBytes(src.EcwldPath);
+            File.WriteAllBytes(bad, bytes[..(bytes.Length / 2)]);
+            var badSrc = new DraftSources(element, "world", config, src.PieceAt, src.PieceCount) { EcwldPath = bad };
+            int busy = perFolder.OrderByDescending(kv => kv.Value).First().Key;
+            DraftPiece? p = null; Exception? ex = null;
+            try { p = DraftLoader.ReadPiece(badSrc, busy); } catch (Exception e) { ex = e; }
+            r.Check("pedaco-ruim-so-olhar", ex is null && p is { Loaded: true, ReadOnlyWhy: not null } && p.Objects.Count(o => o.Kind == ObjKind.Building) == perFolder[busy],
+                ex?.Message ?? $"pedaço {busy}: {p?.ReadOnlyWhy}");
+        }
+        finally { try { Directory.Delete(temp, true); } catch (IOException) { } }
+
+        var a05 = Sources(element, "a05", config);
+        var all = Enumerable.Range(1, a05.PieceCount).SelectMany(i => DraftLoader.ReadPiece(a05, i).Objects).Where(o => o.Kind == ObjKind.Building).ToList();
+        r.Check("solido-pela-colisao", config is null || (all.Any(o => o.Solid) && all.Where(o => o.Solid).All(o => o.ReadOnlyWhy is null)), $"a05: {all.Count(o => o.Solid)} de {all.Count} construções com colisão no map.bht");
     }
 
     // ---------------- estudo dos formatos (Task 1) ----------------
