@@ -24,6 +24,7 @@ public static class ZoneSelfTest
         if (config is not null) Server(r, maps, config);
         Rules(r, maps);
         Canvas(r);
+        Editing(r);
         if (config is not null) Pair(r, maps, config);
         lines.Add($"falhas: {r.Failed}");
         File.WriteAllLines(output, lines);
@@ -181,6 +182,44 @@ public static class ZoneSelfTest
             r.Check("sem-arquivo-cria-par", p.Empty == false && File.Exists(Path.Combine(d1, "precinct.clt")) && File.Exists(Path.Combine(d2, "precinct.sev")) && p.State == PairState.Ok, made.Message);
         }
         finally { Directory.Delete(temp, true); }
+    }
+
+    static void Editing(Report r)
+    {
+        static PrecinctFile.Area Box(int id, float x, int priority = 0) => new("Z" + id, priority, 0, 1, "s", "n", ["Music\\a.mp3"], [(x, 0), (x + 10, 0), (x + 10, 10), (x, 10)], 3)
+            { Id = id, SrcInstance = 1, DstInstance = 1, City = (7, 1, 7), PointY = [0, 0, 0, 0] };
+        var f = new PrecinctFile();
+        f.Areas.Add(Box(1, 0, 4)); f.Areas.Add(Box(2, 5, 4)); f.Areas.Add(Box(2, 50, 4)); f.Areas.Add(Box(0, 100));
+
+        var edge = ZoneEdit.MoveCorner(f.Areas[0], 0, 9999, -9999, 500, 400);
+        r.Check("canto-na-borda", edge.Points[0] == (500f, -400f) && f.Areas[0].Points[0] == (0f, 0f));
+        r.Check("canto-novo-e-tirado", ZoneEdit.AddCorner(f.Areas[0], 1, 12, 3, 5).Points[2] == (12f, 5f) && ZoneEdit.RemoveCorner(f.Areas[0], 0).Points.Count == 3);
+
+        r.Check("vizinhas", ZoneEdit.Neighbors(f, 0).SequenceEqual([1]));
+        r.Check("partes", ZoneEdit.Parts(f, 1).SequenceEqual([1, 2]) && ZoneEdit.Parts(f, 3).SequenceEqual([3]));
+
+        var top = new PrecinctFile(); top.Areas.AddRange(f.Areas);
+        int at = ZoneEdit.OnTop(top, 0);
+        r.Check("por-cima", at == 3 && ReferenceEquals(top.At(7, 5, 1), top.Areas[at]));
+        var low = new PrecinctFile(); low.Areas.AddRange(f.Areas);
+        low.Areas[0] = low.Areas[0] with { Priority = 0 };
+        ZoneEdit.Below(low, 0, ZoneEdit.Neighbors(low, 0));
+        r.Check("por-baixo", low.Areas[0].Priority == 5 && low.At(7, 5, 1)?.Id == 2);
+
+        var names = new PrecinctFile(); names.Areas.AddRange(f.Areas);
+        ZoneEdit.Rename(names, 1, "Bosque", allParts: true);
+        r.Check("nome-nas-partes", names.Areas[1].Name == "Bosque" && names.Areas[2].Name == "Bosque" && names.Areas[0].Name == "Z1");
+        ZoneEdit.Rename(names, 2, "Outro", allParts: false);
+        r.Check("nome-numa-parte", names.Areas[1].Name == "Bosque" && names.Areas[2].Name == "Outro");
+        ZoneEdit.Rename(names, 3, "Com nome", allParts: true);
+        r.Check("id0-ganha-id", names.Areas[3].Id == 3);
+
+        var made = new PrecinctFile(); made.Areas.Add(Box(1, 0));
+        int n = ZoneEdit.New(made, "Nova", [(2, 1, 2), (8, 1, 2), (8, 1, 8), (2, 1, 8)], 1);
+        var fresh = made.Areas[n];
+        r.Check("nova-herda", fresh.Music.SequenceEqual(["Music\\a.mp3"]) && fresh.City == (7, 1, 7) && fresh.Domain == 3 && fresh.Id == 2 && ReferenceEquals(made.At(5, 5, 1), fresh));
+        int part = ZoneEdit.NewPart(made, n, [(20, 0, 20), (30, 0, 20), (30, 0, 30)]);
+        r.Check("nova-parte", made.Areas[part].Id == fresh.Id && ZoneEdit.Parts(made, n).Count == 2);
     }
 
     static void Canvas(Report r)
