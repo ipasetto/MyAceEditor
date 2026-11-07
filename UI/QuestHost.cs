@@ -53,6 +53,8 @@ internal interface IQuestHost
     IReadOnlyList<TeleportLink> TeleportersTo(int point) => [];
     IReadOnlyList<(int Id, string Name)> DiscoverersOf(int point) => [];
     int DiscoverOf(int npc) => 0;
+    /// <summary>NPC ligado a território (domain_related): o serviço dele depende do dono do território.</summary>
+    bool IsDomainNpc(int npc) => false;
     string? SetDiscover(int npc, int point) => null;
     /// <summary>Quantos NPCs usam o serviço de teleporte deste NPC.</summary>
     int ServiceUsers(int npc) => 0;

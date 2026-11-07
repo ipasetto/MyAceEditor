@@ -16,7 +16,7 @@ internal sealed class WorldMusic : IDisposable
     static extern int mciSendString(string command, StringBuilder? answer, int size, IntPtr callback);
 
     readonly string _element;
-    readonly PrecinctFile? _file;
+    PrecinctFile? _file;
     PrecinctFile.Area? _area;
     int _next;
     long _waitUntil;
@@ -34,6 +34,18 @@ internal sealed class WorldMusic : IDisposable
         try { if (File.Exists(VolumeFile) && int.TryParse(File.ReadAllText(VolumeFile), out var v)) _volume = Math.Clamp(v, 0, 100); }
         catch (IOException ex) { AppLog.Info("world_volume: " + ex.Message); }
     }
+
+    /// <summary>As zonas mudaram: a próxima área já vem do arquivo novo.</summary>
+    public void Reload(string mapDir) => _file = PrecinctFile.Read(Path.Combine(mapDir, "precinct.clt"));
+
+    /// <summary>Ouvir antes de escolher, sem mexer na música do mundo.</summary>
+    public static void Preview(string file)
+    {
+        StopPreview();
+        if (mciSendString($"open \"{file}\" type mpegvideo alias pwpreview", null, 0, IntPtr.Zero) == 0) mciSendString("play pwpreview", null, 0, IntPtr.Zero);
+    }
+
+    public static void StopPreview() => mciSendString("close pwpreview", null, 0, IntPtr.Zero);
 
     /// <summary>Diagnóstico: o Windows abre este mp3? Abre e fecha sem tocar.</summary>
     public static bool CanOpen(string file)

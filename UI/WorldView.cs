@@ -329,6 +329,7 @@ internal sealed partial class WorldView : Form
                 _questNpc = 0;   // a ferramenta Quests volta a pedir "Clique em um NPC"
                 if (_tool == Tool.Quests) ShowQuestTool(null);
                 if (_tool == Tool.Create) SelectTarget(0);
+                if (_tool == Tool.Zones && _zGround && Ray(e.Location) is { } zoneAt) ZonePickAt(zoneAt.X, zoneAt.Z);
                 if (_selected() is not null) { ClearSelection?.Invoke(); _gizmoHover = 0; _gl.Invalidate(); }
             }
         };
@@ -605,6 +606,7 @@ internal sealed partial class WorldView : Form
         DrawPaths();
         DrawPathEdit();
         DrawPlaceMark();
+        DrawZoneGround();
         DrawTeleports();
         DrawSceneObjects();
         DrawGizmo();
@@ -1879,6 +1881,7 @@ internal sealed partial class WorldView : Form
     bool UndoAny()
     {
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
+        if (ZoneUndo(redo: false)) return true;
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
         if (PathUndo(redo: false)) return true;    // caminhos idem
         if (TeleportUndo(redo: false)) return true;   // pontos de teleporte idem
@@ -1896,6 +1899,7 @@ internal sealed partial class WorldView : Form
     bool RedoAny()
     {
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Redo();
+        if (ZoneUndo(redo: true)) return true;
         if (SceneUndo(redo: true)) return true;
         if (PathUndo(redo: true)) return true;
         if (TeleportUndo(redo: true)) return true;

@@ -1453,6 +1453,21 @@ internal static class Program
             using var full = new System.Drawing.Bitmap(w.Width, w.Height);
             w.DrawToBitmap(full, new System.Drawing.Rectangle(0, 0, w.Width, w.Height)); full.Save(Path.Combine(outDir, png), System.Drawing.Imaging.ImageFormat.Png);
         }
+        foreach (var (kind, png) in new[] { (0, "window-zones.png"), (1, "window-zone-open.png") })
+        {
+            w.CloseToolForShot(); w.ZoneShot(kind);
+            for (int k = 0; k < 8; k++) { Application.DoEvents(); Thread.Sleep(30); }
+            using var full = new System.Drawing.Bitmap(w.Width, w.Height);
+            w.DrawToBitmap(full, new System.Drawing.Rectangle(0, 0, w.Width, w.Height)); full.Save(Path.Combine(outDir, png), System.Drawing.Imaging.ImageFormat.Png);
+            using var panel = w.ToolsShot();
+            panel.Save(Path.Combine(outDir, png.Replace(".png", "-panel.png")), System.Drawing.Imaging.ImageFormat.Png);
+            File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.ZoneOrder() + Environment.NewLine);
+        }
+        w.CloseToolForShot();
+        var zoneTemp = Path.Combine(Path.GetTempPath(), "MyAceZoneFlow" + Environment.ProcessId);
+        Directory.CreateDirectory(zoneTemp);
+        try { File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.ZoneFlowTest(zoneTemp) + Environment.NewLine); }
+        finally { Directory.Delete(zoneTemp, true); }
         var miss = MyAceEditor.UI.WorldBuildings.MissingTextures.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (miss.Count > 0) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), $"texturas de construção não achadas ({miss.Count}):\n" + string.Join("\n", miss.Take(40)) + "\n");
         w.Close();

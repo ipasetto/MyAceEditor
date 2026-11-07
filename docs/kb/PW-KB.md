@@ -967,6 +967,7 @@ Como conferir comando de gs com simbolos: objdump -t -C gs | grep DebugCommandHa
 - So cliente no acervo; sem servidor para levantar comandos.
 
 ## §S36 PONTOS DE TELEPORTE, PRECINCT, DOMINIO E AJUDA (06/11; estudo do teste 30 + ferramenta Teleportes)
+- [T 06/11] precinct.clt usa %f do editor oficial: 6 casas com empate para longe do zero (287.8203125 -> 287.820313); o F6 do .NET da ...312 e quebrava 16 de 71 mapas. PrecinctFile.Num copia. Com isso .clt 71/71 e .sev 100/100 regravados iguais; .sev gerado do .clt igual em 69/69 pares.
 - [C] cliente `element\maps\world\world_targets.txt`: UTF-16 com BOM, linha `id<TAB>"nome"<TAB>tag<TAB>"x,y,z"<TAB>dominio\r\n` (`%d\t"%s"\t%d\t"%.3f,%.3f,%.3f"\t%d\r\n`, CCommon/globaldataman.cpp). nome = wide_char[32]. [T] regravar da byte igual ao original (155 BR, 92 pontos).
 - [C] servidor `gamed/config/world_targets.sev`: i32 n + 24 B por ponto (id, tag, x, y, z, dominio). gs.conf: `Root = ./config/`, `GlobalData = world_targets.sev`. [T] regravar da byte igual (162-155, 126 pontos). `config/world/world_targets.sev` (1300 B) existe no 162-155 e NAO e o que o gs le.
 - [C] `globalsave` na linha de comando do cliente grava o .sev a partir do .txt.

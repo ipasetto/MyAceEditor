@@ -276,7 +276,8 @@ public static class ZoneSelfTest
             }
         r.Check("regra-antigas", crossed > 0 && blocked == 0, $"{crossed} cruzadas nos arquivos, {blocked} barradas");
         r.Check("regra-cidade-nova", Has(good with { City = (0, 0, 0) }, ok with { IsNew = true }, "zone.noCity") && !Has(good with { City = (0, 0, 0) }, ok, "zone.noCity"));
-        r.Check("regra-sem-terreno", Has(good, ok with { HasGround = (_, _) => false }, "zone.noCity"));
+        r.Check("regra-sem-terreno", Has(good with { DstInstance = 1 }, ok with { HasGround = (_, _) => false }, "zone.noCity"));
+        r.Check("regra-cidade-noutro-mapa", !Has(good with { DstInstance = 2 }, ok with { HasGround = (_, _) => false }, "zone.noCity"));
         r.Check("regra-territorio", Has(good with { Domain = 9 }, ok with { DomainExists = _ => false }, "zone.noDomain"));
         var noMusic = ZoneRules.Check(file, good with { Music = ["Music\\x.mp3"] }, ok with { MusicExists = _ => false });
         r.Check("regra-musica-pergunta", noMusic.Count == 1 && noMusic[0].Kind == ZoneProblemKind.Ask);

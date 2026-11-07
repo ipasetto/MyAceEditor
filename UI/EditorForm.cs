@@ -3248,6 +3248,7 @@ public sealed class EditorForm : Form
         public string? AtlasName => f.AtlasRoot() > 0 ? f.CreatureNameOrItem(TeleportAtlas.AtlasItem) : null;
         public bool AtlasHas(int point) => f.AtlasRoot() is > 0 and var root && f._tasks is { } t && TeleportAtlas.Find(t, root, point) is not null;
         public string? SetAtlas(WorldTarget point, bool on) => f.SetAtlas(point, on);
+        public bool IsDomainNpc(int npc) => f.NpcById(npc) is { } n && NpcNumber(n, "domain_related") != 0;
         public NpcDraft? LoadNpc(int id) => f._store.Current is { } m ? NpcBuilder.Load(m, id) : null;
         public int ServiceUsersOf(NpcDraft draft) => f.ServiceUsersOf(draft);
         public string? UpdateNpc(NpcDraft draft, bool copy) => f.UpdateNpc(draft, copy);

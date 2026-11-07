@@ -28,7 +28,8 @@ public static class ZoneRules
         if (area.Points.Count < 3) Block("zone.fewCorners", "Uma zona precisa de pelo menos 3 cantos.");
         else if (ctx.ShapeTouched && Crosses(area.Points, out int corner)) Block("zone.crossed", "A borda cruza a si mesma: arraste o canto marcado.", corner);
         bool noCity = area.City is { X: 0, Y: 0, Z: 0 };
-        if (ctx.IsNew && noCity || !noCity && !ctx.HasGround(area.City.X, area.City.Z)) Block("zone.noCity", "Escolha onde o jogador renasce.");
+        // cidade noutra instância fica noutro mapa: o terreno deste não diz nada sobre ela
+        if (ctx.IsNew && noCity || !noCity && area.DstInstance == area.SrcInstance && !ctx.HasGround(area.City.X, area.City.Z)) Block("zone.noCity", "Escolha onde o jogador renasce.");
         if (area.Domain > 0 && !ctx.DomainExists(area.Domain)) Block("zone.noDomain", "Este território foi excluído: escolha outro.");
         foreach (var m in area.Music.Where(m => !ctx.MusicExists(m)))
             list.Add(new(ZoneProblemKind.Ask, "zone.noMusic", string.Format(Loc.T("zone.noMusic", "O arquivo {0} não existe no cliente. Sem ele a zona fica muda."), m)));
