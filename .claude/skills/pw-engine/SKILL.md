@@ -46,6 +46,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 3. Codigo C++: Grep do simbolo com `-n` e ler so ~40 linhas em volta.
 
 ## 4. Regras do projeto
+- OBRIGATORIO (usuario 07/11): TRATAMENTO DE ERRO EM TUDO. Validar entrada e regras do jogo ANTES de agir; arquivo, rede, servidor e processo sempre em try/catch; mensagem curta em palavras simples (Loc.T) com o que fazer + detalhe tecnico no log; nunca deixar arquivo meio gravado nem operacao meio enviada (backup + escrita atomica; conferir a resposta do servidor); nada falha em silencio.
 - OBRIGATORIO: respeitar docs/REGRAS-DO-JOGO.md (ID unico, loja <= 65534 no 1.5.x, subtipos, configs de ID fixo, referencias das quests, trava de velocidade...). Checagens em PerfectWorld/ItemRules.cs e QuestRules.cs rodam ao salvar; nunca desligar. Regra nova vai no doc e no codigo.
 - Recurso/token do usuario e limitado: nada pesado (RE profunda, fetch grande, loops longos) sem autorizacao explicita.
 - Nativo C#/WinForms (sem web). Icones e textos sempre do proprio jogo. Telas no padrao UiKit (barra lateral, barra de comandos, cartao de estado, pilulas, secoes). Toda acao com Ctrl+Z.

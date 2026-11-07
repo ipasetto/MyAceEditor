@@ -53,6 +53,9 @@ Rode o modo do formato que você mexeu antes de abrir o PR, e cole o resultado n
 4. **Formatos não conhecem a UI, e a UI não conhece bytes.** Leitores/gravadores ficam em
    `PerfectWorld/`; a interface fica em `UI/`.
 5. **Nativo e leve.** Nada de web, Electron ou dependências pesadas. Ícones e textos vêm do próprio jogo.
+6. **Tratamento de erro em tudo.** Validar antes de agir; arquivo, rede e servidor sempre com `try/catch`; mensagem
+   curta e simples para o usuário (via `Loc.T`) e o detalhe técnico no log; nunca deixar arquivo meio gravado nem
+   operação meio enviada; nada falha em silêncio.
 
 ## 4. Base de conhecimento (KB)
 

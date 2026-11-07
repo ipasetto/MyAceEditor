@@ -19,7 +19,6 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
            (obrigatorio antes de liberar terreno e objetos; sem isso o servidor anda no relevo antigo)
        [ ] passagem dos NPCs e voo (mapa de passagem, octree)
 [ ] 3. Painel do GM: mandar item pelo correio (SysSendMail)
-[ ] 4. Bug: Administrar -> Mapas: a lista perde a selecao ao atualizar (DataSource refeito) -> manter a linha
 Depois (sem data): ferramenta de portabilidade (1.5.5 parecendo versao antiga), so apos entrevista com o usuario.
 
 ## PRONTO (conferido pelo usuario)

@@ -170,7 +170,7 @@ UI/ItemTipForm.cs | dica flutuante igual a do editor (EditorForm.TipImage), usad
 UI/WorldWater.cs | agua com reflexo e normal maps (GLSL 120; sem GLSL volta a agua simples). UI/WorldMusic.cs | musica e som por area (MCI).
 UI/ClientTranslateWindow.cs | escolha do que traduzir de outro cliente. CLI: --create-shot, --client-check, --item-fields, --teleport-report.
 UI/QuestPreview.cs | janela de quests do jogo (quest.xml) no Resumo do editor de quests, so com a quest em edicao
-UI/ItemSearchWindow.cs | janela de escolher item (tipo, busca nome/ID, icones, quantidade); usar sempre que um campo pedir item, sem campo de ID; WorldQuestEditor.PickItem
+UI/ItemSearchWindow.cs | "JAV" (apelido do usuario): janela de escolher item (tipo, busca nome/ID, icones, quantidade); usar sempre que um campo pedir item, sem campo de ID; WorldQuestEditor.PickItem
 PerfectWorld/GmCommands.cs | comandos d N por versao do jogo; painel do GM esconde o que o gs nao tem (PW-KB §S35)
 PerfectWorld/ClientLogCheck.cs | Verificacao: EC.log (fechou?, arquivos que faltaram) e .dmp (excecao, modulo+offset)
 PerfectWorld/ServerPackageCheck.cs | Verificacao: pacote de servidor (32/64 bits via ELF, tipo de login, libs que faltam)
