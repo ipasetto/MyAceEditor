@@ -103,14 +103,15 @@ public static class ObjectFormats
     }
 
     /// <summary>
-    /// ID do ornamento (referência de 8 B no bloco do .ecwld: ID, offset no .ecbsd) que aponta para o .bmd: no offset há
-    /// ECBSDFILEORNAMENT (40 B) + i32 tamanho + "pedaço\litmodel_N.lmd/.bmd" (EC_Ornament.cpp; o cliente carrega a
-    /// construção por essa referência, CECSceneBlock::LoadOrnaments).
+    /// Referências de ornamento (8 B no bloco do .ecwld: ID, offset no .ecbsd) que apontam para o .bmd: no offset há
+    /// ECBSDFILEORNAMENT (40 B: pos, frente, cima, 2 bools + 2 de alinhamento) + i32 tamanho + "pedaço\litmodel_N.lmd/.bmd"
+    /// (EC_Ornament.cpp; o cliente carrega a construção por essa referência, CECSceneBlock::LoadOrnaments).
     /// </summary>
-    public static uint? OrnamentIdOf(EcwldFile ecw, byte[] ecbsd, string bmdPath)
+    public static List<(uint Id, int Offset)> OrnamentRefsOf(EcwldFile ecw, byte[] ecbsd, string bmdPath)
     {
+        var list = new List<(uint, int)>();
         var parts = bmdPath.Split('\\');
-        if (parts.Length < 2) return null;
+        if (parts.Length < 2) return list;
         string want = parts[^2] + "\\" + Path.GetFileNameWithoutExtension(parts[^1]);
         foreach (var bl in ecw.Blocks)
             foreach (var it in bl.Items[(int)EcwldFile.Kind.Ornament])
@@ -122,9 +123,17 @@ public static class ObjectFormats
                 if (len <= 0 || len > 512 || off + 44 + len > ecbsd.Length) continue;
                 var name = Encoding.ASCII.GetString(ecbsd, off + 44, len).TrimEnd('\0');
                 int dot = name.LastIndexOf('.');
-                if ((dot > 0 ? name[..dot] : name).Equals(want, StringComparison.OrdinalIgnoreCase)) return EcwldFile.IdOf(it);
+                if ((dot > 0 ? name[..dot] : name).Equals(want, StringComparison.OrdinalIgnoreCase)) list.Add((EcwldFile.IdOf(it), off));
             }
-        return null;
+        return list;
+    }
+
+    public static uint? OrnamentIdOf(EcwldFile ecw, byte[] ecbsd, string bmdPath) => OrnamentRefsOf(ecw, ecbsd, bmdPath) is { Count: > 0 } l ? l[0].Id : null;
+
+    /// <summary>Muda pos (+0), frente (+12) e cima (+24) do ornamento no .ecbsd (o cliente desenha pelo .bmd; fica igual a ele).</summary>
+    public static void MoveOrnament(byte[] ecbsd, int off, Func<Vector3, Vector3> map, Func<Vector3, Vector3> turn)
+    {
+        W(ecbsd, off, map(V(ecbsd, off))); W(ecbsd, off + 12, turn(V(ecbsd, off + 12))); W(ecbsd, off + 24, turn(V(ecbsd, off + 24)));
     }
 
     public static ObjTransform ReadEcModel(byte[] item) =>

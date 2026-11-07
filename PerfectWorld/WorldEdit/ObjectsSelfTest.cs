@@ -29,6 +29,8 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("rascunho-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Load(r, element, config); }
         catch (Exception ex) { r.Check("leitura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
+        try { Save(r, element, config); }
+        catch (Exception ex) { r.Check("salvar-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split('\n').FirstOrDefault()); }
         try { Study(r, element, config); }
         catch (Exception ex) { r.Check("estudo-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         lines.Add($"falhas: {r.Failed}");
@@ -153,6 +155,164 @@ public static class ObjectsSelfTest
         var a05 = Sources(element, "a05", config);
         var all = Enumerable.Range(1, a05.PieceCount).SelectMany(i => DraftLoader.ReadPiece(a05, i).Objects).Where(o => o.Kind == ObjKind.Building).ToList();
         r.Check("solido-pela-colisao", config is null || (all.Any(o => o.Solid) && all.Where(o => o.Solid).All(o => o.ReadOnlyWhy is null)), $"a05: {all.Count(o => o.Solid)} de {all.Count} construções com colisão no map.bht");
+    }
+
+
+    // ---------------- salvar (Task 6) ----------------
+    static WorldDraft DraftOf(DraftSources src, params int[] pieces)
+    {
+        var d = new WorldDraft(src.Map);
+        foreach (int i in pieces) d.Put(DraftLoader.ReadPiece(src, i));
+        return d;
+    }
+
+    /// <summary>Faixas de bytes diferentes entre dois arrays do mesmo tamanho.</summary>
+    static List<(int From, int To)> Diff(byte[] a, byte[] b)
+    {
+        var l = new List<(int, int)>();
+        for (int i = 0; i < Math.Min(a.Length, b.Length); i++)
+            if (a[i] != b[i]) { int j = i; while (j + 1 < a.Length && a[j + 1] != b[j + 1]) j++; l.Add((i, j)); i = j; }
+        return l;
+    }
+
+    static string Hash(string f) => Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(File.ReadAllBytes(f)));
+
+    static void Save(Report r, string element, string? config)
+    {
+        if (config is null) { r.Note("sem servidor: salvar não conferido"); return; }
+        var a05 = Sources(element, "a05", config);
+        var all = Enumerable.Range(1, a05.PieceCount).ToArray();
+
+        var empty = DraftOf(a05, all);
+        r.Check("plano-sem-mudanca-vazio", DraftSaver.Plan(empty, a05) is { PckFiles.Count: 0, Files.Count: 0 });
+
+        // mover + girar uma construção sem gêmea
+        var d = DraftOf(a05, all);
+        var bmdKeys = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Building && o.Solid && o.ReadOnlyWhy is null).Select(o => o.Key).ToList();
+        string? single = null, twin = null; List<string>? twinGroup = null;
+        foreach (var k in bmdKeys) { var g = DraftSaver.TwinsOf(a05, k); if (g.Count == 1) single ??= k; else if (twin is null) { twin = k; twinGroup = g; } }
+        var o1 = d.Find(single!)!;
+        var rot = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+        var to1 = o1.Original with { Pos = o1.Original.Pos + new Vector3(4, 0, -3), Dir = Vector3.Transform(o1.Original.Dir, rot), Up = Vector3.Transform(o1.Original.Up, rot) };
+        d.Apply(new MoveOp(single!, to1));
+        var plan = DraftSaver.Plan(d, a05);
+        var nb = plan.PckFiles.GetValueOrDefault(single!);
+        var bhtOld = File.ReadAllBytes(a05.BhtPath!);
+        var bhtNew = plan.Files.GetValueOrDefault(a05.BhtPath!);
+        bool headerOk = nb is not null && ObjectFormats.ReadBmd(nb) == to1;
+        var newKeys = nb is null ? new List<string>() : BmdModel.CdBrushes(nb)!.Select(o => BhtFile.KeyAt(nb, o)).ToList();
+        bool brushesOk = bhtNew is not null && newKeys.Count > 0 && newKeys.All(new BhtFile(bhtNew).Keys().ContainsKey) && bhtNew.Length == bhtOld.Length;
+        var bsdOld = File.ReadAllBytes(a05.EcbsdPath);
+        var bsdNew = plan.Files.GetValueOrDefault(a05.EcbsdPath);
+        var bsdDiff = bsdNew is null ? new List<(int From, int To)>() : Diff(bsdOld, bsdNew);
+        bool bsdOk = bsdNew is not null && bsdNew.Length == bsdOld.Length && bsdDiff.Count > 0 && bsdDiff[^1].To - bsdDiff[0].From < 40;
+        r.Check("plano-relido-igual", headerOk && brushesOk && bsdOk && !plan.Files.ContainsKey(a05.EcwldPath) && plan.Summary.Count > 0,
+            $"{Path.GetFileName(single)}: cabeçalho={headerOk} brushes={brushesOk} ornamento={bsdOk} ({bsdDiff.Count} faixas) resumo=\"{string.Join(" / ", plan.Summary)}\"");
+
+        // gêmeas: mexer uma leva as duas, e cada brush do map.bht anda uma vez só (procura no a05 e em pedaços do world)
+        DraftSources twinSrc = a05; int[] twinPieces = all;
+        if (twin is null)
+            foreach (var (srcT, pcs) in new[] { (a05, all), (Sources(element, "world", config), new[] { 29, 30, 31, 37, 38, 39, 45, 46, 47, 20, 21, 22 }) })
+            {
+                var keysT = new BhtFile(File.ReadAllBytes(srcT.BhtPath!)).Keys();
+                foreach (var pc in pcs)
+                    foreach (var ob in DraftLoader.ReadPiece(srcT, pc).Objects.Where(x => x.Kind == ObjKind.Building && x.ReadOnlyWhy is null))
+                    {
+                        var g = DraftSaver.TwinsOf(srcT, ob.Key);
+                        if (g.Count < 2) continue;
+                        var bb = DraftSaver.ReadBmd(srcT, ob.Key);
+                        if (BmdModel.CdBrushes(bb) is not { Count: > 0 } at || !at.All(o => keysT.ContainsKey(BhtFile.KeyAt(bb, o)))) continue;
+                        twin = ob.Key; twinGroup = g; twinSrc = srcT; twinPieces = [pc]; break;
+                    }
+                if (twin is not null) break;
+            }
+        if (twin is not null)
+        {
+            var a05s = a05; a05 = twinSrc;
+            bhtOld = File.ReadAllBytes(a05.BhtPath!);
+            var dt = DraftOf(a05, twinPieces);
+            var ot = dt.Find(twin)!;
+            dt.Apply(new MoveOp(twin, ot.Original with { Pos = ot.Original.Pos + new Vector3(5, 0, 0) }));
+            var pt = DraftSaver.Plan(dt, a05);
+            var oldKeys = new BhtFile(bhtOld).Keys();
+            var nk = new BhtFile(pt.Files[a05.BhtPath!]).Keys();
+            var src0 = DraftSaver.ReadBmd(a05, twin);
+            var orig = BmdModel.CdBrushes(src0)!.Select(o => BhtFile.KeyAt(src0, o)).ToList();
+            var tw = pt.PckFiles[twin];
+            var moved = BmdModel.CdBrushes(tw)!.Select(o => BhtFile.KeyAt(tw, o)).ToList();
+            bool sameCount = orig.Count == moved.Count && orig.Zip(moved).All(x => nk.TryGetValue(x.Second, out var l) && l.Count == oldKeys[x.First].Count);
+            r.Check("gemeas-uma-vez", sameCount && twinGroup!.All(pt.PckFiles.ContainsKey), $"{a05.Map} {Path.GetFileName(twin)}: {twinGroup!.Count} gêmeas, {moved.Count} brushes");
+            a05 = a05s; bhtOld = File.ReadAllBytes(a05.BhtPath!);
+        }
+        else
+        {
+            var groups = Enumerable.Range(1, a05.PieceCount).SelectMany(i => DraftLoader.ReadPiece(a05, i).Objects).Where(x => x.Kind == ObjKind.Building)
+                .Select(x => DraftSaver.TwinsOf(a05, x.Key)).Where(g => g.Count > 1).Select(g => string.Join("+", g.Select(Path.GetFileName))).Distinct().ToList();
+            r.Note($"sem gêmeas com colisão no map.bht (a05 + 12 pedaços do world); grupos de gêmeas no a05 sem exigir colisão: {groups.Count} {string.Join("; ", groups.Take(3))}");
+        }
+
+        // apagar: some a referência do .ecwld e os brushes do map.bht
+        var dd = DraftOf(a05, all);
+        dd.Apply(new DeleteOp(single!));
+        var pd = DraftSaver.Plan(dd, a05);
+        var ecwNew = pd.Files.GetValueOrDefault(a05.EcwldPath);
+        bool refGone = ecwNew is not null && ObjectFormats.OrnamentIdOf(new EcwldFile(ecwNew), bsdOld, single!) is null;
+        bool brushGone = pd.Files.TryGetValue(a05.BhtPath!, out var bd) && new BhtFile(bd).Count < new BhtFile(bhtOld).Count;
+        r.Check("plano-apaga", refGone && brushGone && !pd.PckFiles.ContainsKey(single!), $"referência saiu={refGone}, brushes saíram={brushGone}");
+
+        // modelos do .ecwld (world tem 76)
+        var world = Sources(element, "world", config);
+        var mo = world.Scene.Value.Objects.First(o => o.Kind == ObjKind.Model && o.Piece > 0);
+        var dm = DraftOf(world, mo.Piece);
+        var om = dm.Find(mo.Key)!;
+        var tom = om.Original with { Pos = om.Original.Pos + new Vector3(2, 0, 2) };
+        dm.Apply(new MoveOp(mo.Key, tom));
+        var pm = DraftSaver.Plan(dm, world);
+        var wNew = pm.Files.GetValueOrDefault(world.EcwldPath);
+        var hit = wNew is null ? null : new EcwldFile(wNew).Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.EcModel]).FirstOrDefault(i => DraftLoader.KeyOf(EcwldFile.Kind.EcModel, EcwldFile.IdOf(i)) == mo.Key);
+        r.Check("plano-modelo", hit is not null && ObjectFormats.ReadEcModel(hit) == tom && wNew!.Length == new FileInfo(world.EcwldPath).Length && pm.PckFiles.Count == 0);
+
+        // conferências
+        var dc = DraftOf(a05, all);
+        var oc = dc.Find(single!)!;
+        dc.Apply(new MoveOp(single!, oc.Original with { Pos = new Vector3(99999, 0, 99999) }));
+        r.Check("fora-do-mapa-bloqueia", DraftChecks.Run(dc, a05, null, []).Any(c => c.Blocks && c.Key == single));
+        var df = DraftOf(a05, all);
+        var of = df.Find(single!)!;
+        df.Apply(new MoveOp(single!, of.Original with { Pos = of.Original.Pos + new Vector3(0, 60, 0) }));
+        var floats = DraftChecks.Run(df, a05, (x, z) => of.Original.Pos.Y - 1, []);
+        r.Check("flutuando-avisa", floats.Any(c => !c.Blocks && c.Key == single), string.Join(" | ", floats.Select(c => c.Text)));
+        var dn = DraftOf(a05, all);
+        var on = dn.Find(single!)!;
+        dn.Apply(new MoveOp(single!, on.Original with { Pos = on.Original.Pos + new Vector3(1, 0, 0) }));
+        var npc = DraftChecks.Run(dn, a05, null, [(on.Original.Pos + new Vector3(1, 0.5f, 0), "Guarda da vila")]);
+        r.Check("em-cima-de-npc-avisa", npc.Any(c => !c.Blocks && c.Key == single && c.Text.Contains("Guarda da vila")));
+
+        // gravar: preso = nada muda; falha no meio = tudo volta; sem falha = grava
+        var temp = Path.Combine(Path.GetTempPath(), "myace-objsave-" + Environment.ProcessId);
+        try
+        {
+            Directory.CreateDirectory(temp);
+            string pck = Path.Combine(temp, "litmodels.pck"), ecwT = Path.Combine(temp, "a05.ecwld"), bhtT = Path.Combine(temp, "map.bht");
+            File.Copy(Path.Combine(element, "configs.pck"), pck);
+            File.Copy(a05.EcwldPath, ecwT);
+            File.Copy(a05.BhtPath!, bhtT);
+            var fake = new SavePlan(new() { [@"litmodels\teste\1\x.bmd"] = [1, 2, 3] }, new() { [ecwT] = ecwNew!, [bhtT] = bd! }, ["teste"]);
+            var tsrc = new DraftSources(temp, "teste", null, (_, _) => 1, 1);
+            string[] targets = [pck, ecwT, bhtT];
+            var before = targets.Select(Hash).ToList();
+            SaveResult locked;
+            using (new FileStream(pck, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) locked = DraftSaver.Write(fake, tsrc);
+            r.Check("pck-preso-volta-tudo", locked.Kind == SaveKind.Locked && targets.Select(Hash).SequenceEqual(before), locked.Message);
+            DraftSaver.FailAfter = 1;
+            SaveResult rb;
+            try { rb = DraftSaver.Write(fake, tsrc); } finally { DraftSaver.FailAfter = -1; }
+            r.Check("falha-no-meio-volta-tudo", rb.Kind == SaveKind.RolledBack && targets.Select(Hash).SequenceEqual(before), rb.Message);
+            var ok = DraftSaver.Write(fake, tsrc);
+            bool inPck; using (var reread = new PckArchive(pck)) inPck = reread.Find(@"litmodels\teste\1\x.bmd") is not null;
+            r.Check("grava-tudo", ok.Kind == SaveKind.Both && Hash(ecwT) != before[1] && inPck, ok.Message);
+        }
+        finally { try { Directory.Delete(temp, true); } catch (IOException) { } }
     }
 
     // ---------------- estudo dos formatos (Task 1) ----------------
