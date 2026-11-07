@@ -372,16 +372,46 @@ internal sealed partial class WorldView : Form
         };
     }
 
+    /// <summary>Esc é pego aqui para valer mesmo com o foco num campo do painel ou no mapa.</summary>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData) => keyData == Keys.Escape && EscapeStep() || base.ProcessCmdKey(ref msg, keyData);
+
+    /// <summary>
+    /// Regra do usuário: Esc sai de toda ferramenta e volta à navegação do Mundo 3D. Um passo em andamento (escolher no mundo, desenhar,
+    /// janela da loja) cancela primeiro; o que perde trabalho pergunta antes, com a tela de abandonar de sempre.
+    /// </summary>
+    bool EscapeStep()
+    {
+        if (ActiveCombo()?.DroppedDown == true) return false;   // o Esc fecha a lista aberta
+        if (CancelStep()) return true;
+        if (_editor is { IsDisposed: false, Parent: not null } editor) { editor.AskCancel(); return true; }
+        if (_tool == Tool.None) return false;
+        LeaveTool();
+        return true;
+    }
+
+    ComboBox? ActiveCombo()
+    {
+        Control? c = ActiveControl;
+        while (c is ContainerControl box && box.ActiveControl is { } inner) c = inner;
+        return c as ComboBox;
+    }
+
+    bool CancelStep()
+    {
+        if (PathKey(Keys.Escape)) return true;
+        if (_placing is not null) { CancelPlacing(); return true; }
+        if (ActiveServiceWindow is { Visible: true } openWin) { openWin.Visible = false; return true; }
+        if (_pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return true; }
+        if (_pickMine is not null) { _pickMine = null; _status.Text = Loc.T("qe.pickMineCancel", "Escolha de coleta cancelada."); return true; }
+        if (_pickMonster is not null) { _pickMonster = null; _status.Text = Loc.T("qe.pickMonsterCancel", "Escolha de monstro cancelada."); return true; }
+        if (_pickArea is not null) { _pickArea = null; _areaA = _areaB = null; _status.Text = Loc.T("qe.areaCancel", "Marcação de área cancelada."); _gl.Invalidate(); return true; }
+        return ZoneCancelStep();
+    }
+
     void OnKey(KeyEventArgs e)
     {
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (PathKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }
-        if (e.KeyCode == Keys.Escape && _placing is not null) { CancelPlacing(); return; }
-        if (e.KeyCode == Keys.Escape && ActiveServiceWindow is { Visible: true } openWin) { openWin.Visible = false; return; }
-        if (e.KeyCode == Keys.Escape && _pickNpc is not null) { _pickNpc = null; _status.Text = Loc.T("qe.pickCancel", "Escolha de NPC cancelada."); return; }
-        if (e.KeyCode == Keys.Escape && _pickMine is not null) { _pickMine = null; _status.Text = Loc.T("qe.pickMineCancel", "Escolha de coleta cancelada."); return; }
-        if (e.KeyCode == Keys.Escape && _pickMonster is not null) { _pickMonster = null; _status.Text = Loc.T("qe.pickMonsterCancel", "Escolha de monstro cancelada."); return; }
-        if (e.KeyCode == Keys.Escape && _pickArea is not null) { _pickArea = null; _areaA = _areaB = null; _status.Text = Loc.T("qe.areaCancel", "Marcação de área cancelada."); _gl.Invalidate(); return; }
         if (e.Control)
         {
             switch (e.KeyCode)

@@ -62,6 +62,7 @@ Caminhos `docs/...` sao relativos a `C:/Godot/MyAceEditor`. Copia versionada des
 - Pensado no usuario, o mais intuitivo possivel; textos simples, sempre via Loc.T (pt-BR/en/ru/zh-CN).
 - PENSAR NO MAIS LEIGO (usuario 06/11): regras em docs/superpowers/specs/2026-11-06-teleportes-leigos-design.md. Falar do que o jogador ve, nao do arquivo; o que so funciona junto e um passo so; passos numerados que abrem aos poucos com visto; nada grava antes do botao de salvar, sempre a vista, com resumo em frases; criar e editar sao a mesma tela; escolher no mundo e na lista.
 - Areas de uma janela: barra lateral `NavBar` (icone + nome, dica diz para que serve), nunca abas em cima.
+- ESC NO MUNDO 3D (usuario 06/11): toda ferramenta sai com Esc e volta a navegacao principal; passo em andamento cancela antes; trabalho nao salvo chama a confirmacao de abandonar (EscapeStep, LeaveTool).
 - Comandos: barra estilo Word `UiKit.Ribbon/Cmd/Menu` (icone em cima, texto embaixo, dica; acao principal em azul).
   Botoes soltos: `UiKit.Decorate` (plano, icone pela funcao; cuidado: "mundo" contem "undo").
 - Estado que liga/desliga (servidor, jogo): `StatusCard` fixo no topo (bolinha + titulo + detalhe), atualizado sozinho.

@@ -221,6 +221,47 @@ internal sealed partial class WorldView
         LayoutTools();
     }
 
+    /// <summary>Sai da ferramenta para a navegação do Mundo 3D. Quem tem trabalho em andamento pergunta antes; falso na resposta, fica.</summary>
+    void LeaveTool()
+    {
+        if (_tool == Tool.Zones && !ZoneLeave()) return;
+        if (_tool == Tool.Domains && !CloseDomains()) return;
+        if (_tool == Tool.Create)
+        {
+            if (_editing > 0 && MessageBox.Show(this, Loc.T("create.stopEditAsk", "Sair sem salvar as mudanças deste NPC?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (!AskAbandon()) return;
+        }
+        if (_tool == Tool.Teleports && _tpd is not null && !AskLeaveTeleport()) return;
+        CloseTool();
+        _gl.Focus();
+    }
+
+    /// <summary>--world-shot: Esc sai de toda ferramenta; passo em andamento cancela primeiro.</summary>
+    internal string EscFlowTest()
+    {
+        var o = new List<string>();
+        foreach (var tool in new[] { Tool.Scene, Tool.Paths, Tool.Quests, Tool.Create, Tool.Teleports, Tool.Zones, Tool.Domains })
+        {
+            OpenTool(tool);
+            bool open = _tool == tool;
+            bool used = EscapeStep();
+            o.Add((open && used && _tool == Tool.None ? "OK " : "FALHA ") + "esc-" + tool);
+        }
+        o.Add((!EscapeStep() ? "OK " : "FALHA ") + "esc-sem-ferramenta");
+        OpenTool(Tool.Zones);
+        StartNewZone();
+        bool first = EscapeStep() && _tool == Tool.Zones && _zDrawing == ZoneDraw.None;
+        bool second = EscapeStep() && _tool == Tool.None;
+        o.Add((first && second ? "OK " : "FALHA ") + "esc-passo-antes");
+        OpenTool(Tool.Create);
+        _creating = true;
+        _placing = _ => { };
+        first = EscapeStep() && _tool == Tool.Create && _placing is null;
+        second = EscapeStep() && _tool == Tool.None;
+        o.Add((first && second ? "OK " : "FALHA ") + "esc-lugar-antes");
+        return string.Join(Environment.NewLine, o);
+    }
+
     DomainEditorWindow? _domains;
 
     internal void DomainShot() => OpenTool(Tool.Domains);

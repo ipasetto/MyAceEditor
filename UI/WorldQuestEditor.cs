@@ -1042,6 +1042,9 @@ internal sealed class WorldQuestEditor : Panel
         Created?.Invoke(_d.Id);
     }
 
+    /// <summary>Esc no Mundo 3D: a mesma pergunta do botão de fechar.</summary>
+    internal void AskCancel() => Cancel();
+
     void Cancel()
     {
         if (MessageBox.Show(FindForm(), Editing ? Loc.T("qe.cancelEditAsk", "Descartar as mudanças? A quest fica como estava.") : Loc.T("qe.cancelAsk", "Descartar esta quest? Nada foi criado ainda."), Loc.T("qe.cancel", "Cancelar"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)

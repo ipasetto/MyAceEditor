@@ -67,7 +67,6 @@ internal sealed partial class WorldView
         _zCanvas.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Enter && _zDrawing != ZoneDraw.None) FinishDrawing();
-            if (e.KeyCode == Keys.Escape) { _zDrawing = ZoneDraw.None; _zPick = null; _zPoints = []; UpdateZonePanel(); _zCanvas.Invalidate(); }
         };
         _zBackMap.Click += (_, _) => ShowZoneGround(false);
         FormClosing += (_, e) => { if (_tool == Tool.Zones && !ZoneLeave()) e.Cancel = true; };
@@ -307,6 +306,17 @@ internal sealed partial class WorldView
         _status.Text = Loc.T("zone.drawHint", "Clique para pôr cada canto. Clique no primeiro ou aperte Enter para fechar (Esc cancela).");
         _zCanvas.Focus();
         UpdateZonePanel(); _zCanvas.Invalidate();
+    }
+
+    /// <summary>Esc nas Zonas: para de desenhar, de escolher no mapa ou volta do chão ao mapa.</summary>
+    bool ZoneCancelStep()
+    {
+        if (_tool != Tool.Zones) return false;
+        if (_zGround) { ShowZoneGround(false); return true; }
+        if (_zDrawing == ZoneDraw.None && _zPick is null) return false;
+        _zDrawing = ZoneDraw.None; _zPick = null; _zPoints = []; _status.Text = "";
+        UpdateZonePanel(); _zCanvas.Invalidate();
+        return true;
     }
 
     void FinishDrawing()

@@ -1497,6 +1497,7 @@ internal static class Program
             full.Save(Path.Combine(outDir, "window-domains.png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         w.CloseToolForShot();
+        File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.EscFlowTest() + Environment.NewLine);
         var zoneTemp = Path.Combine(Path.GetTempPath(), "MyAceZoneFlow" + Environment.ProcessId);
         Directory.CreateDirectory(zoneTemp);
         try { File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.ZoneFlowTest(zoneTemp) + Environment.NewLine); }
