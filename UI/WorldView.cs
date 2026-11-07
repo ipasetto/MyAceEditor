@@ -614,6 +614,7 @@ internal sealed partial class WorldView : Form
         }
         if (_showBuildings) _buildings.Draw(_cam, Forward);
         DrawDraftModels();
+        DrawObjectBoxes();
         _trees.Draw(_cam, Forward);
         _grass.Draw(_cam);   // grama do .ecwld/.ecbsd perto da câmera   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();
@@ -817,6 +818,11 @@ internal sealed partial class WorldView : Form
         foreach (var sd in sc.Sounds) Try(sd, sd.X, sd.Y, sd.Z);
         foreach (var cr in sc.Critters) Try(cr, cr.X, cr.Y, cr.Z);
         // nenhum ponto perto: construção sob o clique (mover fica guardado no 3D até a colisão do servidor; ver SceneEdit)
+        if (best is null && PickModel(p) is { } msel && _draft?.Find(msel.Key) is { } mo)
+        {
+            _sceneSel = msel;
+            return string.Format(Loc.T("obj.modelInfo", "Modelo: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(mo.Source), mo.Now.Pos.X, mo.Now.Pos.Z, mo.Now.Pos.Y);
+        }
         if (best is null && _buildings.Pick(Project, p, _cam) is { } bp)
         {
             _sceneSel = new BuildingSel(bp.File, bp.Center);

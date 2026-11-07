@@ -24,7 +24,7 @@ internal sealed partial class WorldView
     const int MaxSceneSteps = 30;
     readonly List<SceneStep> _sUndo = new(), _sRedo = new();
     readonly Panel _objPanel = new() { Width = 225, Height = 250, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(4) };
-    readonly Label _objTitle = new() { AutoSize = false, Height = 40, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9.5f) };
+    readonly Label _objTitle = new() { AutoSize = false, Height = 96, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI", 8.5f) };
     readonly NumericUpDown[] _objXYZ = Enumerable.Range(0, 3).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 64, Increment = 0.5m }).ToArray();
     Button? _objCloneBtn, _objDeleteBtn;
     bool _objBinding;
@@ -87,7 +87,7 @@ internal sealed partial class WorldView
         bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn });
         var note = new Label { Dock = DockStyle.Top, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
             Text = Loc.T("world.objNote4", "Efeitos, sons e bichos: só no cliente. Construções: Salvar grava o cliente (litmodels.pck) e a colisão do servidor (map.bht).") };
-        _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
+        _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); InitObjectCard(); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
         // o painel do objeto escolhido mora na ferramenta Editar cenário do menu flutuante (WorldView.Tools.cs)
         FormClosing += (_, e) =>
         {
@@ -114,17 +114,21 @@ internal sealed partial class WorldView
             WorldScene.SceneEffect fx => (Loc.T("world.objEffect", "Efeito") + ": " + fx.Gfx, fx.X, fx.Y, fx.Z),
             WorldScene.SceneSound sd => (Loc.T("world.objSound", "Som") + ": " + sd.File, sd.X, sd.Y, sd.Z),
             WorldScene.Critter cr => (Loc.T("world.objCritter", "Bichos") + ": " + cr.Model, cr.X, cr.Y, cr.Z),
-            BuildingSel b => (Loc.T("world.objBuilding", "Construção") + ": " + Path.GetFileName(b.File), b.Center.X + BldOff(b).X, b.Center.Y + BldOff(b).Y, b.Center.Z - BldOff(b).Z),
+            BuildingSel or ModelSel when SelDraft is { } so => (CardText(so), CenterOf(so).X, CenterOf(so).Y, CenterOf(so).Z),
+            BuildingSel b => (Loc.T("world.objBuilding", "Construção") + ": " + Path.GetFileName(b.File), b.Center.X, b.Center.Y, b.Center.Z),
             _ => ("", 0f, 0f, 0f),
         };
-        bool critter = _sceneSel is WorldScene.Critter or BuildingSel;
+        bool critter = _sceneSel is WorldScene.Critter;
+        bool drafted = SelDraft is not null;
         _objBinding = true;
-        _objTitle.Text = name + (_ecw is null ? "\n" + (_ecwWhy ?? "") : _sceneSel is BuildingSel ? "\n" + Loc.T("world.bldPending2", "mova e use Salvar cenário: grava cliente e servidor")
+        _objTitle.Text = name + (drafted ? "" : _ecw is null ? "\n" + (_ecwWhy ?? "") : _sceneSel is BuildingSel ? "\n" + Loc.T("obj.waitPiece", "carregando os objetos deste pedaço…")
             : critter ? "\n" + Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto") : "");
         _objXYZ[0].Value = (decimal)Math.Clamp(x, -100000, 100000); _objXYZ[1].Value = (decimal)Math.Clamp(y, -100000, 100000); _objXYZ[2].Value = (decimal)Math.Clamp(z, -100000, 100000);
-        foreach (var n in _objXYZ) n.Enabled = _sceneSel is BuildingSel || _ecw is not null && (!critter || _bsd is not null);
-        if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter;
-        if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = !critter;
+        foreach (var n in _objXYZ) n.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : _sceneSel is not BuildingSel && _ecw is not null && (!critter || _bsd is not null);
+        _objYaw.Enabled = SelDraft is { ReadOnlyWhy: null, Deleted: false };
+        if (SelDraft is { } sy) _objYaw.Value = (decimal)Math.Round(YawOf(sy.Now));
+        if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter && !drafted && _sceneSel is not BuildingSel;
+        if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : !critter && _sceneSel is not BuildingSel;
         _objBinding = false;
         _objPanel.Visible = true;
         UpdateSideState();
@@ -194,7 +198,7 @@ internal sealed partial class WorldView
         if (_objBinding) return;
         float x = (float)_objXYZ[0].Value, y = (float)_objXYZ[1].Value, z = (float)_objXYZ[2].Value;
         if (_sceneSel is WorldScene.Critter c) { MoveCritter(c, x, y, z); return; }
-        if (_sceneSel is BuildingSel b) { MoveBuilding(b, x, y, z); return; }
+        if (SelDraft is not null) { MoveSelectedCenter(x, y, z); return; }
         if (SelKey is not { } k) return;
         SceneEdit(f => { f.Move(k.Kind, k.Id, x, y, z); return k.Id; }, string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), x, z, y));
     }
@@ -202,7 +206,7 @@ internal sealed partial class WorldView
     void MoveSceneObjectTo(Vector3 at)
     {
         if (_sceneSel is WorldScene.Critter c) { MoveCritter(c, at.X, at.Y + 1, at.Z); return; }
-        if (_sceneSel is BuildingSel b) { MoveBuilding(b, at.X, at.Y, at.Z); return; }
+        if (SelDraft is { } sd) { var c0 = CenterOf(sd); MoveSelectedCenter(at.X, at.Y + (c0.Y - sd.Now.Pos.Y), at.Z); return; }
         if (SelKey is not { } k) return;
         SceneEdit(f => { f.Move(k.Kind, k.Id, at.X, at.Y + (k.Kind == EcwldFile.Kind.Effect ? 0.5f : 0), at.Z); return k.Id; },
             string.Format(Loc.T("world.objMoved", "Objeto do cenário movido para X {0:0.0} Z {1:0.0} altura {2:0.0}"), at.X, at.Z, at.Y));
@@ -216,6 +220,7 @@ internal sealed partial class WorldView
 
     void DeleteSceneObject()
     {
+        if (SelDraft is not null) { DeleteSelected(); return; }
         if (SelKey is not { } k) return;
         SceneEdit(f => { f.Delete(k.Kind, k.Id); return 0; }, Loc.T("world.objDeleted", "Objeto do cenário apagado"));
     }
@@ -271,13 +276,14 @@ internal sealed partial class WorldView
             crit = $"bicho {cr.Model}: Z {cr.Z:0.0}→{cm?.Z:0.0}, Ctrl+Z {cu}, .ecbsd voltou ao gravado {cSame}";
         }
         string bld = "sem construções carregadas";
+        DraftLoadTest();   // espera o rascunho ler os pedaços em volta (segundo plano)
         if (_buildings.Nearest(_cam) is { } nb)
         {
             _sceneSel = new BuildingSel(nb.File, nb.Center); ShowObjPanel();
             _objXYZ[0].Value += 3;
-            int pend = _buildings.Offsets.Count; bool dirty = SceneDirty;
-            bool bu = SceneUndo(false);
-            bld = $"construção {Path.GetFileName(nb.File)}: mover pendente {pend} (sujo {dirty}), Ctrl+Z {bu}, pendentes depois {_buildings.Offsets.Count}";
+            int pend = _draft?.Pieces.Values.Sum(p => p.Objects.Count(o => o.Changed)) ?? 0; bool dirty = SceneDirty;
+            bool bu = ObjectUndo(false);
+            bld = $"construção {Path.GetFileName(nb.File)}: mover pendente {pend} (sujo {dirty}), Ctrl+Z {bu}, pendentes depois {_draft?.Pieces.Values.Sum(p => p.Objects.Count(o => o.Changed)) ?? 0}";
         }
         _sceneSel = fx; ShowObjPanel();
         return $"cenário: {bld} · {sc.Critters.Count} grupos de bichos, {sc.Curves.Count} curvas · efeito {fx.Gfx} (ID {fx.Id}) · clonar {n0}→{n1} (ID novo {clone?.Id}) · mover X {clone?.X:0.0}→{moved?.X:0.0} · Ctrl+Z×2 {undo1 && undo2} · voltou ao gravado {same} · Ctrl+Y {redo} ({n2} efeitos) · {crit} · sujo no fim {SceneDirty}";
@@ -298,6 +304,7 @@ internal sealed partial class WorldView
 
     void SaveScene()
     {
+        if (_draft?.Dirty == true) { SaveObjects(); return; }
         if (_ecw is null || _ecwPath is null) return;
         // construções primeiro: gravam litmodels.pck + map.bht e mexem no ornamento do .ecbsd (gravado logo abaixo)
         bool built = false;

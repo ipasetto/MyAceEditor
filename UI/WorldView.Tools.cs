@@ -135,19 +135,18 @@ internal sealed partial class WorldView
         _toolMenu.Controls.Add(send);
 
         // ---- Objetos do mundo: só o que serve aqui ----
-        _scenePage.Controls.Add(Hint(Loc.T("tools.objSteps", "Clique num objeto para escolher: construção, efeito (laranja), som (azul) ou bichos (verde). Arraste pelos números ou botão direito no chão: mover para lá.")));
-        _scenePage.Controls.Add(SectionLabel(Loc.T("tools.objSoon", "Próximas ferramentas")));
+        _scenePage.Controls.Add(Hint(Loc.T("obj.steps", "Clique em qualquer objeto à vista: construção, modelo, efeito (laranja), som (azul) ou bichos (verde). Mova pelos números ou com o botão direito no chão; gire pelo giro; Delete apaga. Nada grava até o Salvar.")));
+        _scenePage.Controls.Add(SectionLabel(Loc.T("obj.insert", "Inserir no mundo")));
         foreach (var (g, k, pt) in new[] {
-            ("\uE913", "tools.trees", "Plantar e mover árvores"), ("\uE7B8", "tools.rocks", "Pôr pedras e objetos"),
-            ("\uE809", "tools.wall", "Muro e muralha"), ("\uE790", "tools.grassBrush", "Pincel de grama, flores e pedrinhas"),
-            ("\uE771", "tools.texBrush", "Pincel de textura do chão") })
+            ("\uE80F", "obj.pillBuildings", "Construções"), ("\uE913", "obj.pillTrees", "Árvores"), ("\uE790", "obj.pillGrass", "Grama"),
+            ("\uE7B8", "obj.pillModels", "Modelos"), ("\uE781", "obj.pillLights", "Luzes") })
         {
             var b = SmallButton(g, Loc.T(k, pt), () => { });
             b.Enabled = false; b.ForeColor = Color.Gray;
-            _toolTip.SetToolTip(b, Loc.T("tools.soonTip", "Em breve: precisa da colisão e do formato desse objeto prontos."));
+            _toolTip.SetToolTip(b, Loc.T("obj.pillSoon", "Chega na próxima etapa da ferramenta."));
             _scenePage.Controls.Add(b);
         }
-        _objPanel.Visible = false; _objPanel.Width = 250; _objPanel.Height = 210; _objPanel.Margin = new Padding(0, 4, 0, 4);
+        _objPanel.Visible = false; _objPanel.Width = 250; _objPanel.Height = 330; _objPanel.Margin = new Padding(0, 4, 0, 4);
         _scenePage.Controls.Add(_objPanel);
         _scenePage.Controls.Add(_sceneState);
         _scenePage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
