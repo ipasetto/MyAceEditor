@@ -5462,5 +5462,11 @@
   "del.npcOnly": "仅 NPC",
   "del.npcAndPoint": "NPC 和传送点",
   "del.linkedTitle": "{0} 会解锁一个传送点",
-  "del.linkedText": "仅 NPC:传送点留在旅行地图上,但没有人能再解锁它。\nNPC 和传送点:传送点从旅行地图移除,NPC 不再送往该处。传送点会立即保存。"
+  "del.linkedText": "仅 NPC:传送点留在旅行地图上,但没有人能再解锁它。\nNPC 和传送点:传送点从旅行地图移除,NPC 不再送往该处。传送点会立即保存。",
+  "zone.noName": "请为区域命名。",
+  "zone.fewCorners": "区域至少需要 3 个角。",
+  "zone.crossed": "边界自相交:请拖动标记的角。",
+  "zone.noCity": "请选择玩家的复活位置。",
+  "zone.noDomain": "此领地已删除:请选择其他领地。",
+  "zone.noMusic": "客户端中没有文件 {0}。没有它该区域将没有声音。"
 }

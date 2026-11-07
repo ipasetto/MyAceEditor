@@ -22,12 +22,47 @@ public static class ZoneSelfTest
         var r = new Report(lines);
         Client(r, maps);
         if (config is not null) Server(r, maps, config);
+        Rules(r, maps);
         lines.Add($"falhas: {r.Failed}");
         File.WriteAllLines(output, lines);
     }
 
     static IEnumerable<string> ClientFiles(string maps) =>
         Directory.GetDirectories(maps).Select(d => Path.Combine(d, "precinct.clt")).Where(File.Exists);
+
+    static void Rules(Report r, string maps)
+    {
+        var ok = new ZoneContext(false, false, _ => true, _ => true, (_, _) => true);
+        static PrecinctFile.Area Square(string name) => new(name, 0, 0, 1, "", "", [], [(0, 0), (10, 0), (10, 10), (0, 10)]) { Id = 5, SrcInstance = 1, City = (5, 0, 5) };
+        var file = new PrecinctFile();
+        var good = Square("Vila");
+        bool Has(PrecinctFile.Area a, ZoneContext c, string key) => ZoneRules.Check(file, a, c).Any(p => p.Key == key);
+        r.Check("regra-limpa", ZoneRules.Check(file, good, ok).Count == 0);
+        r.Check("regra-nome-vazio", Has(good with { Name = " " }, ok, "zone.noName"));
+        r.Check("regra-3-cantos", Has(good with { Points = [(0, 0), (1, 1)] }, ok, "zone.fewCorners"));
+        var bow = good with { Points = [(0, 0), (10, 10), (10, 0), (0, 10)] };
+        r.Check("regra-cruzada-so-mexida", !Has(bow, ok, "zone.crossed") && ZoneRules.Check(file, bow, ok with { ShapeTouched = true }).Any(p => p.Key == "zone.crossed" && p.Corner >= 0));
+        int crossed = 0, blocked = 0;
+        foreach (var f in ClientFiles(maps))
+            foreach (var a in PrecinctFile.Parse(File.ReadAllBytes(f)).Areas)
+            {
+                if (ZoneRules.Crosses(a.Points, out _)) crossed++;
+                if (ZoneRules.Check(file, a, ok).Any(p => p.Key == "zone.crossed")) blocked++;
+            }
+        r.Check("regra-antigas", crossed > 0 && blocked == 0, $"{crossed} cruzadas nos arquivos, {blocked} barradas");
+        r.Check("regra-cidade-nova", Has(good with { City = (0, 0, 0) }, ok with { IsNew = true }, "zone.noCity") && !Has(good with { City = (0, 0, 0) }, ok, "zone.noCity"));
+        r.Check("regra-sem-terreno", Has(good, ok with { HasGround = (_, _) => false }, "zone.noCity"));
+        r.Check("regra-territorio", Has(good with { Domain = 9 }, ok with { DomainExists = _ => false }, "zone.noDomain"));
+        var noMusic = ZoneRules.Check(file, good with { Music = ["Music\\x.mp3"] }, ok with { MusicExists = _ => false });
+        r.Check("regra-musica-pergunta", noMusic.Count == 1 && noMusic[0].Kind == ZoneProblemKind.Ask);
+        file.Areas.Add(good); file.Areas.Add(good with { Id = 40 });
+        r.Check("free-id", ZoneRules.FreeId(file) == 41 && ZoneRules.FreeId(new PrecinctFile()) == 1);
+        var gone = new PrecinctFile();
+        gone.Areas.Add(good with { Points = [(0, 0), (5, 0), (5, 10), (0, 10)] });
+        var one = new PrecinctFile(); one.Areas.Add(good);
+        float lost = ZoneRules.Holes(one, gone, 1);
+        r.Check("buraco", lost is > 0.4f and < 0.6f && ZoneRules.Holes(one, one, 1) == 0, lost.ToString());
+    }
 
     static void Server(Report r, string maps, string config)
     {

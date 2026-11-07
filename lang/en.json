@@ -5460,5 +5460,11 @@
   "del.npcOnly": "Only the NPC",
   "del.npcAndPoint": "The NPC and the point",
   "del.linkedTitle": "{0} unlocks a teleport point",
-  "del.linkedText": "Only the NPC: the point stays on the travel map, but nobody can unlock it anymore.\nThe NPC and the point: the point leaves the travel map and NPCs stop taking players there. This saves the points right away."
+  "del.linkedText": "Only the NPC: the point stays on the travel map, but nobody can unlock it anymore.\nThe NPC and the point: the point leaves the travel map and NPCs stop taking players there. This saves the points right away.",
+  "zone.noName": "Give the zone a name.",
+  "zone.fewCorners": "A zone needs at least 3 corners.",
+  "zone.crossed": "The border crosses itself: drag the marked corner.",
+  "zone.noCity": "Choose where the player respawns.",
+  "zone.noDomain": "This territory was deleted: choose another.",
+  "zone.noMusic": "The file {0} is not in the client. Without it the zone stays silent."
 }
