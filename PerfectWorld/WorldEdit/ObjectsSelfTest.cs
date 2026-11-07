@@ -25,10 +25,69 @@ public static class ObjectsSelfTest
     {
         var lines = new List<string>();
         var r = new Report(lines);
+        try { Draft(r); }
+        catch (Exception ex) { r.Check("rascunho-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Study(r, element, config); }
         catch (Exception ex) { r.Check("estudo-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         lines.Add($"falhas: {r.Failed}");
         File.WriteAllLines(output, lines);
+    }
+
+
+    // ---------------- rascunho (Task 2) ----------------
+    static DraftObject Obj(string key, int piece = 1) => new()
+    {
+        Key = key, Kind = ObjKind.Building, Piece = piece, Source = key,
+        Original = new ObjTransform(new Vector3(10, 20, 30), Vector3.UnitZ, Vector3.UnitY, 1),
+    };
+
+    static WorldDraft OneObject(out DraftObject o)
+    {
+        var d = new WorldDraft("teste");
+        o = Obj("a");
+        d.Put(new DraftPiece(1) { Loaded = true, Objects = { o } });
+        return d;
+    }
+
+    static void Draft(Report r)
+    {
+        var d = OneObject(out var o);
+        var to = o.Original with { Pos = new Vector3(11, 20, 31) };
+        string? why = d.Apply(new MoveOp("a", to));
+        r.Check("draft-aplica", why is null && o.Now == to && d.Dirty && d.UndoCount == 1, why ?? "");
+        r.Check("draft-desfaz", d.Undo() && o.Now == o.Original && !d.Dirty && d.RedoCount == 1);
+        r.Check("draft-refaz", d.Redo() && o.Now == to && d.Dirty);
+
+        why = d.Apply(new DeleteOp("a"));
+        bool del = why is null && o.Deleted;
+        r.Check("draft-apaga-e-volta", del && d.Undo() && !o.Deleted && d.Apply(new DeleteOp("a")) is null && d.Apply(new RestoreOp("a")) is null && !o.Deleted);
+
+        var ro = OneObject(out var o2); o2.ReadOnlyWhy = "pedaço só para olhar";
+        why = ro.Apply(new MoveOp("a", to));
+        r.Check("draft-recusa-so-olhar", why is not null && ro.UndoCount == 0 && o2.Now == o2.Original, why ?? "aceitou");
+
+        var f = OneObject(out var o3);
+        string? nan = f.Apply(new MoveOp("a", o3.Original with { Pos = new Vector3(float.NaN, 0, 0) }));
+        string? zero = f.Apply(new MoveOp("a", o3.Original with { Scale = 0 }));
+        string? flat = f.Apply(new MoveOp("a", o3.Original with { Dir = Vector3.Zero }));
+        string? none = f.Apply(new MoveOp("zz", o3.Original));
+        r.Check("draft-recusa-faixa", nan is not null && zero is not null && flat is not null && none is not null && f.UndoCount == 0 && o3.Now == o3.Original);
+
+        var u = OneObject(out var o4);
+        var rnd = new Random(7); ObjTransform last = o4.Original;
+        for (int i = 0; i < 50; i++)
+        {
+            last = o4.Original with { Pos = new Vector3(rnd.Next(-500, 500), rnd.Next(0, 300), rnd.Next(-500, 500)) };
+            u.Apply(new MoveOp("a", last));
+        }
+        while (u.Undo()) { }
+        bool back = o4.Now == o4.Original;
+        while (u.Redo()) { }
+        r.Check("undo-redo-salva-igual", back && o4.Now == last && u.UndoCount == 50);
+
+        int fired = 0; var ev = OneObject(out _); ev.Changed += () => fired++;
+        ev.Apply(new MoveOp("a", to)); ev.Undo(); ev.Redo();
+        r.Check("draft-avisa-mudanca", fired == 3, $"{fired} avisos");
     }
 
     // ---------------- estudo dos formatos (Task 1) ----------------
