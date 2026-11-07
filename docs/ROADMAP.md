@@ -10,7 +10,7 @@ Legenda: ✅ pronto · ⬜ a fazer · 🔴 difícil
 
 ## Já pronto
 
-- ✅ `elements.data`: leitura (~98,6%) guiada por `.cfg` e **gravação byte-idêntica** com backup
+- ✅ `elements.data`: leitura completa, até o último byte, guiada por `.cfg` e **gravação byte-idêntica** com backup
 - ✅ Tela de itens no estilo Rody: blocos, filtro por tipo, sub-abas, cor oficial, tooltip com drops, vínculos
 - ✅ Editores de duplo clique (classes, addons, itens, drops com barras), lote, pesquisa avançada, desfazer/refazer
 - ✅ Trocar o ID de um item em todos os arquivos; descrição e cor dos itens; converter entre versões
@@ -27,7 +27,6 @@ Legenda: ✅ pronto · ⬜ a fazer · 🔴 difícil
 
 ## Falta
 
-- ⬜ 🔴 Fechar a leitura dos ~1,4% finais do `elements.data` (Guerra Territorial) — issue #21
 - ⬜ 🔴 **Editor de mapas no Mundo 3D**: terreno, textura do chão, grama, árvores, construções e objetos, e gerar
   de novo a colisão e a passagem do servidor (`map.bht`, `rmap`, `dhmap`). Roteiro em
   [MUNDO-3D-EDITOR.md](MUNDO-3D-EDITOR.md)

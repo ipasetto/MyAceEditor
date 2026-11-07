@@ -7,7 +7,8 @@ Outras versoes: o que rodar, rodou; nao testar nem corrigir. GM: painel separado
 Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app e no jogo.
 
 ## FALTA
-[ ] 1. elements.data: confirmar a leitura dos ~1,4% finais (cauda da Territory War, PW-KB §Q1, issue #21)
+[x] 1. elements.data: leitura confirmada ate o ultimo byte em 07/11 (1.5.5 v156: 231/231 blocos; 1.4.4 v60: 150/150;
+       regravacao identica). Os ~1,4% eram do leitor antigo, ja trocado. Issue #21 fechada. ENGINE-KB §E3.
 [ ] 2. Mundo 3D como editor de mapas (roteiro em docs/MUNDO-3D-EDITOR.md, passos 6 a 8):
        [ ] terreno: pincel de altura (puxar, empurrar, alisar)
        [ ] textura do chao: pincel por camadas
@@ -22,7 +23,7 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
 Depois (sem data): ferramenta de portabilidade (1.5.5 parecendo versao antiga), so apos entrevista com o usuario.
 
 ## PRONTO (conferido pelo usuario)
-- Elements: leitura ~98,6% e gravacao identica, lista e detalhe no estilo Rody, vinculos, editores de duplo clique,
+- Elements: leitura completa e gravacao identica, lista e detalhe no estilo Rody, vinculos, editores de duplo clique,
   drops/addons com barras, lote, busca avancada, trocar ID em todos os arquivos, descricao e cor, converter versao,
   traduzir e auto-tradutor, desfazer/refazer.
 - Quests: aba Quests (tasks.data completo) e quests pelo Mundo 3D (recado, ir ate um lugar, matar, obter, entregar,

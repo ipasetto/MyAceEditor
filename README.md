@@ -118,7 +118,7 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true 
 
 | Area | Status |
 |---|---|
-| `elements.data` read / write | ✅ v6–v623; ~1.4% tail of Territory War data still kept as raw bytes |
+| `elements.data` read / write | ✅ v6–v623; read to the last byte and rewritten byte-identical (checked on 1.4.4 v60 and 1.5.5 v156) |
 | Quests | ✅ all fields and texts, plus quest creation in the 3D World |
 | GShop, NPCGen, AI Policy | ✅ |
 | Interface: editor, import/export, swap, loading screens | ✅ |

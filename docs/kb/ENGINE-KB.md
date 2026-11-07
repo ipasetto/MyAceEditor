@@ -20,7 +20,7 @@ restricoes do usuario: recurso/token limitado -> nada pesado sem autorizacao | i
 
 ## §E2 MAPA ENGINE x JOGO (capacidade -> arquivos/sistemas -> secao PWKB)
 capacidade | client | server | PWKB | status
-itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA ~98,6% [T]; ESCRITA PRONTA byte-identica [T] (§E3)
+itens/equip/NPC/etc | data/elements.data | gamed/config/elements.data | §S7 §S17 | LEITURA 100% (ate o ultimo byte, 07/11) [T]; ESCRITA PRONTA byte-identica [T] (§E3)
 quests | data/tasks.data | tasks.data | §S7 §S17 §S21 | bloco fixo TODAS as versoes (TaskLayout, v93/128/129/187 identico [T]) + v93 COMPLETO [T] (§E3c): campos, textos, dialogos, subquests; premios preservados; TEXTOS em qualquer versao (TaskTexts.cs) [T]
 IA mobs | data/aipolicy.data | aipolicy.data | §S7 §S18 | [T] aba AI Policy + round-trip identico (1.4.4, v9); layouts de 16 operacoes ainda inferidos -> conferir com Policy.cpp oficial
 loja cash (gshop) | gshop.data gshop1/2 | gshopsev.data gshopsev1 | §S7 §S19 (NAO espelho) | pendente; formato COMPLETO dos 2 lados
@@ -43,12 +43,12 @@ formato .cfg: linha contagem; por bloco "NNN - NOME" | linha flag | nomes de cam
 TALK_PROC: u32 count; por item: 4 + 0x80 + M*(8 + len1 + len1*2 + len2 + len2*0x88) [T]
 hierarquia: id_major_type/id_sub_type -> listas *_MAJOR_TYPE / *_SUB_TYPE (categoria>tipo>subtipo)
 armadilha [T]: ItemList.Name = nome PURO do bloco (sem prefixo numero), senao *_MAJOR_TYPE nao casa
-cobertura: ~98,6% byte-perfeito; para em NPC_WAR_TOWERBUILD_SERVICE (cauda guerra territorio) -> §Q1
+cobertura: 100% [T 07/11]. O leitor atual (CfgElementsReader via CfgCatalog) le todos os blocos ate o EOF: 1.5.5 PWI v156 231/231 blocos, 79.649 registros, 66.461.248/66.461.248 B; 155 BR v156 66.249 registros; 1.4.4 v60 do pacote 150/150, 41.685 registros. Os tres regravam IDENTICO (--roundtrip, --cfg-match). Os antigos ~1,4% (parada em NPC_WAR_TOWERBUILD_SERVICE) eram do leitor velho ElementsReader/ElementsProgram, que so sobrou no diagnostico --inspect: o offset AUTO antes do bloco (bloco de assinatura do exportador) agora e pulado por ReadOffset. NPC_WAR_TOWERBUILD_SERVICE do .cfg = struct do exptypes.h do 1.5.3 (id, name[32] UTF-16, build_info[4] x 5 ints). Unico trecho guardado sem decodificar em campos: TALK_PROC (dialogos, tamanho conhecido).
 ref servidor: gs ELF c/ DWARF -> elementdataman 216 arrays + structs (PerfectWorld/server_ref/). Server analisado v145 tem *_ESSENCE ~4B maiores que o v144 do usuario -> para o arquivo do usuario confiar no .cfg v60
 numeracao de listas client x server difere (PWKB§S3); conferir antes de editar par
 
 ESCRITA (ElementsWriter.cs) [T]: cada Item guarda Raw (bytes originais do registro); Module.Source = ElementsLayout (bytes do arquivo + CountPos/EndPos de cada bloco lido)
- gravacao: copia byte a byte tudo fora dos blocos (header, blocos de assinatura, TALK_PROC, cauda nao lida ~1,4%) + por bloco: count novo + registros; registro parte do Raw e so recodifica campo cujo valor (texto) difere do decodificado do Raw -> floats/padding de strings preservados
+ gravacao: copia byte a byte tudo fora dos blocos (header, blocos de assinatura, TALK_PROC) + por bloco: count novo + registros; registro parte do Raw e so recodifica campo cujo valor (texto) difere do decodificado do Raw -> floats/padding de strings preservados
  prova (--roundtrip): sem mudanca = IDENTICO 33.859.144 B (leitura 1,8s, gravacao 0,8s); renomear 1 item = 25 bytes diferentes so naquele registro (1420 B), mesmo tamanho, releitura OK [T]
  salvar na UI: Ctrl+S / Salvar como; backup <arquivo>.<yyyyMMdd-HHmmss>.bak + escrita atomica (tmp + File.Replace) + recarrega o arquivo
  novo item: Raw null -> todos os campos codificados do texto (zeros); clonar copia Raw
@@ -388,7 +388,7 @@ META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's A
 CONSOLIDADO 07/11 (usuario): paridade com o Rody concluida; abas GShop/AI Policy/NPCGen/Quests, .pck, interfaces e servidor local prontos.
 Fora do escopo (nao reabrir): paridade restante, servidor remoto por SSH, racas iniciais, regras dos executaveis, skills.
 Falta (lista viva em docs/AFAZERES.md):
-1 fechar cauda elements.data (§Q1, issue #21) B-M
+1 [x 07/11] cauda do elements.data: ja lida por inteiro (§E3)
 2 editor de mapas no Mundo 3D: terreno, textura do chao, grama, arvores, construcoes/objetos + regerar map.bht/rmap/dhmap, passagem e voo (docs/MUNDO-3D-EDITOR.md passos 6-8) A+
 3 painel do GM: mandar item pelo correio (SysSendMail) M
 
@@ -472,7 +472,7 @@ Npcgen Editor (Luka, thread 1124227; imagens removidas): abrir/editar/salvar/CON
 - dicionario de tokens (FieldTokens.cs + en.json): 218 palavras sem uso nos .cfg do repo removidas; restam 253 [T]
 
 ## §Q ABERTOS
-1 cauda ~1,4% elements.data a partir de NPC_WAR_TOWERBUILD_SERVICE (guerra territorio; comparar .cfg v60 x v61 / PWKB DOMAIN_COUNT=52)
+1 [RESOLVIDO 07/11] cauda ~1,4% do elements.data: o leitor atual le ate o EOF (ver §E3 cobertura); issue #21 fechada
 2 escrita: manter ou atualizar o timestamp (2o u32) ao salvar? hoje mantem (copia intacto)
 4 numeracao client x server das listas no PKG144 (p/ editar par)
 5 nosso TALK_PROC (4+0x80+M*(...)) x layout Dialog/Question/Choice do sELedit (PWKB§S23): conferir se descrevem o mesmo
