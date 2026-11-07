@@ -3919,7 +3919,7 @@ public sealed class EditorForm : Form
         var make = new MakeDraft();
         make.Goods[0][0] = new RecipeDraft { Product = ids[0], Count = 1, Price = 1500, Materials = [(ids[1], 3), (ids[2], 1)] };
         make.Goods[0][1] = new RecipeDraft { Product = ids[3], Materials = [(ids[4], 2)] };
-        using (var w = new GameServiceWindow(element, true, host)) { w.Load(make); Save(w, "forge.png"); }
+        using (var w = new GameServiceWindow(element, true, host)) { w.Load(make); w.ShowSlot(0); Save(w, "forge.png"); }
         TipImage(ids[0])?.Save(Path.Combine(dir, "tip-item.png"));
         var mob = m.FindListByName("MONSTER_ESSENCE")?.Items.FirstOrDefault(i => i.Name.Length > 0);
         if (mob is not null) TipImage(int.Parse(mob.Id))?.Save(Path.Combine(dir, "tip-monster.png"));

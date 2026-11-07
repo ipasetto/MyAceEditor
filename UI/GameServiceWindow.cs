@@ -104,6 +104,9 @@ internal sealed class GameServiceWindow : Panel
     string[] Titles => _forge ? Make.Titles : Shop.Titles;
 
     public void Load(ShopDraft shop) { Shop = shop; _undo.Clear(); _redo.Clear(); _page = 0; _sel = -1; BindTitle(); Invalidate(); }
+    /// <summary>--create-shot: marca o espaço, como o primeiro clique.</summary>
+    internal void ShowSlot(int slot) { _sel = slot; Invalidate(); }
+
     public void Load(MakeDraft make) { Make = make; _undo.Clear(); _redo.Clear(); _page = 0; _sel = -1; BindTitle(); Invalidate(); }
 
     void BindTitle()
