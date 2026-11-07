@@ -10,6 +10,8 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
 [x] 1. elements.data: leitura confirmada ate o ultimo byte em 07/11 (1.5.5 v156: 231/231 blocos; 1.4.4 v60: 150/150;
        regravacao identica). Os ~1,4% eram do leitor antigo, ja trocado. Issue #21 fechada. ENGINE-KB §E3.
 [ ] 2. Mundo 3D como editor de mapas (roteiro em docs/MUNDO-3D-EDITOR.md, passos 6 a 8):
+       Objetos (construcoes, arvores, grama, modelos, luzes): desenho aprovado 07/11 em
+       docs/superpowers/specs/2026-11-07-objetos-do-mundo-design.md (falta revisar a spec e o plano)
        [ ] terreno: pincel de altura (puxar, empurrar, alisar)
        [ ] textura do chao: pincel por camadas
        [ ] grama: pincel de grama e flores
