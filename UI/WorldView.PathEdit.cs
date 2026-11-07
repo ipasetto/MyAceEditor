@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using MyAceEditor.PerfectWorld;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -139,6 +139,7 @@ internal sealed partial class WorldView
         _pathUndo = SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny());
         _pathRedo = SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny());
         _pathSave = SmallButton("\uE74E", Loc.T("path.save", "Salvar caminhos (path.sev)"), SavePaths, main: true);
+        _toolTip.SetToolTip(_pathSave, "path.sev");
         _pathFix = SmallButton("\uE7BA", "", FixDeadPaths);
         _toolTip.SetToolTip(_pathFix, Loc.T("path.fixDeadTip", "Estes pontos citam um caminho que não existe no path.sev. Eles voltam a andar na área deles."));
         foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirHint, _flyMark, _pathDraw, _pathDone, _pathCancel,

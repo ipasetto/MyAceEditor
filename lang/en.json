@@ -5601,5 +5601,10 @@
   "world.sceneSavedShort": "Scenery saved. Only the client changes: close and open the game to see it.",
   "world.bldSavedShort": "{0} building(s) saved.",
   "wc.pageGives": "What it gives",
-  "wc.mineAbout": "At this point: {0} · respawns in {1} s"
+  "wc.mineAbout": "At this point: {0} · respawns in {1} s",
+  "field.eliminate_tool": "Uses up the tool when gathering",
+  "dm.rewardHint": "Usual weekly reward:",
+  "dm.riskOrder": "An old territory was deleted or moved in the list: the server checks the list in the same order.",
+  "dm.riskType": "{0} changed class: the server database keeps the old class.",
+  "dm.riskText": "With this the server's territory war stops loading until the war is reset in the database (new server). A new territory at the end of the list does not have this problem.\n\nSave anyway?"
 }

@@ -87,6 +87,14 @@ quando regravar o bloco a partir do rascunho dá o mesmo bloco (`QuestBuilder.Fr
   (só roda chamado pela operação "executar gatilho") e nem o registra (`policy_loader.cpp`: `if(IsRun()) continue`).
   Os anúncios do editor nascem com 0 e os antigos são corrigidos ao abrir (`AiAnnounce.FixRun`).
 
+### Territórios (`domain.data`, `domain.sev`)
+
+| Regra | O que acontece | Checagem |
+|---|---|---|
+| O banco (gamedbd, tabela city) guarda id e classe de cada território, na ordem | classe diferente do `domain.sev`, território excluído ou fora de ordem: a guerra territorial não carrega (`BattleManager::LoadMap`, `SyncChallenge`) | Salvar dos Territórios avisa e pergunta |
+| Território novo no fim da lista | o gdeliveryd acrescenta no banco sozinho (`extend city size`) | — |
+| O `domain.sev` lido é o de `home/gdeliveryd` | o de `gamed/config` é cópia velha | o envio leva o de `gdeliveryd` |
+
 ### Zonas (`precinct.clt` e `precinct.sev`)
 
 Vêm das fontes do jogo. A checagem entra em `PerfectWorld/ZoneRules.cs` junto com o editor de zonas.

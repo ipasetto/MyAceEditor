@@ -5603,5 +5603,10 @@
   "world.sceneSavedShort": "场景已保存。只更改客户端:关闭并重新打开游戏即可看到。",
   "world.bldSavedShort": "已保存 {0} 个建筑。",
   "wc.pageGives": "产出",
-  "wc.mineAbout": "此处:{0} 个 · {1} 秒后刷新"
+  "wc.mineAbout": "此处:{0} 个 · {1} 秒后刷新",
+  "field.eliminate_tool": "采集时消耗工具",
+  "dm.rewardHint": "常见每周奖励:",
+  "dm.riskOrder": "旧领地被删除或在列表中移动了位置:服务器按相同顺序核对列表。",
+  "dm.riskType": "{0} 改变了等级:服务器数据库保存的是旧等级。",
+  "dm.riskText": "这样服务器的领地战将无法加载,直到在数据库中重置领地战(新服务器)。在列表末尾新增的领地没有这个问题。\n\n仍要保存吗?"
 }

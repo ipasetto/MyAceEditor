@@ -1,4 +1,4 @@
-using MyAceEditor.PerfectWorld;
+﻿using MyAceEditor.PerfectWorld;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 
@@ -115,6 +115,7 @@ internal sealed partial class WorldView
 
         _tpEnd = ToolCard();
         _tpSaveBtn = SmallButton("", Loc.T("tp.save", "Salvar teleporte"), SaveTeleport, main: true);
+        _toolTip.SetToolTip(_tpSaveBtn, "world_targets.txt\nworld_targets.sev\nelements.data\ntasks.data");
         _tpDeleteBtn = SmallButton("", Loc.T("tp.delete", "Excluir este teleporte"), DeleteTeleport);
         var leave = SmallButton("", Loc.T("tp.leave", "Voltar à lista"), () => { if (AskLeaveTeleport()) UpdateTeleportPanel(); });
         foreach (var c in new Control[] { SectionLabel(Loc.T("tp.summary", "Como vai ficar")), _tpSummary, _tpError, _tpSaveBtn, _tpDeleteBtn, leave }) _tpEnd.Controls.Add(c);

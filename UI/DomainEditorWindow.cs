@@ -21,6 +21,19 @@ internal sealed class DomainEditorWindow : Form
     readonly Bitmap? _image;
     readonly MapCanvas _canvas = new() { Dock = DockStyle.Fill, BackColor = Bg };
     readonly Panel _side;
+    readonly ToolTip _tips = new() { AutoPopDelay = 20000, InitialDelay = 150 };
+    // "?" amarelo suave ao lado do prêmio: o valor de costume de cada classe neste cliente
+    readonly Label _rewardHelp = new() { Text = "?", AutoSize = true, ForeColor = Color.FromArgb(230, 200, 110), Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Help, Margin = new Padding(4, 6, 0, 2) };
+
+    /// <summary>Prêmio mais comum de cada classe nos territórios deste cliente.</summary>
+    string RewardHint()
+    {
+        var lines = new List<string> { Loc.T("dm.rewardHint", "Prêmio de costume por semana:") };
+        foreach (var (type, key, pt) in new[] { (3, "dm.class1", "1ª classe"), (2, "dm.class2", "2ª classe"), (1, "dm.class3", "3ª classe") })
+            if (_map.Areas.Where(a => a.Type == type).GroupBy(a => a.Reward).OrderByDescending(g => g.Count()).FirstOrDefault() is { } common)
+                lines.Add($"{Loc.T(key, pt)}: {common.Key:N0}");
+        return string.Join("\n", lines);
+    }
     Button? _saveBtn;
     readonly ListBox _list = new() { Dock = DockStyle.Fill, BackColor = Side, ForeColor = Color.White, BorderStyle = BorderStyle.None, IntegralHeight = false };
     readonly TextBox _name = new() { Width = 250, BackColor = Box, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, MaxLength = DomainMap.NameChars - 1 };
@@ -33,8 +46,16 @@ internal sealed class DomainEditorWindow : Form
     int _dragVertex = -1;
     bool _dragCenter, _binding, _dirty, _moved;
 
+    FlowLayoutPanel RewardRow(Label name)
+    {
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        row.Controls.Add(name); row.Controls.Add(_rewardHelp);
+        return row;
+    }
+
     DomainEditorWindow(string dataPath, string? sevPath, DomainMap map, DomainServer? server, Bitmap? image, IReadOnlySet<int> usedInWorld)
     {
+        _atOpen = map.Areas.Select(a => (a.Id, a.Type)).ToList();
         _dataPath = dataPath; _sevPath = sevPath; _map = map; _server = server; _image = image; _usedInWorld = usedInWorld;
         Text = Loc.T("dm.title", "Territórios");
         ClientSize = new Size(1180, 760); MinimumSize = new Size(900, 600); StartPosition = FormStartPosition.CenterParent;
@@ -55,7 +76,7 @@ internal sealed class DomainEditorWindow : Form
         _type.Items.AddRange([Loc.T("dm.class3", "3ª classe"), Loc.T("dm.class2", "2ª classe"), Loc.T("dm.class1", "1ª classe")]);
         foreach (var c in new Control[]
         {
-            Title(Loc.T("dm.selected", "Este território")), Name(Loc.T("dm.name", "Nome")), _name, Name(Loc.T("dm.type", "Classe")), _type, Name(Loc.T("dm.reward", "Prêmio por semana (moedas)")), _reward, _about,
+            Title(Loc.T("dm.selected", "Este território")), Name(Loc.T("dm.name", "Nome")), _name, Name(Loc.T("dm.type", "Classe")), _type, RewardRow(Name(Loc.T("dm.reward", "Prêmio por semana (moedas)"))), _reward, _about,
             Btn("", Loc.T("dm.new", "Novo território"), NewArea),
             Btn("", Loc.T("dm.delete", "Excluir este território"), DeleteArea),
             Btn("", Loc.T("dm.neighbors", "Recalcular quem faz fronteira"), Neighbors),
@@ -73,6 +94,8 @@ internal sealed class DomainEditorWindow : Form
         _canvas.Legend = [(Classes[1], Loc.T("dm.class3", "3ª classe")), (Classes[2], Loc.T("dm.class2", "2ª classe")), (Classes[3], Loc.T("dm.class1", "1ª classe")),
             (Color.White, Loc.T("dm.legendSel", "Território escolhido")), (Color.Gold, Loc.T("dm.legendIcon", "Ícone no mapa da guerra"))];
         _canvas.BottomSpace = 0;
+        if (_saveBtn is not null) _tips.SetToolTip(_saveBtn, "domain.data\ndomain.sev");
+        _tips.SetToolTip(_rewardHelp, RewardHint());
         _canvas.HitSomething = p => VertexAt(p) >= 0 || CenterAt(p);
         _canvas.MapDown += (e, _) => Down(null, e);
         _canvas.MapMove += (e, _) => Move2(null, e);
@@ -89,7 +112,7 @@ internal sealed class DomainEditorWindow : Form
             if (e.Control && e.KeyCode == Keys.S) { Save(); e.Handled = true; }
         };
         FormClosing += AskSave;
-        FormClosed += (_, _) => _image?.Dispose();
+        FormClosed += (_, _) => { _image?.Dispose(); _tips.Dispose(); };
         FillList();
         UpdateSave();
     }
@@ -350,9 +373,32 @@ internal sealed class DomainEditorWindow : Form
         return null;
     }
 
+    /// <summary>Territórios e classes como estavam ao abrir: o banco do servidor guarda essa lista.</summary>
+    readonly List<(int Id, int Type)> _atOpen;
+
+    /// <summary>
+    /// O gamedbd guarda a lista de cidades (id e classe, na ordem). O gdeliveryd confere com o domain.sev ao iniciar: classe diferente
+    /// faz a guerra territorial não carregar (BattleManager::LoadMap), lista menor ou fora de ordem também. Território novo no fim entra
+    /// sozinho ("extend city size"). Texto vazio = nada a avisar.
+    /// </summary>
+    string WarRisk()
+    {
+        var problems = new List<string>();
+        for (int i = 0; i < _atOpen.Count; i++)
+        {
+            var (id, type) = _atOpen[i];
+            if (i >= _map.Areas.Count || _map.Areas[i].Id != id) { problems.Add(Loc.T("dm.riskOrder", "Um território antigo foi excluído ou mudou de lugar na lista: o servidor confere a lista na mesma ordem.")); break; }
+            if (_map.Areas[i].Type != type) problems.Add(string.Format(Loc.T("dm.riskType", "{0} mudou de classe: o banco do servidor guarda a classe antiga."), _map.Areas[i].Name));
+        }
+        return string.Join("\n", problems.Distinct());
+    }
+
     bool Save()
     {
         if (Problem() is { } bad) { MessageBox.Show(this, bad, Text); return false; }
+        if (_sevPath is not null && WarRisk() is { Length: > 0 } risk
+            && MessageBox.Show(this, risk + "\n\n" + Loc.T("dm.riskText", "Com isso a guerra territorial do servidor para de carregar até zerar a guerra no banco (servidor novo). Território novo no fim da lista não tem esse problema.\n\nSalvar mesmo assim?"),
+                Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return false;
         try
         {
             BackupStore.Save(_dataPath);

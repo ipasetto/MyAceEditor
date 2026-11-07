@@ -1,4 +1,4 @@
-using MyAceEditor.UI;
+﻿using MyAceEditor.UI;
 
 namespace MyAceEditor.PerfectWorld;
 
@@ -55,7 +55,7 @@ public static class FieldLabels
         // NPC (struct NPC_ESSENCE)
         ["refresh_time"] = "Tempo para reaparecer", ["attack_rule"] = "Pode ser atacado", ["tax_rate"] = "Taxa",
         ["id_src_monster"] = "Monstro de origem", ["hello_msg"] = "Mensagem de saudação", ["id_to_discover"] = "Descoberta (ID)",
-        ["domain_related"] = "Ligado a território", ["combined_services"] = "Serviços combinados", ["id_mine"] = "Mina", ["no_collision"] = "Sem colisão",
+        ["eliminate_tool"] = "Gasta a ferramenta ao coletar", ["domain_related"] = "Ligado a território", ["combined_services"] = "Serviços combinados", ["id_mine"] = "Mina", ["no_collision"] = "Sem colisão",
         ["use_on_pick"] = "Usar ao pegar", ["levelup_addon"] = "Atributo de refino", ["fixed_props"] = "Propriedades fixas",
         ["equip_location"] = "Local do equipamento", ["equip_mask"] = "Máscara de equipamento",
         ["proc_type"] = "Regras do item", ["immune_type"] = "Imunidades do monstro", ["has_guid"] = "Tem GUID",

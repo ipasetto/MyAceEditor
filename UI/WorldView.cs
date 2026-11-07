@@ -145,7 +145,7 @@ internal sealed partial class WorldView : Form
         _t = t; _markerSrc = markers; _selected = selected; _select = select; _newHere = newHere; _moveHere = moveHere;
         Text = string.Format(Loc.T("world.title", "Mundo 3D — {0}"), t.Name);
         var wa = Screen.FromPoint(Cursor.Position).WorkingArea;
-        Size = new Size(Math.Min(1280, wa.Width - 40), Math.Min(860, wa.Height - 40)); StartPosition = FormStartPosition.CenterScreen; KeyPreview = true;
+        Size = new Size(Math.Min(1280, wa.Width - 40), Math.Min(860, wa.Height - 40)); StartPosition = FormStartPosition.CenterScreen; WindowState = FormWindowState.Maximized; KeyPreview = true;
         _gl = new GLControl(new GLControlSettings { Profile = OpenTK.Windowing.Common.ContextProfile.Compatability, APIVersion = new Version(3, 3) }) { Dock = DockStyle.Fill };
         ToolStripButton Btn(string key, string pt, Action a)
         {
@@ -348,6 +348,7 @@ internal sealed partial class WorldView : Form
             }
             _hover = Ray(e.Location);
             var near = PickScreen(e.Location);
+            if (!_pickShown && _gl.Cursor != GameCursor(near)) _gl.Cursor = GameCursor(near);
             // o jogo mostra ((int)x + 4000) / 10 e ((int)z + 5500) / 10 (CECUIHelper::GetShowPos)
             _status.Text = _hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), h.X, h.Y, h.Z)
                 + string.Format(Loc.T("world.gamePos", "   (no jogo: {0} {1})"), ((int)h.X + 4000) / 10, ((int)h.Z + 5500) / 10)
@@ -422,6 +423,7 @@ internal sealed partial class WorldView : Form
 
     void OnKey(KeyEventArgs e)
     {
+        if (_tool == Tool.Domains) return;   // editor de territórios: as teclas são dele (T apagava o chão do mundo)
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (PathKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }
         if (e.Control)
@@ -1403,7 +1405,19 @@ internal sealed partial class WorldView : Form
             }
             _pickCursor = new Cursor(bmp.GetHicon());
         }
-        _gl.Cursor = picking ? _pickCursor! : Cursors.Default;
+        _gl.Cursor = picking ? _pickCursor! : GameCursor(null);
+    }
+
+    GameCursors? _cursors;
+
+    /// <summary>Cursor do jogo: falar com NPC, atacar monstro, coletar; o normal no resto.</summary>
+    Cursor GameCursor(Marker? over)
+    {
+        _cursors ??= new GameCursors(_element);
+        if (over is null) return _cursors.Normal;
+        if (over.Kind.HasFlag(MarkKind.Mine)) return _cursors.Gather;
+        if (over.Kind.HasFlag(MarkKind.Monster)) return _cursors.Attack;
+        return over.Kind.HasFlag(MarkKind.Npc) || over.Kind.HasFlag(MarkKind.Merchant) || over.Kind.HasFlag(MarkKind.Guard) ? _cursors.Talk : _cursors.Normal;
     }
 
     Marker? SelectedMark()

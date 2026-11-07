@@ -184,6 +184,7 @@ UI/WorldBuildings.cs | construcoes dos pedacos em volta da camera (luz embutida 
 PerfectWorld/SurfaceShader.cs | le o .sdr de texto (1o estagio: textura e tcscroll); WorldBuildings desenha essas malhas por ultimo, translucidas e com rolagem (PW-KB construcao do mapa)
 PerfectWorld/PrecinctServer.cs | precinct.sev (leitura e escrita). PerfectWorld/ZoneRules.cs | regras da zona mexida. PerfectWorld/ZoneEdit.cs | cantos, partes, por cima e por baixo, zona nova. PerfectWorld/ZonePair.cs | abre, compara, salva com copia e volta, retrato do Ctrl+Z. PerfectWorld/ZoneSelfTest.cs | --zone-test. UI/MapCanvas.cs | mapa com zoom (Zonas e Territorios). UI/WorldView.ZoneTool.cs | ferramenta Zonas. UI/ZoneMusicWindow.cs | escolher e ouvir musica e som
 PerfectWorld/ServerNotice.cs | arquivo gravado fora do editor principal que falta enviar ao servidor
+UI/GameCursors.cs | cursores do jogo (element\cursors normal.ani, talk, attack, pick) para o Mundo 3D
 PerfectWorld/WorldScene.cs | .ecwld: tipos de arvore (.spt + compmap) e posicoes (PW-KB §S17)
 PerfectWorld/SptTree.cs | nossa versao do SpeedTree: .spt, curvas, RNG, galhos recursivos (eixos por vertice como CIdvBranch::Compute, PW-KB §S13), pontos e texturas de folha
 UI/WorldTrees.cs | arvores no Mundo 3D: casca + folhas viradas p/ camera (1 cartao por folha, refeito ao girar; mipmap proprio do recorte), ate 900 m; CLI --spt | frondes em lamina (fitas fixas, 2 lados) | frondes em extrusao | cor dos galhos/frondes/folhas pelos materiais do .spt (8000)

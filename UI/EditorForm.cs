@@ -5592,15 +5592,20 @@ public sealed class EditorForm : Form
     void FillRestoreMenu(ToolStripMenuItem menu)
     {
         menu.DropDownItems.Clear();
-        // os 10 mais novos de tudo o que o editor guardou (cliente e servidor; usuário 01/11: o path.sev não aparecia)
-        var all = BackupStore.Recent(BackupRoots(), 10).Select(b => (File: b.Original, Path: b.Bak, b.When)).ToList();
+        // um submenu por tipo de arquivo, cada um com os 5 mais novos (usuário 07/11); cliente e servidor juntos
+        var all = BackupStore.Recent(BackupRoots(), 2000).Select(b => (File: b.Original, Path: b.Bak, b.When)).ToList();
         if (all.Count == 0) { menu.DropDownItems.Add(new ToolStripMenuItem(Loc.T("menu.noBackups", "(nenhum backup deste jogo ainda)")) { Enabled = false }); return; }
-        foreach (var (file, bak, when) in all)
+        foreach (var group in all.GroupBy(b => Path.GetFileName(b.File), StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
         {
-            var where = Path.GetFileName(Path.GetDirectoryName(file)) is { Length: > 0 } d && d is not ("data" or "config" or "element") ? d + "\\" : "";   // mapa (world\path.sev)
-            var it = new ToolStripMenuItem($"{where}{Path.GetFileName(file)}   ·   {when:dd/MM/yyyy HH:mm:ss}") { ForeColor = CFg, ToolTipText = file + "\n← " + bak };
-            it.Click += (_, _) => RestoreBackup(bak, file);
-            menu.DropDownItems.Add(it);
+            var sub = new ToolStripMenuItem(group.Key) { ForeColor = CFg };
+            foreach (var (file, bak, when) in group.OrderByDescending(b => b.When).Take(5))
+            {
+                var where = Path.GetFileName(Path.GetDirectoryName(file)) is { Length: > 0 } d && d is not ("data" or "config" or "element") ? d + "\\" : "";   // mapa (world\path.sev)
+                var it = new ToolStripMenuItem($"{where}{Path.GetFileName(file)}   ·   {when:dd/MM/yyyy HH:mm:ss}") { ForeColor = CFg, ToolTipText = file + "\n← " + bak };
+                it.Click += (_, _) => RestoreBackup(bak, file);
+                sub.DropDownItems.Add(it);
+            }
+            menu.DropDownItems.Add(sub);
         }
     }
 

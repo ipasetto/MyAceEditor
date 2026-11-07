@@ -1,4 +1,4 @@
-using MyAceEditor.PerfectWorld;
+﻿using MyAceEditor.PerfectWorld;
 
 namespace MyAceEditor.UI;
 
@@ -24,7 +24,7 @@ internal sealed partial class WorldView
     readonly FlowLayoutPanel _createPage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
     readonly Label _sceneState = new() { AutoSize = true, MaximumSize = new Size(240, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
     readonly ToolTip _toolTip = new();
-    bool _toolsFolded;
+    bool _toolsFolded = true;   // abre recolhido: o mundo aparece inteiro (usuário 07/11)
 
     internal readonly List<(MarkKind Kind, string Key, string Pt, string Tip, Color Color)> _filterDefs = new()
     {
@@ -152,7 +152,9 @@ internal sealed partial class WorldView
         _scenePage.Controls.Add(_sceneState);
         _scenePage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
         _scenePage.Controls.Add(SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
-        _scenePage.Controls.Add(SmallButton("\uE74E", Loc.T("world.objSave", "Salvar cenário"), SaveScene, main: true));
+        var sceneSave = SmallButton("\uE74E", Loc.T("world.objSave", "Salvar cenário"), SaveScene, main: true);
+        _toolTip.SetToolTip(sceneSave, ".ecwld\n.ecbsd\nlitmodels.pck\nmap.bht");
+        _scenePage.Controls.Add(sceneSave);
 
         // ---- Caminhos e áreas ----
         InitPathPage();

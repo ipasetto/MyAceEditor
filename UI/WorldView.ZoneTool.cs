@@ -1,4 +1,4 @@
-using System.Drawing.Drawing2D;
+﻿using System.Drawing.Drawing2D;
 using MyAceEditor.PerfectWorld;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -33,7 +33,7 @@ internal sealed partial class WorldView
     readonly FlowLayoutPanel _zParts = new() { AutoSize = true, MaximumSize = new Size(228, 0), WrapContents = true, Margin = new Padding(0, 2, 0, 2) };
     FlowLayoutPanel _zFoot = null!, _zHead = null!, _zListCard = null!, _zNameCard = null!, _zAreaCard = null!, _zMusicCard = null!, _zRulesCard = null!, _zMarksCard = null!, _zEndCard = null!;
     Label _zStepName = null!, _zStepArea = null!, _zStepMusic = null!, _zStepRules = null!, _zStepMarks = null!;
-    Button _zFix = null!, _zSave = null!, _zDelete = null!, _zAbove = null!, _zUnder = null!, _zBackList = null!, _zGroundBtn = null!, _zNewBtn = null!;
+    Button _zNewTop = null!, _zFix = null!, _zSave = null!, _zDelete = null!, _zAbove = null!, _zUnder = null!, _zBackList = null!, _zGroundBtn = null!, _zNewBtn = null!;
     readonly Button _zBackMap = new() { Visible = false, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(32, 36, 44), AutoSize = true, Location = new Point(14, 14), Cursor = Cursors.Hand };
 
     ZonePair? _zones;
@@ -88,6 +88,8 @@ internal sealed partial class WorldView
 
         _zBackList = SmallButton("", Loc.T("zone.backList", "Voltar à lista"), () => { _zOpen = -1; _zDrawing = ZoneDraw.None; UpdateZonePanel(); _zCanvas.Invalidate(); });
         _zHead.Controls.Add(_zBackList);
+        _zNewTop = SmallButton("", Loc.T("zone.new", "Nova zona"), StartNewZone);
+        _zHead.Controls.Add(_zNewTop);
 
         _zNameCard = ToolCard();
         _zStepName = SectionLabel("");
@@ -144,6 +146,7 @@ internal sealed partial class WorldView
         foreach (var c in new Control[] { SectionLabel(Loc.T("zone.summary", "Como vai ficar")), _zSummary, _zWhy, _zSave }) _zFoot.Controls.Add(c);
         FitToScroll(_zFoot);
         _zSave.Width = 250;
+        _toolTip.SetToolTip(_zSave, "precinct.clt\nprecinct.sev");
         _zSummary.MaximumSize = _zWhy.MaximumSize = new Size(250, 0);
         _zEndCard = ToolCard();
         _zDelete = SmallButton("", Loc.T("zone.delete", "Excluir esta zona"), DeleteZone);
@@ -505,6 +508,7 @@ internal sealed partial class WorldView
         _zFix.Visible = _zones.State is PairState.StampDiffers or PairState.ListsDiffer;
         _zFix.Text = "  " + (_zones.State == PairState.ListsDiffer ? Loc.T("zone.useClient", "Usar o cliente como certo") : Loc.T("zone.match", "Igualar"));
         _zBackList.Visible = open is not null || drawing;
+        _zNewTop.Visible = open is not null && !drawing && Writable;   // com uma zona aberta, criar outra sem voltar à lista
         _zListCard.Visible = open is null && !drawing;
         _zNewBtn.Enabled = Writable;
         _zInstances.Visible = _zones.Instances.Count > 1;
