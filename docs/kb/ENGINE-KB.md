@@ -336,7 +336,7 @@ layout = modelo do Rody's Angelica Editor (decisao do usuario; arvore em cascata
 esquerda (fundo preto): seletor de bloco "[NNN] Nome (qtd)" (1a opcao = ★ Favoritos; lembra o ultimo; padrao WEAPON_ESSENCE) | filtro tipo/subtipo (so blocos *_ESSENCE c/ id_major_type/id_sub_type) | busca nome/ID + caixa "todos os blocos" | ListView VIRTUAL owner-draw: ID | icone 24px + nome na cor de grade (★☆»«*) | clique na coluna ordena | rodape: Adicionar | ir para ID (Enter) | Excluir
 direita: cabecalho icone+nome+ID | grade de campos agrupados/rotulados (addons vazios ocultos) | edicao inline
 geral: tooltip estilo jogo no hover | menu de contexto clonar/novo/excluir/favoritar | novo item c/ proximo codigo | auto-recarrega ultima pasta | icones nativos do surfaces.pck | scrollbar escura (SetWindowTheme DarkMode_Explorer) | combos escuros owner-draw
-abas: Elements (pronta) | Quests (v93 completa §E3c) | GShop/AI Policy (vazias) | Verificacao (§E5b) | Pacotes .pck (alternativa sPCK)
+abas (historico 17/10; hoje areas na NavBar, ver §E7): Elements | Quests (§E3c) | GShop | AI Policy | Verificacao (§E5b) | Pacotes .pck
 detalhe do item: cabecalho escuro (icone|ID|nome cor oficial) | abas Valores (sub-abas por grupo: Todos/Basico/.../Queda/Habilidades/Modelo; coluna Vinculo) | Vinculos (N) | Buscar (campo op valor) | Descricao e cor (§E3d)
 lista: coluna ∞ = nº de vinculos | barra: ◀ ▶ historico | status: total/bloco/selecionado
 diagnostico: --snapshot <png> abre o editor fora da tela c/ a ultima pasta e salva print (verificacao visual sem abrir janela)
@@ -385,14 +385,12 @@ META INICIAL (decisao do usuario 2026-10-17): o app fazer 100% do que o Rody's A
  mais referencias (D:/Perfect World/PW/Outros Editores/Angelica Editor/): Rodys_Angelica_Editor_SRC_V22 (mais nova; READMEs V15-V17 em chines: tasks.data v128/v187/v191 completo c/ subtarefas, dialogos, NewID, header v223+ -> base p/ editor de quests e auto-tradutor) | AngelicaEditor_V45/V46/V52 (binarios) | AngelicaCore_V2: codigo RECUPERADO de binario protegido (Enigma -> pe-sieve -> de4dot -> ilspycmd), README diz "private reference, study" -> so estudo, NUNCA codigo no repo; tem verification/ (regressao) e McpServer (87 tools = lista de funcoes de uma engine completa)
  usuario afirma que o material do Rody foi liberado pela comunidade/autor (2026-10-17); mesmo assim: seguir modelos/UI/formatos (ok) e escrever codigo proprio.
  REGRA: consultar so o trecho do passo atual; NUNCA copiar codigo nem arquivos de dados dele p/ o repo (repo publico; parece pasta de trabalho privada de software licenciado). Escrever a nossa versao.
-1b aba GShop (formato completo PWKB§S19; exporta client+server) M | aba AI Policy (PWKB§S18) M | npcgen/spawns (PWKB§S22) M
-4 tasks.data / gshop / aipolicy (abas) M cada
-5 fechar cauda elements.data (§Q1) B-M
-5b nomes de skill (skillstr.txt) p/ SkillRef B | editar premios de quest M
-6 renderizar janelas do jogo a partir de interfaces.pck XML (gshop/qshop primeiro) A
-7 deploy servidor (gerar conf, subir, validar portas/ordem PWKB§S4-S5) A
-8 inventario/personagem via gamedbd rpc (PWKB§S8-S10; blobs opacos) A
-9 skills (dll+gs; PWKB§S17 skills) A+
+CONSOLIDADO 07/11 (usuario): paridade com o Rody concluida; abas GShop/AI Policy/NPCGen/Quests, .pck, interfaces e servidor local prontos.
+Fora do escopo (nao reabrir): paridade restante, servidor remoto por SSH, racas iniciais, regras dos executaveis, skills.
+Falta (lista viva em docs/AFAZERES.md):
+1 fechar cauda elements.data (§Q1, issue #21) B-M
+2 editor de mapas no Mundo 3D: terreno, textura do chao, grama, arvores, construcoes/objetos + regerar map.bht/rmap/dhmap, passagem e voo (docs/MUNDO-3D-EDITOR.md passos 6-8) A+
+3 painel do GM: mandar item pelo correio (SysSendMail) M
 
 ## §E9 LICOES DOS EDITORES DE TERCEIROS (PWKB§S18-S25) — o que a engine deve fazer MELHOR
 todos: decompilados (C++/CLI ou C#), x86, net20-45; NENHUM faz backup confiavel -> engine: backup automatico + escrita atomica (grava tmp, renomeia) SEMPRE

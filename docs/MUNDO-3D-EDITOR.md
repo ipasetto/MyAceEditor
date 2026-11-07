@@ -77,6 +77,11 @@ Confirma que o caminho do editor oficial é possível fora dele.
 ## 4. Roteiro (do mais fácil e útil ao mais difícil)
 Cada passo: ler → provar gravação **idêntica** ao original → só então editar; Ctrl+Z; funcionar em todas as versões.
 
+**Situação em 07/11/2026 (conferido pelo usuário):** passos 1 a 5 prontos (quests, geradores, eventos, caminhos e
+patrulhas, zonas e territórios). Falta: o passo 6 na parte de árvores, grama, construções e objetos (efeitos, sons e
+mover construção já existem), o 7 (terreno e textura do chão + colisão do servidor) e o 8 (passagem e voo).
+As notas "[~]" e "falta" dos passos 1 a 5 abaixo são históricas.
+
 1. **Quests no 3D, tipos 3+** — [x] matar monstros, obter itens, entregar itens a um NPC, esperar (testados em 4 versões + tela). Escolher o ponto de coleta no mundo para "obter itens" [x]. Item que só cai na quest (na etapa de matar) [x]. Repetir (diária/semanal/mensal/anual) e horário em que a quest existe [x]. Proteger/escoltar NPC (objetivos 8 e 9): ignorados (decisão do usuário; nenhum cliente usa): matar monstros (clicar no gerador no mundo), coletar (clicar na coleta), entregar item,
    escoltar (caminho). Usa o que já lemos do npcgen.
 2. **Geradores completos no 3D** — [~] painel com todos os campos do monstro/NPC e área de nascimento desenhada no chão prontos; e a alça para arrastar a área no 3D [x]: painel de propriedades como o oficial (quantidade, renascer, altura, agressivo,

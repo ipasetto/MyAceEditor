@@ -1,83 +1,42 @@
 # Roadmap
 
-Tarefas futuras do MyAceEditor, organizadas em marcos. A meta do **Marco 1** é a paridade com os
-editores clássicos da comunidade (Rody's Angelica Editor / sELedit); os marcos seguintes transformam
-o editor numa **engine** completa do Perfect World.
+O que já está pronto no MyAceEditor e o que ainda falta. O foco atual é a versão **1.5.5** do Perfect World.
+Cada tarefa aberta tem uma **[issue no GitHub](https://github.com/ipasetto/MyAceEditor/issues)** ou um item em
+[AFAZERES.md](AFAZERES.md); comente antes de começar.
 
-Legenda: ✅ pronto · 🚧 em andamento · ⬜ a fazer · 🟢 bom para começar · 🔴 difícil
-Cada tarefa tem uma **[issue no GitHub](https://github.com/ipasetto/MyAceEditor/issues)** (#1–#32) com contexto, por onde começar e critério de pronto — comente lá antes de começar. Boas para começar: [good first issue](https://github.com/ipasetto/MyAceEditor/labels/good%20first%20issue). Detalhe função por função: [PARIDADE-RODY.md](PARIDADE-RODY.md).
+Legenda: ✅ pronto · ⬜ a fazer · 🔴 difícil
 
 ---
 
 ## Já pronto
 
-- ✅ Leitura do `elements.data` (~98,6%) guiada por `.cfg` e **gravação byte-idêntica** com backup
-- ✅ Leitura nativa de `.pck`/`.pkx` e ícones reais do jogo
-- ✅ Tela de itens no estilo Rody: blocos agrupados, filtro por tipo, sub-abas, cor oficial, tooltip com drops
-- ✅ Vínculos e "dropado por" com links; editores de duplo clique (classes, addons, itens)
-- ✅ Descrição dos atributos (addons) em português, como no jogo
-- ✅ Seleção múltipla e ações em lote
-- ✅ Quests (`tasks.data` v93): campos, textos, diálogos e subquests, com gravação idêntica
-- ✅ Verificação do par cliente × servidor
+- ✅ `elements.data`: leitura (~98,6%) guiada por `.cfg` e **gravação byte-idêntica** com backup
+- ✅ Tela de itens no estilo Rody: blocos, filtro por tipo, sub-abas, cor oficial, tooltip com drops, vínculos
+- ✅ Editores de duplo clique (classes, addons, itens, drops com barras), lote, pesquisa avançada, desfazer/refazer
+- ✅ Trocar o ID de um item em todos os arquivos; descrição e cor dos itens; converter entre versões
+- ✅ Tradução e auto-tradutor (itens, quests, falas, interface)
+- ✅ Quests (`tasks.data`) completas, e criação de quests pelo Mundo 3D
+- ✅ GShop, NPCGen, AI Policy (com anúncios ao morrer / ao entrar em combate), `extra_drops.sev`
+- ✅ `.pck` / `.pkx`: leitura e gravação
+- ✅ Interfaces: editor, criar interface, importar/exportar, trocar com outro cliente, telas de carregamento
+- ✅ Mundo 3D: terreno, construções, árvores, grama, água, céu; pontos, caminhos, eventos, zonas, territórios,
+  teleportes, NPCs e monstros, cenário
+- ✅ Verificação do par cliente × servidor, servidor local (WSL), painel de administração, plugins e painel do GM
 
 ---
 
-## Marco 1 — Paridade com os editores clássicos
+## Falta
 
-### Edição de itens
-- ⬜ Desfazer / refazer + histórico de ações
-- ⬜ Copiar e colar itens entre listas e entre arquivos (com dependências e ID único)
-- ⬜ Pesquisa avançada (todas as listas, vários critérios) e substituir em massa
-- ⬜ Verificar erros na lista e no arquivo inteiro (IDs quebrados, probabilidades que não somam 100%)
-- ⬜ 🔴 Trocar o ID de um item em todos os arquivos (elements, tasks, gshop, npcgen)
-- ⬜ 🟢 Mover itens (cima/baixo/topo/fim) e ordenar os selecionados
-- ⬜ 🟢 Mostrar campos sim/não como caixa de seleção
-- ⬜ 🟢 Editores de máscara: proteção de item (`proc_type`) e imunidades de monstro
-- ⬜ 🟢 Melhorar os rótulos em português dos campos (`PerfectWorld/FieldLabels.cs`)
-- ⬜ Nomes de habilidades (`skillstr.txt`) e de quests nos vínculos
-- ⬜ Ícones de monstros e NPCs
-- ⬜ Importar e exportar itens; salvar "versão cliente"; perfis e arquivos recentes
-
-### Textos do jogo
-- ⬜ 🔴 Gravar `.pck` (necessário para editar descrições, cores, interface)
-- ⬜ Editar a descrição (`item_ext_desc.txt`) e a cor (`item_color.txt`) dos itens
-
-### Quests
-- ⬜ Editar prêmios, itens pedidos e monstros a matar (hoje são preservados, mas não editáveis)
-- ⬜ Criar, clonar e excluir quests
-- ⬜ Suporte a outras versões do `tasks.data` além da v93
-
-### Outros arquivos
-- ⬜ Editor de **GShop** (cliente e servidor juntos; formato em PW-KB §S19)
-- ✅ Editor de **NPCGen** / spawns (pontos de monstro, NPC e coleta; mapa 🔜)
-- ⬜ Editor de **AI Policy** (PW-KB §S18)
-- ⬜ 🔴 Fechar a leitura dos ~1,4% finais do `elements.data` (Guerra Territorial)
-
----
-
-## Marco 2 — Ferramentas da comunidade
-
-- ⬜ **Auto-tradutor** de quests, itens e textos do cliente
-- ⬜ Unificar (`join`) `elements.data`, `tasks.data` e `item_ext_desc.txt` de versões diferentes
-- ⬜ Converter `elements.data` entre versões (`.rules`)
-- ⬜ 🟢 Exportar listas (NPCs para NPCGen, monstros para AI Policy, tabela, ícones em imagem)
-
----
-
-## Marco 3 — Engine
-
-- ⬜ Corrigir o par automaticamente (exportar loja, elements e tasks para os dois lados)
-- ⬜ Enviar arquivos para o servidor e reiniciar (SSH)
-- ⬜ 🔴 Raças iniciais (constante no `elementclient.exe` + `createrace.xml` + máscara do servidor)
-- ⬜ 🔴 Regras gravadas nos executáveis do servidor (jogadores na Guerra Territorial, clãs)
-- ⬜ 🔴 Abrir janelas do próprio jogo dentro da engine (`interfaces.pck`, PW-KB §S20)
-- ⬜ 🔴 Editor de mapas (altura, navegação, água, rotas — PW-KB §S22)
-- ⬜ 🔴 Edição de habilidades
+- ⬜ 🔴 Fechar a leitura dos ~1,4% finais do `elements.data` (Guerra Territorial) — issue #21
+- ⬜ 🔴 **Editor de mapas no Mundo 3D**: terreno, textura do chão, grama, árvores, construções e objetos, e gerar
+  de novo a colisão e a passagem do servidor (`map.bht`, `rmap`, `dhmap`). Roteiro em
+  [MUNDO-3D-EDITOR.md](MUNDO-3D-EDITOR.md)
+- ⬜ Painel do GM: mandar item pelo correio
 
 ---
 
 ## Como as tarefas são escolhidas
 
-1. O que destrava outras tarefas vem primeiro (ex.: gravar `.pck` antes de editar descrições).
-2. Paridade com os editores clássicos antes de recursos novos.
-3. Todo formato novo começa pela leitura com prova de round-trip; a edição vem depois.
+1. O que destrava outras tarefas vem primeiro.
+2. Todo formato novo começa pela leitura com prova de round-trip; a edição vem depois.
+3. Mexeu no cliente, mexe no servidor junto (o par).

@@ -62,7 +62,7 @@ Todo conhecimento novo sobre o jogo ou sobre a engine vai para as KBs, no mesmo 
 |---|---|
 | [docs/kb/PW-KB.md](docs/kb/PW-KB.md) | Fatos do **jogo**: formatos, protocolo, servidor, versões |
 | [docs/kb/ENGINE-KB.md](docs/kb/ENGINE-KB.md) | Fatos da **engine**: o que foi implementado e como |
-| [docs/PARIDADE-RODY.md](docs/PARIDADE-RODY.md) | Marque `[x]` quando uma função de paridade ficar pronta |
+| [docs/AFAZERES.md](docs/AFAZERES.md) | Marque `[x]` quando uma tarefa ficar pronta |
 
 Formato: frases curtas, uma ideia por linha, com **etiqueta de confiança** em cada fato:
 `[C]` código-fonte lido · `[A]` arquivo real · `[B]` binário · `[T]` testado no nosso código ·

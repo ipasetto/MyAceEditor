@@ -5,7 +5,7 @@ labels: enhancement
 ---
 
 **Tarefa**
-Qual item do [ROADMAP](../../docs/ROADMAP.md) ou da [PARIDADE-RODY](../../docs/PARIDADE-RODY.md), ou a ideia nova.
+Qual item do [ROADMAP](../../docs/ROADMAP.md) ou dos [AFAZERES](../../docs/AFAZERES.md), ou a ideia nova.
 
 **Como funciona hoje em outros editores (se aplicável)**
 

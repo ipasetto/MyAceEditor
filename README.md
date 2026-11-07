@@ -119,12 +119,12 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true 
 | Area | Status |
 |---|---|
 | `elements.data` read / write | ✅ v6–v623; ~1.4% tail of Territory War data still kept as raw bytes |
-| Quests | ✅ all fields and texts; full quest creation for more quest types 🔜 |
-| GShop, NPCGen, AI Policy | ✅ (AI Policy: condition editing 🔜) |
-| Interface: editor, import/export, swap, loading screens | ✅ (add/copy controls, multi-select align 🔜) |
-| `.pck` | ✅ read v2/v3 + `.pkx`, write v2/v3 (`.pkx` writing 🔜) |
-| Verification, local server, admin panel, 3D World | ✅ |
-| Map editor, skills editor, starting races/classes | 🔜 see the [roadmap](docs/ROADMAP.md) |
+| Quests | ✅ all fields and texts, plus quest creation in the 3D World |
+| GShop, NPCGen, AI Policy | ✅ |
+| Interface: editor, import/export, swap, loading screens | ✅ |
+| `.pck` | ✅ read and write v2/v3, including split `.pck` + `.pkx` |
+| Verification, local server, admin panel, GM panel, 3D World | ✅ (GM panel: send item by mail 🔜) |
+| Map editor in the 3D World (terrain, ground textures, grass, trees, buildings) | 🔜 see the [roadmap](docs/ROADMAP.md) |
 
 ## Contributing
 
