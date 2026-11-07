@@ -23,6 +23,7 @@ Agua: usuario 07/11 decidiu manter como esta (lago da cidade mais claro que no j
 06/11 fim 6: usuario confirmou 40, 41, 42, 43. Esc sai de toda ferramenta do Mundo 3D (EscapeStep, LeaveTool), falta conferir (44).
 07/11: usuario testou 38 (zona renomeada aparece no jogo). Feitos, falta conferir: territorio no envio (domain.sev do gdeliveryd), janela de salvo, Esc limpa a tela, painel do coletavel, lista de plugins automatica. Aberto: NPCs de eventos no mesmo lugar (proposta: Verificacao separa), portabilidade (precisa entrevista).
 07/11 tarde: cursor do jogo no Mundo 3D, abre em tela cheia com ferramentas recolhidas, T nao age nos Territorios, Nova zona com zona aberta, premio de costume (?) e aviso de risco da guerra nos Territorios, dicas de arquivo nos salvar, backups por tipo, rotulo da mina. Icone de quest cortado: textura limpa, vem do desenho do exe (aberto). Estudo pendente: efeitos visuais (gfx) no mundo e instancias. Portabilidade: entrevista antes.
+07/11: icone de quest cortado corrigido no elementclient.exe do cliente PWI 1.5.5 do usuario (correcao e anotacoes fora do Git, na copia local da skill pw-engine). Falta ver no jogo.
 
 ## FASE 1 — base
 [x] elements.data leitura ~98,6% (§E3)            [ ] cauda Territory War ~1,4% (§Q1)
