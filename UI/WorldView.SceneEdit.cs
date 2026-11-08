@@ -137,7 +137,7 @@ internal sealed partial class WorldView
         bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, _objSeatBtn });
         var note = new Label { Dock = DockStyle.Top, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
             Text = Loc.T("world.objNote4", "Efeitos, sons e bichos: só no cliente. Construções: Salvar grava o cliente (litmodels.pck) e a colisão do servidor (map.bht).") };
-        _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); InitObjectCard(); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
+        _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); InitObjectCard(); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(ObjModeRow()); _objPanel.Controls.Add(_objTitle);
         // o painel do objeto escolhido mora na ferramenta Editar cenário do menu flutuante (WorldView.Tools.cs)
         FormClosing += (_, e) =>
         {
@@ -162,6 +162,7 @@ internal sealed partial class WorldView
     /// <summary>Mostra/esconde o painel do objeto escolhido (com as coordenadas atuais).</summary>
     void ShowObjPanel()
     {
+        UpdateModeButtons();
         if (_sceneSel is null) { _objPanel.Visible = false; return; }
         var (name, x, y, z) = _sceneSel switch
         {

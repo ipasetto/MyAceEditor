@@ -173,11 +173,13 @@ internal sealed partial class WorldView
         _showCollision.Text = Loc.T("obj.showCollision", "Ver colisão");
         _showCollision.CheckedChanged += (_, _) => _gl.Invalidate();
         _objYaw.ValueChanged += (_, _) => { if (!_objBinding) TurnSelected((float)_objYaw.Value); };
-        var row = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 30, BackColor = _objPanel.BackColor, Padding = new Padding(0, 2, 0, 0) };
-        row.Controls.Add(new Label { Text = Loc.T("obj.turn", "giro (graus)"), ForeColor = Color.Silver, AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
-        row.Controls.Add(_objYaw);
-        row.Controls.Add(new Label { Text = Loc.T("obj.scaleLabel", "tamanho"), ForeColor = Color.Silver, AutoSize = true, Padding = new Padding(8, 6, 0, 0) });
-        row.Controls.Add(_objScale);
+        // giro e tamanho em duas linhas alinhadas (numa linha só o campo do tamanho saía cortado à direita)
+        var row = new TableLayoutPanel { Dock = DockStyle.Top, Height = 60, BackColor = _objPanel.BackColor, Padding = new Padding(0, 2, 0, 0), ColumnCount = 2, RowCount = 2 };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92)); row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.Controls.Add(new Label { Text = Loc.T("obj.turn", "giro (graus)"), ForeColor = Color.Silver, AutoSize = true, Padding = new Padding(0, 6, 0, 0) }, 0, 0);
+        row.Controls.Add(_objYaw, 1, 0);
+        row.Controls.Add(new Label { Text = Loc.T("obj.scaleLabel", "tamanho"), ForeColor = Color.Silver, AutoSize = true, Padding = new Padding(0, 6, 0, 0) }, 0, 1);
+        row.Controls.Add(_objScale, 1, 1);
         _objScale.ValueChanged += (_, _) =>
         {
             if (_objBinding || SelDraft is not { Kind: ObjKind.Building, Deleted: false } o) return;
@@ -220,31 +222,50 @@ internal sealed partial class WorldView
     }
 
     /// <summary>
-    /// Assentar no chão: mede o chão embaixo da base (cantos da caixa girada, meios das bordas e centro) e põe a base na
-    /// MENOR altura medida; assim nenhuma ponta fica flutuando (usuário 08/11: casa no morro ficava com pontas no ar).
-    /// Um passo só (Ctrl+Z desfaz).
+    /// Assentar no chão: nenhuma parte de baixo pode ficar no ar. Com a malha carregada, mede o chão embaixo de cada ponto
+    /// da parte de baixo do objeto (até 1,5 m acima do ponto mais baixo, ou 15% da altura) e desce até o ponto que mais
+    /// sobra encostar, mais 20 cm enterrado (usuário 08/11: a 1ª versão media só 9 pontos da caixa e a borda morro abaixo
+    /// ficava no ar). Sem malha (modelo), usa a grade da caixa. Um passo só (Ctrl+Z desfaz).
     /// </summary>
     void SeatSelected()
     {
         if (SelDraft is not { Kind: ObjKind.Building or ObjKind.Model, Deleted: false, ReadOnlyWhy: null } o) return;
         var t = o.Now;
-        var up = System.Numerics.Vector3.Normalize(t.Up); var dir = System.Numerics.Vector3.Normalize(t.Dir);
-        var right = System.Numerics.Vector3.Cross(up, dir);
-        float s = t.Scale is > 0 and < 1000 ? t.Scale : 1;
-        var (mn, mx) = o.LocalBox;
-        var pts = new List<System.Numerics.Vector3>();
-        if ((mx - mn).LengthSquared() < 1e-6f) pts.Add(t.Pos);
-        else
-            foreach (float fx in new[] { 0f, 0.5f, 1f })
-                foreach (float fz in new[] { 0f, 0.5f, 1f })
+        float? need = null;   // quanto mexer na altura (negativo = desce)
+        if (o.Kind == ObjKind.Building && _buildings.MeshOf(o.Key) is { } m && m.Pos.Length >= 3)
+        {
+            var w = m.World;
+            var pts = new List<System.Numerics.Vector3>(m.Pos.Length / 3);
+            float minY = float.MaxValue, maxY = float.MinValue;
+            for (int i = 0; i + 2 < m.Pos.Length; i += 3)
+            {
+                var gl = Vector3.TransformPosition(new Vector3(m.Pos[i], m.Pos[i + 1], m.Pos[i + 2]), w);
+                var g = new System.Numerics.Vector3(gl.X, gl.Y, -gl.Z);   // OpenGL -> jogo
+                pts.Add(g); minY = MathF.Min(minY, g.Y); maxY = MathF.Max(maxY, g.Y);
+            }
+            float band = MathF.Max(1.5f, (maxY - minY) * 0.15f);
+            foreach (var g in pts)
+                if (g.Y <= minY + band && _t.HeightAt(g.X, g.Z) is { } h)
+                    need = need is { } n ? MathF.Min(n, h - g.Y) : h - g.Y;
+        }
+        if (need is null)
+        {
+            var up = System.Numerics.Vector3.Normalize(t.Up); var dir = System.Numerics.Vector3.Normalize(t.Dir);
+            var right = System.Numerics.Vector3.Cross(up, dir);
+            float s = t.Scale is > 0 and < 1000 ? t.Scale : 1;
+            var (mn, mx) = o.LocalBox;
+            bool flat = (mx - mn).LengthSquared() < 1e-6f;
+            float baseY = flat ? t.Pos.Y : DraftChecks.WorldBox(o).Min.Y;
+            for (int ix = 0; ix <= 6; ix++)
+                for (int iz = 0; iz <= 6; iz++)
                 {
-                    float lx = mn.X + (mx.X - mn.X) * fx, lz = mn.Z + (mx.Z - mn.Z) * fz;
-                    pts.Add(t.Pos + (right * lx + up * mn.Y + dir * lz) * s);
+                    var p = flat ? t.Pos : t.Pos + (right * (mn.X + (mx.X - mn.X) * ix / 6f) + up * mn.Y + dir * (mn.Z + (mx.Z - mn.Z) * iz / 6f)) * s;
+                    if (_t.HeightAt(p.X, p.Z) is { } h) need = need is { } n ? MathF.Min(n, h - baseY) : h - baseY;
+                    if (flat) break;
                 }
-        var ground = pts.Select(p => _t.HeightAt(p.X, p.Z)).Where(h => h is not null).Select(h => h!.Value).ToList();
-        if (ground.Count == 0) { _status.Text = Loc.T("obj.seatNoGround", "Não há chão embaixo deste objeto para assentar."); return; }
-        float baseY = pts.Count == 1 ? t.Pos.Y : DraftChecks.WorldBox(o).Min.Y;
-        float dy = ground.Min() - baseY;
+        }
+        if (need is null) { _status.Text = Loc.T("obj.seatNoGround", "Não há chão embaixo deste objeto para assentar."); return; }
+        float dy = need.Value - 0.2f;   // 20 cm para dentro do chão: nada aparece flutuando
         if (MathF.Abs(dy) < 0.01f) { _status.Text = Loc.T("obj.seatAlready", "A base já está encostada no chão."); return; }
         if (DraftApply(new MoveOp(o.Key, t with { Pos = t.Pos + new System.Numerics.Vector3(0, dy, 0) })) is null)
             _status.Text = string.Format(Loc.T("obj.seated", "Objeto assentado no chão ({0:+0.0;-0.0} m; ainda não gravado)."), dy);
@@ -459,6 +480,8 @@ internal sealed partial class WorldView
         _scenePage.AutoScrollPosition = new Point(0, 0);
         // anel de girar: clique num ponto do anel, arrasta 90° em volta: um passo só; Ctrl+Z volta
         string ringTxt = "-";
+        SetObjMode(ObjMode.Turn);
+        bool ringOnlyInTurn = true;
         if (TurnRing() is { } ring)
         {
             float y0 = YawOf(o.Now); int u0 = _draft!.UndoCount;
@@ -471,8 +494,27 @@ internal sealed partial class WorldView
                 bool oneStep = _draft.UndoCount == u0 + 1;
                 bool back = ObjectUndo(false) && MathF.Abs(((YawOf(o.Now) - y0) % 360 + 540) % 360 - 180) < 0.5f;
                 ringTxt = $"anel-acha={hitRing} girou={dy:0} um-passo={oneStep} ctrlz-volta={back}";
+                SetObjMode(ObjMode.Move); ringOnlyInTurn = ObjGizmoHit(Point.Round(a0)) != 4;
             }
         }
+        // tamanho pelas alças: arrasta o quadrado do X para fora: aumenta num passo só; Ctrl+Z volta
+        string sizeTxt = "-";
+        SetObjMode(ObjMode.Size);
+        {
+            var cc = V3(CenterOf(o)); float L = GizmoSize(cc);
+            if (Project(cc) is { } pc && Project(cc + Vector3.UnitX * L) is { } px)
+            {
+                float s0 = o.Now.Scale; int u0 = _draft!.UndoCount;
+                int hitBox = ObjGizmoHit(Point.Round(px));
+                _objAxis = hitBox; StartScale(Point.Round(px)); ScaleDrag(Point.Round(new PointF(px.X + (px.X - pc.X) * 0.5f, px.Y + (px.Y - pc.Y) * 0.5f))); ObjGizmoUp();
+                float s1 = o.Now.Scale; bool one = _draft.UndoCount == u0 + 1;
+                bool back = ObjectUndo(false) && MathF.Abs(o.Now.Scale - s0) < 1e-4f;
+                sizeTxt = $"alca={hitBox} tamanho {s0:0.00}->{s1:0.00} um-passo={one} ctrlz-volta={back}";
+            }
+        }
+        using (var ms = ToolsShot()) ms.Save(System.IO.Path.Combine(outDir, "dftcard-modos.png"), System.Drawing.Imaging.ImageFormat.Png);
+        SetObjMode(ObjMode.Move);
+        ringTxt += $" anel-so-no-girar={ringOnlyInTurn} | {sizeTxt}";
         // assentar no chão: sobe 6 m e assenta: a base fica na menor altura do chão embaixo
         var cs = CenterOf(o);
         MoveSelectedCenter(cs.X, cs.Y + 6, cs.Z, stick: false);
@@ -812,6 +854,108 @@ internal sealed partial class WorldView
     System.Numerics.Vector3? _objPos;
     static Vector3 V3(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
 
+    // ---------- modos do objeto escolhido: Mover (padrão), Girar, Tamanho (um botão por vez, como nos programas 3D) ----------
+    enum ObjMode { Move, Turn, Size }
+    ObjMode _objMode = ObjMode.Move;
+    readonly Button[] _modeBtns = new Button[3];
+    FlowLayoutPanel? _modeRow;
+
+    /// <summary>Linha com os 3 botões de modo (ícone em cima, nome embaixo); fica acima dos campos digitáveis.</summary>
+    Control ObjModeRow()
+    {
+        _modeRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 54, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 4), WrapContents = false };
+        (string Glyph, string Key, string Pt, string TipKey, string Tip)[] defs =
+        {
+            ("\uE7C2", "obj.modeMove", "Mover", "obj.modeMoveTip", "Setas X, Y e Z: arraste uma seta para mover nesse eixo."),
+            ("\uE7AD", "obj.modeTurn", "Girar", "obj.modeTurnTip", "Anel na base: arraste o anel ou a bolinha para girar (5 em 5°; Shift = 15°, Ctrl = livre)."),
+            ("\uE740", "obj.modeSize", "Tamanho", "obj.modeSizeTip", "Alças com quadrado: arraste para aumentar ou diminuir. O jogo usa o mesmo tamanho nos três eixos."),
+        };
+        for (int i = 0; i < 3; i++)
+        {
+            var m = (ObjMode)i;
+            var b = new Button { Width = 70, Height = 46, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, Text = Loc.T(defs[i].Key, defs[i].Pt), Image = UiKit.Icon(defs[i].Glyph, Color.White, 18),
+                TextImageRelation = TextImageRelation.ImageAboveText, Margin = new Padding(0, 0, 3, 0), Cursor = Cursors.Hand, Font = new Font("Segoe UI", 8.5f) };
+            _toolTip.SetToolTip(b, Loc.T(defs[i].TipKey, defs[i].Tip));
+            b.Click += (_, _) => { SetObjMode(m); _gl.Focus(); };
+            _modeBtns[i] = b; _modeRow.Controls.Add(b);
+        }
+        UpdateModeButtons();
+        return _modeRow;
+    }
+
+    void SetObjMode(ObjMode m)
+    {
+        if (!ModeAllowed(m)) return;
+        _objMode = m; _objAxis = 0; _objHover = 0;
+        UpdateModeButtons(); _gl.Invalidate();
+        _status.Text = m switch
+        {
+            ObjMode.Turn => Loc.T("obj.modeTurnTip", "Anel na base: arraste o anel ou a bolinha para girar (5 em 5°; Shift = 15°, Ctrl = livre)."),
+            ObjMode.Size => Loc.T("obj.modeSizeTip", "Alças com quadrado: arraste para aumentar ou diminuir. O jogo usa o mesmo tamanho nos três eixos."),
+            _ => Loc.T("obj.modeMoveTip", "Setas X, Y e Z: arraste uma seta para mover nesse eixo."),
+        };
+    }
+
+    /// <summary>Árvore só move (o jogo não gira nem muda o tamanho dela); modelo move e gira; construção faz tudo.</summary>
+    bool ModeAllowed(ObjMode m) => m == ObjMode.Move || SelDraft is { } o && (m == ObjMode.Turn ? o.Kind is ObjKind.Building or ObjKind.Model : o.Kind == ObjKind.Building);
+
+    void UpdateModeButtons()
+    {
+        if (_modeRow is null) return;
+        _modeRow.Visible = SelDraft is { Deleted: false };
+        if (!ModeAllowed(_objMode)) _objMode = ObjMode.Move;
+        for (int i = 0; i < 3; i++)
+        {
+            var b = _modeBtns[i]; bool on = (int)_objMode == i, ok = ModeAllowed((ObjMode)i);
+            b.Enabled = ok;
+            b.BackColor = on ? UiKit.Accent : Color.FromArgb(40, 45, 54);
+            b.FlatAppearance.BorderColor = on ? UiKit.Accent : Color.FromArgb(62, 70, 84);
+            b.ForeColor = ok ? Color.White : Color.Gray;
+        }
+    }
+
+    // tamanho pelas alças: relativo ao clique, um passo só no Ctrl+Z
+    float _scale0; Point _scaleDown; System.Numerics.Vector3 _scaleC;
+
+    void StartScale(Point p)
+    {
+        if (SelDraft is not { } o) return;
+        _scale0 = o.Now.Scale > 0 ? o.Now.Scale : 1; _scaleDown = p; _scaleC = CenterOf(o);
+        _turnUndoBase = _draft?.UndoCount ?? 0; _turnMoved = false;
+    }
+
+    void ScaleDrag(Point p)
+    {
+        if (SelDraft is not { Kind: ObjKind.Building } o || _draft is null) return;
+        var c = V3(_scaleC); float L = GizmoSize(c);
+        float f;
+        if (_objAxis == 8) f = 1 + (_scaleDown.Y - p.Y) / 150f;   // quadrado do meio: para cima aumenta
+        else
+        {
+            var dir = GizmoDirs[_objAxis - 5];
+            if (Project(c) is not { } a || Project(c + dir * L) is not { } b) return;
+            float sx = b.X - a.X, sy = b.Y - a.Y, len2 = sx * sx + sy * sy;
+            if (len2 < 4) return;
+            f = 1 + ((p.X - _scaleDown.X) * sx + (p.Y - _scaleDown.Y) * sy) / len2;
+        }
+        float step = (ModifierKeys & Keys.Control) != 0 ? 0.01f : (ModifierKeys & Keys.Shift) != 0 ? 0.25f : 0.05f;
+        float sNew = Math.Clamp(MathF.Round(_scale0 * f / step) * step, 0.1f, 10f);
+        if (_draft.UndoCount > _turnUndoBase) _draft.Undo();   // fica um passo só
+        if (MathF.Abs(sNew - _scale0) > 1e-4f) DraftApply(new MoveOp(o.Key, o.Now with { Scale = sNew }));
+        _turnMoved = true;
+        ShowObjPanel();
+        _status.Text = string.Format(Loc.T("obj.sizing", "Tamanho: {0:0.00}× (de 0,05 em 0,05; Shift = 0,25, Ctrl = livre)"), sNew);
+    }
+
+    static void Cube(Vector3 c, float h)
+    {
+        Vector3 V(int i) => new(c.X + ((i & 1) == 0 ? -h : h), c.Y + ((i & 2) == 0 ? -h : h), -(c.Z + ((i & 4) == 0 ? -h : h)));
+        int[][] faces = { new[] { 0, 1, 3, 2 }, new[] { 4, 6, 7, 5 }, new[] { 0, 4, 5, 1 }, new[] { 2, 3, 7, 6 }, new[] { 0, 2, 6, 4 }, new[] { 1, 5, 7, 3 } };
+        GL.Begin(PrimitiveType.Quads);
+        foreach (var f in faces) foreach (int i in f) GL.Vertex3(V(i));
+        GL.End();
+    }
+
     bool ObjGizmoOn => _tool == Tool.Scene && SelDraft is { ReadOnlyWhy: null, Deleted: false, Kind: ObjKind.Building or ObjKind.Model or ObjKind.Tree };
 
     int ObjGizmoHit(Point p)
@@ -819,8 +963,19 @@ internal sealed partial class WorldView
         if (!ObjGizmoOn) return 0;
         var c = V3(CenterOf(SelDraft!)); float L = GizmoSize(c);
         if (Project(c) is not { } a) return 0;
-        for (int k = 0; k < 3; k++)
-            if (Project(c + GizmoDirs[k] * L * 1.18f) is { } b && SegDist(p, a, b, 0.2f) < 9) return k + 1;
+        if (_objMode == ObjMode.Size)
+        {
+            if (MathF.Abs(a.X - p.X) < 10 && MathF.Abs(a.Y - p.Y) < 10) return 8;   // quadrado do meio
+            for (int k = 0; k < 3; k++)
+                if (Project(c + GizmoDirs[k] * L) is { } b && (SegDist(p, a, b, 0.2f) < 9 || MathF.Abs(b.X - p.X) < 11 && MathF.Abs(b.Y - p.Y) < 11)) return k + 5;
+            return 0;
+        }
+        if (_objMode == ObjMode.Move)
+        {
+            for (int k = 0; k < 3; k++)
+                if (Project(c + GizmoDirs[k] * L * 1.18f) is { } b && SegDist(p, a, b, 0.2f) < 9) return k + 1;
+            return 0;
+        }
         // anel de girar (construção e modelo; árvore não gira no jogo): na base, em volta do objeto
         if (TurnRing() is { } ring)
         {
@@ -888,6 +1043,7 @@ internal sealed partial class WorldView
     void ObjGizmoDrag(Point p)
     {
         if (_objAxis == 4) { TurnDrag(p); _gl.Invalidate(); return; }
+        if (_objAxis >= 5) { ScaleDrag(p); _gl.Invalidate(); return; }
         var c = V3(_objStart); float L = GizmoSize(c);
         var dir = GizmoDirs[_objAxis - 1];
         if (Project(c) is not { } a || Project(c + dir * L) is not { } b) return;
@@ -904,6 +1060,7 @@ internal sealed partial class WorldView
     bool ObjGizmoUp()
     {
         if (_objAxis == 0) return false;
+        if (_objAxis >= 5 && _turnMoved && SelDraft is { } so) _status.Text = string.Format(Loc.T("obj.sized", "Tamanho {0:0.00}× (ainda não gravado; Ctrl+Z desfaz)"), so.Now.Scale);
         if (_objAxis == 4 && _turnMoved && SelDraft is { } to) _status.Text = string.Format(Loc.T("obj.turnedRing", "Girado para {0:0}° (ainda não gravado; Ctrl+Z desfaz)"), YawOf(to.Now));
         if (_objPos is { } op) MoveSelectedCenter(op.X, op.Y, op.Z, stick: _objAxis != 2 && _stickGround.Checked);
         _objAxis = 0; _objPos = null; _gl.Invalidate();
@@ -919,18 +1076,32 @@ internal sealed partial class WorldView
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting);
         GL.LineWidth(3);
         Color[] cols = { Color.Red, Color.LimeGreen, Color.DodgerBlue };
-        for (int k = 0; k < 3; k++)
+        if (_objMode == ObjMode.Move)
+            for (int k = 0; k < 3; k++)
+            {
+                var d = GizmoDirs[k]; var tip = c + d * L;
+                Col(hot == k + 1 ? Color.White : cols[k]);
+                GL.Begin(PrimitiveType.Lines); V(c); V(tip); GL.End();
+                var u = Vector3.Normalize(Vector3.Cross(d, k == 1 ? Vector3.UnitX : Vector3.UnitY)); var w = Vector3.Cross(d, u);
+                GL.Begin(PrimitiveType.TriangleFan); V(c + d * L * 1.18f);
+                for (int i = 0; i <= 8; i++) { float t = i / 8f * MathF.Tau; V(tip + (u * MathF.Cos(t) + w * MathF.Sin(t)) * L * 0.06f); }
+                GL.End();
+            }
+        if (_objMode == ObjMode.Size)
         {
-            var d = GizmoDirs[k]; var tip = c + d * L;
-            Col(hot == k + 1 ? Color.White : cols[k]);
-            GL.Begin(PrimitiveType.Lines); V(c); V(tip); GL.End();
-            var u = Vector3.Normalize(Vector3.Cross(d, k == 1 ? Vector3.UnitX : Vector3.UnitY)); var w = Vector3.Cross(d, u);
-            GL.Begin(PrimitiveType.TriangleFan); V(c + d * L * 1.18f);
-            for (int i = 0; i <= 8; i++) { float t = i / 8f * MathF.Tau; V(tip + (u * MathF.Cos(t) + w * MathF.Sin(t)) * L * 0.06f); }
-            GL.End();
+            // alças de tamanho: linha + quadrado na ponta (como no Blender) e um quadrado no meio
+            for (int k = 0; k < 3; k++)
+            {
+                var tip = c + GizmoDirs[k] * L;
+                Col(hot == k + 5 ? Color.White : cols[k]);
+                GL.Begin(PrimitiveType.Lines); V(c); V(tip); GL.End();
+                Cube(tip, L * 0.07f);
+            }
+            Col(hot == 8 ? Color.White : Color.FromArgb(220, 220, 220));
+            Cube(c, L * 0.06f);
         }
         // anel de girar: dourado (branco com o mouse em cima ou girando), riscos a cada 45° e a bolinha na frente do objeto
-        if (_objPos is null && TurnRing() is { } ring)
+        if (_objMode == ObjMode.Turn && TurnRing() is { } ring)
         {
             bool on = hot == 4;
             GL.LineWidth(on ? 4.5f : 3);
@@ -956,6 +1127,7 @@ internal sealed partial class WorldView
     /// <summary>Número do giro em cima da bolinha enquanto gira.</summary>
     void ObjGizmoLabels()
     {
+        if (_objAxis >= 5 && SelDraft is { } so) { DrawLabel($"{so.Now.Scale:0.00}×", V3(_scaleC) + new Vector3(0, GizmoSize(V3(_scaleC)) * 1.3f, 0), Color.White); return; }
         if (_objAxis != 4 || TurnRing() is not { } ring) return;
         var f = new Vector3(MathF.Sin(ring.Yaw), 0, MathF.Cos(ring.Yaw));
         DrawLabel($"{ring.Yaw * 180 / MathF.PI:0}°", ring.C + f * ring.R + new Vector3(0, GizmoSize(ring.C) * 0.25f, 0), Color.White);

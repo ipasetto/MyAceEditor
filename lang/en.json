@@ -5781,5 +5781,13 @@
   "world.savedBar": "Saved",
   "obj.turning": "Turning: {0:0}° (5° steps; Shift = 15°, Ctrl = free)",
   "gizmo.turning2": "Turning: {0:0}° (5° steps; Shift = 15°, Ctrl = free)",
-  "obj.turnedRing": "Turned to {0:0}° (not saved yet; Ctrl+Z undoes)"
+  "obj.turnedRing": "Turned to {0:0}° (not saved yet; Ctrl+Z undoes)",
+  "obj.modeMove": "Move",
+  "obj.modeTurn": "Rotate",
+  "obj.modeSize": "Size",
+  "obj.modeMoveTip": "X, Y and Z arrows: drag an arrow to move along that axis.",
+  "obj.modeTurnTip": "Ring at the base: drag the ring or the dot to rotate (5° steps; Shift = 15°, Ctrl = free).",
+  "obj.modeSizeTip": "Handles with a square: drag to make it bigger or smaller. The game uses the same size on all three axes.",
+  "obj.sizing": "Size: {0:0.00}× (0.05 steps; Shift = 0.25, Ctrl = free)",
+  "obj.sized": "Size {0:0.00}× (not saved yet; Ctrl+Z undoes)"
 }

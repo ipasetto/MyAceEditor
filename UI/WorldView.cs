@@ -245,7 +245,7 @@ internal sealed partial class WorldView : Form
             }
             // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
             if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
-            { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; if (oax == 4) StartTurn(e.Location); return; }
+            { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; if (oax == 4) StartTurn(e.Location); else if (oax >= 5) StartScale(e.Location); return; }
             if (e.Button == MouseButtons.Left && _tool != Tool.Scene && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
             {
                 _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null; _gizmoSize = null;

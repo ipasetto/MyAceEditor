@@ -5783,5 +5783,13 @@
   "world.savedBar": "已保存",
   "obj.turning": "旋转：{0:0}°（每步 5°；Shift = 15°，Ctrl = 自由）",
   "gizmo.turning2": "旋转：{0:0}°（每步 5°；Shift = 15°，Ctrl = 自由）",
-  "obj.turnedRing": "已旋转到 {0:0}°（尚未保存；Ctrl+Z 撤销）"
+  "obj.turnedRing": "已旋转到 {0:0}°（尚未保存；Ctrl+Z 撤销）",
+  "obj.modeMove": "移动",
+  "obj.modeTurn": "旋转",
+  "obj.modeSize": "大小",
+  "obj.modeMoveTip": "X、Y、Z 箭头：拖动箭头沿该轴移动。",
+  "obj.modeTurnTip": "底部的圆环：拖动圆环或圆点来旋转（每步 5°；Shift = 15°，Ctrl = 自由）。",
+  "obj.modeSizeTip": "带方块的手柄：拖动来放大或缩小。游戏在三个轴上使用相同的大小。",
+  "obj.sizing": "大小：{0:0.00}×（每步 0.05；Shift = 0.25，Ctrl = 自由）",
+  "obj.sized": "大小 {0:0.00}×（尚未保存；Ctrl+Z 撤销）"
 }
