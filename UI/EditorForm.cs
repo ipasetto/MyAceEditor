@@ -3234,9 +3234,10 @@ public sealed class EditorForm : Form
             : f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? TasksFile.SplitColor(h.Item.Name).Text : null;
         public string? ElementDir => f._dataPath is { } dp ? Path.GetDirectoryName(Path.GetDirectoryName(dp)) : null;
         public Bitmap? TipImage(int id) => f.TipImage(id);
+        public Image? ItemModel(int id, float yaw) => f.ItemModel(id, yaw);
         public (int Id, int Quantity)? PickItemId(IWin32Window owner, bool quantity)
         {
-            using var w = new ItemSearchWindow(AllItems(), ItemIcon, quantity, f.TipImage, f.FavoriteIds(), f.RecentIds(), fav: f.ItemFavorites());
+            using var w = new ItemSearchWindow(AllItems(), ItemIcon, quantity, f.TipImage, f.FavoriteIds(), f.RecentIds(), model: f.ItemModel, fav: f.ItemFavorites());
             if (w.ShowDialog(owner) != DialogResult.OK) return null;
             f.NotePicked(w.Picked);
             return (w.Picked, w.Quantity);
@@ -3833,7 +3834,7 @@ public sealed class EditorForm : Form
     private int? PickShopItem(IWin32Window owner, int current)
     {
         IQuestHost host = new QuestHostImpl(this);
-        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds(), fav: ItemFavorites());
+        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds(), model: ItemModel, fav: ItemFavorites());
         if (w.ShowDialog(owner) != DialogResult.OK) return null;
         NotePicked(w.Picked);
         return w.Picked;
@@ -3845,6 +3846,19 @@ public sealed class EditorForm : Form
         if (CreatureItem(id) is not { } c) return null;
         int at = IconIndexFor(c.Item);
         return at >= 0 ? _treeIcons.Images[at] : null;
+    }
+
+    /// <summary>
+    /// Prévia 3D de um item na janela de escolher: arma na mão (file_model_right/left), depois o modelo do item (file_model)
+    /// e por fim o que cai no chão (file_matter). Só .ecm abre; sem modelo = null (a janela mostra o ícone grande).
+    /// </summary>
+    internal Image? ItemModel(int id, float yaw)
+    {
+        if (_refs?.Resolve(FieldKind.ItemRef, id.ToString()) is not { } h) return null;
+        foreach (var key in new[] { "file_model_right", "file_model_left", "file_model", "file_matter" })
+            if (h.Item.Fields.FirstOrDefault(x => x.Key == key).Value?.Value is { Length: > 0 } fm && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase)
+                && ModelPreviewer()?.Render(fm, 240, yaw) is { } img) return img;
+        return null;
     }
 
     private Image? CreatureModel(int id, float yaw) =>
@@ -3997,6 +4011,21 @@ public sealed class EditorForm : Form
             w.DrawToBitmap(b, new Rectangle(0, 0, w.Width, w.Height));
             b.Save(Path.Combine(dir, "jav-creature.png"));
         }
+        // JAV de itens: prévia 3D (arma) e item sem modelo (ícone grande + aviso), estrela no mesmo lugar das outras JAVs
+        var irows = (m.FindListByName("WEAPON_ESSENCE")?.Items ?? []).Take(20).Concat((m.FindListByName("MATERIAL_ESSENCE")?.Items ?? []).Take(5))
+            .Select(i => (int.Parse(i.Id), TasksFile.SplitColor(i.Name).Text, "x")).ToList();
+        if (irows.Count > 0)
+            using (var w = new ItemSearchWindow(irows, host.ItemIcon, askQuantity: false, model: ItemModel, fav: ItemFavorites()) { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
+            {
+                w.Show(); Application.DoEvents();
+                foreach (var (row, file) in new[] { (2, "jav-item-model.png"), (irows.Count - 1, "jav-item-nomodel.png") })
+                {
+                    w.ShotModel(irows[row].Item1); w.SelectRow(row); Application.DoEvents();
+                    using var b = new Bitmap(w.Width, w.Height);
+                    w.DrawToBitmap(b, new Rectangle(0, 0, w.Width, w.Height));
+                    b.Save(Path.Combine(dir, file));
+                }
+            }
         using (var w = new RecipeWindow(host, make.Goods[0][0]) { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
         {
             w.Show(); Application.DoEvents();

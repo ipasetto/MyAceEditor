@@ -5756,5 +5756,6 @@
   "is.noFavStar": "没有收藏：选一行并点击星标 ☆",
   "is.favSaveFail": "无法保存收藏（设置文件夹无法访问？）。",
   "is.favNoData": "请先打开 elements.data。",
-  "is.favNoItem": "这个物品不在此 elements.data 中。"
+  "is.favNoItem": "这个物品不在此 elements.data 中。",
+  "is.noModel": "（没有 3D 模型）"
 }

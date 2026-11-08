@@ -30,7 +30,6 @@ Legenda: ✅ pronto · ⬜ a fazer · 🔴 difícil
 - ⬜ 🔴 **Editor de mapas no Mundo 3D**: terreno, textura do chão, grama, árvores, construções e objetos, e gerar
   de novo a colisão e a passagem do servidor (`map.bht`, `rmap`, `dhmap`). Roteiro em
   [MUNDO-3D-EDITOR.md](MUNDO-3D-EDITOR.md)
-- ⬜ Painel do GM: mandar item pelo correio
 
 ---
 

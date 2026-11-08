@@ -5754,5 +5754,6 @@
   "is.noFavStar": "Нет избранного: выберите строку и нажмите звезду ☆",
   "is.favSaveFail": "Не удалось сохранить избранное (нет доступа к папке настроек?).",
   "is.favNoData": "Сначала откройте elements.data.",
-  "is.favNoItem": "Этого предмета нет в этом elements.data."
+  "is.favNoItem": "Этого предмета нет в этом elements.data.",
+  "is.noModel": "(нет 3D-модели)"
 }

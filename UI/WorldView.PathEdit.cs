@@ -125,7 +125,6 @@ internal sealed partial class WorldView
             if (SelectedMark() is { } m && AreaOf(m.Tag) is { } ar && (ar.Sx > 0 || ar.Sz > 0)) { ResizeArea?.Invoke(m.Tag, 0, 0); RefreshMarkers(); UpdatePathPanel(); _gl.Invalidate(); }
         });
         _pathDraw = SmallButton("\uE70F", Loc.T("path.draw", "Desenhar caminho novo"), StartDraw);
-        _pathsPage.Controls.Add(_pathPickRed);
         _pathDone = SmallButton("\uE73E", Loc.T("path.done2", "Terminar o desenho"), FinishDraw, main: true);
         _pathCancel = SmallButton("\uE711", Loc.T("path.cancel", "Cancelar o desenho (Esc)"), CancelDraw);
         _pathDel = SmallButton("\uE74D", Loc.T("path.delete3", "Apagar o caminho"), DeletePath);
@@ -142,7 +141,7 @@ internal sealed partial class WorldView
         _toolTip.SetToolTip(_pathSave, "path.sev");
         _pathFix = SmallButton("\uE7BA", "", FixDeadPaths);
         _toolTip.SetToolTip(_pathFix, Loc.T("path.fixDeadTip", "Estes pontos citam um caminho que não existe no path.sev. Eles voltam a andar na área deles."));
-        foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathHint, _areaNone, _pathAirHint, _flyMark, _pathDraw, _pathDone, _pathCancel,
+        foreach (var c in new Control[] { _pathName, _pathStep1, _modeArea, _modePath, _pathStep2, _pathPickRed, _pathHint, _areaNone, _pathAirHint, _flyMark, _pathDraw, _pathDone, _pathCancel,
                      _loopBox, _pathDel, _pathState, _pathUndo, _pathRedo, _pathSave, _pathFix })
             _pathsPage.Controls.Add(c);
         // um quadro por assunto: quem anda, como anda, o caminho, salvar
@@ -157,6 +156,7 @@ internal sealed partial class WorldView
             }
             _pathsPage.Controls.Remove(c);
             card.Controls.Add(c);
+            FitInCard(c);
         }
         FormClosing += (_, e) =>
         {
@@ -165,6 +165,18 @@ internal sealed partial class WorldView
             if (r == DialogResult.Cancel) e.Cancel = true; else if (r == DialogResult.Yes) SavePaths();
         };
         UpdatePathPanel();
+    }
+
+    /// <summary>
+    /// Cabe no quadro: botões de 250 px num quadro de 246 com margem passavam da largura do painel e apareciam barras de
+    /// rolagem brancas embaixo (usuário 08/11). Largura útil do quadro = 228 px.
+    /// </summary>
+    static void FitInCard(Control c)
+    {
+        const int W = 228;
+        if (c is Label l) { if (l.MaximumSize.Width == 0 || l.MaximumSize.Width > W) l.MaximumSize = new Size(W, 0); }
+        else if (c.Width > W) c.Width = W;
+        foreach (Control k in c.Controls) FitInCard(k);
     }
 
     /// <summary>Modo pedido agora: patrulha quando tem caminho ou está desenhando um.</summary>

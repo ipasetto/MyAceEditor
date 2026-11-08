@@ -86,6 +86,8 @@ internal interface IQuestHost
     Image? ItemIcon(int id) => null;
     /// <summary>Linhas da dica do item, como na lista do editor de elements.</summary>
     Bitmap? TipImage(int id) => null;
+    /// <summary>Prévia 3D do item (arma, armadura, objeto no chão) para a janela de escolher; null = sem modelo.</summary>
+    Image? ItemModel(int id, float yaw) => null;
     /// <summary>Pasta element do cliente aberto.</summary>
     string? ElementDir => null;
     bool IsNpc(int id);

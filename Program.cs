@@ -1346,6 +1346,7 @@ internal static class Program
             var until = DateTime.Now.AddSeconds(14);
             while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(30); }
             f.CreateShots(args[1]);
+            Environment.Exit(0);   // termina mesmo com janelas ou carregamento em segundo plano
             return;
         }
         if (args.Length >= 2 && args[0] == "--snapshot") { Snapshot(args[1], args.Length >= 3 ? args[2] : null, args.Length >= 5 ? (args[3], args[4]) : null, args.Length >= 6 ? args[5] : null); return; }

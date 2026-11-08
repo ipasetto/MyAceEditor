@@ -26,7 +26,8 @@ internal sealed class ItemSearchWindow : Form
     readonly System.Windows.Forms.Timer _later = new() { Interval = 700 };
     readonly System.Windows.Forms.Timer _modelWait = new() { Interval = 180 };
     readonly Dictionary<int, int> _tries = [];
-    bool _missing;
+    bool _missing, _hasIcon;
+    Bitmap? _noModel;   // ícone ampliado quando o item não tem modelo 3D
     int _modelId;
     float _yaw;
 
@@ -45,7 +46,9 @@ internal sealed class ItemSearchWindow : Form
     public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null, JavFavorites? fav = null)
     {
         _fav = fav;
-        _all = items; _icon = icon ?? (_ => null); _model = model;
+        _all = items; _icon = icon ?? (_ => null); _hasIcon = icon is not null; _model = model;
+        // sem piscar: a lista redesenha num quadro fora da tela (o ListView não liga isso sozinho)
+        typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(_list, true);
         if (tip is not null) _tip = new ItemTipHost(this, tip);
         var known = _known = items.Select(i => i.Id).ToHashSet();
         _favList = (favorites ?? []).Where(known.Contains).ToList();
@@ -86,7 +89,7 @@ internal sealed class ItemSearchWindow : Form
         _list.MouseLeave += (_, _) => _tip?.Hide();
         _list.SelectedIndexChanged += (_, _) => { if (_list.SelectedIndices.Count > 0 && _list.SelectedIndices[0] < _rows.Count) ShowModelLater(_rows[_list.SelectedIndices[0]].Id); UpdateStar(); };
         _star.Click += (_, _) => ToggleStar();
-        FormClosed += (_, _) => { _starTip.Dispose(); _tip?.Dispose(); _later.Dispose(); _modelWait.Dispose(); };
+        FormClosed += (_, _) => { _noModel?.Dispose(); _starTip.Dispose(); _tip?.Dispose(); _later.Dispose(); _modelWait.Dispose(); };
         // miniatura de monstro e NPC é feita em segundo plano: pede de novo as que ainda não chegaram
         _later.Tick += (_, _) => { if (!_missing) return; _missing = false; _list.Invalidate(); };
         _later.Start();
@@ -154,6 +157,7 @@ internal sealed class ItemSearchWindow : Form
     }
 
     /// <summary>Teste: escolhe a linha e clica na estrela.</summary>
+    internal void SelectRow(int row) { _list.SelectedIndices.Clear(); _list.SelectedIndices.Add(row); UpdateStar(); }
     internal void StarTest(int row) { _list.SelectedIndices.Clear(); _list.SelectedIndices.Add(row); UpdateStar(); ToggleStar(); }
     internal string StarText => _star.Visible ? _star.Text : "";
 
@@ -179,8 +183,27 @@ internal sealed class ItemSearchWindow : Form
     void DrawModel()
     {
         if (_model is null || _modelId <= 0) return;
-        _pic.Image = _model(_modelId, _yaw);   // a imagem é da cache do ModelPreview: não descartar aqui
-        _picName.Text = _all.FirstOrDefault(r => r.Id == _modelId).Name;
+        Image? img = null;
+        try { img = _model(_modelId, _yaw); }   // a imagem é da cache do ModelPreview: não descartar aqui
+        catch (Exception ex) { MyAceEditor.PerfectWorld.AppLog.Error("JAV: prévia 3D " + _modelId, ex); }
+        string name = _all.FirstOrDefault(r => r.Id == _modelId).Name;
+        if (img is null)
+        {
+            // sem modelo 3D (ou não deu para abrir): mostra o ícone grande e avisa, em vez de deixar a prévia vazia
+            _noModel?.Dispose(); _noModel = null;
+            if (_icon(_modelId) is { } ic)
+            {
+                _noModel = new Bitmap(128, 128);
+                using var g = Graphics.FromImage(_noModel);
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor; g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                g.DrawImage(ic, 0, 0, 128, 128);
+            }
+            _pic.Image = _noModel;
+            _picName.Text = name + Environment.NewLine + Loc.T("is.noModel", "(sem modelo 3D)");
+            return;
+        }
+        _pic.Image = img;
+        _picName.Text = name;
     }
 
     void DrawBlock(object? s, DrawItemEventArgs e)
@@ -209,6 +232,7 @@ internal sealed class ItemSearchWindow : Form
         bool sel = e.Item?.Selected == true;
         using var back = new SolidBrush(sel ? UiKit.Accent : Bg);
         e.Graphics.FillRectangle(back, e.Bounds);
+        if (e.ColumnIndex == 0 && !_hasIcon) return;   // sem ícones (ex.: árvores): nada a pedir de novo (antes redesenhava a lista a cada 0,7 s por 1 minuto)
         if (e.ColumnIndex == 0 && e.ItemIndex < _rows.Count)
         {
             int id = _rows[e.ItemIndex].Id;

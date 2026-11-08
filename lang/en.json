@@ -5754,5 +5754,6 @@
   "is.noFavStar": "No favorites: pick a row and click the star ☆",
   "is.favSaveFail": "Could not save the favorite (settings folder without access?).",
   "is.favNoData": "Open an elements.data first.",
-  "is.favNoItem": "That item is not in this elements.data."
+  "is.favNoItem": "That item is not in this elements.data.",
+  "is.noModel": "(no 3D model)"
 }

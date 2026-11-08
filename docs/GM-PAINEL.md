@@ -20,7 +20,7 @@
 ## Funções (os 4 grupos)
 - Meu personagem: teleporte, invisível, invencível, nível +1 / máximo com renascimentos, moedas, EXP, cultivo,
   skills sem recarga, item pelo ID, limpar inventário, espaços do inventário.
-- Jogadores: online (mapa/posição), ir até, puxar, expulsar, calar, banir/desbanir, item/moedas por correio, dados.
+- Jogadores: online (mapa/posição), ir até, puxar, expulsar, calar, banir/desbanir, dados (correio descartado pelo usuário em 08/11).
 - Mundo: aviso geral, EXP/drop/moedas em dobro, gerar monstro/NPC, spawner/evento, matar monstros do mapa,
   mapas/instâncias, reiniciar com contagem.
 - Testar conteúdo: dar/completar/zerar quest pelo ID, ir até o NPC/área da quest, criar item, invocar monstro,
@@ -43,7 +43,7 @@
   d 10802 id qtd tempo 0, d 10857 id qtd tempo, d 10855 10855, d_settimeofday h,mm; gm_showid, gm_online_num,
   gm_moveto_player id, gm_callin_player id, gm_kickout_role id s "motivo", gm_shutup_role id s "motivo",
   gm_forbid_role 100|102 id s "motivo", gm_broadcast "texto", gm_restart_sev s.
-- Ainda não: dar/completar/zerar quest (não achei comando do console para isso), correio, EXP/drop em dobro, lista
+- Ainda não: dar/completar/zerar quest (não achei comando do console para isso), EXP/drop em dobro, lista
   de quem está online com nomes (gm_list_user não faz nada no cliente 1.5.3).
 
 ## Teste do usuário 29/10 e correções
@@ -89,6 +89,6 @@
 - Direção: fazer tudo por um plugin no servidor (conta conferida na tabela `auth`), com janela própria do GM. Proposta aguardando confirmação do usuário.
 
 ## Opções para o GM no 1.5.5 (05/11/2026, aguardando decisão)
-- A. Painel melhorado: barra flutuante presa à janela do jogo, atalhos globais, teleporte por lista de mapas e locais salvos, ações por personagem (correio, punir) sem console, histórico. Sem mexer no cliente; continua digitando no console para o que só o gs faz.
+- A. Painel melhorado: barra flutuante presa à janela do jogo, atalhos globais, teleporte por lista de mapas e locais salvos, ações por personagem (punir) sem console, histórico. Sem mexer no cliente; continua digitando no console para o que só o gs faz.
 - B. Biblioteca no cliente: DLL carregada só pelo lançador do GM; manda os comandos direto, sem teclas, lê o estado do jogo e pode desenhar janela dentro do jogo. Depende de achar as funções no exe 155 (sem símbolos) e de conferir o logiccheck.dll e o gacd.
 - O gs 162-155 aceita d N só de GM. Teleporte entre mapas: d 8888 tag x z 0.

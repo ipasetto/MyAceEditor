@@ -25,7 +25,6 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [ ] servidor: gerar de novo map.bht / rmap / dhmap depois de mexer em terreno ou objeto solido
            (obrigatorio antes de liberar terreno e objetos; sem isso o servidor anda no relevo antigo)
        [ ] passagem dos NPCs e voo (mapa de passagem, octree)
-[ ] 3. Painel do GM: mandar item pelo correio (SysSendMail)
 Depois (sem data): ferramenta de portabilidade (1.5.5 parecendo versao antiga), so apos entrevista com o usuario.
 
 ## PRONTO (conferido pelo usuario)
