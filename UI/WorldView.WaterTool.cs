@@ -128,10 +128,14 @@ internal sealed partial class WorldView
         return a;
     }
 
-    bool WaterMouseDown(MouseEventArgs e)
+    /// <summary>
+    /// Clique (soltar sem arrastar) no modo água: escolhe ou põe. Arrastar continua girando a câmera (antes o apertar era
+    /// todo da água e a câmera não girava; teste do usuário 08/11).
+    /// </summary>
+    bool WaterMouseUp(MouseEventArgs e)
     {
-        if (_tool != Tool.Terrain || _waterMode == 0) return false;
-        if (e.Button != MouseButtons.Left) return true;   // nas ferramentas o clique direito não faz nada
+        if (_tool != Tool.Terrain || _waterMode == 0 || e.Button != MouseButtons.Left) return false;
+        if (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4) return false;   // arrastou: foi a câmera
         if (Ray(e.Location) is not { } g || WaterEd is not { } w) return true;
         if (_waterMode == 1)
         {

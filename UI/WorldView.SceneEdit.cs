@@ -58,7 +58,14 @@ internal sealed partial class WorldView
                 || name.Equals("map.bht", StringComparison.OrdinalIgnoreCase) && full.Contains(sep + _t.Name + sep, StringComparison.OrdinalIgnoreCase);
         });
         if (files.Any(f => f.EndsWith(".t2mk", StringComparison.OrdinalIgnoreCase) && Path.GetFileName(f).StartsWith(_t.Name + "_", StringComparison.OrdinalIgnoreCase)))
-            BeginInvoke(() => { var ps = files.Select(f => Path.GetFileNameWithoutExtension(f)).Select(n => int.TryParse(n[(n.LastIndexOf('_') + 1)..], out int p) ? p : 0).Where(p => p > 0).ToList(); _terrainDraft = null; foreach (var (ar, ac) in _t.ClearGround(ps)) _terrain.RefreshGround(ar, ac); TexLabels(); _gl.Invalidate(); });
+            BeginInvoke(() => { var ps = files.Select(f => Path.GetFileNameWithoutExtension(f)).Select(n => int.TryParse(n[(n.LastIndexOf('_') + 1)..], out int p) ? p : 0).Where(p => p > 0).ToList(); _terrainDraft = null; foreach (var k in _t.ClearGround(ps)) _groundPending.Add(k); TexLabels(); _gl.Invalidate(); });
+        // altura e água do terreno voltaram: relê do disco (sem rascunho do terreno)
+        int PieceOf(string f) { var n = Path.GetFileNameWithoutExtension(f); return int.TryParse(n[(n.LastIndexOf('_') + 1)..], out int p) ? p : 0; }
+        var hp = files.Where(f => f.EndsWith(".t2bk", StringComparison.OrdinalIgnoreCase) && Path.GetFileName(f).StartsWith(_t.Name + "_", StringComparison.OrdinalIgnoreCase)).Select(PieceOf).Where(p => p > 0).ToList();
+        bool water = files.Any(f => full(f).StartsWith(mapDir, StringComparison.OrdinalIgnoreCase) && (f.EndsWith(".ecwld", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".dat", StringComparison.OrdinalIgnoreCase)));
+        static string full(string f) => Path.GetFullPath(f);
+        if (hp.Count > 0 || water)
+            BeginInvoke(() => { _terrainDraft = null; if (hp.Count > 0) _terrain.RefreshHeights(_t.ForgetHeights(hp)); if (water) _clientWater = null; if (_grass.Scene is { } gs) _grass.Invalidate(gs.Grass, true); TexLabels(); WaterLabels(); _gl.Invalidate(); });
         if (!mine) return;
         if (InvokeRequired) { BeginInvoke(ReloadFromDisk); return; }
         ReloadFromDisk();

@@ -142,7 +142,6 @@ internal sealed partial class WorldView
 
     bool TerrainMouseDown(MouseEventArgs e)
     {
-        if (WaterMouseDown(e)) return true;
         if (_tool != Tool.Terrain || !TexOn) return false;
         if (e.Button == MouseButtons.Right) { _texActive = false; _sculpt = -1; TexLabels(); _gl.Invalidate(); return true; }
         if (e.Button != MouseButtons.Left || Ray(e.Location) is not { } g) return e.Button == MouseButtons.Left;
@@ -204,8 +203,18 @@ internal sealed partial class WorldView
         foreach (var (ar, ac) in areas)
         {
             _t.SetGround(ar, ac, d.Layers(ar, ac));
-            _terrain.RefreshGround(ar, ac);
+            _groundPending.Add((ar, ac));   // a placa recebe no próximo quadro, com o contexto certo e uma vez só
         }
+    }
+
+    readonly HashSet<(int, int)> _groundPending = new();
+
+    /// <summary>No desenho (contexto do OpenGL ativo): manda as máscaras pintadas desde o último quadro.</summary>
+    void FlushGround()
+    {
+        if (_groundPending.Count == 0) return;
+        foreach (var (ar, ac) in _groundPending) _terrain.RefreshGround(ar, ac);
+        _groundPending.Clear();
     }
 
     bool TerrainUndo(bool redo)
@@ -267,7 +276,7 @@ internal sealed partial class WorldView
         if (_terrainDraft is { } td) { while (td.UndoCount > 0 && td.Undo(false) is { } a) _terrain.RefreshHeights(a); }
         _terrainDraft = null; _texActive = false; _sculpt = -1; _texDown = false; _waterMode = 0; _waterSel = -1;
         _clientWater = null;   // relê a água do disco
-        foreach (var (ar, ac) in _t.ClearGround(pieces)) _terrain.RefreshGround(ar, ac);
+        foreach (var k in _t.ClearGround(pieces)) _groundPending.Add(k);
         if (_grass.Scene is { } gs) _grass.Invalidate(gs.Grass, true);
         TexLabels(); _gl.Invalidate();
     }
@@ -328,13 +337,22 @@ internal sealed partial class WorldView
         var cur = _t.Ground(a.Value.Ar, a.Value.Ac) ?? [];
         _texSel = Enumerable.Range(0, _t.TextureNames.Count).First(i => !cur.Any(l => l.Texture == _t.TextureNames[i]));
         _texActive = true; _texErase = false; _texStrength = 1; TexLabels();
-        d.BeginStroke(); _texDown = true; TexDab(at); TexDab(at + new System.Numerics.Vector3(3, 0, 0)); TerrainMouseUp();
+        for (int k = 0; k < 30; k++) CaptureFrame()?.Dispose();   // tudo carregado antes de medir
+        _texR = 49;
+        var fb = new List<int>();
+        d.BeginStroke(); _texDown = true;
+        for (int k = 0; k < 6; k++) { TexDab(at + new System.Numerics.Vector3(k, 0, 0)); CaptureFrame()?.Dispose(); fb.Add(_terrain.Fallbacks); }
+        TerrainMouseUp();
+        string flickT = string.Join(",", fb);
         int after = (_t.Ground(a.Value.Ar, a.Value.Ac) ?? []).Length;
         bool undo = TerrainUndo(false) && (_t.Ground(a.Value.Ar, a.Value.Ac) ?? []).Length == cur.Length;
         bool redo = TerrainUndo(true) && (_t.Ground(a.Value.Ar, a.Value.Ac) ?? []).Length == after;
         // altura: sobe 2 toques no ponto, Ctrl+Z volta
         float h0 = _t.HeightAt(at.X, at.Z) ?? 0;
-        _sculpt = 0; d.BeginStroke(); _texDown = true; _texStrength = 1; TexDab(at); _texLast = null; TexDab(at); TerrainMouseUp();
+        _sculpt = 0; d.BeginStroke(); _texDown = true; _texStrength = 1; fb.Clear();
+        for (int k = 0; k < 6; k++) { TexDab(at); _texLast = null; CaptureFrame()?.Dispose(); fb.Add(_terrain.Fallbacks); }
+        TerrainMouseUp();
+        string flickH = string.Join(",", fb);
         float h1 = _t.HeightAt(at.X, at.Z) ?? 0;
         bool hUndo = TerrainUndo(false) && MathF.Abs((_t.HeightAt(at.X, at.Z) ?? 0) - h0) < 1e-3f;
         TerrainUndo(true);
@@ -342,7 +360,7 @@ internal sealed partial class WorldView
         float h2 = _t.HeightAt(at.X, at.Z) ?? 0;
         var keys = d.Files(ServerConfigDir is { } sdir ? Path.Combine(sdir, _t.Name) : null).Keys.Select(Path.GetFileName).ToList();
         int files = keys.Count;
-        _heightTxt = $"altura {h0:0.00}->{h1:0.00} ctrlz={hUndo} plainar->{h2:0.00} arquivos=[{string.Join(", ", keys)}]";
+        _heightTxt = $"pisca textura={flickT} altura={flickH} | altura {h0:0.00}->{h1:0.00} ctrlz={hUndo} plainar->{h2:0.00} arquivos=[{string.Join(", ", keys)}]";
         _sculpt = -1;
         _heightTxt += " | " + DraftWaterTest(at + new System.Numerics.Vector3(60, 0, 0));
         for (int k = 0; k < 20; k++) CaptureFrame()?.Dispose();

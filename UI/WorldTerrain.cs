@@ -129,11 +129,15 @@ internal sealed class WorldTerrain : IDisposable
     public (int[] Pixels, int Width, int Height)? MinimapImage(int row, int col) =>
         ReadSurface($@"surfaces\minimaps\{_t.Name}\{row:00}{col:00}.dds") is { } d ? DdsDecoder.Decode(d) : null;
 
+    /// <summary>Diagnóstico: peças perto da câmera desenhadas sem a textura do chão no último quadro.</summary>
+    internal int Fallbacks;
+
     // ---------- desenho ----------
     public bool Draw(Vector3 cam, Vector3 forward)
     {
         if (!Visible) return false;
         bool busy = false;
+        Fallbacks = 0;
         float tileCells = TileM / _t.Cell, areaCells = TerrainFile.AreaM / _t.Cell;
         int per = (int)(TileM / TerrainFile.AreaM);
         var (cu, cv) = _t.ToGrid(cam.X, -cam.Z);
@@ -162,10 +166,10 @@ internal sealed class WorldTerrain : IDisposable
                     {
                         for (int ar = tr * per; ar < (tr + 1) * per; ar++)
                             for (int ac = tc * per; ac < (tc + 1) * per; ac++)
-                                if (_near[(ar, ac)] is { } m && !(_ground[(ar, ac)] is { } g && DrawGround(m, g, ar, ac))) DrawMinimap(m, tr, tc);
+                                if (_near[(ar, ac)] is { } m && !(_ground[(ar, ac)] is { } g && DrawGround(m, g, ar, ac))) { DrawMinimap(m, tr, tc); Fallbacks++; }
                         continue;
                     }
-                    busy = true;
+                    busy = true; Fallbacks++;
                 }
                 if (!_far.TryGetValue((tr, tc), out var fm)) { RequestFar(tr, tc, (int)tileCells, near); busy = true; continue; }
                 if (fm is not null) DrawMinimap(fm, tr, tc);
@@ -181,11 +185,14 @@ internal sealed class WorldTerrain : IDisposable
     internal void RefreshHeights(IEnumerable<(int Ar, int Ac)> areas)
     {
         int per = (int)(TileM / TerrainFile.AreaM);
+        int areaCells = (int)(TerrainFile.AreaM / _t.Cell), tileCells = (int)(TileM / _t.Cell);
         foreach (var k in areas)
         {
-            if (_near.TryGetValue(k, out var m)) { if (m is not null) { GL.DeleteBuffer(m.Vbo); GL.DeleteBuffer(m.Ibo); } _near.Remove(k); }
+            if (_nearWait.Contains(k)) _nearAgain.Add(k);
+            else if (_near.ContainsKey(k)) { _nearWait.Add(k); BuildNear(k.Ar, k.Ac, areaCells); }
             var tk = (k.Ar / per, k.Ac / per);
-            if (_far.TryGetValue(tk, out var fm)) { if (fm is not null) { GL.DeleteBuffer(fm.Vbo); GL.DeleteBuffer(fm.Ibo); } _far.Remove(tk); }
+            if (_farWait.Contains(tk)) _farAgain.Add(tk);
+            else if (_far.ContainsKey(tk)) { _farWait.Add(tk); BuildFar(tk.Item1, tk.Item2, tileCells, false); }
         }
     }
 
@@ -290,14 +297,38 @@ internal sealed class WorldTerrain : IDisposable
     void RequestFar(int tr, int tc, int tileCells, bool urgent)
     {
         if (!_farWait.Add((tr, tc))) return;
-        _load.Work(() => BuildGrid(tr * tileCells, tc * tileCells, tileCells, FarStep, tr, tc), g => { _farWait.Remove((tr, tc)); _far[(tr, tc)] = Upload(g); }, urgent);
+        BuildFar(tr, tc, tileCells, urgent);
+    }
+
+    // refazer malha (pincel de altura): a antiga continua na tela até a nova chegar (sem buraco piscando); uma por vez por
+    // peça; mexeu de novo enquanto montava = monta outra vez no fim com as alturas novas
+    readonly HashSet<(int, int)> _farAgain = new(), _nearAgain = new();
+
+    void BuildFar(int tr, int tc, int tileCells, bool urgent)
+    {
+        _load.Work(() => BuildGrid(tr * tileCells, tc * tileCells, tileCells, FarStep, tr, tc), g =>
+        {
+            if (_far.TryGetValue((tr, tc), out var old) && old is not null) { GL.DeleteBuffer(old.Vbo); GL.DeleteBuffer(old.Ibo); }
+            _far[(tr, tc)] = Upload(g);
+            if (_farAgain.Remove((tr, tc))) BuildFar(tr, tc, tileCells, false); else _farWait.Remove((tr, tc));
+        }, urgent);
+    }
+
+    void BuildNear(int ar, int ac, int areaCells)
+    {
+        int per = (int)(TileM / TerrainFile.AreaM);
+        _load.Work(() => BuildGrid(ar * areaCells, ac * areaCells, areaCells, 1, ar / per, ac / per), g =>
+        {
+            if (_near.TryGetValue((ar, ac), out var old) && old is not null) { GL.DeleteBuffer(old.Vbo); GL.DeleteBuffer(old.Ibo); }
+            _near[(ar, ac)] = Upload(g);
+            if (_nearAgain.Remove((ar, ac))) BuildNear(ar, ac, areaCells); else _nearWait.Remove((ar, ac));
+        }, true);
     }
 
     void RequestNear(int ar, int ac, int areaCells)
     {
         if (!_nearWait.Add((ar, ac))) return;
-        int per = (int)(TileM / TerrainFile.AreaM);
-        _load.Work(() => BuildGrid(ar * areaCells, ac * areaCells, areaCells, 1, ar / per, ac / per), g => { _nearWait.Remove((ar, ac)); _near[(ar, ac)] = Upload(g); }, true);
+        BuildNear(ar, ac, areaCells);
     }
 
     void RequestGround(int ar, int ac)

@@ -265,6 +265,7 @@ internal sealed partial class WorldView : Form
             if (PathMouseUp(e)) return;
             if (BrushMouseUp()) return;   // fim da pincelada = um passo de Ctrl+Z
             if (TerrainMouseUp()) return;
+            if (WaterMouseUp(e)) return;   // água: clique sem arrastar escolhe ou põe
             if (LightMouseUp()) return;   // soltou a seta da luz
             if (ObjGizmoUp()) return;
             if (_gizmoAxis > 0)
@@ -663,6 +664,7 @@ internal sealed partial class WorldView : Form
         // terreno só de cima (faces da frente sobem: a→d→b), como o jogo: visto de baixo, a tampa das cavernas some.
         // O "teto" das instâncias (a35, a24, a27) não é terreno — é o céu da área (A3DSkySphere com texturas de pedra).
         GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(FrontFaceDirection.Ccw);
+        FlushGround();
         bool terrainBusy = _terrain.Draw(_cam, Forward);
         GL.Disable(EnableCap.CullFace);
 

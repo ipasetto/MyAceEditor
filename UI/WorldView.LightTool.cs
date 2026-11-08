@@ -85,8 +85,8 @@ internal sealed partial class WorldView
         var del = SmallButton("", Loc.T("world.objDelete", "Apagar"), DeleteLight); del.Width = 232; del.Margin = new Padding(0, 6, 0, 6);
         colors.Controls.Add(_lightColorBtn); colors.Controls.Add(_lightAmbBtn); colors.Controls.Add(_lightNight); colors.Controls.Add(del);
         foreach (var c in new Control[] { colors, row, grid }) _lightCard.Controls.Add(c);
-        var note = new Label { Dock = DockStyle.Top, Height = 58, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Padding = new Padding(0, 6, 0, 0),
-            Text = Loc.T("light.note", "No jogo a luz pinta personagens, NPCs e monstros que passam perto. O chão e as construções já vêm com a luz pronta. Grava no Salvar cenário.") };
+        var note = new Label { Dock = DockStyle.Top, Height = 92, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Padding = new Padding(0, 6, 0, 0),
+            Text = Loc.T("light.note2", "No jogo a luz pinta personagens, NPCs e monstros que passam perto (o brilho no chão aqui é só a prévia da cor e do alcance; com \"só à noite\" ela acende de noite). O chão e as construções já vêm com a luz pronta. Grava no Salvar cenário.") };
         foreach (var c in new Control[] { note, _lightCard, modes, _lightTitle }) _lightPanel.Controls.Add(c);
         FitLightPanel();
     }
@@ -247,7 +247,7 @@ internal sealed partial class WorldView
             if (Project(new Vector3(p.X, p.Y, p.Z)) is { } q && MathF.Sqrt((q.X - e.X) * (q.X - e.X) + (q.Y - e.Y) * (q.Y - e.Y)) is var dd && dd < bd) { bd = dd; best = i; }
         }
         if (best < 0) return false;   // clique no vazio: a câmera gira normalmente (a escolha sai no soltar, sem arrastar)
-        _lightSel = best; ShowLightCard(); _gl.Invalidate();
+        _lightSel = best; _lightPicked = true; ShowLightCard(); _gl.Invalidate();
         return true;
     }
 
@@ -273,8 +273,11 @@ internal sealed partial class WorldView
         return false;
     }
 
+    bool _lightPicked;   // o apertar escolheu uma lâmpada: o soltar não pode tirar a escolha (usuário 08/11: não dava para clicar de novo)
+
     bool LightMouseUp()
     {
+        if (_lightPicked) { _lightPicked = false; return true; }
         if (_lightAxis == 0) return false;
         if (_lightDrag is { } d && _lightSel >= 0) EditLight(l => l with { Pos = d });
         _lightAxis = 0; _lightDrag = null; _gl.Invalidate();
@@ -343,6 +346,35 @@ internal sealed partial class WorldView
                 GL.Begin(PrimitiveType.Lines); GL.Vertex3(Gl(p.X, p.Y, p.Z)); GL.Vertex3(Gl(p.X, g, p.Z)); GL.End();
             }
         }
+        // prévia do efeito: brilho no chão com a cor e o alcance da luz (no jogo a luz da cena só ilumina personagens, NPCs
+        // e monstros; o chão e as construções usam a luz gravada no mapa)
+        GL.Enable(EnableCap.DepthTest); GL.DepthMask(false);
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
+        GL.Enable(EnableCap.PolygonOffsetFill); GL.PolygonOffset(-2, -2);
+        for (int i = 0; i < _lights.Count; i++)
+        {
+            var l = _lights[i]; var p = i == _lightSel && _lightDrag is { } dd ? dd : l.Pos;
+            if ((Gl(p.X, p.Y, p.Z) - _cam).LengthSquared > 400 * 400 || l.Range <= 0) continue;
+            var c = ToColor(l.Diffuse);
+            float r = MathF.Min(l.Range, 120);
+            const int Seg = 32, Ring = 6;
+            for (int k = 0; k < Ring; k++)
+            {
+                float r0 = r * k / Ring, r1 = r * (k + 1) / Ring;
+                float a0 = 0.45f * (1 - (float)k / Ring), a1 = 0.45f * (1 - (float)(k + 1) / Ring);
+                GL.Begin(PrimitiveType.QuadStrip);
+                for (int s = 0; s <= Seg; s++)
+                {
+                    float t = s / (float)Seg * MathF.Tau, sx = MathF.Sin(t), cz = MathF.Cos(t);
+                    float x1 = p.X + sx * r1, z1 = p.Z + cz * r1, x0 = p.X + sx * r0, z0 = p.Z + cz * r0;
+                    GL.Color4(c.R / 255f, c.G / 255f, c.B / 255f, a1); GL.Vertex3(Gl(x1, (_t.HeightAt(x1, z1) ?? p.Y) + 0.1f, z1));
+                    GL.Color4(c.R / 255f, c.G / 255f, c.B / 255f, a0); GL.Vertex3(Gl(x0, (_t.HeightAt(x0, z0) ?? p.Y) + 0.1f, z0));
+                }
+                GL.End();
+            }
+        }
+        GL.Disable(EnableCap.PolygonOffsetFill); GL.DepthMask(true); GL.Disable(EnableCap.Blend);
+        GL.Disable(EnableCap.DepthTest);
         for (int i = 0; i < _lights.Count; i++)
         {
             var l = _lights[i]; var p = i == _lightSel && _lightDrag is { } d ? d : l.Pos;

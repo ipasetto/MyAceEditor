@@ -92,6 +92,21 @@ public sealed class TerrainFile
     /// <summary>Lê as alturas do pedaço (1..Rows×Cols) agora — para a carga em segundo plano.</summary>
     public void Prefetch(int piece) { if (piece >= 1 && piece <= Rows * Cols) _ = PieceData(piece).Value; }
 
+    /// <summary>Esquece as alturas dos pedaços (backup restaurado: relê o .t2bk). Devolve as áreas de 256 m para refazer.</summary>
+    internal List<(int Ar, int Ac)> ForgetHeights(IEnumerable<int> pieces)
+    {
+        var list = new List<(int, int)>();
+        int per = (int)(CellsPerPiece * Cell / AreaM);
+        lock (_pieces)
+            foreach (int p in pieces)
+            {
+                _pieces.Remove(p);
+                int pr = (p - 1) / Cols, pc = (p - 1) % Cols;
+                for (int r = 0; r < per; r++) for (int c = 0; c < per; c++) list.Add((pr * per + r, pc * per + c));
+            }
+        return list;
+    }
+
     public bool PieceReady(int piece) { lock (_pieces) return _pieces.TryGetValue(piece, out var l) && l.IsValueCreated; }
 
     /// <summary>Pedaço (1..Rows×Cols) de uma posição do mundo; 0 fora do mapa.</summary>
