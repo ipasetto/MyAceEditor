@@ -63,3 +63,46 @@ Editor oficial (fonte em `D:/Perfect World/Estudo PW/CPW_Dev/CElement/CElementEd
 - Começar pela textura (etapa 1) e deixar a altura para depois do estudo da passagem dos NPCs, ou fazer a altura já com
   aviso de que os NPCs podem andar no relevo antigo até a etapa 3?
 - Na textura: borracha volta para a camada de baixo (como o editor oficial) — está bom?
+
+## 6. Complemento (08/11, pedido do usuário: água, plainagem, sombra que segue o objeto, luzes, efeitos)
+
+### 6.1 Passagem dos NPCs (o que é)
+O servidor não usa o terreno 3D para os monstros andarem: ele usa uma **grade de passagem** por pedaço
+(`movemap/<N>.rmap`: 1 bit por célula, 1 = dá para andar; `.dhmap`: alturas da grade de movimento). O gs procura o
+caminho dos monstros e NPCs (perseguir, voltar ao ponto, patrulhar) nessa grade. Se o relevo subir ou descer e a grade
+não for refeita, o servidor continua achando que o chão é o de antes: monstro atravessa morro novo, anda no ar onde o
+chão baixou ou fica preso. O gerador oficial está em `CElementEditor/PathMap` (`NPCMoveMap`, `PassMapGenerator`,
+`TerrainObstructGenerator`). Por isso a altura do terreno precisa refazer o `.hmap` e essa grade dos pedaços mexidos.
+
+### 6.2 Água
+- Cliente: áreas de água no `bsdata` do mapa (já lidas por `PerfectWorld/ClientWater.cs`: cor, altura, grade com
+  máscara de células molhadas) com referência nos blocos do `.ecwld`. O editor oficial tem `SceneWaterObject` /
+  `TerrainWater` / `SceneWaterAddOperation`.
+- Servidor: `watermap/<N>.wmap` = retângulos (centro, meia largura, altura) por pedaço de 1024 m (formato conhecido).
+- Ferramenta proposta: "Água" no terreno: pintar onde tem água (máscara) numa altura escolhida; grava a área do cliente
+  e os retângulos do servidor juntos. Onde o chão fica acima da água, a água não aparece (como no jogo).
+
+### 6.3 Plainagem
+É o pincel "nivelar" da altura: leva o chão do círculo para uma altura (a do ponto onde começou a arrastar, ou digitada),
+com borda suave. Mesmo salvar da altura (`.t2bk` + `.hmap` + grade de passagem).
+
+### 6.4 Luz e sombra do chão seguindo os objetos
+- No editor oficial a luz do chão é **calculada pela placa de vídeo** (`LightMapGen.cpp`, `hwLightMapGen`,
+  `RenderForLightMapShadow`): desenha o terreno visto do sol, com os objetos fazendo sombra, e grava no `.t2lm`/`.t2lm1`;
+  as luzes pontuais da cena também entram nesse cálculo (e nas cores dos vértices das construções, `LightProcessor`).
+- Dá para fazer igual no Mundo 3D com OpenGL (mapa de sombra do sol + luz do céu da área): ao salvar objetos movidos, o
+  editor recalcula a luz só das áreas de 256 m tocadas. Assim a sombra sai do lugar velho e aparece no novo. Precisa
+  conferir a cor final com a do jogo (sol, ambiente e neblina de cada área estão no `.ecbsd`).
+
+### 6.5 Luzes (pontos de luz)
+- `maps/<mapa>/scenelights.dat` (CECSceneLights::Load): u32 versão 0x80000001, i32 N, N × 112 B (posição 3f, alcance,
+  atenuação 3f, cor difusa 4f, ambiente 4f, caixa 6f... (A3DAABB), flags; bit "só à noite"). No jogo elas iluminam
+  **personagens, NPCs e monstros** perto (EC_Utility: luz mais próxima do modelo); o chão e as construções já vêm com a
+  luz assada (6.4). a26: 144 luzes; o world não tem esse arquivo.
+- `<mapa>_light.dat` existe também (world: 472 KB, cabeçalho 0x1114) — formato ainda não estudado.
+
+### 6.6 Efeitos visuais no Mundo 3D
+Hoje o Mundo 3D mostra só o ponto de cada efeito (.gfx: fogo, fumaça, brilho, cachoeira). Desenhar o efeito de verdade
+exige ler o `.gfx` (texto "MOXTVersion", elementos de partícula, quadro, faixa, decalque, com texturas do `gfx.pck`) e
+animar. Proposta: filtro "Efeitos visuais" (ligar/desligar) e começar pelos elementos simples (quadros e decalques
+parados), depois partículas.
