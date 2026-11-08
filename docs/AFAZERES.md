@@ -13,7 +13,9 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        Objetos (construcoes, arvores, grama, modelos, luzes): desenho aprovado 07/11 em
        docs/superpowers/specs/2026-11-07-objetos-do-mundo-design.md
        [x] etapa 1 no codigo (07/11): mover, girar e apagar construcoes e modelos, Salvar tudo ou nada; falta testar no jogo
-       [ ] etapa 2 inserir construcoes e modelos | [ ] 3 arvores | [ ] 4 luzes | [ ] 5 pincel de grama
+       [x] etapa 2a (07/11): Ctrl+C/Ctrl+V de construcoes e modelos + tamanho da construcao; falta testar no jogo
+       [ ] 2b catalogo com miniaturas | [ ] 3 arvores (mover/plantar + colisao) | [ ] 4 luzes | [ ] 5 pincel de grama
+       Sombra no chao = pintada no mapa de luz do terreno (.t2lm): refazer junto com a ferramenta de terreno
        [ ] terreno: pincel de altura (puxar, empurrar, alisar)
        [ ] textura do chao: pincel por camadas
        [ ] grama: pincel de grama e flores

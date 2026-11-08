@@ -82,7 +82,7 @@ patrulhas, zonas e territórios). Falta: o passo 6 na parte de árvores, grama, 
 mover construção já existem), o 7 (terreno e textura do chão + colisão do servidor) e o 8 (passagem e voo).
 As notas "[~]" e "falta" dos passos 1 a 5 abaixo são históricas.
 
-**Passo 6, etapa 1 (07/11/2026, pronta no código, falta testar no jogo):** ferramenta Objetos do mundo com rascunho em memória: mover, girar e apagar construções e modelos que já existem, Salvar tudo ou nada (`.bmd` + `.ecbsd` + `.ecwld` + `map.bht`). Próximas etapas: inserir construções e modelos, árvores, luzes e pincel de grama.
+**Passo 6, etapa 1 (07/11/2026, pronta no código, falta testar no jogo):** ferramenta Objetos do mundo com rascunho em memória: mover, girar e apagar construções e modelos que já existem, Salvar tudo ou nada (`.bmd` + `.ecbsd` + `.ecwld` + `map.bht`). Etapa 2a (07/11): copiar e colar construções e modelos (Ctrl+C/Ctrl+V) e mudar o tamanho das construções. Próximas: catálogo com miniaturas (2b), árvores, luzes e pincel de grama.
 
 1. **Quests no 3D, tipos 3+** — [x] matar monstros, obter itens, entregar itens a um NPC, esperar (testados em 4 versões + tela). Escolher o ponto de coleta no mundo para "obter itens" [x]. Item que só cai na quest (na etapa de matar) [x]. Repetir (diária/semanal/mensal/anual) e horário em que a quest existe [x]. Proteger/escoltar NPC (objetivos 8 e 9): ignorados (decisão do usuário; nenhum cliente usa): matar monstros (clicar no gerador no mundo), coletar (clicar na coleta), entregar item,
    escoltar (caminho). Usa o que já lemos do npcgen.
