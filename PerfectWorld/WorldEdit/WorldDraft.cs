@@ -24,6 +24,8 @@ public sealed class DraftObject
     public (Vector3 Min, Vector3 Max) LocalBox { get; init; }
     /// <summary>Motivo de não poder mexer (null = pode).</summary>
     public string? ReadOnlyWhy { get; set; }
+    /// <summary>Objeto novo (colado): chave do objeto de onde ele foi copiado; null = já existia no arquivo.</summary>
+    public string? CopyOf { get; init; }
     public bool Changed => Deleted || Now != Original;
 }
 
@@ -37,13 +39,15 @@ public sealed class DraftPiece(int id)
     public List<DraftObject> Objects { get; init; } = new();
     /// <summary>Objetos novos (etapa 2 em diante).</summary>
     public List<DraftObject> Added { get; init; } = new();
-    public bool Dirty => Objects.Any(o => o.Changed) || Added.Count > 0;
+    public bool Dirty => Objects.Any(o => o.Changed) || Added.Any(o => !o.Deleted);
 }
 
 public abstract record DraftOp(string Key);
 public sealed record MoveOp(string Key, ObjTransform To) : DraftOp(Key);
 public sealed record DeleteOp(string Key) : DraftOp(Key);
 public sealed record RestoreOp(string Key) : DraftOp(Key);
+/// <summary>Objeto novo (colado) no pedaço dele; desfazer = fica apagado (o Salvar ignora novo apagado).</summary>
+public sealed record AddOp(string Key, DraftObject Obj) : DraftOp(Key);
 
 /// <summary>
 /// Rascunho da ferramenta Objetos do mundo: os pedaços abertos do mapa e as mudanças, cada uma com o seu desfazer
@@ -108,6 +112,18 @@ public sealed class WorldDraft(string map)
     /// <summary>Aplica a mudança. null = aplicada; senão, o motivo da recusa em palavras simples (nada muda).</summary>
     public string? Apply(DraftOp op, object? tag = null)
     {
+        if (op is AddOp add)
+        {
+            if (Find(add.Key) is not null) return Loc.T("obj.keyTaken", "Já existe um objeto com essa chave.");
+            if (!_pieces.TryGetValue(add.Obj.Piece, out var piece) || piece.ReadOnlyWhy is not null) return piece?.ReadOnlyWhy ?? Loc.T("obj.notFound", "Esse objeto não está mais carregado.");
+            if (Invalid(add.Obj.Now) is { } badNew) return badNew;
+            add.Obj.Deleted = false;
+            piece.Added.Add(add.Obj); _byKey[add.Key] = add.Obj;
+            _undo.Add(new Step(add.Key, add.Obj.Now, true, add.Obj.Now, false, tag));
+            _redo.Clear();
+            Changed?.Invoke();
+            return null;
+        }
         if (Find(op.Key) is not { } o) return Loc.T("obj.notFound", "Esse objeto não está mais carregado.");
         if (o.ReadOnlyWhy is not null) return o.ReadOnlyWhy;
         var before = (o.Now, o.Deleted);
@@ -116,6 +132,7 @@ public sealed class WorldDraft(string map)
             case MoveOp m:
                 if (o.Deleted) return Loc.T("obj.isDeleted", "Esse objeto foi apagado; desfaça (Ctrl+Z) para mexer nele.");
                 if (Invalid(m.To) is { } bad) return bad;
+                if (o.Kind == ObjKind.Model && MathF.Abs(m.To.Scale - 1) > 1e-6f) return Loc.T("obj.modelNoScale", "Modelos não mudam de tamanho nesta versão do jogo.");
                 if (m.To == o.Now) return null;
                 o.Now = m.To; break;
             case DeleteOp:

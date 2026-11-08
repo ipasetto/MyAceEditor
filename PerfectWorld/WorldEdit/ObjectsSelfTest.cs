@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { Draft(r); }
         catch (Exception ex) { r.Check("rascunho-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
+        try { Draft2(r); }
+        catch (Exception ex) { r.Check("rascunho2-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Load(r, element, config); }
         catch (Exception ex) { r.Check("leitura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Save(r, element, config); }
@@ -422,6 +424,27 @@ public static class ObjectsSelfTest
             }
             r.Check("escala-brush", boxOk && planesOk, $"caixa {mx - mn} -> {mx2 - mn2}, planos ok={planesOk}");
         }
+    }
+
+
+    // ---------------- colar e escala no rascunho (etapa 2a) ----------------
+    static void Draft2(Report r)
+    {
+        var d = OneObject(out var src);
+        var copy = new DraftObject { Key = "new:1", Kind = ObjKind.Building, Piece = 1, Source = src.Source, CopyOf = src.Key, Original = src.Original with { Pos = src.Original.Pos + new Vector3(10, 0, 0) } };
+        string? why = d.Apply(new AddOp(copy.Key, copy));
+        r.Check("draft-cola", why is null && d.Find("new:1") == copy && d.Pieces[1].Added.Count == 1 && d.Dirty && !copy.Deleted, why ?? "");
+        bool cycle = true;
+        for (int i = 0; i < 5; i++) { cycle &= d.Undo() && copy.Deleted && !d.Dirty; cycle &= d.Redo() && !copy.Deleted && d.Dirty; }
+        r.Check("colar-desfaz-refaz-uma", cycle && d.Pieces[1].Added.Count == 1);
+        r.Check("draft-cola-repetido-recusa", d.Apply(new AddOp(copy.Key, copy)) is not null);
+
+        var dm = new WorldDraft("teste");
+        var m = new DraftObject { Key = "ecwld:EcModel:5", Kind = ObjKind.Model, Piece = 1, Source = "x.ecm", Original = new ObjTransform(Vector3.Zero, Vector3.UnitZ, Vector3.UnitY, 1) };
+        dm.Put(new DraftPiece(1) { Loaded = true, Objects = { m } });
+        r.Check("draft-escala-modelo-recusa", dm.Apply(new MoveOp(m.Key, m.Original with { Scale = 2 })) is not null && m.Now.Scale == 1);
+        var db = OneObject(out var b);
+        r.Check("draft-escala-construcao", db.Apply(new MoveOp(b.Key, b.Original with { Scale = 1.5f })) is null && b.Now.Scale == 1.5f);
     }
 
     // ---------------- estudo dos formatos (Task 1) ----------------
