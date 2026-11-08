@@ -5688,5 +5688,10 @@
   "obj.askSave": "There are unsaved changes in the world objects (buildings, models, effects, sounds or critters). Save before closing?",
   "obj.showPoints": "Show effects and sounds",
   "obj.tree": "Tree",
-  "obj.treeInfo": "Tree: {0} · X {1:0} Z {2:0} height {3:0} (changing trees comes in a later stage)"
+  "obj.treeInfo": "Tree: {0} · X {1:0} Z {2:0} height {3:0} (changing trees comes in a later stage)",
+  "obj.copied": "Object copied — Ctrl+V pastes where the mouse is",
+  "obj.nothingCopied": "Nothing copied: pick an object and press Ctrl+C.",
+  "obj.pasteLater": "Copying buildings, models and trees comes in the next stage (insert in the world).",
+  "obj.pasted": "Copy pasted where the mouse is",
+  "obj.shadowNote": "The shadow painted on the ground (terrain light map) stays where it was; it will be redone with the terrain tool."
 }

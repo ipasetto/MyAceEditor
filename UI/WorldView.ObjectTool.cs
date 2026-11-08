@@ -301,6 +301,8 @@ internal sealed partial class WorldView
         if (ask)
         {
             string summary = string.Join(Environment.NewLine, plan.Summary.DefaultIfEmpty(Loc.T("obj.sceneOnly", "Mudanças nos efeitos, sons ou bichos do cenário.")));
+            if (plan.PckFiles.Count > 0 || plan.Files.Keys.Any(k => k.EndsWith("map.bht", StringComparison.OrdinalIgnoreCase)))
+                summary += Environment.NewLine + Loc.T("obj.shadowNote", "A sombra pintada no chão (mapa de luz do terreno) fica onde estava; ela será refeita com a ferramenta de terreno.");
             string warn = checks.Count == 0 ? "" : Environment.NewLine + Environment.NewLine + Loc.T("obj.warnings", "Avisos (Não = cancelar e ir até o primeiro):") + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", checks.Select(c => c.Text));
             var answer = MessageBox.Show(this, Loc.T("obj.confirm", "Vai gravar:") + Environment.NewLine + summary + warn + Environment.NewLine + Environment.NewLine + Loc.T("obj.confirmQ", "Salvar agora?"),
                 Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.YesNo, checks.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
@@ -344,10 +346,14 @@ internal sealed partial class WorldView
         try { plan = _draftSrc is null ? null : DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd); } catch (InvalidDataException ex) { planErr = ex.Message; }
         string card = _objTitle.Text.Replace(Environment.NewLine, " / ");
         using (var shot = ToolsShot()) shot.Save(System.IO.Path.Combine(outDir, "dftcard-panel.png"), System.Drawing.Imaging.ImageFormat.Png);
+        _scenePage.AutoScrollPosition = new Point(0, 100000); Application.DoEvents();
+        using (var shot2 = ToolsShot()) shot2.Save(System.IO.Path.Combine(outDir, "dftcard-panel-end.png"), System.Drawing.Imaging.ImageFormat.Png);
+        int inner = _objPanel.Controls.Cast<Control>().Where(c => c.Visible).Sum(c => c.Height + c.Margin.Vertical);
+        _scenePage.AutoScrollPosition = new Point(0, 0);
         DeleteSelected();
         bool deleted = o.Deleted;
         bool undo = ObjectUndo(false) && !o.Deleted;
-        return load + $" | dftcard: {System.IO.Path.GetFileName(near.File)} girou={turned} moveu5={moved} apagou={deleted} ctrlz={undo} conferencias={checks.Count} plano=[{string.Join(" ", plan?.Summary ?? [])}] arquivos={plan?.Files.Count}+{plan?.PckFiles.Count} {planErr} cartão=\"{card}\"";
+        return load + $" | dftcard: {System.IO.Path.GetFileName(near.File)} girou={turned} moveu5={moved} apagou={deleted} ctrlz={undo} conferencias={checks.Count} plano=[{string.Join(" ", plan?.Summary ?? [])}] arquivos={plan?.Files.Count}+{plan?.PckFiles.Count} {planErr} cartão=\"{card}\" painel {_objPanel.Height} px para {inner} px de conteúdo";
     }
 
     /// <summary>Depois de gravar: solta a seleção e o rascunho (relido do disco no DraftOpen).</summary>
@@ -394,7 +400,7 @@ internal sealed partial class WorldView
     }
 
     sealed record TreeSel(string Key);
-    readonly CheckBox _showScenePoints = new() { Text = "", Checked = true, AutoSize = true, ForeColor = Color.White };
+    readonly CheckBox _showScenePoints = new() { Text = "", Checked = false, AutoSize = true, ForeColor = Color.White };
 
     /// <summary>Distância do raio (OpenGL) até um cilindro em pé (base, raio, altura); null se não bate.</summary>
     static float? RayCylinder(Vector3 o, Vector3 d, Vector3 b, float r, float h)
@@ -446,6 +452,7 @@ internal sealed partial class WorldView
     {
         string load = DraftLoadTest();
         var lines = new List<string>();
+        _showScenePoints.Checked = true;   // os efeitos começam desligados; o teste liga
         // 1) três pontos da malha da construção mais perto, a mais de 40 px do centro dela na tela
         if (_buildings.Nearest(_cam) is { } near && _buildings.MeshOf(near.File) is { } mesh)
         {
@@ -633,6 +640,84 @@ internal sealed partial class WorldView
         GL.PopMatrix();
         GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
         GL.Disable(EnableCap.Blend); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
+    }
+
+    // ---------- copiar e colar, painel na medida, moldura da ferramenta ----------
+    object? _objClip;
+
+    /// <summary>Ctrl+V na ferramenta Objetos: efeito ou som vira cópia onde está o mouse; construção, modelo e árvore chegam na etapa de inserir.</summary>
+    void PasteObject()
+    {
+        if (_objClip is null) { _status.Text = Loc.T("obj.nothingCopied", "Nada copiado: escolha um objeto e use Ctrl+C."); return; }
+        if (_objClip is BuildingSel or ModelSel or TreeSel) { _status.Text = Loc.T("obj.pasteLater", "Copiar construções, modelos e árvores chega na próxima etapa (inserir no mundo)."); return; }
+        if (_objClip is WorldScene.Critter) { _status.Text = Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto"); return; }
+        (EcwldFile.Kind Kind, uint Id)? k = _objClip switch { WorldScene.SceneEffect fx => (EcwldFile.Kind.Effect, fx.Id), WorldScene.SceneSound sd => (EcwldFile.Kind.Sound, sd.Id), _ => null };
+        if (k is not { } kk || (_hover ?? Ray(_gl.PointToClient(Cursor.Position))) is not { } at) return;
+        SceneEdit(f =>
+        {
+            uint nid = f.Clone(kk.Kind, kk.Id, 0, 0);
+            if (nid != 0) f.Move(kk.Kind, nid, at.X, at.Y + (kk.Kind == EcwldFile.Kind.Effect ? 0.5f : 0), at.Z);
+            return nid;
+        }, Loc.T("obj.pasted", "Cópia colada onde está o mouse"));
+    }
+
+    /// <summary>Painel do objeto com a altura do que ele mostra (antes era fixo e cortava o fim).</summary>
+    void FitObjPanel()
+    {
+        int h = _objPanel.Padding.Vertical + 8;
+        foreach (Control c in _objPanel.Controls) if (c.Visible) h += c.Height + c.Margin.Vertical;
+        if (_objPanel.Height != h) { _objPanel.Height = h; LayoutTools(); }
+    }
+
+    int _bannerTex; Tool _bannerFor = Tool.None; int _bannerW, _bannerH;
+    static Color ToolColor(Tool t) => t switch
+    {
+        Tool.Scene => Color.FromArgb(255, 190, 60), Tool.Paths => Color.FromArgb(235, 120, 200), Tool.Quests => Color.FromArgb(110, 190, 255),
+        Tool.Create => Color.FromArgb(110, 215, 120), Tool.Teleports => Color.FromArgb(170, 140, 255), Tool.Zones => Color.FromArgb(80, 210, 200),
+        Tool.Domains => Color.FromArgb(255, 140, 90), _ => Color.White,
+    };
+
+    /// <summary>Com uma ferramenta aberta: moldura da cor dela em volta do 3D e o nome dela no alto, para saber onde se está.</summary>
+    void DrawToolFrame()
+    {
+        if (_tool == Tool.None) return;
+        var col = ToolColor(_tool);
+        if (_bannerFor != _tool || _bannerTex == 0)
+        {
+            string text = "● " + _toolTitle.Text.Trim();
+            using var font = new Font("Segoe UI Semibold", 11f);
+            var size = TextRenderer.MeasureText(text, font);
+            int w = size.Width + 28, h = size.Height + 10;
+            using var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+                using var path = new System.Drawing.Drawing2D.GraphicsPath();
+                int r = h / 2;
+                path.AddArc(0, 0, r * 2, h - 1, 90, 180); path.AddArc(w - r * 2 - 1, 0, r * 2, h - 1, 270, 180); path.CloseFigure();
+                using var fill = new SolidBrush(Color.FromArgb(235, col)); g.FillPath(fill, path);
+                TextRenderer.DrawText(g, text, font, new Rectangle(0, 0, w, h), Color.FromArgb(20, 20, 24), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+            if (_bannerTex != 0) GL.DeleteTexture(_bannerTex);
+            _bannerTex = UploadBitmap(bmp); _bannerW = w; _bannerH = h; _bannerFor = _tool;
+        }
+        GL.MatrixMode(MatrixMode.Projection); GL.PushMatrix(); GL.LoadIdentity(); GL.Ortho(0, _gl.Width, _gl.Height, 0, -1, 1);
+        GL.MatrixMode(MatrixMode.Modelview); GL.PushMatrix(); GL.LoadIdentity();
+        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Fog); GL.Disable(EnableCap.Lighting);
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        GL.Disable(EnableCap.Texture2D);
+        GL.LineWidth(4); GL.Color4(col.R / 255f, col.G / 255f, col.B / 255f, 0.85f);
+        GL.Begin(PrimitiveType.LineLoop); GL.Vertex2(2, 2); GL.Vertex2(_gl.Width - 2, 2); GL.Vertex2(_gl.Width - 2, _gl.Height - 2); GL.Vertex2(2, _gl.Height - 2); GL.End();
+        GL.LineWidth(1);
+        GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, _bannerTex); GL.Color4(1f, 1f, 1f, 1f);
+        float x = (_gl.Width - _bannerW) / 2f, y = 10;
+        GL.Begin(PrimitiveType.Quads);
+        GL.TexCoord2(0f, 0f); GL.Vertex2(x, y); GL.TexCoord2(1f, 0f); GL.Vertex2(x + _bannerW, y);
+        GL.TexCoord2(1f, 1f); GL.Vertex2(x + _bannerW, y + _bannerH); GL.TexCoord2(0f, 1f); GL.Vertex2(x, y + _bannerH);
+        GL.End();
+        GL.Disable(EnableCap.Blend); GL.Enable(EnableCap.DepthTest);
+        GL.MatrixMode(MatrixMode.Projection); GL.PopMatrix(); GL.MatrixMode(MatrixMode.Modelview); GL.PopMatrix();
     }
     void DraftDispose() { _draftSrc?.Dispose(); _draftSrc = null; }
 }

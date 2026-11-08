@@ -24,7 +24,7 @@ internal sealed partial class WorldView
     readonly FlowLayoutPanel _createPage = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(8), Visible = false };
     readonly Label _sceneState = new() { AutoSize = true, MaximumSize = new Size(240, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
     readonly ToolTip _toolTip = new();
-    bool _toolsFolded = true;   // abre recolhido: o mundo aparece inteiro (usuário 07/11)
+    bool _toolsFolded = false;   // abre expandido (usuário 07/11 noite; antes recolhido)
 
     internal readonly List<(MarkKind Kind, string Key, string Pt, string Tip, Color Color)> _filterDefs = new()
     {
@@ -139,6 +139,7 @@ internal sealed partial class WorldView
         _showScenePoints.Text = Loc.T("obj.showPoints", "Mostrar efeitos e sons");
         _showScenePoints.CheckedChanged += (_, _) => { if (!_showScenePoints.Checked && _sceneSel is WorldScene.SceneEffect or WorldScene.SceneSound or WorldScene.Critter) { _sceneSel = null; ShowObjPanel(); } _gl.Invalidate(); };
         _scenePage.Controls.Add(_showScenePoints);
+        _scenePage.Padding = new Padding(_scenePage.Padding.Left, _scenePage.Padding.Top, _scenePage.Padding.Right, 36);
         _scenePage.Controls.Add(SectionLabel(Loc.T("obj.insert", "Inserir no mundo")));
         foreach (var (g, k, pt) in new[] {
             ("\uE80F", "obj.pillBuildings", "Construções"), ("\uE913", "obj.pillTrees", "Árvores"), ("\uE790", "obj.pillGrass", "Grama"),

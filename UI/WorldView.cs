@@ -238,13 +238,13 @@ internal sealed partial class WorldView : Form
             // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
             if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
             { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; return; }
-            if (e.Button == MouseButtons.Left && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
+            if (e.Button == MouseButtons.Left && _tool != Tool.Scene && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
             {
                 _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null; _gizmoSize = null;
                 return;
             }
             // esquerdo em cima de um ponto (na tela): arrasta o ponto; no vazio ou botão do meio: gira a câmera
-            if (e.Button == MouseButtons.Left && PickScreen(e.Location) is { } mk) { _movingTag = mk.Tag; _movePos = null; return; }
+            if (e.Button == MouseButtons.Left && _tool != Tool.Scene && PickScreen(e.Location) is { } mk) { _movingTag = mk.Tag; _movePos = null; return; }   // Objetos do mundo: só objetos
             if (e.Button is MouseButtons.Left or MouseButtons.Middle) _dragging = true;
         };
         _gl.MouseUp += (_, e) =>
@@ -440,6 +440,13 @@ internal sealed partial class WorldView : Form
                     bool ok = e.KeyCode == Keys.Z ? UndoAny() : RedoAny();
                     _status.Text = ok ? "" : e.KeyCode == Keys.Z ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer");
                     RefreshMarkers(); break;
+                case Keys.C when _tool == Tool.Scene:
+                    _objClip = _sceneSel;
+                    _status.Text = _objClip is null ? "" : Loc.T("obj.copied", "Objeto copiado — Ctrl+V cola onde está o mouse");
+                    break;
+                case Keys.V when _tool == Tool.Scene:
+                    PasteObject();
+                    break;
                 case Keys.C:
                     _clip = _selected();
                     _status.Text = _clip is null ? "" : Loc.T("world.copied", "Ponto copiado — Ctrl+V cola onde está o mouse");
@@ -465,6 +472,7 @@ internal sealed partial class WorldView : Form
             case Keys.N: _gameFog = !_gameFog; _gl.Invalidate(); return;
             case Keys.L: _nightOn = !_nightOn; _gl.Invalidate(); return;               // dia / noite               // neblina do jogo (por área) ou longe
             case Keys.Delete:   // só sem ferramenta: dentro de uma ferramenta o Delete não apaga a criatura escolhida
+                if (_tool == Tool.Scene) { DeleteSceneObject(); return; }   // Objetos do mundo: apaga o objeto escolhido
                 if (_tool == Tool.None && _selected() is { } s && DeletePoint is not null && Confirm()) { DeletePoint(s); RefreshMarkers(); }
                 return;
             case Keys.Space: e.SuppressKeyPress = true; break;
@@ -679,6 +687,7 @@ internal sealed partial class WorldView : Form
         }
         GizmoLabels();
         DrawLegend();
+        DrawToolFrame();
         GL.Disable(EnableCap.Texture2D); GL.DepthMask(true); GL.Disable(EnableCap.Blend);
         GL.Disable(EnableCap.Fog);
         if (_grab) { _grab = false; _grabbed = ReadFrame(); }
