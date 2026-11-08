@@ -123,6 +123,19 @@ internal sealed class WorldTrees : IDisposable
         return k is not null;
     }
 
+    /// <summary>
+    /// Tipo de árvore pelo par .spt + mapa composto: o número dele neste mapa ou, se o mapa não tem, um número novo só no
+    /// editor (prévia e plantio; o Salvar acrescenta o tipo ao .ecwld). -1 = sem cena.
+    /// </summary>
+    internal int TypeFor(string spt, string comp)
+    {
+        if (_scene is null) return -1;
+        int i = _scene.TreeTypes.FindIndex(t => t.Spt.Equals(spt, StringComparison.OrdinalIgnoreCase) && t.CompositeMap.Equals(comp, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0) return i;
+        _scene.TreeTypes.Add(new WorldScene.TreeType(spt, comp));
+        return _scene.TreeTypes.Count - 1;
+    }
+
     /// <summary>Raio da árvore do tipo (0 = ainda não gerado).</summary>
     internal float SizeOf(int type) => _kinds.TryGetValue(type, out var k) && k is not null ? k.Radius : 0;
 

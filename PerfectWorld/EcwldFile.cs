@@ -27,6 +27,42 @@ public sealed class EcwldFile
     public float Length => BitConverter.ToSingle(_head, 12);
     public float BlockSize => BitConverter.ToSingle(_head, 16);
     public List<Block> Blocks { get; } = new();
+
+    /// <summary>Quantos tipos de árvore o mapa tem (cabeçalho +44).</summary>
+    public int TreeTypeCount => BitConverter.ToInt32(_head, 44);
+
+    /// <summary>
+    /// Acrescenta tipos de árvore (.spt + mapa composto das folhas, caminhos do trees.pck) à lista do mapa: a lista inteira
+    /// (velha + nova) vai para o fim do arquivo e o cabeçalho (+36 offset, +44 quantidade) aponta para ela; o resto não
+    /// mexe. O cliente lê a lista pelo offset (CECScene::LoadTreeTypeData faz Seek) e não tem limite de tipos (08/11).
+    /// Textos em GBK sem 0 no fim, como os do arquivo.
+    /// </summary>
+    public void AddTreeTypes(IReadOnlyList<(string Spt, string Comp)> types)
+    {
+        if (types.Count == 0) return;
+        int count = TreeTypeCount;
+        var table = new List<byte>();
+        if (count > 0)
+        {
+            int p = (int)BitConverter.ToUInt32(_head, 36) - _tailStart;
+            if (p < 0 || p > _tail.Length) throw new InvalidDataException(".ecwld: lista de tipos de árvore fora do lugar esperado");
+            int start = p;
+            for (int i = 0; i < count * 2; i++) { int l = BitConverter.ToInt32(_tail, p); if (l < 0 || p + 4 + l > _tail.Length) throw new InvalidDataException(".ecwld: tipo de árvore ilegível"); p += 4 + l; }
+            table.AddRange(_tail[start..p]);
+        }
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        var gbk = System.Text.Encoding.GetEncoding(936);
+        foreach (var (spt, comp) in types)
+            foreach (var str in new[] { spt, comp })
+            {
+                var b = gbk.GetBytes(str);
+                table.AddRange(BitConverter.GetBytes(b.Length)); table.AddRange(b);
+            }
+        uint newOff = (uint)(_tailStart + _tail.Length);
+        _tail = [.. _tail, .. table];
+        BitConverter.GetBytes(newOff).CopyTo(_head, 36);
+        BitConverter.GetBytes(count + types.Count).CopyTo(_head, 44);
+    }
     byte[] _head = [];        // 116 B do cabeçalho
     int[] _table = [];        // índice do bloco (em Blocks) por entrada da tabela; -1 = offset 0
     byte[] _gap = [], _tail = [];  // entre a tabela e o 1º bloco; depois do último bloco (tipos de árvore e grama)

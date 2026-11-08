@@ -393,13 +393,27 @@ public static class DraftSaver
             if (target != bl) { list.RemoveAt(idx); target.Items[(int)EcwldFile.Kind.Tree].Add(item); }
             Count(o.Piece, "tmove"); ecwDirty = true;
         }
+        // tipos de árvore que este mapa não tem (vindos de outro mapa): entram na lista do mapa, na ordem, e as árvores
+        // novas ganham o número certo (o número do editor pode ter buracos de prévias que não foram plantadas)
+        int fileTypes = ecw.TreeTypeCount;
+        var extraTypes = new List<(string Spt, string Comp)>();
+        var typeOf = new Dictionary<DraftObject, int>();
+        foreach (var o in treeNew.Where(o => o.Type >= fileTypes))
+        {
+            if (string.IsNullOrEmpty(o.Source) || string.IsNullOrEmpty(o.TreeComposite)) throw new InvalidDataException(Loc.T("obj.treeNoType", "Árvore nova sem tipo."));
+            var key = (o.Source, o.TreeComposite!);
+            int k = extraTypes.FindIndex(t => t.Spt.Equals(key.Source, StringComparison.OrdinalIgnoreCase) && t.Comp.Equals(key.Item2, StringComparison.OrdinalIgnoreCase));
+            if (k < 0) { extraTypes.Add(key); k = extraTypes.Count - 1; }
+            typeOf[o] = fileTypes + k;
+        }
+        if (extraTypes.Count > 0) { ecw.AddTreeTypes(extraTypes); ecwDirty = true; }
         foreach (var o in treeNew)
         {
             if (o.Type < 0) throw new InvalidDataException(Loc.T("obj.treeNoType", "Árvore nova sem tipo."));
             var target = BlockAt(ecw, o.Now.Pos) ?? throw new InvalidDataException(Loc.T("obj.noBlock", "Não há bloco do cenário nesse lugar do mapa."));
             var sample = ecw.Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.Tree]).FirstOrDefault();
             var item = new byte[sample?.Length ?? 16];
-            BitConverter.GetBytes(o.Type).CopyTo(item, 0);
+            BitConverter.GetBytes(typeOf.TryGetValue(o, out int nt) ? nt : o.Type).CopyTo(item, 0);
             WriteTree(item, o.Now.Pos);
             target.Items[(int)EcwldFile.Kind.Tree].Add(item);
             Count(o.Piece, "tnew"); ecwDirty = true;

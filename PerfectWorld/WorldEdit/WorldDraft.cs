@@ -28,6 +28,8 @@ public sealed class DraftObject
     public string? CopyOf { get; init; }
     /// <summary>Tipo da árvore (índice na lista de tipos do .ecwld); -1 nos outros objetos.</summary>
     public int Type { get; init; } = -1;
+    /// <summary>Árvore: mapa composto das folhas do tipo (trees.pck), para acrescentar o tipo ao mapa se ele não tiver.</summary>
+    public string? TreeComposite { get; init; }
     public bool Changed => Deleted || Now != Original;
 }
 

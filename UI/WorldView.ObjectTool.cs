@@ -877,7 +877,7 @@ internal sealed partial class WorldView
         if (_t.HeightAt(ground.X, ground.Z) is { } h) ground.Y = h;
         var tree = new DraftObject
         {
-            Key = "new:" + (++_newSeq), Kind = ObjKind.Tree, Piece = piece, Type = type, Source = types[type].Spt, CopyOf = "planted",
+            Key = "new:" + (++_newSeq), Kind = ObjKind.Tree, Piece = piece, Type = type, Source = types[type].Spt, TreeComposite = types[type].CompositeMap, CopyOf = "planted",
             Original = new ObjTransform(ground, System.Numerics.Vector3.UnitZ, System.Numerics.Vector3.UnitY, 1),
         };
         if (DraftApply(new AddOp(tree.Key, tree)) is { } why) return why;
@@ -886,16 +886,43 @@ internal sealed partial class WorldView
         return _status.Text = string.Format(Loc.T("obj.planted", "Árvore {0} plantada (só grava no Salvar; Ctrl+Z tira)."), System.IO.Path.GetFileNameWithoutExtension(tree.Source));
     }
 
-    /// <summary>Pílula Árvores: escolhe o tipo na janela de escolher (tipos que este mapa já usa) e entra no plantio.</summary>
+    List<TreeKind>? _treeKinds;   // tipos de árvore de todos os mapas (lista leve, lida uma vez)
+
+    /// <summary>
+    /// Pílula Árvores: janela de escolher com os tipos deste mapa e os de todos os outros mapas e instâncias (agrupados pelo
+    /// mapa), prévia 3D e estrela (pelo tipo, igual em todo mapa); depois a árvore segue o mouse e um clique planta.
+    /// Tipo que este mapa não tem entra na lista do mapa no Salvar.
+    /// </summary>
     void ChooseTreeToPlant()
     {
         var types = _trees.Scene?.TreeTypes;
-        if (types is null || types.Count == 0) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
-        var rows = types.Select((t, i) => (Id: i, Name: System.IO.Path.GetFileNameWithoutExtension(t.Spt), Block: Loc.T("obj.pillTrees", "Árvores"))).ToList();
-        using var w = new ItemSearchWindow(rows, askQuantity: false, model: TreeThumb, fav: _element is null ? null : JavFavorites.ForFile("tree", _element)) { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
+        if (types is null) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
+        try { if (_element is not null) _treeKinds ??= TreeTypeIndex.Build(_element); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("objetos: tipos de árvore dos mapas", ex); }
+        // linhas: deste mapa primeiro; depois os outros (um por par .spt + folhas), no 1º mapa que usa
+        var rowsK = new List<(string Spt, string Comp, string Block)>();
+        foreach (var t in types.ToList()) rowsK.Add((t.Spt, t.CompositeMap, MapLabel(_t.Name)));
+        foreach (var k in _treeKinds ?? [])
+            if (!rowsK.Any(r => r.Spt.Equals(k.Spt, StringComparison.OrdinalIgnoreCase) && r.Comp.Equals(k.Comp, StringComparison.OrdinalIgnoreCase)))
+                rowsK.Add((k.Spt, k.Comp, MapLabel(k.Maps[0])));
+        if (rowsK.Count == 0) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
+        var rows = rowsK.Select((r, i) => (Id: i, Name: System.IO.Path.GetFileNameWithoutExtension(r.Spt), Block: r.Block)).ToList();
+        int TypeOfRow(int row) => row >= 0 && row < rowsK.Count ? _trees.TypeFor(rowsK[row].Spt, rowsK[row].Comp) : -1;
+        int SigOf(int row) => new TreeKind(rowsK[row].Spt, rowsK[row].Comp, []).Sig;
+        JavFavorites? fav = null;
+        if (_element is not null)
+        {
+            var file = JavFavorites.ForFile("tree", _element);
+            fav = new JavFavorites(() => file.Ids.Select(sig => Enumerable.Range(0, rowsK.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList(),
+                i => i >= 0 && i < rowsK.Count && file.Has(SigOf(i)), i => file.Toggle(SigOf(i)));
+        }
+        using var w = new ItemSearchWindow(rows, askQuantity: false, model: (row, yaw) => TypeOfRow(row) is var t && t >= 0 ? TreeThumb(t, yaw) : null, fav: fav)
+            { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
-        _placeSrc = null; _plantType = w.Picked;
-        _status.Text = string.Format(Loc.T("obj.plantingOne", "Plantando {0}: clique no chão onde a árvore vai ficar. Esc ou botão direito cancela."), rows[_plantType].Name);
+        int type = TypeOfRow(w.Picked);
+        if (type < 0) return;
+        _placeSrc = null; _plantType = type;
+        _status.Text = string.Format(Loc.T("obj.plantingOne", "Plantando {0}: clique no chão onde a árvore vai ficar. Esc ou botão direito cancela."), rows[w.Picked].Name);
         _gl.Focus();
     }
 

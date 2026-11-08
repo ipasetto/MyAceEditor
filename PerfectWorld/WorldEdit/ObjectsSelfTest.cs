@@ -363,6 +363,37 @@ public static class ObjectsSelfTest
             }
             r.Check("construcao-de-outro-mapa", okX, res);
         }
+        // tipo de árvore de OUTRO mapa: entra na lista do mapa (fim do arquivo), a árvore ganha o número novo, regrava igual
+        {
+            var kinds = TreeTypeIndex.Build(world.ElementDir);
+            string res = ""; bool okT = true;
+            foreach (var (msrc, mpiece) in new[] { (world, mo.Piece), (a05, all.FirstOrDefault()) })
+            {
+                var oldBytes = File.ReadAllBytes(msrc.EcwldPath);
+                var oldE = new EcwldFile(oldBytes);
+                var have = new WorldScene(oldBytes).TreeTypes;
+                var k = kinds.FirstOrDefault(kk => !have.Any(h => h.Spt.Equals(kk.Spt, StringComparison.OrdinalIgnoreCase) && h.CompositeMap.Equals(kk.Comp, StringComparison.OrdinalIgnoreCase)));
+                if (k is null || mpiece <= 0) { res += $" {msrc.Map}: sem tipo de fora"; okT = false; continue; }
+                var dt = DraftOf(msrc, mpiece);
+                var block = oldE.Blocks.FirstOrDefault(bl => true);
+                var anyObj = dt.Pieces.Values.SelectMany(p => p.Objects).FirstOrDefault();
+                var pos = anyObj?.Original.Pos ?? Vector3.Zero;
+                var tr = new DraftObject { Key = "new:t1", Kind = ObjKind.Tree, Piece = mpiece, Type = oldE.TreeTypeCount + 3, Source = k.Spt, TreeComposite = k.Comp, CopyOf = "planted",
+                    Original = new ObjTransform(pos, Vector3.UnitZ, Vector3.UnitY, 1) };
+                dt.Apply(new AddOp(tr.Key, tr));
+                var pt = DraftSaver.Plan(dt, msrc);
+                if (!pt.Files.TryGetValue(msrc.EcwldPath, out var nw)) { res += $" {msrc.Map}: nada gravado"; okT = false; continue; }
+                var ne = new EcwldFile(nw);
+                var ns = new WorldScene(nw);
+                bool listOk = ne.TreeTypeCount == oldE.TreeTypeCount + 1 && ns.TreeTypes[^1].Spt == k.Spt && ns.TreeTypes[^1].CompositeMap == k.Comp
+                    && ns.TreeTypes.Take(have.Count).Select(t => t.Spt).SequenceEqual(have.Select(t => t.Spt));
+                bool treeOk = ne.Blocks.SelectMany(bl => bl.Items[(int)EcwldFile.Kind.Tree]).Any(it => BitConverter.ToInt32(it, 0) == oldE.TreeTypeCount);
+                bool same = ne.Write().AsSpan().SequenceEqual(nw);
+                okT &= listOk && treeOk && same;
+                res += $" {msrc.Map}: tipos {oldE.TreeTypeCount}->{ne.TreeTypeCount} ({Path.GetFileName(k.Spt)} de {k.Maps[0]}) lista={listOk} arvore={treeOk} regrava={same};";
+            }
+            r.Check("arvore-tipo-de-outro-mapa", okT, $"{kinds.Count} tipos em todos os mapas;" + res);
+        }
         r.Check("plano-modelo", hit is not null && ObjectFormats.ReadEcModel(hit) == tom && wNew!.Length == new FileInfo(world.EcwldPath).Length && pm.PckFiles.Count == 0);
 
         // conferências
