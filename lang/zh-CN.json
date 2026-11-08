@@ -5687,5 +5687,8 @@
   "obj.pillGrass": "草",
   "obj.pillModels": "模型",
   "obj.pillLights": "灯光",
-  "obj.askSave": "世界物体（建筑、模型、特效、声音或动物）有未保存的修改。关闭前保存吗？"
+  "obj.askSave": "世界物体（建筑、模型、特效、声音或动物）有未保存的修改。关闭前保存吗？",
+  "obj.showPoints": "显示特效和声音",
+  "obj.tree": "树",
+  "obj.treeInfo": "树：{0} · X {1:0} Z {2:0} 高度 {3:0}（修改树木将在后续阶段提供）"
 }

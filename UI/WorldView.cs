@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using MyAceEditor.PerfectWorld.WorldEdit;
 using MyAceEditor.PerfectWorld;
 using OpenTK.GLControl;
 using OpenTK.Graphics.OpenGL;
@@ -234,7 +235,9 @@ internal sealed partial class WorldView : Form
             if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
-            // setas / anel do ponto selecionado têm preferência
+            // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
+            if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
+            { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; return; }
             if (e.Button == MouseButtons.Left && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
             {
                 _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null; _gizmoSize = null;
@@ -248,6 +251,7 @@ internal sealed partial class WorldView : Form
         {
             _dragging = false;
             if (PathMouseUp(e)) return;
+            if (ObjGizmoUp()) return;
             if (_gizmoAxis > 0)
             {
                 var gt = _gizmoTag!;
@@ -337,9 +341,11 @@ internal sealed partial class WorldView : Form
         {
             SyncPickCursor();
             if (_areaA is not null) { if (Ray(e.Location) is { } b) _areaB = b; _gl.Invalidate(); return; }
+            if (_objAxis > 0) { ObjGizmoDrag(e.Location); return; }
             if (_gizmoAxis > 0) { GizmoDrag(e.Location); return; }
             if (PathMouseMove(e.Location)) return;
             if (!_dragging && GizmoHit(e.Location) is var gh && gh != _gizmoHover) { _gizmoHover = gh; _gl.Invalidate(); }
+            if (!_dragging && ObjGizmoHit(e.Location) is var oh && oh != _objHover) { _objHover = oh; _gl.Invalidate(); }
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; _gl.Invalidate(); return; }
             if (_movingTag is not null)
             {
@@ -615,6 +621,7 @@ internal sealed partial class WorldView : Form
         if (_showBuildings) _buildings.Draw(_cam, Forward);
         DrawDraftModels();
         DrawObjectBoxes();
+        DrawSelectedMesh();
         _trees.Draw(_cam, Forward);
         _grass.Draw(_cam);   // grama do .ecwld/.ecbsd perto da câmera   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();
@@ -657,6 +664,7 @@ internal sealed partial class WorldView : Form
         DrawTeleports();
         DrawSceneObjects();
         DrawGizmo();
+        DrawObjGizmo();
 
         // nomes e coordenadas sobre os pontos até 70 m (os 40 mais perto)
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); GL.DepthMask(false);
@@ -747,6 +755,7 @@ internal sealed partial class WorldView : Form
     /// <summary>Efeitos (.gfx, laranja) e sons (azul; o escolhido mostra o raio máximo) do .ecwld a até 300 m da câmera.</summary>
     void DrawSceneObjects()
     {
+        if (!_showScenePoints.Checked) return;   // interruptor "Mostrar efeitos e sons"
         if (!_sceneObjs || ObjScene is not { } sc) return;
         const float R2 = 300 * 300;
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Texture2D);
@@ -803,31 +812,54 @@ internal sealed partial class WorldView : Form
         GL.Enable(EnableCap.DepthTest); GL.Color3(1f, 1f, 1f);
     }
 
-    /// <summary>Efeito ou som mais perto do clique (até 10 px na tela): texto para a barra de status.</summary>
+    /// <summary>
+    /// O que está sob o clique, como no jogo: um raio sai da câmera e o primeiro objeto que ele atinge de verdade ganha
+    /// (triângulos das construções, forma simples de modelos e árvores). Efeito, som ou bichos só ganham quando o clique
+    /// cai em cima do ponto (6 px) e o ponto está mais perto que o objeto atingido. Texto para a barra de status.
+    /// </summary>
     string? PickSceneObject(Point p)
     {
-        if (ObjScene is not { } sc) return null;
-        object? best = null; float bd = 10;
+        var sc = ObjScene;
+        var (ro, rd) = MouseRay(p);
+        object? hitSel = null; float hitDist = float.MaxValue; string? hitInfo = null;
+        if (_buildings.RayPick(ro, rd) is { } bh)
+        {
+            hitSel = new BuildingSel(bh.File, Vector3.Zero); hitDist = bh.Dist;
+            var c = _draft?.Find(bh.File) is { } bo ? CenterOf(bo) : default;
+            hitInfo = string.Format(Loc.T("world.bldInfo", "Construção: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(bh.File), c.X, c.Z, c.Y);
+        }
+        if (_draft is not null)
+            foreach (var o in _draft.Pieces.Values.SelectMany(x => x.Objects))
+            {
+                if (o.Deleted || o.Kind is not (ObjKind.Model or ObjKind.Tree)) continue;
+                var bp = Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z);
+                if ((bp - _cam).LengthSquared > 400 * 400) continue;
+                float rad = o.Kind == ObjKind.Tree ? 2.5f : 1.5f;
+                float h = o.Kind == ObjKind.Tree ? 10f : (_models.Top(o.Source) is { } top ? MathF.Max(top, 1) : 3f);
+                if (RayCylinder(ro, rd, bp, rad, h) is { } dist && dist < hitDist)
+                {
+                    hitDist = dist;
+                    hitSel = o.Kind == ObjKind.Tree ? new TreeSel(o.Key) : new ModelSel(o.Key);
+                    hitInfo = o.Kind == ObjKind.Tree
+                        ? string.Format(Loc.T("obj.treeInfo", "Árvore: {0} · X {1:0} Z {2:0} altura {3:0} (mexer em árvore chega numa próxima etapa)"), Path.GetFileName(o.Source), o.Now.Pos.X, o.Now.Pos.Z, o.Now.Pos.Y)
+                        : string.Format(Loc.T("obj.modelInfo", "Modelo: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(o.Source), o.Now.Pos.X, o.Now.Pos.Z, o.Now.Pos.Y);
+                }
+            }
+        object? best = null; float bd = 6, bestDist = float.MaxValue;
         void Try(object o, float x, float y, float z)
         {
-            if ((Gl(x, y, z) - _cam).LengthSquared > 300 * 300 || Project(new Vector3(x, y, z)) is not { } q) return;
+            var g = Gl(x, y, z);
+            if ((g - _cam).LengthSquared > 300 * 300 || Project(new Vector3(x, y, z)) is not { } q) return;
             float d = MathF.Sqrt((q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y));
-            if (d < bd) { bd = d; best = o; }
+            if (d < bd) { bd = d; best = o; bestDist = (g - ro).Length; }
         }
-        foreach (var fx in sc.Effects) Try(fx, fx.X, fx.Y, fx.Z);
-        foreach (var sd in sc.Sounds) Try(sd, sd.X, sd.Y, sd.Z);
-        foreach (var cr in sc.Critters) Try(cr, cr.X, cr.Y, cr.Z);
-        // nenhum ponto perto: construção sob o clique (mover fica guardado no 3D até a colisão do servidor; ver SceneEdit)
-        if (best is null && PickModel(p) is { } msel && _draft?.Find(msel.Key) is { } mo)
+        if (sc is not null && _showScenePoints.Checked)
         {
-            _sceneSel = msel;
-            return string.Format(Loc.T("obj.modelInfo", "Modelo: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(mo.Source), mo.Now.Pos.X, mo.Now.Pos.Z, mo.Now.Pos.Y);
+            foreach (var fx in sc.Effects) Try(fx, fx.X, fx.Y, fx.Z);
+            foreach (var sd in sc.Sounds) Try(sd, sd.X, sd.Y, sd.Z);
+            foreach (var cr in sc.Critters) Try(cr, cr.X, cr.Y, cr.Z);
         }
-        if (best is null && _buildings.Pick(Project, p, _cam) is { } bp)
-        {
-            _sceneSel = new BuildingSel(bp.File, bp.Center);
-            return string.Format(Loc.T("world.bldInfo", "Construção: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(bp.File), bp.Center.X, bp.Center.Z, bp.Center.Y);
-        }
+        if (hitSel is not null && (best is null || hitDist + 3 < bestDist)) { _sceneSel = hitSel; return hitInfo; }   // ponto embutido até 3 m na parede ainda ganha
         _sceneSel = best;
         string When(int v) => v switch { 0 => Loc.T("world.whenDay", "de dia"), 1 => Loc.T("world.whenNight", "de noite"), _ => Loc.T("world.whenAlways", "sempre") };
         return best switch

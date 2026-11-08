@@ -136,6 +136,9 @@ internal sealed partial class WorldView
 
         // ---- Objetos do mundo: só o que serve aqui ----
         _scenePage.Controls.Add(Hint(Loc.T("obj.steps", "Clique em qualquer objeto à vista: construção, modelo, efeito (laranja), som (azul) ou bichos (verde). Mova pelos números ou com o botão direito no chão; gire pelo giro; Delete apaga. Nada grava até o Salvar.")));
+        _showScenePoints.Text = Loc.T("obj.showPoints", "Mostrar efeitos e sons");
+        _showScenePoints.CheckedChanged += (_, _) => { if (!_showScenePoints.Checked && _sceneSel is WorldScene.SceneEffect or WorldScene.SceneSound or WorldScene.Critter) { _sceneSel = null; ShowObjPanel(); } _gl.Invalidate(); };
+        _scenePage.Controls.Add(_showScenePoints);
         _scenePage.Controls.Add(SectionLabel(Loc.T("obj.insert", "Inserir no mundo")));
         foreach (var (g, k, pt) in new[] {
             ("\uE80F", "obj.pillBuildings", "Construções"), ("\uE913", "obj.pillTrees", "Árvores"), ("\uE790", "obj.pillGrass", "Grama"),

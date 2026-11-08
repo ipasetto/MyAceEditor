@@ -14,8 +14,91 @@ internal sealed class WorldBuildings : IDisposable
     sealed record Part(int Vbo, int Ibo, int Count, string Tex, int NightVbo = 0);
     /// <summary>Cores de noite dos .bmd (A3DLitMesh: o jogo troca dia/noite pelo fator dia/noite).</summary>
     public bool Night { get; set; }
-    sealed record Placed(Matrix4 World, List<Part> Parts, Vector3 Center, float Radius, string File);
-    sealed record Cpu(Matrix4 World, List<BmdModel.Mesh> Meshes, Vector3 Center, float Radius, string File);
+    /// <summary>Malha só de posições (local, x y z) e triângulos, guardada para o clique pela forma real e o contorno.</summary>
+    internal sealed record PickMesh(float[] Pos, int[] Tri, Vector3 Min, Vector3 Max);
+    sealed record Placed(Matrix4 World, List<Part> Parts, Vector3 Center, float Radius, string File, PickMesh Mesh);
+    sealed record Cpu(Matrix4 World, List<BmdModel.Mesh> Meshes, Vector3 Center, float Radius, string File, PickMesh Mesh);
+
+    static PickMesh MeshFor(List<BmdModel.Mesh> meshes, Vector3 min, Vector3 max)
+    {
+        int nv = meshes.Sum(m => m.Vertices.Length / 24), nt = meshes.Sum(m => m.Indices.Length);
+        var pos = new float[nv * 3]; var tri = new int[nt];
+        int v = 0, t = 0;
+        foreach (var m in meshes)
+        {
+            int baseV = v;
+            for (int o = 0; o + 12 <= m.Vertices.Length; o += 24, v++)
+            {
+                pos[v * 3] = BitConverter.ToSingle(m.Vertices, o); pos[v * 3 + 1] = BitConverter.ToSingle(m.Vertices, o + 4); pos[v * 3 + 2] = BitConverter.ToSingle(m.Vertices, o + 8);
+            }
+            foreach (var i in m.Indices) tri[t++] = baseV + i;
+        }
+        return new PickMesh(pos, tri, min, max);
+    }
+
+    /// <summary>Malha e matriz de agora de uma construção carregada (para o contorno); null se não carregada ou apagada.</summary>
+    internal (float[] Pos, int[] Tri, Matrix4 World)? MeshOf(string file)
+    {
+        foreach (var p in _loaded.Values.SelectMany(l => l))
+            if (p.File.Equals(file, StringComparison.OrdinalIgnoreCase)) { var n = Now(p); return n.Hidden ? null : (p.Mesh.Pos, p.Mesh.Tri, n.World); }
+        return null;
+    }
+
+    /// <summary>
+    /// Construção atingida pelo raio (origem e direção no espaço do OpenGL): o raio vai para o espaço da construção, passa
+    /// pela caixa e depois pelos triângulos (Möller–Trumbore). Devolve a mais perto e a distância.
+    /// </summary>
+    internal (string File, float Dist)? RayPick(Vector3 o, Vector3 d, float maxDist = 600)
+    {
+        (string, float)? best = null; float bestD = maxDist;
+        foreach (var p in _loaded.Values.SelectMany(l => l))
+        {
+            var (w, c, hidden) = Now(p);
+            if (hidden || p.Mesh.Tri.Length == 0) continue;
+            var toC = c - o;
+            float along = Vector3.Dot(toC, d);
+            if (along < -p.Radius || along - p.Radius > bestD || (toC - d * along).LengthSquared > p.Radius * p.Radius * 1.05f) continue;   // esfera
+            var inv = w.Inverted();
+            var lo = Vector3.TransformPosition(o, inv); var ld = Vector3.TransformVector(d, inv);
+            if (!BoxHit(lo, ld, p.Mesh.Min, p.Mesh.Max)) continue;
+            var pos = p.Mesh.Pos; var tri = p.Mesh.Tri;
+            float bestT = float.MaxValue;
+            for (int i = 0; i + 2 < tri.Length; i += 3)
+            {
+                int a = tri[i] * 3, b = tri[i + 1] * 3, e = tri[i + 2] * 3;
+                if (a + 2 >= pos.Length || b + 2 >= pos.Length || e + 2 >= pos.Length) continue;
+                var v0 = new Vector3(pos[a], pos[a + 1], pos[a + 2]);
+                var e1 = new Vector3(pos[b], pos[b + 1], pos[b + 2]) - v0; var e2 = new Vector3(pos[e], pos[e + 1], pos[e + 2]) - v0;
+                var pv = Vector3.Cross(ld, e2); float det = Vector3.Dot(e1, pv);
+                if (MathF.Abs(det) < 1e-9f) continue;
+                float inv1 = 1 / det; var tv = lo - v0;
+                float u = Vector3.Dot(tv, pv) * inv1; if (u < 0 || u > 1) continue;
+                var qv = Vector3.Cross(tv, e1); float v = Vector3.Dot(ld, qv) * inv1; if (v < 0 || u + v > 1) continue;
+                float t = Vector3.Dot(e2, qv) * inv1;
+                if (t > 1e-4f && t < bestT) bestT = t;
+            }
+            if (bestT == float.MaxValue) continue;
+            float dist = (Vector3.TransformPosition(lo + ld * bestT, w) - o).Length;
+            if (dist < bestD) { bestD = dist; best = (p.File, dist); }
+        }
+        return best;
+    }
+
+    static bool BoxHit(Vector3 o, Vector3 d, Vector3 mn, Vector3 mx)
+    {
+        float t0 = -1e30f, t1 = 1e30f;
+        for (int k = 0; k < 3; k++)
+        {
+            float oo = k == 0 ? o.X : k == 1 ? o.Y : o.Z, dd = k == 0 ? d.X : k == 1 ? d.Y : d.Z;
+            float lo = k == 0 ? mn.X : k == 1 ? mn.Y : mn.Z, hi = k == 0 ? mx.X : k == 1 ? mx.Y : mx.Z;
+            if (MathF.Abs(dd) < 1e-12f) { if (oo < lo - 0.01f || oo > hi + 0.01f) return false; continue; }
+            float a = (lo - oo) / dd, b = (hi - oo) / dd;
+            if (a > b) (a, b) = (b, a);
+            t0 = MathF.Max(t0, a); t1 = MathF.Min(t1, b);
+            if (t0 > t1) return false;
+        }
+        return t1 > 0;
+    }
 
     /// <summary>Construções movidas no Mundo 3D e ainda não gravadas (.bmd no pck → deslocamento no espaço do OpenGL).</summary>
     public Dictionary<string, Vector3> Offsets { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -178,7 +261,7 @@ internal sealed class WorldBuildings : IDisposable
                     min = Vector3.ComponentMin(min, v); max = Vector3.ComponentMax(max, v);
                 }
             var center = Vector3.TransformPosition((min + max) / 2, world);
-            models.Add(new Cpu(world, m.Meshes, center, (max - min).Length / 2 * s, e.Path));
+            models.Add(new Cpu(world, m.Meshes, center, (max - min).Length / 2 * s, e.Path, MeshFor(m.Meshes, min, max)));
             foreach (var mesh in m.Meshes)
             {
                 bool need; lock (_texSent) need = _texSent.Add(mesh.Texture);
@@ -225,7 +308,7 @@ internal sealed class WorldBuildings : IDisposable
                 }
                 parts.Add(new Part(vbo, ibo, mesh.Indices.Length, mesh.Texture, nvbo));
             }
-            list.Add(new Placed(c.World, parts, c.Center, c.Radius, c.File));
+            list.Add(new Placed(c.World, parts, c.Center, c.Radius, c.File, c.Mesh));
         }
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
     }

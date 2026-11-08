@@ -113,7 +113,7 @@ internal sealed partial class WorldView
             WorldScene.SceneEffect fx => (Loc.T("world.objEffect", "Efeito") + ": " + fx.Gfx, fx.X, fx.Y, fx.Z),
             WorldScene.SceneSound sd => (Loc.T("world.objSound", "Som") + ": " + sd.File, sd.X, sd.Y, sd.Z),
             WorldScene.Critter cr => (Loc.T("world.objCritter", "Bichos") + ": " + cr.Model, cr.X, cr.Y, cr.Z),
-            BuildingSel or ModelSel when SelDraft is { } so => (CardText(so), CenterOf(so).X, CenterOf(so).Y, CenterOf(so).Z),
+            BuildingSel or ModelSel or TreeSel when SelDraft is { } so => (CardText(so), CenterOf(so).X, CenterOf(so).Y, CenterOf(so).Z),
             BuildingSel b => (Loc.T("world.objBuilding", "Construção") + ": " + Path.GetFileName(b.File), b.Center.X, b.Center.Y, b.Center.Z),
             _ => ("", 0f, 0f, 0f),
         };

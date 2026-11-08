@@ -151,6 +151,7 @@ internal sealed partial class WorldView
     {
         BuildingSel b => _draft?.Find(b.File),
         ModelSel m => _draft?.Find(m.Key),
+        TreeSel t => _draft?.Find(t.Key),
         _ => null,
     };
 
@@ -178,7 +179,7 @@ internal sealed partial class WorldView
         var (mn, mx) = DraftChecks.WorldBox(o);
         var size = mx - mn;
         int same = _draft?.Pieces.Values.SelectMany(p => p.Objects).Count(x => !x.Deleted && x.Kind == o.Kind && string.Equals(Path.GetFileName(x.Source), Path.GetFileName(o.Source), StringComparison.OrdinalIgnoreCase)) ?? 1;
-        string kind = o.Kind == ObjKind.Building ? Loc.T("world.objBuilding", "Construção") : Loc.T("obj.model", "Modelo");
+        string kind = o.Kind == ObjKind.Building ? Loc.T("world.objBuilding", "Construção") : o.Kind == ObjKind.Tree ? Loc.T("obj.tree", "Árvore") : Loc.T("obj.model", "Modelo");
         var lines = new List<string> { kind + ": " + Path.GetFileName(o.Source) };
         if (size.LengthSquared() > 0) lines.Add(string.Format(Loc.T("obj.size", "tamanho {0:0.0} × {1:0.0} × {2:0.0} m (largura × altura × profundidade)"), size.X, size.Y, size.Z));
         lines.Add(string.Format(Loc.T("obj.count", "aparece {0} vez(es) nos pedaços abertos"), same));
@@ -189,12 +190,12 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Leva o centro do objeto escolhido para (x, y, z) do jogo; com "Grudar no chão", a altura segue o terreno.</summary>
-    void MoveSelectedCenter(float x, float y, float z)
+    void MoveSelectedCenter(float x, float y, float z, bool? stick = null)
     {
         if (SelDraft is not { } o) { _status.Text = Loc.T("obj.notLoaded", "Este objeto ainda está carregando; tente de novo em instantes."); return; }
         var c = CenterOf(o);
         var pos = o.Now.Pos + new System.Numerics.Vector3(x - c.X, y - c.Y, z - c.Z);
-        if (_stickGround.Checked && _t.HeightAt(pos.X, pos.Z) is { } g && _t.HeightAt(o.Original.Pos.X, o.Original.Pos.Z) is { } g0)
+        if ((stick ?? _stickGround.Checked) && _t.HeightAt(pos.X, pos.Z) is { } g && _t.HeightAt(o.Original.Pos.X, o.Original.Pos.Z) is { } g0)
             pos.Y = g + (o.Original.Pos.Y - g0);
         if (DraftApply(new MoveOp(o.Key, o.Now with { Pos = pos })) is null)
             _status.Text = string.Format(Loc.T("obj.moved", "Objeto movido para X {0:0.0} Z {1:0.0} altura {2:0.0} (ainda não gravado)"), pos.X, pos.Z, pos.Y);
@@ -260,7 +261,7 @@ internal sealed partial class WorldView
         if (_showCollision.Checked)
             foreach (var o in _draft.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Solid && !o.Deleted))
                 if ((Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z) - _cam).LengthSquared < 150 * 150) Box(o, Color.FromArgb(255, 90, 90), 1);
-        if (SelDraft is { Deleted: false } sel) Box(sel, Color.Gold, 2.5f);
+        if (SelDraft is { Deleted: false } sel && sel.Kind != ObjKind.Building) Box(sel, Color.Gold, 2.5f);
         GL.LineWidth(1); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
     }
 
@@ -392,5 +393,246 @@ internal sealed partial class WorldView
         SetCamera(new Vector3(c.X - 20, c.Y + 15, c.Z + 20), 45, -25);
     }
 
+    sealed record TreeSel(string Key);
+    readonly CheckBox _showScenePoints = new() { Text = "", Checked = true, AutoSize = true, ForeColor = Color.White };
+
+    /// <summary>Distância do raio (OpenGL) até um cilindro em pé (base, raio, altura); null se não bate.</summary>
+    static float? RayCylinder(Vector3 o, Vector3 d, Vector3 b, float r, float h)
+    {
+        float ox = o.X - b.X, oz = o.Z - b.Z;
+        float A = d.X * d.X + d.Z * d.Z, B = 2 * (ox * d.X + oz * d.Z), C = ox * ox + oz * oz - r * r;
+        float best = float.MaxValue;
+        if (A > 1e-8f)
+        {
+            float disc = B * B - 4 * A * C;
+            if (disc >= 0)
+                foreach (float t in new[] { (-B - MathF.Sqrt(disc)) / (2 * A), (-B + MathF.Sqrt(disc)) / (2 * A) })
+                {
+                    float y = o.Y + d.Y * t;
+                    if (t > 0 && y >= b.Y && y <= b.Y + h) best = MathF.Min(best, t);
+                }
+        }
+        if (MathF.Abs(d.Y) > 1e-8f)
+            foreach (float cy in new[] { b.Y, b.Y + h })
+            {
+                float t = (cy - o.Y) / d.Y;
+                float x = o.X + d.X * t - b.X, z = o.Z + d.Z * t - b.Z;
+                if (t > 0 && x * x + z * z <= r * r) best = MathF.Min(best, t);
+            }
+        return best == float.MaxValue ? null : best;
+    }
+
+
+
+    // ---------------- clique pela forma real (pedido 07/11 noite) ----------------
+    /// <summary>O que o clique escolheria nesse ponto da tela, como texto ("bld:arquivo", "tree:i", "fx:id"...); null = nada.</summary>
+    internal string? PickAt(Point p)
+    {
+        PickSceneObject(p);
+        return _sceneSel switch
+        {
+            BuildingSel b => "bld:" + b.File,
+            ModelSel m => "model:" + m.Key,
+            TreeSel t => t.Key,
+            WorldScene.SceneEffect fx => "fx:" + fx.Id,
+            WorldScene.SceneSound sd => "snd:" + sd.Id,
+            WorldScene.Critter cr => "crit:" + cr.Offset,
+            _ => null,
+        };
+    }
+
+    /// <summary>Para a captura ("dftpick"): clica na malha da construção mais perto (longe do centro), numa árvore e num efeito na frente.</summary>
+    internal string DraftPickTest()
+    {
+        string load = DraftLoadTest();
+        var lines = new List<string>();
+        // 1) três pontos da malha da construção mais perto, a mais de 40 px do centro dela na tela
+        if (_buildings.Nearest(_cam) is { } near && _buildings.MeshOf(near.File) is { } mesh)
+        {
+            var center = Project(near.Center);
+            int tried = 0, same = 0; var got = new List<string>();
+            for (int t = 0; t + 2 < mesh.Tri.Length && tried < 3; t += 3 * Math.Max(1, mesh.Tri.Length / 3 / 400))
+            {
+                var c = Vector3.Zero;
+                for (int k = 0; k < 3; k++) { int i = mesh.Tri[t + k] * 3; c += new Vector3(mesh.Pos[i], mesh.Pos[i + 1], mesh.Pos[i + 2]); }
+                var gl = Vector3.TransformPosition(c / 3, mesh.World);
+                var game = new Vector3(gl.X, gl.Y, -gl.Z);
+                if (Project(game) is not { } q || q.X < 5 || q.Y < 5 || q.X > _gl.Width - 5 || q.Y > _gl.Height - 5) continue;
+                if (center is { } cc && MathF.Abs(q.X - cc.X) + MathF.Abs(q.Y - cc.Y) < 40) continue;
+                var hit = _buildings.RayPick(MouseRay(Point.Round(q)).O, MouseRay(Point.Round(q)).D);
+                if (hit?.File != near.File) continue;   // outra coisa na frente desse ponto: não serve de prova
+                tried++;
+                var k2 = PickAt(Point.Round(q)); got.Add(k2 ?? "nada");
+                if (k2 == "bld:" + near.File) same++;
+            }
+            lines.Add($"malha {System.IO.Path.GetFileName(near.File)}: {same}/{tried} cliques escolheram a construção ({string.Join(", ", got.Select(g => System.IO.Path.GetFileName(g)))})");
+        }
+        else lines.Add("malha: sem construção");
+        // 2) árvore
+        var trees = _draft?.Pieces.Values.SelectMany(x => x.Objects).Where(o => o.Kind == ObjKind.Tree).OrderBy(o => (Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z) - _cam).LengthSquared).Take(8).ToList() ?? [];
+        string treeOk = "nenhuma";
+        foreach (var tr in trees)
+            if (Project(new Vector3(tr.Now.Pos.X, tr.Now.Pos.Y + 3, tr.Now.Pos.Z)) is { } tq && PickAt(Point.Round(tq)) == tr.Key) { treeOk = tr.Key; break; }
+        lines.Add($"árvore: {treeOk} (de {trees.Count} perto)");
+        // 3) efeito na frente de tudo
+        string fxOk = "nenhum";
+        if (ObjScene is { } sc)
+            foreach (var fx in sc.Effects.OrderBy(f => (Gl(f.X, f.Y, f.Z) - _cam).LengthSquared).Take(400))
+            {
+                if ((Gl(fx.X, fx.Y, fx.Z) - _cam).LengthSquared > 290 * 290) continue;
+                if (Project(new Vector3(fx.X, fx.Y, fx.Z)) is not { } fq || fq.X < 0 || fq.Y < 0 || fq.X > _gl.Width || fq.Y > _gl.Height) continue;
+                var r = MouseRay(Point.Round(fq));
+                float dfx = (Gl(fx.X, fx.Y, fx.Z) - r.O).Length;
+                if (_buildings.RayPick(r.O, r.D) is { } bh && bh.Dist < dfx - 3) continue;
+                fxOk = PickAt(Point.Round(fq)) == "fx:" + fx.Id ? "fx:" + fx.Id : "errado:" + PickAt(Point.Round(fq));
+                break;
+            }
+        int inView = 0; string firstFx = "";
+        if (ObjScene is { } sc2)
+            foreach (var fx in sc2.Effects)
+            {
+                var gfx = Gl(fx.X, fx.Y, fx.Z);
+                if ((gfx - _cam).LengthSquared > 290 * 290 || Project(new Vector3(fx.X, fx.Y, fx.Z)) is not { } fq2 || fq2.X < 0 || fq2.Y < 0 || fq2.X > _gl.Width || fq2.Y > _gl.Height) continue;
+                inView++;
+                if (firstFx.Length == 0) { var r2 = MouseRay(Point.Round(fq2)); firstFx = $"efeito a {(gfx - r2.O).Length:0.0} m, construção a {_buildings.RayPick(r2.O, r2.D)?.Dist:0.0} m"; }
+            }
+        lines.Add($"efeito na frente: {fxOk} ({inView} efeitos na vista a até 290 m; 1o: {firstFx})");
+        // 4) efeito de perto: câmera a ~17 m dele (como o "levar até ele"); o clique em cima do ponto escolhe o efeito
+        string near4 = "sem efeito";
+        if (ObjScene is { } sc4 && sc4.Effects.OrderBy(f => (Gl(f.X, f.Y, f.Z) - _cam).LengthSquared).FirstOrDefault() is { } ef)
+        {
+            SetCamera(new Vector3(ef.X - 10, ef.Y + 6, ef.Z + 10), 45, -20);
+            for (int k = 0; k < 10; k++) { Application.DoEvents(); Thread.Sleep(30); }
+            if (Project(new Vector3(ef.X, ef.Y, ef.Z)) is { } eq && eq.X > 0 && eq.Y > 0 && eq.X < _gl.Width && eq.Y < _gl.Height)
+            {
+                var r4 = MouseRay(Point.Round(eq));
+                float d4 = (Gl(ef.X, ef.Y, ef.Z) - r4.O).Length;
+                var bh4 = _buildings.RayPick(r4.O, r4.D);
+                string want = bh4 is { } x4 && x4.Dist + 3 < d4 ? "bld:" + x4.File : "fx:" + ef.Id;
+                var got4 = PickAt(Point.Round(eq));
+                near4 = (got4 == want ? "ok " : "ERRADO ") + $"esperado {System.IO.Path.GetFileName(want)}, veio {System.IO.Path.GetFileName(got4 ?? "nada")} (efeito a {d4:0.0} m, construção a {bh4?.Dist:0.0} m)";
+            }
+            else near4 = "efeito fora da tela depois de levar a câmera";
+        }
+        lines.Add("efeito de perto: " + near4);
+        // 5) setas: escolhe a construção mais perto, arrasta a seta X 60 px e solta; fica escolhida para a foto
+        string giz = "sem construção";
+        DraftLoadTest();
+        if (_buildings.Nearest(_cam) is { } gb && _draft?.Find(gb.File) is { } go)
+        {
+            _sceneSel = new BuildingSel(gb.File, Vector3.Zero); ShowObjPanel();
+            var c0 = CenterOf(go); var cv = V3(c0); float L = GizmoSize(cv);
+            if (Project(cv) is { } pa && Project(cv + Vector3.UnitX * L) is { } pb)
+            {
+                var tip = Point.Round(new PointF(pa.X + (pb.X - pa.X) * 0.8f, pa.Y + (pb.Y - pa.Y) * 0.8f));
+                int axis = ObjGizmoHit(tip);
+                float len = MathF.Sqrt((pb.X - pa.X) * (pb.X - pa.X) + (pb.Y - pa.Y) * (pb.Y - pa.Y));
+                var to = Point.Round(new PointF(tip.X + (pb.X - pa.X) / len * 60, tip.Y + (pb.Y - pa.Y) / len * 60));
+                _objAxis = axis; _objStart = c0; _objDown = tip; _objPos = null;
+                if (axis == 1) ObjGizmoDrag(to);
+                ObjGizmoUp();
+                var c1 = CenterOf(go);
+                giz = $"seta={axis} X {c0.X:0.0}->{c1.X:0.0} Z {c0.Z:0.0}->{c1.Z:0.0} ok={axis == 1 && c1.X > c0.X + 0.5f && MathF.Abs(c1.Z - c0.Z) < 0.05f}";
+            }
+            lines.Add("setas: " + giz);
+            return load + " | dftpick: " + string.Join(" · ", lines);
+        }
+        lines.Add("setas: " + giz);
+        _sceneSel = null; ShowObjPanel();
+        return load + " | dftpick: " + string.Join(" · ", lines);
+    }
+
+    /// <summary>Raio do mouse no espaço do OpenGL (origem e direção), o mesmo do Ray.</summary>
+    (Vector3 O, Vector3 D) MouseRay(Point p)
+    {
+        float nx = 2f * p.X / _gl.Width - 1, ny = 1 - 2f * p.Y / _gl.Height;
+        var inv = Matrix4.Invert(View * Proj);
+        var a = new Vector4(nx, ny, -1, 1) * inv; var b = new Vector4(nx, ny, 1, 1) * inv;
+        var o = a.Xyz / a.W;
+        return (o, Vector3.Normalize(b.Xyz / b.W - o));
+    }
+
+
+    // ---------- setas X/Y/Z no objeto escolhido ----------
+    int _objAxis, _objHover;
+    System.Numerics.Vector3 _objStart;
+    Point _objDown;
+    System.Numerics.Vector3? _objPos;
+    static Vector3 V3(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
+
+    bool ObjGizmoOn => _tool == Tool.Scene && SelDraft is { ReadOnlyWhy: null, Deleted: false, Kind: ObjKind.Building or ObjKind.Model };
+
+    int ObjGizmoHit(Point p)
+    {
+        if (!ObjGizmoOn) return 0;
+        var c = V3(CenterOf(SelDraft!)); float L = GizmoSize(c);
+        if (Project(c) is not { } a) return 0;
+        for (int k = 0; k < 3; k++)
+            if (Project(c + GizmoDirs[k] * L * 1.18f) is { } b && SegDist(p, a, b, 0.2f) < 9) return k + 1;
+        return 0;
+    }
+
+    void ObjGizmoDrag(Point p)
+    {
+        var c = V3(_objStart); float L = GizmoSize(c);
+        var dir = GizmoDirs[_objAxis - 1];
+        if (Project(c) is not { } a || Project(c + dir * L) is not { } b) return;
+        float sx = b.X - a.X, sy = b.Y - a.Y, len2 = sx * sx + sy * sy;
+        if (len2 < 4) return;
+        float t = MathF.Round(((p.X - _objDown.X) * sx + (p.Y - _objDown.Y) * sy) / len2 * L * 10) / 10;
+        var g = c + dir * t;
+        _objPos = new System.Numerics.Vector3(g.X, g.Y, g.Z);
+        _status.Text = string.Format(Loc.T("gizmo.moving", "Movendo: X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), g.X, g.Y, g.Z);
+        _gl.Invalidate();
+    }
+
+    /// <summary>Soltou a seta: um passo só no rascunho (Ctrl+Z desfaz). Na seta da altura, "Grudar no chão" não vale.</summary>
+    bool ObjGizmoUp()
+    {
+        if (_objAxis == 0) return false;
+        if (_objPos is { } op) MoveSelectedCenter(op.X, op.Y, op.Z, stick: _objAxis != 2 && _stickGround.Checked);
+        _objAxis = 0; _objPos = null; _gl.Invalidate();
+        return true;
+    }
+
+    void DrawObjGizmo()
+    {
+        if (!ObjGizmoOn) return;
+        var c = V3(_objPos ?? CenterOf(SelDraft!)); float L = GizmoSize(c);
+        int hot = _objAxis > 0 ? _objAxis : _objHover;
+        void V(Vector3 q) => GL.Vertex3(Gl(q.X, q.Y, q.Z));
+        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting);
+        GL.LineWidth(3);
+        Color[] cols = { Color.Red, Color.LimeGreen, Color.DodgerBlue };
+        for (int k = 0; k < 3; k++)
+        {
+            var d = GizmoDirs[k]; var tip = c + d * L;
+            Col(hot == k + 1 ? Color.White : cols[k]);
+            GL.Begin(PrimitiveType.Lines); V(c); V(tip); GL.End();
+            var u = Vector3.Normalize(Vector3.Cross(d, k == 1 ? Vector3.UnitX : Vector3.UnitY)); var w = Vector3.Cross(d, u);
+            GL.Begin(PrimitiveType.TriangleFan); V(c + d * L * 1.18f);
+            for (int i = 0; i <= 8; i++) { float t = i / 8f * MathF.Tau; V(tip + (u * MathF.Cos(t) + w * MathF.Sin(t)) * L * 0.06f); }
+            GL.End();
+        }
+        GL.LineWidth(1); GL.Enable(EnableCap.DepthTest);
+    }
+
+    /// <summary>Contorno amarelo da malha da construção escolhida (linhas dos triângulos), como nos programas de modelagem.</summary>
+    void DrawSelectedMesh()
+    {
+        if (_tool != Tool.Scene || SelDraft is not { Kind: ObjKind.Building, Deleted: false } o || _buildings.MeshOf(o.Key) is not { } m) return;
+        GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.DepthTest);
+        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+        GL.Color4(1f, 0.85f, 0.1f, 0.55f);
+        GL.PushMatrix();
+        var w = m.World; GL.MultMatrix(ref w);
+        GL.Begin(PrimitiveType.Triangles);
+        for (int i = 0; i + 2 < m.Tri.Length; i++) { int v = m.Tri[i] * 3; if (v + 2 < m.Pos.Length) GL.Vertex3(m.Pos[v], m.Pos[v + 1], m.Pos[v + 2]); else GL.Vertex3(0f, 0f, 0f); }
+        GL.End();
+        GL.PopMatrix();
+        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+        GL.Disable(EnableCap.Blend); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
+    }
     void DraftDispose() { _draftSrc?.Dispose(); _draftSrc = null; }
 }

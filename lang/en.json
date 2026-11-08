@@ -5685,5 +5685,8 @@
   "obj.pillGrass": "Grass",
   "obj.pillModels": "Models",
   "obj.pillLights": "Lights",
-  "obj.askSave": "There are unsaved changes in the world objects (buildings, models, effects, sounds or critters). Save before closing?"
+  "obj.askSave": "There are unsaved changes in the world objects (buildings, models, effects, sounds or critters). Save before closing?",
+  "obj.showPoints": "Show effects and sounds",
+  "obj.tree": "Tree",
+  "obj.treeInfo": "Tree: {0} · X {1:0} Z {2:0} height {3:0} (changing trees comes in a later stage)"
 }
