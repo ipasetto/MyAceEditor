@@ -145,10 +145,11 @@ internal sealed partial class WorldView
             ("\uE80F", "obj.pillBuildings", "Construções"), ("\uE913", "obj.pillTrees", "Árvores"), ("\uE790", "obj.pillGrass", "Grama"),
             ("\uE7B8", "obj.pillModels", "Modelos"), ("\uE781", "obj.pillLights", "Luzes") })
         {
-            bool trees = k == "obj.pillTrees", blds = k == "obj.pillBuildings", grass = k == "obj.pillGrass";
-            var b = SmallButton(g, Loc.T(k, pt), trees ? ChooseTreeToPlant : blds ? ChooseBuildingToPlace : grass ? OpenGrassPanel : () => { });
+            bool trees = k == "obj.pillTrees", blds = k == "obj.pillBuildings", grass = k == "obj.pillGrass", lights = k == "obj.pillLights";
+            var b = SmallButton(g, Loc.T(k, pt), trees ? ChooseTreeToPlant : blds ? ChooseBuildingToPlace : grass ? OpenGrassPanel : lights ? OpenLightPanel : () => { });
             if (trees) _toolTip.SetToolTip(b, Loc.T("obj.pillTreesTip", "Escolher o tipo de árvore e clicar no chão para plantar."));
             else if (blds) _toolTip.SetToolTip(b, Loc.T("obj.pillBuildingsTip", "Escolher uma construção das que estão por perto e clicar no chão para pôr uma cópia."));
+            else if (lights) _toolTip.SetToolTip(b, Loc.T("obj.pillLightsTip", "Lâmpadas do mapa: escolher, mover, mudar cor e alcance, pôr novas."));
             else if (grass) _toolTip.SetToolTip(b, Loc.T("obj.pillGrassTip", "Escolher a grama ou flor e pintar no chão com o pincel (Borracha apaga)."));
             else { b.Enabled = false; b.ForeColor = Color.Gray; _toolTip.SetToolTip(b, Loc.T("obj.pillSoon", "Chega na próxima etapa da ferramenta.")); }
             _scenePage.Controls.Add(b);
@@ -157,6 +158,8 @@ internal sealed partial class WorldView
         _scenePage.Controls.Add(_objPanel);
         InitGrassPanel();
         _scenePage.Controls.Add(_brushPanel);
+        InitLightPanel();
+        _scenePage.Controls.Add(_lightPanel);
         _scenePage.Controls.Add(_sceneState);
         _scenePage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
         _scenePage.Controls.Add(SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
@@ -238,7 +241,7 @@ internal sealed partial class WorldView
         if (_tool == Tool.Zones && !ZoneLeave()) return;
         if (_tool == Tool.Domains && !CloseDomains()) return;
         if (_tool == Tool.Scene && !AbandonObjects()) return;
-        if (_tool == Tool.Scene) { StopBrush(); StopPlanting(); }
+        if (_tool == Tool.Scene) { StopBrush(); StopPlanting(); CloseLightPanel(); }
         if (_tool == Tool.Create)
         {
             if (_editing > 0 && MessageBox.Show(this, Loc.T("create.stopEditAsk", "Sair sem salvar as mudanças deste NPC?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;

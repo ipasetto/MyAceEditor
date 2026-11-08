@@ -237,6 +237,7 @@ internal sealed partial class WorldView : Form
             if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
+            if (LightMouseDown(e)) return;   // luzes da cena
             if (BrushMouseDown(e)) return;   // pincel de grama
             // inserção (plantio ou Ctrl+V): esquerdo põe UM objeto onde o mouse aponta no chão e sai; direito cancela
             if (_tool == Tool.Scene && Placing)
@@ -262,6 +263,7 @@ internal sealed partial class WorldView : Form
             _dragging = false;
             if (PathMouseUp(e)) return;
             if (BrushMouseUp()) return;   // fim da pincelada = um passo de Ctrl+Z
+            if (LightMouseUp()) return;   // soltou a seta da luz
             if (ObjGizmoUp()) return;
             if (_gizmoAxis > 0)
             {
@@ -282,6 +284,8 @@ internal sealed partial class WorldView : Form
                 return;
             }
             // objetos do cenário (O ligado): clique perto de um efeito/som mostra o que é
+            if (_tool == Tool.Scene && _lightPanel.Visible && e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4)
+            { _lightSel = -1; ShowLightCard(); _gl.Invalidate(); return; }   // luzes abertas: clique no vazio só tira a escolha da luz
             if (_sceneObjs && e.Button == MouseButtons.Left && _movingTag is null && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4 && PickSceneObject(e.Location) is { } info)
             {
                 _status.Text = info; ShowObjPanel(); _gl.Invalidate();
@@ -356,6 +360,7 @@ internal sealed partial class WorldView : Form
             SyncPickCursor();
             if (_areaA is not null) { if (Ray(e.Location) is { } b) _areaB = b; _gl.Invalidate(); return; }
             if (_objAxis > 0) { ObjGizmoDrag(e.Location); return; }
+            if (LightMouseMove(e.Location)) return;   // setas da luz
             if (_gizmoAxis > 0) { GizmoDrag(e.Location); return; }
             if (PathMouseMove(e.Location)) return;
             if (!_dragging && GizmoHit(e.Location) is var gh && gh != _gizmoHover) { _gizmoHover = gh; _gl.Invalidate(); }
@@ -412,6 +417,7 @@ internal sealed partial class WorldView : Form
         if (_tool == Tool.None) return ClearScreen();
         if (_tool == Tool.Scene && StopPlanting()) return true;   // 1º Esc no plantio: só para de plantar
         if (_tool == Tool.Scene && GrassEscape()) return true;    // Esc na grama: apaga o pincel, depois fecha o painel
+        if (_tool == Tool.Scene && LightEscape()) return true;    // Esc nas luzes: cancela o pôr, tira a escolha, fecha
         if (_tool == Tool.Scene && _sceneSel is not null) { _sceneSel = null; ShowObjPanel(); _gl.Invalidate(); return true; }   // 1º Esc: tira a seleção
         LeaveTool();
         return true;
@@ -454,6 +460,7 @@ internal sealed partial class WorldView : Form
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (PathKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }
         if (!e.Control && !e.Alt && GrassKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }   // grama: B pincel, E borracha
+        if (!e.Control && !e.Alt && LightKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }   // luzes: I põe, Delete apaga
         if (e.Control)
         {
             switch (e.KeyCode)
@@ -462,6 +469,12 @@ internal sealed partial class WorldView : Form
                     bool ok = e.KeyCode == Keys.Z ? UndoAny() : RedoAny();
                     _status.Text = ok ? "" : e.KeyCode == Keys.Z ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer");
                     RefreshMarkers(); break;
+                case Keys.C when _tool == Tool.Scene && _lightPanel.Visible:
+                    LightCopy();
+                    break;
+                case Keys.V when _tool == Tool.Scene && _lightPanel.Visible:
+                    LightPaste();
+                    break;
                 case Keys.C when _tool == Tool.Scene && BrushOn:
                     GrassEyedropper();   // com o pincel: conta-gotas (o tipo embaixo do mouse)
                     break;
@@ -662,6 +675,7 @@ internal sealed partial class WorldView : Form
         DrawDraftModels();
         DrawObjectBoxes();
         DrawBrush();
+        DrawLights();
         _trees.Draw(_cam, Forward);
         _grass.Draw(_cam);   // grama do .ecwld/.ecbsd perto da câmera   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();
@@ -2052,6 +2066,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
         if (_tool == Tool.Domains) return false;   // o editor de territórios tem o Ctrl+Z dele
         if (ZoneUndo(redo: false)) return true;
+        if (LightUndo(redo: false)) return true;   // luzes: painel aberto ou a última ação foi numa luz
         if (GrassUndo(redo: false)) return true;   // pincel ligado ou a última ação foi uma pincelada
         if (ObjectUndo(redo: false)) return true;  // objetos do mundo (rascunho) só se foi a última ação
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
@@ -2073,6 +2088,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Redo();
         if (_tool == Tool.Domains) return false;
         if (ZoneUndo(redo: true)) return true;
+        if (LightUndo(redo: true)) return true;
         if (GrassUndo(redo: true)) return true;
         if (ObjectUndo(redo: true)) return true;
         if (SceneUndo(redo: true)) return true;

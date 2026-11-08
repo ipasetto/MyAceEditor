@@ -25,6 +25,8 @@ public static class ObjectsSelfTest
     {
         var lines = new List<string>();
         var r = new Report(lines);
+        try { Lights(r, element); }
+        catch (Exception ex) { r.Check("luzes-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Grass(r, element); }
         catch (Exception ex) { r.Check("grama-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Index(r, element); }
@@ -174,6 +176,30 @@ public static class ObjectsSelfTest
 
 
     // ---------------- salvar (Task 6) ----------------
+    /// <summary>Luzes da cena: todo scenelights.dat do cliente lê e regrava idêntico; luz mexida grava a caixa = posição ± alcance.</summary>
+    static void Lights(Report r, string element)
+    {
+        int files = 0, same = 0, lights = 0; string? bad = null;
+        foreach (var f in Directory.GetFiles(Path.Combine(element, "maps"), "scenelights.dat", SearchOption.AllDirectories))
+        {
+            var b = File.ReadAllBytes(f); files++;
+            var list = SceneLightsFile.Read(b); lights += list.Count;
+            if (SceneLightsFile.Write(list).AsSpan().SequenceEqual(b)) same++; else bad ??= f;
+        }
+        r.Check("luzes-regravam-igual", files > 0 && same == files, $"{same} de {files} arquivos, {lights} luzes" + (bad is null ? "" : "; diferente: " + bad));
+        // luz mexida: a caixa é refeita e relida igual ao que o jogo espera
+        var a26 = Path.Combine(element, "maps", "a26", "scenelights.dat");
+        if (File.Exists(a26))
+        {
+            var l = SceneLightsFile.Read(File.ReadAllBytes(a26));
+            l[0] = l[0] with { Pos = l[0].Pos + new Vector3(5, 0, 0), Range = 22, Flags = l[0].Flags | SceneLight.NightOnly };
+            var back = SceneLightsFile.Read(SceneLightsFile.Write(l));
+            var raw = back[0].Raw!;
+            bool box = BitConverter.ToSingle(raw, 84) == back[0].Pos.X - 22 && BitConverter.ToSingle(raw, 96) == back[0].Pos.X + 22 && BitConverter.ToSingle(raw, 72) == 22;
+            r.Check("luz-mexida-caixa", box && back[0].Night && back.Count == l.Count && back[1].Raw!.AsSpan().SequenceEqual(l[1].Raw), $"caixa={box} noite={back[0].Night}");
+        }
+    }
+
     /// <summary>Grama: pinta, apaga, desfaz, área nova, tipo de outro mapa; salva numa cópia temporária e relê.</summary>
     static void Grass(Report r, string element)
     {
