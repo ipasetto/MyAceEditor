@@ -5889,5 +5889,20 @@
   "terrain.askSave": "There are unsaved terrain changes. Save before closing?",
   "terrain.tooMany": "This area already has the most textures; erase one (Eraser) or use one that is already here.",
   "terrain.bakFail": "Could not make the safety copy; nothing was saved.",
-  "terrain.saved": "Terrain saved: {0} ground texture file(s)."
+  "terrain.saved": "Terrain saved: {0} ground texture file(s).",
+  "terrain.height": "Ground height",
+  "terrain.raise": "Raise",
+  "terrain.lower": "Lower",
+  "terrain.smooth": "Smooth",
+  "terrain.flatten": "Flatten",
+  "terrain.raiseTip": "Raises the ground inside the circle.",
+  "terrain.lowerTip": "Lowers the ground inside the circle.",
+  "terrain.smoothTip": "Softens hills and holes (average of neighbors).",
+  "terrain.flattenTip": "Leaves the ground at the height of the point where you started dragging.",
+  "terrain.sculptHint": "Drag on the ground. Trees and buildings do not follow: use Rest on ground in World objects afterwards.",
+  "terrain.sculpting": "Height: {0} (drag on the ground)",
+  "terrain.saved2": "Terrain saved: {0} file(s).",
+  "terrain.savedServer": "The server height (map\\N.hmap) also changed: send it to the server. NPC passage was not rebuilt; where the ground changed a lot, monsters may walk on the old relief.",
+  "terrain.note2": "Texture: client only. Height: client and server (map\\N.hmap; send afterwards). NPC passage, water, light and shadow come in the next steps.",
+  "tools.terrainSub2": "Paint the ground texture and change its height (raise, lower, smooth, flatten)."
 }

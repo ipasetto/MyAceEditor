@@ -177,6 +177,18 @@ internal sealed class WorldTerrain : IDisposable
     }
 
     // solta malhas, máscaras e luz das áreas a mais de 2 peças da câmera
+    /// <summary>Pincel de altura: refaz a malha das áreas mexidas (perto e a peça de longe que as contém).</summary>
+    internal void RefreshHeights(IEnumerable<(int Ar, int Ac)> areas)
+    {
+        int per = (int)(TileM / TerrainFile.AreaM);
+        foreach (var k in areas)
+        {
+            if (_near.TryGetValue(k, out var m)) { if (m is not null) { GL.DeleteBuffer(m.Vbo); GL.DeleteBuffer(m.Ibo); } _near.Remove(k); }
+            var tk = (k.Ar / per, k.Ac / per);
+            if (_far.TryGetValue(tk, out var fm)) { if (fm is not null) { GL.DeleteBuffer(fm.Vbo); GL.DeleteBuffer(fm.Ibo); } _far.Remove(tk); }
+        }
+    }
+
     void Evict(int ctr, int ctc, int per)
     {
         bool Far((int, int) k) => Math.Abs(k.Item1 / per - ctr) > 2 || Math.Abs(k.Item2 / per - ctc) > 2;

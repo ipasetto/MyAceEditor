@@ -20,11 +20,18 @@ public sealed class TerrainDraft(TerrainFile t)
     readonly HashSet<int> _dirty = new();
 
     sealed record Snap(List<byte[]> Layers, List<List<(int Layer, int Raw, byte[]? Zlib)>> Areas);
-    sealed class Stroke { public readonly Dictionary<int, Snap> Before = new(); public Dictionary<int, Snap> After = new(); }
+    sealed class Stroke
+    {
+        public readonly Dictionary<int, Snap> Before = new(); public Dictionary<int, Snap> After = new();
+        public readonly Dictionary<(int Br, int Bc), float[]> HBefore = new(); public Dictionary<(int Br, int Bc), float[]> HAfter = new();
+    }
+    readonly HashSet<(int Br, int Bc)> _hDirty = new();   // blocos de altura mexidos
+    public enum SculptMode { Raise, Lower, Smooth, Flatten }
     readonly List<Stroke> _undo = new(), _redo = new();
     Stroke? _cur;
 
-    public bool Dirty => _dirty.Count > 0 && _undo.Count > 0;
+    public bool Dirty => (_dirty.Count > 0 || _hDirty.Count > 0) && _undo.Count > 0;
+    public bool HeightsDirty => _hDirty.Count > 0 && _undo.Count > 0;
     public int UndoCount => _undo.Count;
     public IReadOnlyCollection<int> DirtyPieces => _dirty;
     public string MaskPath(int piece) => Path.Combine(Terrain.Dir, $"{Terrain.Name}_{piece}.t2mk");
@@ -85,8 +92,9 @@ public sealed class TerrainDraft(TerrainFile t)
     {
         if (_cur is null) return false;
         var s = _cur; _cur = null;
-        if (s.Before.Count == 0) return false;
+        if (s.Before.Count == 0 && s.HBefore.Count == 0) return false;
         s.After = s.Before.Keys.ToDictionary(p => p, Take);
+        s.HAfter = s.HBefore.Keys.ToDictionary(k => k, k => (float[])Terrain.BlockHeights(k.Br, k.Bc)!.Clone());
         _undo.Add(s); _redo.Clear();
         return true;
     }
@@ -98,7 +106,8 @@ public sealed class TerrainDraft(TerrainFile t)
         if (from.Count == 0) return null;
         var s = from[^1]; from.RemoveAt(from.Count - 1); to.Add(s);
         foreach (var (p, snap) in redo ? s.After : s.Before) Restore(p, snap);
-        return s.Before.Keys.SelectMany(AreasOf).ToList();
+        foreach (var (k, h) in redo ? s.HAfter : s.HBefore) if (Terrain.BlockHeights(k.Br, k.Bc) is { } live) Array.Copy(h, live, h.Length);   // mesmo vetor do cache
+        return s.Before.Keys.SelectMany(AreasOf).Concat(s.HBefore.Keys.Select(AreaOfBlock)).Distinct().ToList();
     }
 
     IEnumerable<(int Ar, int Ac)> AreasOf(int piece)
@@ -175,6 +184,68 @@ public sealed class TerrainDraft(TerrainFile t)
         return changed;
     }
 
+    (int Ar, int Ac) AreaOfBlock((int Br, int Bc) k)
+    {
+        int bpa = (int)(TerrainFile.AreaM / (Terrain.CellsPerBlock * Terrain.Cell));   // blocos por área de 256 m
+        return (k.Br / Math.Max(1, bpa), k.Bc / Math.Max(1, bpa));
+    }
+
+    /// <summary>
+    /// Pincel de altura num círculo (metros): subir, descer, alisar (média dos vizinhos) ou plainar (vai para target). Mexe
+    /// no cache do terreno (o desenho, a grama e o "assentar" veem na hora) e em todos os blocos que repetem a amostra da
+    /// borda. Devolve as áreas de 256 m mexidas.
+    /// </summary>
+    public List<(int Ar, int Ac)> Sculpt(float cx, float cz, float radius, SculptMode mode, float strength, float target)
+    {
+        var areas = new HashSet<(int, int)>();
+        if (radius <= 0) return [];
+        var (cu, cv) = Terrain.ToGrid(cx, cz);
+        float rc = radius / Terrain.Cell;
+        int u0 = (int)MathF.Floor(cu - rc), u1 = (int)MathF.Ceiling(cu + rc), v0 = (int)MathF.Floor(cv - rc), v1 = (int)MathF.Ceiling(cv + rc);
+        var next = new List<(int U, int V, float H)>();
+        float step = Math.Clamp(radius * 0.06f, 0.15f, 1.5f);   // metros por toque no máximo (subir/descer)
+        for (int v = v0; v <= v1; v++)
+            for (int u = u0; u <= u1; u++)
+            {
+                float du = (u - cu) * Terrain.Cell, dv = (v - cv) * Terrain.Cell, d = MathF.Sqrt(du * du + dv * dv);
+                if (d > radius || Terrain.Sample(u, v) is not { } h) continue;
+                float t = 1 - d / radius, a = strength * t * t * (3 - 2 * t);
+                float nh = mode switch
+                {
+                    SculptMode.Raise => h + step * a,
+                    SculptMode.Lower => h - step * a,
+                    SculptMode.Flatten => h + (target - h) * a,
+                    _ => h + (Avg(u, v, h) - h) * a,
+                };
+                if (MathF.Abs(nh - h) > 1e-5f) next.Add((u, v, nh));
+            }
+        foreach (var (u, v, nh) in next) Set(u, v, nh, areas);
+        return [.. areas];
+    }
+
+    float Avg(int u, int v, float h)
+    {
+        float s = 0; int n = 0;
+        for (int dv = -1; dv <= 1; dv++) for (int du = -1; du <= 1; du++) if (Terrain.Sample(u + du, v + dv) is { } x) { s += x; n++; }
+        return n > 0 ? s / n : h;
+    }
+
+    void Set(int u, int v, float h, HashSet<(int, int)> areas)
+    {
+        int cpb = Terrain.CellsPerBlock;
+        foreach (int br in v % cpb == 0 && v > 0 ? new[] { v / cpb, v / cpb - 1 } : new[] { v / cpb })
+            foreach (int bc in u % cpb == 0 && u > 0 ? new[] { u / cpb, u / cpb - 1 } : new[] { u / cpb })
+            {
+                if (Terrain.BlockHeights(br, bc) is not { } arr) continue;
+                int i = (v - br * cpb) * (cpb + 1) + (u - bc * cpb);
+                if (i < 0 || i >= arr.Length) continue;
+                if (_cur is not null && !_cur.HBefore.ContainsKey((br, bc))) _cur.HBefore[(br, bc)] = (float[])arr.Clone();
+                arr[i] = h;
+                _hDirty.Add((br, bc));
+                areas.Add(AreaOfBlock((br, bc)));
+            }
+    }
+
     /// <summary>Camadas da área para o desenho (máscaras abertas ou do arquivo); null = área sem dados.</summary>
     public TerrainFile.GroundLayer[]? Layers(int ar, int ac)
     {
@@ -196,10 +267,21 @@ public sealed class TerrainDraft(TerrainFile t)
         return list.Count > 0 ? [.. list] : null;
     }
 
-    /// <summary>Arquivos a gravar (pedaços mexidos): caminho → bytes do .t2mk remontado.</summary>
-    public Dictionary<string, byte[]> Files()
+    /// <summary>
+    /// Arquivos a gravar: .t2mk dos pedaços pintados; .t2bk (só a parte das alturas dos blocos mexidos) e, com a pasta do
+    /// servidor, o map\N.hmap refeito das alturas (o mesmo cálculo que bate com o do servidor). serverMapDir = config\&lt;mapa&gt;.
+    /// </summary>
+    public Dictionary<string, byte[]> Files(string? serverMapDir = null)
     {
         var d = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        int bpp = Terrain.BlocksPerPiece;
+        foreach (var piece in _hDirty.Select(k => k.Br / bpp * Terrain.Cols + k.Bc / bpp + 1).Distinct())
+        {
+            var path = Path.Combine(Terrain.Dir, $"{Terrain.Name}_{piece}.t2bk");
+            var nb = HeightFiles.RewriteT2bk(System.IO.File.ReadAllBytes(path), (row, col) => _hDirty.Contains((row, col)) ? Terrain.BlockHeights(row, col) : null);
+            d[path] = nb;
+            if (serverMapDir is not null && Directory.Exists(Path.Combine(serverMapDir, "map"))) d[Path.Combine(serverMapDir, "map", $"{piece}.hmap")] = HeightFiles.Hmap(Terrain, piece);
+        }
         foreach (int p in _dirty)
         {
             Flush(p);
@@ -240,6 +322,8 @@ public static class TerrainSaver
             return new SaveResult(SaveKind.RolledBack, Loc.T("obj.rolledBack", "Não deu para salvar; tudo voltou como estava. As mudanças continuam no editor para tentar de novo."));
         }
         BackupSets.Save(new BackupSet("terrain", map, DateTime.Now, baks.Where(kv => kv.Value is not null).Select(kv => new BackupSetEntry(kv.Key, kv.Value!)).ToList()));
-        return new SaveResult(SaveKind.ClientOnly, string.Format(Loc.T("terrain.saved", "Terreno salvo: {0} arquivo(s) de textura do chão."), files.Count));
+        bool server = files.Keys.Any(k => k.EndsWith(".hmap", StringComparison.OrdinalIgnoreCase));
+        return new SaveResult(server ? SaveKind.Both : SaveKind.ClientOnly, string.Format(Loc.T("terrain.saved2", "Terreno salvo: {0} arquivo(s)."), files.Count)
+            + (server ? " " + Loc.T("terrain.savedServer", "A altura do servidor (map\\N.hmap) também mudou: envie ao servidor. A passagem dos NPCs não foi refeita; onde o chão mudou muito os monstros podem andar no relevo antigo.") : ""));
     }
 }

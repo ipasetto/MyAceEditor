@@ -71,6 +71,9 @@ public sealed class TerrainFile
         return h?[(v - br * cpb) * (cpb + 1) + (u - bc * cpb)];
     }
 
+    /// <summary>Alturas de um bloco (linha/coluna globais) no cache: o pincel de altura mexe direto nelas.</summary>
+    internal float[]? BlockHeights(int br, int bc) => br < 0 || bc < 0 || br >= Rows * BlocksPerPiece || bc >= Cols * BlocksPerPiece ? null : Block(br, bc);
+
     float[]? Block(int br, int bc)
     {
         int piece = br / BlocksPerPiece * Cols + bc / BlocksPerPiece + 1;

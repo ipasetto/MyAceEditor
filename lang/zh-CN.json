@@ -5891,5 +5891,20 @@
   "terrain.askSave": "地形有未保存的修改。关闭前保存？",
   "terrain.tooMany": "此区域纹理已达上限；请擦除一个（橡皮擦）或使用已有的纹理。",
   "terrain.bakFail": "无法制作安全副本；没有保存任何内容。",
-  "terrain.saved": "地形已保存：{0} 个地面纹理文件。"
+  "terrain.saved": "地形已保存：{0} 个地面纹理文件。",
+  "terrain.height": "地面高度",
+  "terrain.raise": "抬高",
+  "terrain.lower": "降低",
+  "terrain.smooth": "平滑",
+  "terrain.flatten": "整平",
+  "terrain.raiseTip": "抬高圆圈内的地面。",
+  "terrain.lowerTip": "降低圆圈内的地面。",
+  "terrain.smoothTip": "平滑山丘和坑洞（邻近平均）。",
+  "terrain.flattenTip": "把地面整平到开始拖动处的高度。",
+  "terrain.sculptHint": "在地面上拖动。树木和建筑不会跟随：之后在世界物体中使用“贴合地面”。",
+  "terrain.sculpting": "高度：{0}（在地面上拖动）",
+  "terrain.saved2": "地形已保存：{0} 个文件。",
+  "terrain.savedServer": "服务器高度（map\\N.hmap）也已改变：请发送到服务器。NPC 通行未重建；地面变化大的地方怪物可能按旧地形行走。",
+  "terrain.note2": "纹理：仅客户端。高度：客户端和服务器（map\\N.hmap；之后发送）。NPC 通行、水、光照和阴影在后续阶段。",
+  "tools.terrainSub2": "绘制地面纹理并改变高度（抬高、降低、平滑、整平）。"
 }

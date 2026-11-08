@@ -119,7 +119,7 @@ internal sealed partial class WorldView
 
         // ---- menu ----
         _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
-        _toolMenu.Controls.Add(ToolButton("\uE81D", Loc.T("tools.terrain", "Terreno"), Loc.T("tools.terrainSub", "Pintar a textura do chão (altura e água nas próximas etapas)."), () => OpenTool(Tool.Terrain)));
+        _toolMenu.Controls.Add(ToolButton("\uE81D", Loc.T("tools.terrain", "Terreno"), Loc.T("tools.terrainSub2", "Pintar a textura do chão e mudar a altura (subir, descer, alisar, plainar)."), () => OpenTool(Tool.Terrain)));
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
         _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.npcs", "NPCs e monstros"), Loc.T("tools.npcsSub", "Criar e editar NPC, vendedor, fornalha e monstro."), () => OpenTool(Tool.Create)));

@@ -25,6 +25,8 @@ public static class ObjectsSelfTest
     {
         var lines = new List<string>();
         var r = new Report(lines);
+        try { TerrainHeights(r, element, config); }
+        catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { TerrainPaint(r, element); }
         catch (Exception ex) { r.Check("terreno-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { GroundMasks(r, element); }
@@ -180,6 +182,45 @@ public static class ObjectsSelfTest
 
 
     // ---------------- salvar (Task 6) ----------------
+    /// <summary>Altura: todo .t2bk regrava idêntico sem mudança; bloco mexido relê; .hmap montado bate com o do servidor.</summary>
+    static void TerrainHeights(Report r, string element, string? config)
+    {
+        int files = 0, same = 0; string? bad = null;
+        foreach (var f in Directory.GetFiles(Path.Combine(element, "maps", "world"), "*.t2bk").Take(30))
+        {
+            var b = File.ReadAllBytes(f); files++;
+            if (HeightFiles.RewriteT2bk(b, (_, _) => null).AsSpan().SequenceEqual(b)) same++; else bad ??= Path.GetFileName(f);
+        }
+        r.Check("t2bk-regrava-igual", files > 0 && same == files, $"{same} de {files}" + (bad is null ? "" : "; diferente: " + bad));
+        var t = TerrainFile.Open(Path.Combine(element, "maps", "world"))!;
+        // bloco mexido: as alturas novas voltam na releitura
+        var p38 = Path.Combine(element, "maps", "world", "world_38.t2bk");
+        var orig = File.ReadAllBytes(p38);
+        float[]? changed = null; (int, int) key = default;
+        var nb = HeightFiles.RewriteT2bk(orig, (row, col) => { if (changed is not null) return null; key = (row, col); changed = Enumerable.Range(0, 33 * 33).Select(i => 100f + i * 0.01f).ToArray(); return changed; });
+        var tmp = Path.Combine(Path.GetTempPath(), "myace-t2bk-" + Environment.ProcessId);
+        Directory.CreateDirectory(tmp);
+        try
+        {
+            File.WriteAllBytes(Path.Combine(tmp, "world_38.t2bk"), nb);
+            File.Copy(Path.Combine(element, "maps", "world", "world.trn2"), Path.Combine(tmp, "world.trn2"), true);
+            var tt = TerrainFile.Open(tmp);
+            int cpb = tt!.CellsPerBlock;
+            float? got = tt.Sample(key.Item2 * cpb + 5, key.Item1 * cpb + 7);
+            r.Check("t2bk-bloco-mexido-rele", got is { } g && MathF.Abs(g - changed![7 * 33 + 5]) < 1e-4f, $"bloco {key} amostra={got}");
+        }
+        finally { try { Directory.Delete(tmp, true); } catch (IOException) { } }
+        // .hmap do servidor: o montado das alturas do cliente bate com o do servidor
+        if (config is not null && File.Exists(Path.Combine(config, "world", "map", "38.hmap")))
+        {
+            var sv = File.ReadAllBytes(Path.Combine(config, "world", "map", "38.hmap"));
+            var mine = HeightFiles.Hmap(t, 38);
+            int n = Math.Min(sv.Length, mine.Length) / 4; float worst = 0;
+            for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
+            r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
+        }
+    }
+
     /// <summary>Pincel de textura do chão: pinta textura que a área já tem e uma nova, desfaz, remonta o .t2mk e relê.</summary>
     static void TerrainPaint(Report r, string element)
     {
