@@ -111,7 +111,7 @@ internal sealed partial class WorldView
         _toolBack.FlatAppearance.BorderSize = 0; _toolFold.FlatAppearance.BorderSize = 0;
         _toolBack.Image = UiKit.Icon("", Color.White, 16);
         _toolTip.SetToolTip(_toolBack, Loc.T("tools.back", "Voltar ao menu de ferramentas"));
-        _toolBack.Click += (_, _) => { if (_tool == Tool.Zones && !ZoneLeave()) return; if (_tool == Tool.Domains && !CloseDomains()) return; if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
+        _toolBack.Click += (_, _) => { if (_tool == Tool.Scene && !AbandonObjects()) return; if (_tool == Tool.Zones && !ZoneLeave()) return; if (_tool == Tool.Domains && !CloseDomains()) return; if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
         _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);

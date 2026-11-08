@@ -1353,6 +1353,10 @@ internal static class Program
             return;
         }
         Application.Run(new EditorForm(args.Length == 1 && File.Exists(args[0]) ? Path.GetFullPath(args[0]) : null));
+        // fechou a janela principal: espera uma gravação do Mundo 3D terminar (até 2 min) e encerra o processo inteiro
+        // (o usuário viu o MyAceEditor continuar aberto em segundo plano depois de fechar)
+        for (int i = 0; i < 1200 && Volatile.Read(ref MyAceEditor.PerfectWorld.WorldEdit.DraftSaver.Writing) > 0; i++) Thread.Sleep(100);
+        Environment.Exit(0);
     }
 
     /// <summary>
@@ -1467,6 +1471,7 @@ internal static class Program
                 Application.DoEvents(); Thread.Sleep(30);
                 if (w.Loading) quiet = DateTime.MaxValue; else if (quiet == DateTime.MaxValue) quiet = DateTime.Now; else if ((DateTime.Now - quiet).TotalSeconds > 1.5) break;
             }
+            if (c.Name?.StartsWith("dfttree") == true) w._shotDir = outDir;
             if (c.Name?.StartsWith("dfttree") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftTreeTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftesc") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftEscTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftpaste") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftPasteTest() + Environment.NewLine);

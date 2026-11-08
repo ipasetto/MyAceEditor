@@ -5732,5 +5732,15 @@
   "obj.planting": "Planting {0}: click on the ground for each tree. Esc or right-click to stop.",
   "obj.plantStop": "Planting finished.",
   "obj.pillTreesTip": "Choose the tree type and click on the ground to plant.",
-  "is.close": "Close"
+  "is.close": "Close",
+  "obj.placing": "Inserting {0}: the preview follows the mouse; click to place. Esc or right-click to stop.",
+  "obj.treesReloadFail": "Saved, but the trees could not be reloaded; close and open the 3D World to see them.",
+  "obj.waitSave": "Wait for Save to finish before closing.",
+  "bak.setMissing": "Copies are missing for: {0}. Nothing was restored.",
+  "bak.setFailed": "Could not restore: {0} (open in another program?). The other files went back.",
+  "bak.catTools": "Tools (a whole save)",
+  "bak.files": "{0} files",
+  "bak.setAsk": "Put these files back as they were before the {0} save ({1:dd/MM/yyyy HH:mm})?",
+  "bak.setClose": "Close the 3D World and the game first; the server needs to receive the files again afterwards.",
+  "bak.setDone": "Done: all files went back."
 }

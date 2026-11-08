@@ -5734,5 +5734,15 @@
   "obj.planting": "正在种 {0}：每棵树在地面点击一次。Esc 或右键停止。",
   "obj.plantStop": "种树结束。",
   "obj.pillTreesTip": "选择树木类型，然后在地面点击种树。",
-  "is.close": "关闭"
+  "is.close": "关闭",
+  "obj.placing": "正在放置 {0}：预览跟随鼠标；点击放下。Esc 或右键停止。",
+  "obj.treesReloadFail": "已保存，但无法重新读取树木；请关闭并重新打开 3D 世界。",
+  "obj.waitSave": "请等保存完成后再关闭。",
+  "bak.setMissing": "缺少这些文件的备份：{0}。什么都没有恢复。",
+  "bak.setFailed": "无法恢复：{0}（被其他程序打开？）。其他文件已恢复。",
+  "bak.catTools": "工具（一次完整保存）",
+  "bak.files": "{0} 个文件",
+  "bak.setAsk": "把这些文件恢复到“{0}”保存之前的样子（{1:dd/MM/yyyy HH:mm}）吗？",
+  "bak.setClose": "请先关闭 3D 世界和游戏；之后服务器需要重新接收这些文件。",
+  "bak.setDone": "完成：所有文件都已恢复。"
 }

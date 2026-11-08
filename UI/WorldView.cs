@@ -241,6 +241,16 @@ internal sealed partial class WorldView : Form
                 if (e.Button == MouseButtons.Right) { StopPlanting(); return; }
                 if (e.Button == MouseButtons.Left && Ray(e.Location) is { } pg) { PlantAt(new System.Numerics.Vector3(pg.X, pg.Y, pg.Z), _plantType, select: false); return; }
             }
+            if (_tool == Tool.Scene && _placeSrc is not null)
+            {
+                if (e.Button == MouseButtons.Right) { StopPlanting(); return; }
+                if (e.Button == MouseButtons.Left && Ray(e.Location) is { } cg)
+                {
+                    var g3 = new System.Numerics.Vector3(cg.X, cg.Y, cg.Z);
+                    if (_placeSrc.Kind == ObjKind.Tree) PlantAt(g3, _placeSrc.Type, select: false); else PasteAt(g3);
+                    return;
+                }
+            }
             // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
             if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
             { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; return; }
@@ -359,6 +369,7 @@ internal sealed partial class WorldView : Form
                 _gl.Invalidate(); return;
             }
             _hover = Ray(e.Location);
+            if (Placing) _gl.Invalidate();   // prévia de inserir segue o mouse
             var near = PickScreen(e.Location);
             if (!_pickShown && _gl.Cursor != GameCursor(near)) _gl.Cursor = GameCursor(near);
             // o jogo mostra ((int)x + 4000) / 10 e ((int)z + 5500) / 10 (CECUIHelper::GetShowPos)
@@ -851,8 +862,9 @@ internal sealed partial class WorldView : Form
                 if (o.Deleted || o.Kind is not (ObjKind.Model or ObjKind.Tree)) continue;
                 var bp = Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z);
                 if ((bp - _cam).LengthSquared > 400 * 400) continue;
-                float rad = o.Kind == ObjKind.Tree ? 2.5f : 1.5f;
-                float h = o.Kind == ObjKind.Tree ? 10f : (_models.Top(o.Source) is { } top ? MathF.Max(top, 1) : 3f);
+                float tr = o.Kind == ObjKind.Tree ? _trees.SizeOf(o.Type) : 0;   // raio da árvore gerada (0 = ainda não)
+                float rad = o.Kind == ObjKind.Tree ? Math.Clamp(tr * 0.15f, 2.5f, 6f) : 1.5f;   // tronco e miolo da copa (o raio do tipo inclui as folhas espalhadas)
+                float h = o.Kind == ObjKind.Tree ? Math.Clamp(tr * 0.5f, 10f, 35f) : (_models.Top(o.Source) is { } top ? MathF.Max(top, 1) : 3f);   // tronco e copa
                 if (RayCylinder(ro, rd, bp, rad, h) is { } dist && dist < hitDist)
                 {
                     hitDist = dist;

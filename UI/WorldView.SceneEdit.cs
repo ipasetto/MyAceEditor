@@ -91,6 +91,7 @@ internal sealed partial class WorldView
         // o painel do objeto escolhido mora na ferramenta Editar cenário do menu flutuante (WorldView.Tools.cs)
         FormClosing += (_, e) =>
         {
+            if (_saving) { e.Cancel = true; MessageBox.Show(this, Loc.T("obj.waitSave", "Espere o Salvar terminar antes de fechar."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             if (!SceneDirty) return;
             var r = MessageBox.Show(this, Loc.T("obj.askSave", "Há mudanças não salvas nos objetos do mundo (construções, modelos, efeitos, sons ou bichos). Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             e.Cancel = CancelClose(r, interactive: true);

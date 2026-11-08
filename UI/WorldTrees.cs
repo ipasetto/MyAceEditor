@@ -38,7 +38,7 @@ internal sealed class WorldTrees : IDisposable
     }
 
     readonly PckArchive? _pck;
-    readonly WorldScene? _scene;
+    WorldScene? _scene;   // relido no Reload depois de salvar
     /// <summary>Cena do .ecwld (efeitos, sons, modelos…) para o Mundo 3D mostrar os objetos do cenário.</summary>
     internal WorldScene? Scene => _scene;
     readonly Dictionary<int, Kind?> _kinds = new();
@@ -63,8 +63,18 @@ internal sealed class WorldTrees : IDisposable
             if (!File.Exists(ecwld) || !File.Exists(pck)) return;
             _scene = new WorldScene(ecwld);
             _pck = new PckArchive(pck);
+            _ecwld = ecwld;
         }
         catch (Exception ex) { AppLog.Info($"árvores de {map}: {ex.Message}"); _scene = null; _pck?.Dispose(); _pck = null; return; }
+        Index();
+    }
+
+    string? _ecwld;
+
+    void Index()
+    {
+        _cells.Clear();
+        if (_scene is null) return;
         for (int i = 0; i < _scene.Trees.Count; i++)
         {
             var t = _scene.Trees[i];
@@ -72,6 +82,35 @@ internal sealed class WorldTrees : IDisposable
             if (!_cells.TryGetValue(key, out var l)) _cells[key] = l = new();
             l.Add(i);
         }
+    }
+
+    /// <summary>Relê as árvores do .ecwld depois de gravar (os tipos já gerados ficam). Falso = não deu (fica a lista antiga).</summary>
+    public bool Reload()
+    {
+        if (_ecwld is null) return false;
+        try { _scene = new WorldScene(_ecwld); Index(); return true; }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("árvores: reler o .ecwld", ex); return false; }
+    }
+
+    /// <summary>Raio da árvore do tipo (0 = ainda não gerado).</summary>
+    internal float SizeOf(int type) => _kinds.TryGetValue(type, out var k) && k is not null ? k.Radius : 0;
+
+    /// <summary>Desenha só a árvore do tipo na origem (prévia da janela de escolher); devolve o raio ou null.</summary>
+    internal float? DrawThumb(int type, Vector3 camRight, Vector3 camUp)
+    {
+        if (_scene is null || type < 0 || type >= _scene.TreeTypes.Count) return null;
+        if (!_kinds.TryGetValue(type, out var k)) _kinds[type] = k = Build(type);
+        if (k is null) return null;
+        GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
+        TextureTimesColor2x();
+        int built = 0;
+        DrawOne(type, Vector3.Zero, 10, camRight, camUp, ref built);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 1f);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+        GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.ColorArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
+        GL.Disable(EnableCap.Texture2D);
+        return k.Radius;
     }
 
     /// <summary>Tronco e galhos do tipo, prontos no OpenGL (null = tipo sem .spt legível).</summary>

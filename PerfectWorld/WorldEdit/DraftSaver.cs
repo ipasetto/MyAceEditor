@@ -20,6 +20,8 @@ public static class DraftSaver
 {
     /// <summary>Só teste: lança depois de N arquivos gravados (-1 = nunca).</summary>
     internal static int FailAfter = -1;
+    /// <summary>Gravações em andamento (o programa espera antes de encerrar, para não deixar arquivo meio gravado).</summary>
+    public static int Writing;
     /// <summary>Só teste: erro lançado no lugar da gravação do pacote (null = nenhum).</summary>
     internal static Func<Exception>? FailWith;
 
@@ -354,6 +356,13 @@ public static class DraftSaver
     /// </summary>
     public static SaveResult Write(SavePlan p, DraftSources src)
     {
+        Interlocked.Increment(ref Writing);
+        try { return WriteCore(p, src); }
+        finally { Interlocked.Decrement(ref Writing); }
+    }
+
+    static SaveResult WriteCore(SavePlan p, DraftSources src)
+    {
         if (p.Empty) return new SaveResult(SaveKind.ClientOnly, Loc.T("obj.nothing", "Nada para salvar."));
         var pckPath = PckArchive.Locate(src.LitPath) ?? src.LitPath;
         var targets = p.Files.Keys.ToList();
@@ -375,6 +384,8 @@ public static class DraftSaver
             return new SaveResult(SaveKind.Failed, Loc.T("obj.noBackup", "Não deu para fazer a cópia de segurança; nada foi gravado."));
         }
         var written = new List<string>();
+        var setFiles = baks.Where(kv => kv.Value is not null).Select(kv => new BackupSetEntry(kv.Key, kv.Value!)).ToList();
+        string? pckHead = null;
         try
         {
             foreach (var (f, bytes) in p.Files)
@@ -385,7 +396,19 @@ public static class DraftSaver
             }
             if (FailAfter >= 0 && written.Count >= FailAfter) throw new IOException("falha simulada (teste)");
             if (FailWith is { } fw) throw fw();
-            if (p.PckFiles.Count > 0) PckWriter.Write(src.LitPath, p.PckFiles);
+            if (p.PckFiles.Count > 0)
+            {
+                var parts = PckArchive.PartPaths(pckPath);
+                var target = parts.Count > 0 ? parts[^1] : pckPath;
+                if (parts.Count > 0)
+                {
+                    using var fs = new FileStream(pckPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    var head = new byte[4]; fs.Position = 4; fs.ReadExactly(head);
+                    pckHead = Convert.ToHexString(head);
+                }
+                var pbak = PckWriter.Write(src.LitPath, p.PckFiles);
+                setFiles.Add(new BackupSetEntry(target, pbak));
+            }
         }
         catch (Exception ex)
         {
@@ -400,6 +423,8 @@ public static class DraftSaver
                 ? new SaveResult(SaveKind.RolledBack, Loc.T("obj.rolledBack", "Não deu para salvar; tudo voltou como estava. As mudanças continuam no editor para tentar de novo."))
                 : new SaveResult(SaveKind.Failed, string.Format(Loc.T("obj.rollbackFail", "Não deu para salvar e {0} não voltou sozinho; use Ferramentas → Backups para restaurar."), string.Join(", ", stuck)));
         }
+        // um item único "Objetos do mundo" no Restaurar backup volta todos os arquivos deste Salvar juntos
+        BackupSets.Save(new BackupSet("objects", src.Map, DateTime.Now, setFiles, pckHead is null ? null : pckPath, pckHead));
         return new SaveResult(SaveKind.Both, string.Format(Loc.T("obj.saved", "Salvo: {0}"), string.Join(" ", p.Summary)));
     }
 }

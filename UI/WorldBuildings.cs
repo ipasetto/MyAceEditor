@@ -70,7 +70,7 @@ internal sealed class WorldBuildings : IDisposable
         (string, float)? best = null; float bestD = maxDist;
         foreach (var (key, p, w, c) in PickList())
         {
-            if (p.Mesh.Tri.Length == 0) continue;
+            if (p.Mesh.Tri.Length == 0 || key == "ghost") continue;   // prévia de inserir não é clicável
             var toC = c - o;
             float along = Vector3.Dot(toC, d);
             if (along < -p.Radius || along - p.Radius > bestD || (toC - d * along).LengthSquared > p.Radius * p.Radius * 1.05f) continue;   // esfera
