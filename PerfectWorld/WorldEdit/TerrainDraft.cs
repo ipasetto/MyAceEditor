@@ -72,6 +72,16 @@ public sealed class TerrainDraft(TerrainFile t)
     Stroke? _cur;
 
     public bool Dirty => (_dirty.Count > 0 || _hDirty.Count > 0) && _undo.Count > 0 || Water?.Dirty == true;
+
+    /// <summary>Tamanho da lista de texturas do arquivo (texturas novas vêm depois; −1 = nenhuma acrescentada).</summary>
+    public int FileTextureCount { get; private set; } = -1;
+
+    /// <summary>Textura de outro mapa do mesmo cliente: entra no fim da lista deste mapa (o .trn2 regrava no Salvar).</summary>
+    public int AddTexture(string path)
+    {
+        if (FileTextureCount < 0) FileTextureCount = Terrain.TextureNames.Count;
+        return Terrain.AddTexture(path);
+    }
     public bool HeightsDirty => _hDirty.Count > 0 && _undo.Count > 0;
     public int UndoCount => _undo.Count;
     public IReadOnlyCollection<int> DirtyPieces => _dirty;
@@ -325,6 +335,16 @@ public sealed class TerrainDraft(TerrainFile t)
     {
         var d = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         if (Water is { Dirty: true } w) foreach (var (k, v) in w.Files(serverMapDir, summary ?? new List<string>())) d[k] = v;
+        // texturas novas usadas: entram no fim da lista do .trn2 (sem uso nenhum, o arquivo não muda)
+        if (FileTextureCount >= 0 && Terrain.TextureNames.Count > FileTextureCount && _dirty.Count > 0)
+        {
+            var trn = Path.Combine(Terrain.Dir, Terrain.Name + ".trn2");
+            var add = Terrain.TextureNames.Skip(FileTextureCount).ToList();
+            var nb = TerrainFile.Trn2WithTextures(System.IO.File.ReadAllBytes(trn), add);
+            if (TerrainFile.ReadTextureList(trn) is var before && before.Count != FileTextureCount) throw new InvalidDataException(Loc.T("terrain.trnChanged", "A lista de texturas do mapa mudou fora do editor; reabra o Mundo 3D antes de salvar."));
+            d[trn] = nb;
+            summary?.Add(string.Format(Loc.T("terrain.texAdded", "Texturas novas na lista do mapa: {0}"), add.Count));
+        }
         int bpp = Terrain.BlocksPerPiece, rmapChanged = 0;
         foreach (var piece in _hDirty.Select(k => k.Br / bpp * Terrain.Cols + k.Bc / bpp + 1).Distinct())
         {

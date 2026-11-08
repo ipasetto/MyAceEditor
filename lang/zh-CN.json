@@ -5957,5 +5957,9 @@
   "terrain.rmapSummary": "NPC 通行：在地面变化处重建了 {0} 米",
   "terrain.savedServer2": "服务器的高度（map\\N.hmap）也已改变：请发送到服务器。",
   "terrain.rmapDone": "已在地面变化处重建 NPC 通行（movemap\\N.rmap）。",
-  "terrain.rmapSame": "NPC 通行无需改变（没有地方变得过陡或重新变平）。"
+  "terrain.rmapSame": "NPC 通行无需改变（没有地方变得过陡或重新变平）。",
+  "terrain.trnChanged": "地图纹理列表在编辑器外被修改；请重新打开 3D 世界再保存。",
+  "terrain.texAdded": "地图列表中的新纹理：{0}",
+  "terrain.otherMaps": "其他地图",
+  "terrain.texFromOther": "来自其他地图的纹理：在您保存已绘制它的地形时加入此地图的列表。"
 }

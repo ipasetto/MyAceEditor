@@ -151,6 +151,62 @@ public sealed class TerrainFile
         }
     }
 
+    /// <summary>Textura nova na lista do mapa (só na memória até o Salvar terreno regravar o .trn2). Devolve o índice.</summary>
+    internal int AddTexture(string path)
+    {
+        var l = (List<string>)TextureNames;
+        int i = l.FindIndex(x => x.Equals(path, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0) return i;
+        l.Add(path); return l.Count - 1;
+    }
+
+    /// <summary>Abandonar: tira da lista as texturas acrescentadas (volta ao tamanho do arquivo).</summary>
+    internal void TruncateTextures(int count) { var l = (List<string>)TextureNames; if (count >= 0 && count < l.Count) l.RemoveRange(count, l.Count - count); }
+
+    /// <summary>Lista de texturas de um .trn2 qualquer (para escolher texturas de outros mapas do mesmo cliente).</summary>
+    public static List<string> ReadTextureList(string trn2)
+    {
+        var list = new List<string>();
+        try
+        {
+            var d = File.ReadAllBytes(trn2);
+            if (d.Length < 0x54) return list;
+            int o = BitConverter.ToInt32(d, 0x48), end = BitConverter.ToInt32(d, 0x50);
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            var gbk = System.Text.Encoding.GetEncoding(936);
+            while (o + 4 <= Math.Min(end, d.Length))
+            {
+                int n = BitConverter.ToInt32(d, o);
+                if (n <= 0 || o + 4 + n > d.Length) break;
+                list.Add(gbk.GetString(d, o + 4, n)); o += 4 + n;
+            }
+        }
+        catch (IOException ex) { AppLog.Error("texturas de " + trn2, ex); }
+        return list;
+    }
+
+    /// <summary>
+    /// .trn2 com texturas novas no FIM da lista (os índices das máscaras não mudam): cabeçalho +0x24 = quantidade de
+    /// texturas, +0x48 = início da lista (i32 tamanho + texto GBK), +0x50 = fim da lista (depois vêm os nomes dos pedaços).
+    /// </summary>
+    public static byte[] Trn2WithTextures(byte[] d, IReadOnlyList<string> add)
+    {
+        if (d.Length < 0x54 || BitConverter.ToUInt32(d, 0) != 0x54524E32) throw new InvalidDataException(".trn2: não é TRN2");
+        int count = BitConverter.ToInt32(d, 0x24), end = BitConverter.ToInt32(d, 0x50);
+        if (count < 0 || end < 0x54 || end > d.Length) throw new InvalidDataException(".trn2: cabeçalho fora do esperado");
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        var gbk = System.Text.Encoding.GetEncoding(936);
+        var ins = new List<byte>();
+        foreach (var s in add) { var b = gbk.GetBytes(s); ins.AddRange(BitConverter.GetBytes(b.Length)); ins.AddRange(b); }
+        var o = new byte[d.Length + ins.Count];
+        Buffer.BlockCopy(d, 0, o, 0, end);
+        ins.CopyTo(o, end);
+        Buffer.BlockCopy(d, end, o, end + ins.Count, d.Length - end);
+        BitConverter.GetBytes(count + add.Count).CopyTo(o, 0x24);
+        BitConverter.GetBytes(end + ins.Count).CopyTo(o, 0x50);
+        return o;
+    }
+
     /// <summary>Pincel de textura: troca as camadas de uma área no cache (o desenho mostra na hora; o disco só no Salvar).</summary>
     internal void SetGround(int areaRow, int areaCol, GroundLayer[]? layers) { lock (_areaSync) _areas[(areaRow, areaCol)] = layers; }
 

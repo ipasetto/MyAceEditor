@@ -119,28 +119,63 @@ internal sealed partial class WorldView
         if (_sculpt >= 0) _status.Text = Loc.T("terrain.sculptHint", "Arraste no chão. Árvores e construções não acompanham: use Assentar no chão nos Objetos do mundo depois.");
     }
 
-    /// <summary>JAV das texturas do chão deste mapa (prévia da imagem, estrela, recentes), agrupadas pela pasta.</summary>
+    /// <summary>
+    /// JAV das texturas do chão (prévia da imagem, estrela, recentes), agrupadas pela pasta: as deste mapa e, no grupo "Outros
+    /// mapas", as dos outros mapas do mesmo cliente (escolher uma acrescenta no fim da lista deste mapa; o .trn2 regrava no
+    /// Salvar terreno). Nome no idioma do MyAce com o original junto (a busca acha pelos dois); F2 renomeia.
+    /// </summary>
     void ChooseTexture()
     {
         var names = _t.TextureNames;
         if (names.Count == 0) { _status.Text = Loc.T("terrain.noTextures", "Este mapa não tem lista de texturas do chão."); return; }
-        // nome no idioma do MyAce (glossário + renomeados do cliente) com o original junto (a busca acha pelos dois); a pasta também
-        string RowName(int i) { var d = TextureNameGlossary.Display(names[i], _element); var b = TextureNameGlossary.Base(names[i]); return d == b ? b : d + "  (" + b + ")"; }
-        var rows = names.Select((n, i) => (Id: i, Name: RowName(i), Block: Path.GetFileName(Path.GetDirectoryName(n) ?? "") is { Length: > 0 } f ? TextureNameGlossary.Compose(f, AppLang.Current) : "-")).ToList();
-        int SigOf(int i) { unchecked { int h = (int)2166136261; foreach (char c in names[i].ToLowerInvariant()) h = (h ^ c) * 16777619; return h & 0x7FFFFFFF; } }
+        const int Other = 100000;
+        var others = OtherMapTextures().Where(p => !names.Any(n => n.Equals(p, StringComparison.OrdinalIgnoreCase))).ToList();
+        string PathOf(int id) => id >= Other ? others[id - Other] : names[id];
+        string RowName(int id) { var p = PathOf(id); var d = TextureNameGlossary.Display(p, _element); var b = TextureNameGlossary.Base(p); return d == b ? b : d + "  (" + b + ")"; }
+        string Folder(string p) => Path.GetFileName(Path.GetDirectoryName(p) ?? "") is { Length: > 0 } f ? TextureNameGlossary.Compose(f, AppLang.Current) : "-";
+        string otherTag = Loc.T("terrain.otherMaps", "Outros mapas");
+        var rows = names.Select((n, i) => (Id: i, Name: RowName(i), Block: Folder(n)))
+            .Concat(others.Select((p, k) => (Id: Other + k, Name: RowName(Other + k), Block: otherTag + " · " + Folder(p)))).ToList();
+        int SigOf(int id) { unchecked { int h = (int)2166136261; foreach (char c in PathOf(id).ToLowerInvariant()) h = (h ^ c) * 16777619; return h & 0x7FFFFFFF; } }
+        var ids = rows.Select(r => r.Id).ToList();
         JavFavorites? fav = null; List<int> recent = [];
         if (_element is not null)
         {
             var file = JavFavorites.ForFile("groundtex", _element);
-            fav = new JavFavorites(() => file.Ids.Select(sig => Enumerable.Range(0, names.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList(), i => file.Has(SigOf(i)), i => file.Toggle(SigOf(i)));
-            recent = JavRecents.Read("groundtex", _element).Select(sig => Enumerable.Range(0, names.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList();
+            fav = new JavFavorites(() => file.Ids.Select(sig => ids.FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList(), i => file.Has(SigOf(i)), i => file.Toggle(SigOf(i)));
+            recent = JavRecents.Read("groundtex", _element).Select(sig => ids.FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList();
         }
-        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recent, model: (row, _) => _terrain.TextureImage(names[row]), fav: fav,
-            rename: i => _element is not null && TextureNamePrompt(names[i]) ? RowName(i) : null) { Text = Loc.T("terrain.chooseTitle", "Escolher textura do chão") };
+        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recent, model: (row, _) => _terrain.TextureImage(PathOf(row)), fav: fav,
+            rename: id => _element is not null && TextureNamePrompt(PathOf(id)) ? RowName(id) : null) { Text = Loc.T("terrain.chooseTitle", "Escolher textura do chão") };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
-        _texSel = w.Picked; _texErase = false; _texActive = true;
+        if (w.Picked >= Other)
+        {
+            _texSel = TerrainDraftOrNew().AddTexture(PathOf(w.Picked));
+            _status.Text = Loc.T("terrain.texFromOther", "Textura de outro mapa: entra na lista deste mapa quando você salvar o terreno com ela pintada.");
+        }
+        else _texSel = w.Picked;
+        _texErase = false; _texActive = true;
         if (_element is not null) JavRecents.Add("groundtex", _element, SigOf(w.Picked));
         TexLabels(); _gl.Focus(); _gl.Invalidate();
+    }
+
+    static readonly Dictionary<string, List<string>> _otherTex = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Texturas do chão de todos os mapas deste cliente (lista dos .trn2; em cache por pasta element).</summary>
+    List<string> OtherMapTextures()
+    {
+        if (_element is null) return [];
+        if (_otherTex.TryGetValue(_element, out var l)) return l;
+        var set = new List<string>(); var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var dir in Directory.GetDirectories(Path.Combine(_element, "maps")))
+                foreach (var trn in Directory.GetFiles(dir, "*.trn2"))
+                    foreach (var p in TerrainFile.ReadTextureList(trn))
+                        if (!p.Contains("notex", StringComparison.OrdinalIgnoreCase) && seen.Add(p)) set.Add(p);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("texturas de outros mapas", ex); }
+        return _otherTex[_element] = set;
     }
 
     /// <summary>
@@ -313,6 +348,7 @@ internal sealed partial class WorldView
         var pieces = _terrainDraft?.DirtyPieces.ToList() ?? [];
         // altura: volta o que estava antes de cada pincelada (desfaz tudo; o cache do terreno é o mesmo vetor)
         if (_terrainDraft is { } td) { while (td.UndoCount > 0 && td.Undo(false) is { } a) _terrain.RefreshHeights(a); }
+        if (_terrainDraft is { FileTextureCount: >= 0 } tdx) { _t.TruncateTextures(tdx.FileTextureCount); if (_texSel >= _t.TextureNames.Count) _texSel = -1; }
         _terrainDraft = null; _texActive = false; _sculpt = -1; _texDown = false; _waterMode = 0; _waterSel = -1;
         _clientWater = null;   // relê a água do disco
         foreach (var k in _t.ClearGround(pieces)) _groundPending.Add(k);

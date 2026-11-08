@@ -5955,5 +5955,9 @@
   "terrain.rmapSummary": "NPC passage: {0} meter(s) rebuilt where the ground changed",
   "terrain.savedServer2": "The server height (map\\N.hmap) also changed: send it to the server.",
   "terrain.rmapDone": "NPC passage was rebuilt where the ground changed (movemap\\N.rmap).",
-  "terrain.rmapSame": "NPC passage did not need to change (no stretch became too steep or flat again)."
+  "terrain.rmapSame": "NPC passage did not need to change (no stretch became too steep or flat again).",
+  "terrain.trnChanged": "The map texture list changed outside the editor; reopen the 3D World before saving.",
+  "terrain.texAdded": "New textures in the map list: {0}",
+  "terrain.otherMaps": "Other maps",
+  "terrain.texFromOther": "Texture from another map: it joins this map's list when you save the terrain with it painted."
 }

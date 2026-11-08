@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { TerrainHeights(r, element, config); }
         catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { NewTexture(r, element); }
+        catch (Exception ex) { r.Check("textura-nova-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { MoveMap(r, element, config); }
         catch (Exception ex) { r.Check("passagem-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { TextureNames(r, element); }
@@ -225,6 +227,32 @@ public static class ObjectsSelfTest
             for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
             r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
         }
+    }
+
+    /// <summary>Textura de outro mapa: pintar acrescenta no fim do .trn2 (resto igual) e a máscara usa o índice novo.</summary>
+    static void NewTexture(Report r, string element)
+    {
+        var dir = Path.Combine(element, "maps", "world");
+        var t = TerrainFile.Open(dir)!;
+        int n0 = t.TextureNames.Count;
+        var other = Directory.GetDirectories(Path.Combine(element, "maps")).SelectMany(md => Directory.GetFiles(md, "*.trn2")).SelectMany(TerrainFile.ReadTextureList)
+            .First(p => !p.Contains("notex", StringComparison.OrdinalIgnoreCase) && !t.TextureNames.Any(x => x.Equals(p, StringComparison.OrdinalIgnoreCase)));
+        var d = new TerrainDraft(t);
+        int idx = d.AddTexture(other);
+        d.BeginStroke(); d.Paint(1100, 1030, 6, idx, 1, false); d.EndStroke();
+        var files = d.Files();
+        var trn = Path.Combine(dir, "world.trn2");
+        bool has = files.TryGetValue(trn, out var nb);
+        var tmp = Path.Combine(Path.GetTempPath(), "myace-trn2-" + Environment.ProcessId + ".trn2");
+        List<string> back = [];
+        try { if (has) { File.WriteAllBytes(tmp, nb!); back = TerrainFile.ReadTextureList(tmp); } } finally { try { File.Delete(tmp); } catch (IOException) { } }
+        var orig = File.ReadAllBytes(trn);
+        int end = BitConverter.ToInt32(orig, 0x50), add = has ? nb!.Length - orig.Length : 0;
+        bool tail = has && orig.AsSpan(end).SequenceEqual(nb.AsSpan(end + add)) && orig.AsSpan(0x54, end - 0x54).SequenceEqual(nb.AsSpan(0x54, end - 0x54));
+        var mk = files.Keys.FirstOrDefault(k => k.EndsWith(".t2mk", StringComparison.OrdinalIgnoreCase));
+        bool usesIdx = mk is not null && GroundMaskFile.Read(files[mk]).Layers.Any(l => BitConverter.ToInt32(l, 0) == idx);
+        r.Check("textura-nova-na-lista", has && idx == n0 && back.Count == n0 + 1 && back[^1] == other && tail && usesIdx,
+            $"{TextureNameGlossary.Base(other)}: índice {idx}, lista {n0} -> {back.Count}, resto igual={tail}, máscara usa={usesIdx}");
     }
 
     /// <summary>Passagem dos NPCs: morro íngreme levantado fica bloqueado no .rmap; longe dele nada muda.</summary>
