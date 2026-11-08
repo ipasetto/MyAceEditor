@@ -31,6 +31,8 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("leitura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Save(r, element, config); }
         catch (Exception ex) { r.Check("salvar-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split('\n').FirstOrDefault()); }
+        try { Study2(r, element, config); }
+        catch (Exception ex) { r.Check("estudo2-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Study(r, element, config); }
         catch (Exception ex) { r.Check("estudo-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         lines.Add($"falhas: {r.Failed}");
@@ -322,6 +324,104 @@ public static class ObjectsSelfTest
             r.Check("grava-tudo", ok.Kind == SaveKind.Both && Hash(ecwT) != before[1] && inPck, ok.Message);
         }
         finally { try { Directory.Delete(temp, true); } catch (IOException) { } }
+    }
+
+
+    // ---------------- estudo da etapa 2a: construção nova e escala ----------------
+    static void Study2(Report r, string element, string? config)
+    {
+        foreach (var map in new[] { "world", "a05" })
+        {
+            var ecwPath = Path.Combine(element, "maps", map, map + ".ecwld");
+            var ecwBytes = File.ReadAllBytes(ecwPath);
+            var ecw = new EcwldFile(ecwBytes);
+            var bsd = File.ReadAllBytes(Path.ChangeExtension(ecwPath, ".ecbsd"));
+            // 1) área de cada bloco: os ornamentos de um bloco têm o lugar dentro dela (os que atravessam blocos ficam fora)
+            int inside = 0, total = 0, swapped = 0;
+            var exts = new Dictionary<string, int>();
+            foreach (var bl in ecw.Blocks)
+            {
+                var a = ObjectFormats.BlockArea(ecw, bl);
+                var aSwap = ObjectFormats.BlockArea(ecw, bl, swapRowCol: true);
+                foreach (var it in bl.Items[(int)EcwldFile.Kind.Ornament])
+                {
+                    int off = BitConverter.ToInt32(it, 4);
+                    if (off < 0 || off + 44 > bsd.Length) continue;
+                    float x = BitConverter.ToSingle(bsd, off), z = BitConverter.ToSingle(bsd, off + 8);
+                    total++;
+                    if (x >= a.X0 && x <= a.X1 && z >= a.Z0 && z <= a.Z1) inside++;
+                    if (x >= aSwap.X0 && x <= aSwap.X1 && z >= aSwap.Z0 && z <= aSwap.Z1) swapped++;
+                    int len = BitConverter.ToInt32(bsd, off + 40);
+                    if (len > 0 && len < 512 && off + 44 + len <= bsd.Length)
+                    {
+                        var name = System.Text.Encoding.ASCII.GetString(bsd, off + 44, len);
+                        var ext = Path.GetExtension(name.TrimEnd('\0')).ToLowerInvariant() + (name.EndsWith('\0') ? "+nul" : "");
+                        exts[ext] = exts.GetValueOrDefault(ext) + 1;
+                    }
+                }
+            }
+            // por construção (ID): algum bloco que a lista contém o lugar dela? (quem atravessa blocos é listado em vários)
+            var hitById = new Dictionary<uint, bool>(); var hitSwap = new Dictionary<uint, bool>();
+            foreach (var bl in ecw.Blocks)
+            {
+                var a1 = ObjectFormats.BlockArea(ecw, bl); var a2 = ObjectFormats.BlockArea(ecw, bl, swapRowCol: true);
+                foreach (var it in bl.Items[(int)EcwldFile.Kind.Ornament])
+                {
+                    int off = BitConverter.ToInt32(it, 4);
+                    if (off < 0 || off + 44 > bsd.Length) continue;
+                    float x = BitConverter.ToSingle(bsd, off), z = BitConverter.ToSingle(bsd, off + 8);
+                    uint id = EcwldFile.IdOf(it);
+                    hitById[id] = hitById.GetValueOrDefault(id) || (x >= a1.X0 && x <= a1.X1 && z >= a1.Z0 && z <= a1.Z1);
+                    hitSwap[id] = hitSwap.GetValueOrDefault(id) || (x >= a2.X0 && x <= a2.X1 && z >= a2.Z0 && z <= a2.Z1);
+                }
+            }
+            int ids = hitById.Count, ok = hitById.Count(kv => kv.Value), okSwap = hitSwap.Count(kv => kv.Value);
+            r.Check($"bloco-area {map}", ids > 0 && ok >= ids * 0.98 && ok > okSwap, $"{ok}/{ids} construções têm um bloco que contém o lugar delas (trocando linha/coluna: {okSwap}); {inside}/{total} referências dentro do próprio bloco");
+            r.Check($"nome-ornamento {map}", exts.Count > 0, string.Join(", ", exts.Select(kv => $"{kv.Key} {kv.Value}")));
+
+            // 2) ornamento novo no fim do .ecbsd, relido pelo offset
+            var src = ecw.Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.Ornament]).First();
+            int srcOff = BitConverter.ToInt32(src, 4);
+            var t = new ObjTransform(new Vector3(1, 2, 3), Vector3.UnitZ, Vector3.UnitY, 1);
+            var (nb, off2) = ObjectFormats.NewOrnament(bsd, srcOff, @"9\litmodel_99999.bmd", t);
+            int len2 = BitConverter.ToInt32(nb, off2 + 40);
+            var name2 = System.Text.Encoding.ASCII.GetString(nb, off2 + 44, len2).TrimEnd('\0');
+            r.Check($"ecbsd-acrescenta {map}", off2 == bsd.Length && nb.AsSpan(0, bsd.Length).SequenceEqual(bsd) && name2 == @"9\litmodel_99999.bmd" && BitConverter.ToSingle(nb, off2 + 4) == 2,
+                $"offset {off2}, nome \"{name2}\"");
+        }
+
+        // 3) map.bht: acrescentar brushes (cópia de um brush existente) e reler
+        if (config is not null)
+        {
+            var bhtPath = Path.Combine(config, "a05", "map.bht");
+            var bytes = File.ReadAllBytes(bhtPath);
+            var bht = new BhtFile(bytes);
+            var one = bht.BrushBytes(0);
+            var more = new BhtFile(bht.With([one, one]));
+            r.Check("bht-acrescenta", more.Count == bht.Count + 2 && more.BrushBytes(bht.Count).AsSpan().SequenceEqual(one)
+                && more.Write().AsSpan(more.TreeStart).SequenceEqual(bytes.AsSpan(bht.TreeStart)), $"{bht.Count} -> {more.Count} brushes, árvore igual");
+
+            // 4) escala 2× de um brush em volta do centro: caixa dobra e os planos passam pelos cantos novos
+            var b2 = (byte[])one.Clone();
+            var (mn, mx) = ObjectFormats.BrushBox(b2, 0);
+            var c = (mn + mx) / 2;
+            ObjectFormats.ScaleBrush(b2, 0, 2, c);
+            var (mn2, mx2) = ObjectFormats.BrushBox(b2, 0);
+            bool boxOk = Vector3.Distance(mx2 - mn2, (mx - mn) * 2) < 0.01f && Vector3.Distance((mn2 + mx2) / 2, c) < 0.01f;
+            int sides = BitConverter.ToInt32(b2, 52);
+            bool planesOk = true;
+            for (int s = 0, p = 56; s < sides; s++, p += 17)
+            {
+                var n = new Vector3(BitConverter.ToSingle(b2, p), BitConverter.ToSingle(b2, p + 4), BitConverter.ToSingle(b2, p + 8));
+                var n0 = new Vector3(BitConverter.ToSingle(one, p), BitConverter.ToSingle(one, p + 4), BitConverter.ToSingle(one, p + 8));
+                float d0 = BitConverter.ToSingle(one, p + 12), d1 = BitConverter.ToSingle(b2, p + 12);
+                // um ponto do plano velho (o mais perto do centro) escalado tem que cair no plano novo
+                var q = c + n0 * (d0 - Vector3.Dot(n0, c));
+                var q2 = c + (q - c) * 2;
+                if (n != n0 || MathF.Abs(Vector3.Dot(n, q2) - d1) > 0.01f) planesOk = false;
+            }
+            r.Check("escala-brush", boxOk && planesOk, $"caixa {mx - mn} -> {mx2 - mn2}, planos ok={planesOk}");
+        }
     }
 
     // ---------------- estudo dos formatos (Task 1) ----------------

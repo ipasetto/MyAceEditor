@@ -136,6 +136,55 @@ public static class ObjectFormats
         W(ecbsd, off, map(V(ecbsd, off))); W(ecbsd, off + 12, turn(V(ecbsd, off + 12))); W(ecbsd, off + 24, turn(V(ecbsd, off + 24)));
     }
 
+    /// <summary>
+    /// Área do bloco do .ecwld (u16 linha, u16 coluna no começo do bloco): x de −largura/2 + coluna·lado, z de
+    /// comprimento/2 − linha·lado para baixo (linha 0 ao norte, como os pedaços do terreno). Conferido no estudo 2a.
+    /// </summary>
+    public static (float X0, float Z0, float X1, float Z1) BlockArea(EcwldFile ecw, EcwldFile.Block bl, bool swapRowCol = false)
+    {
+        int row = BitConverter.ToUInt16(bl.RowCol, 0), col = BitConverter.ToUInt16(bl.RowCol, 2);
+        if (swapRowCol) (row, col) = (col, row);
+        float bs = ecw.BlockSize, x0 = -ecw.Width / 2 + col * bs, z1 = ecw.Length / 2 - row * bs;
+        return (x0, z1 - bs, x0 + bs, z1);
+    }
+
+    /// <summary>
+    /// Ornamento novo no FIM do .ecbsd, copiando os 40 B do ornamento de origem (bools de reflexo/refração) com o lugar
+    /// novo e o nome novo (i32 tamanho + texto, com o \0 final se a origem tinha). O cliente lê pelo offset
+    /// (CECScene::LoadOrnament faz Seek), então acrescentar no fim não mexe em nada que já existe.
+    /// </summary>
+    public static (byte[] Ecbsd, int Offset) NewOrnament(byte[] ecbsd, int srcOff, string newName, ObjTransform t)
+    {
+        if (srcOff < 0 || srcOff + 44 > ecbsd.Length) throw new InvalidDataException("ornamento de origem fora do .ecbsd");
+        int srcLen = BitConverter.ToInt32(ecbsd, srcOff + 40);
+        bool nul = srcLen > 0 && srcOff + 44 + srcLen <= ecbsd.Length && ecbsd[srcOff + 44 + srcLen - 1] == 0;
+        var name = Encoding.ASCII.GetBytes(newName + (nul ? "\0" : ""));
+        var o = new byte[ecbsd.Length + 44 + name.Length];
+        ecbsd.CopyTo(o, 0);
+        int off = ecbsd.Length;
+        Array.Copy(ecbsd, srcOff, o, off, 40);
+        W(o, off, t.Pos); W(o, off + 12, t.Dir); W(o, off + 24, t.Up);
+        BinaryPrimitives.WriteInt32LittleEndian(o.AsSpan(off + 40), name.Length);
+        name.CopyTo(o, off + 44);
+        return (o, off);
+    }
+
+    /// <summary>Escala 1 brush em volta de <paramref name="c"/>: x' = c + s(x − c), então n' = n e dist' = s(dist − n·c) + n·c; a caixa escala junto.</summary>
+    public static void ScaleBrush(byte[] d, int at, float s, Vector3 c)
+    {
+        if (!(s > 0)) throw new InvalidDataException("escala tem que ser maior que zero");
+        int sides = BinaryPrimitives.ReadInt32LittleEndian(d.AsSpan(at + 52));
+        for (int k = 0, p = at + 56; k < sides; k++, p += 17)
+        {
+            var n = V(d, p);
+            float dist = BitConverter.ToSingle(d, p + 12);
+            BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(p + 12), s * (dist - Vector3.Dot(n, c)) + Vector3.Dot(n, c));
+        }
+        var (mn, mx) = BrushBox(d, at);
+        mn = c + (mn - c) * s; mx = c + (mx - c) * s;
+        W(d, at, (mn + mx) / 2); W(d, at + 12, (mx - mn) / 2); W(d, at + 24, mn); W(d, at + 36, mx);
+    }
+
     public static ObjTransform ReadEcModel(byte[] item) =>
         item.Length < 40 ? throw new InvalidDataException("modelo do .ecwld menor que 40 bytes") : new(V(item, 4), V(item, 16), V(item, 28), 1);
 

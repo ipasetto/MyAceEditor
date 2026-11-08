@@ -110,6 +110,25 @@ public sealed class BhtFile
         foreach (int i in brushes) WorldEdit.ObjectFormats.RotateBrush(_data, _at[i], rot, center);
     }
 
+    /// <summary>Bytes de um brush (caixa + reservado + lados), no formato que o .bmd do cliente também usa.</summary>
+    public byte[] BrushBytes(int i) => _data[_at[i]..(i + 1 < Count ? _at[i + 1] : TreeStart)];
+
+    /// <summary>
+    /// Arquivo novo com brushes acrescentados no fim da lista (antes da árvore): a árvore é grade fixa e os brushes entram
+    /// nela na carga do gs, então acrescentar só muda a contagem e a lista.
+    /// </summary>
+    public byte[] With(IEnumerable<byte[]> brushes)
+    {
+        var add = brushes.ToList();
+        var ms = new MemoryStream(_data.Length + add.Sum(b => b.Length));
+        ms.Write(_data, 0, 8);
+        ms.Write(BitConverter.GetBytes(Count + add.Count));
+        ms.Write(_data, 12, TreeStart - 12);
+        foreach (var b in add) ms.Write(b);
+        ms.Write(_data, TreeStart, _data.Length - TreeStart);
+        return ms.ToArray();
+    }
+
     /// <summary>
     /// Arquivo novo sem os brushes pedidos: a árvore é uma grade fixa e os brushes entram nela só na carga do gs
     /// (_AddBrush), então tirar brushes só muda a contagem e a lista; a árvore é copiada igual.

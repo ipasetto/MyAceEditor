@@ -22,6 +22,10 @@ public sealed class EcwldFile
     }
 
     public int Version { get; private set; }
+    /// <summary>Largura e comprimento do mundo e lado do bloco, em metros (cabeçalho ECWDFILEHEADER +8, +12, +16).</summary>
+    public float Width => BitConverter.ToSingle(_head, 8);
+    public float Length => BitConverter.ToSingle(_head, 12);
+    public float BlockSize => BitConverter.ToSingle(_head, 16);
     public List<Block> Blocks { get; } = new();
     byte[] _head = [];        // 116 B do cabeçalho
     int[] _table = [];        // índice do bloco (em Blocks) por entrada da tabela; -1 = offset 0
