@@ -15,8 +15,9 @@ internal sealed class WorldGrass : IDisposable
 {
     const int Patch = 32;
     const float MaxRange = 140;
-    readonly WorldScene? _scene;
+    WorldScene? _scene;
     readonly PckArchive? _pck;
+    readonly string? _ecwld, _ecbsd;
     readonly TerrainFile _t;
     readonly Dictionary<int, Kind?> _kinds = new();
     readonly Dictionary<(int A, int X, int Y), Piece> _pieces = new();
@@ -38,12 +39,85 @@ internal sealed class WorldGrass : IDisposable
             var ecwld = Path.Combine(dir, t.Name + ".ecwld");
             var pck = Path.Combine(elementDir, "grasses.pck");
             if (!File.Exists(ecwld) || !File.Exists(pck) || Directory.EnumerateFiles(dir, "*.ecbsd").FirstOrDefault() is not { } bsd) return;
+            _ecwld = ecwld; _ecbsd = bsd;
             _scene = new WorldScene(ecwld);
             _scene.LoadGrass(bsd);
             _pck = new PckArchive(pck);
         }
         catch (Exception ex) { AppLog.Info($"grama de {t.Name}: {ex.Message}"); _scene = null; _pck?.Dispose(); _pck = null; }
     }
+
+    /// <summary>Cena da grama (tipos e áreas): o pincel mexe nela e o desenho mostra na hora.</summary>
+    internal WorldScene? Scene => _scene;
+
+    /// <summary>Relê a grama do disco (depois de salvar, abandonar ou restaurar backup). Falso = não deu (fica a de antes).</summary>
+    internal bool Reload()
+    {
+        if (_ecwld is null || _ecbsd is null) return false;
+        try
+        {
+            var sc = new WorldScene(_ecwld); sc.LoadGrass(_ecbsd);
+            _scene = sc;
+            ClearPieces(); _kinds.Clear();
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("grama: reler", ex); return false; }
+    }
+
+    void ClearPieces()
+    {
+        foreach (var p in _pieces.Values) if (p.Vbo != 0) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
+        _pieces.Clear();
+    }
+
+    /// <summary>Refaz o desenho das áreas mexidas pelo pincel (lista mudou = refaz tudo por perto).</summary>
+    internal void Invalidate(IEnumerable<WorldScene.GrassArea> areas, bool listChanged)
+    {
+        if (_scene is null) return;
+        // áreas novas entram no fim e o Ctrl+Z tira do fim: só refaz as mexidas e solta as que saíram da lista
+        // (antes apagava toda a grama por perto e ela demorava a voltar)
+        var idx = areas.Select(a => _scene.Grass.IndexOf(a)).Where(i => i >= 0).ToHashSet();
+        int n = _scene.Grass.Count;
+        foreach (var key in _pieces.Keys.Where(k => idx.Contains(k.A) || listChanged && k.A >= n).ToList())
+        {
+            var p = _pieces[key];
+            if (p.Vbo != 0) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
+            _pieces.Remove(key);
+        }
+    }
+
+    /// <summary>Prévia do tipo (janela de escolher): um canteiro de 5×5 tufos em volta da origem, na luz neutra. Falso = não deu.</summary>
+    internal bool DrawThumb(int type)
+    {
+        if (KindOf(type) is not { } k) return false;
+        GL.Enable(EnableCap.Texture2D); GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.Lighting);
+        GL.Enable(EnableCap.AlphaTest); GL.AlphaFunc(AlphaFunction.Greater, k.AlphaRef);
+        GL.BindTexture(TextureTarget.Texture2D, k.Tex);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
+        GL.Color3(1f, 1f, 1f);
+        var rnd = new Random(type + 7);
+        float step = MathF.Max(0.4f, k.Size * 0.6f);
+        GL.Begin(PrimitiveType.Triangles);
+        for (int gx = -2; gx <= 2; gx++)
+            for (int gz = -2; gz <= 2; gz++)
+            {
+                float x = (gx + (float)rnd.NextDouble() - 0.5f) * step, z = (gz + (float)rnd.NextDouble() - 0.5f) * step;
+                float rot = (float)rnd.NextDouble() * MathF.Tau, sc = k.Size * (1 - k.Var + 2 * k.Var * (float)rnd.NextDouble());
+                float c = MathF.Cos(rot), s = MathF.Sin(rot);
+                foreach (var ix in k.Index)
+                {
+                    var q = k.Pos[ix] * sc;
+                    GL.TexCoord2(k.Uv[ix]);
+                    GL.Vertex3(x + q.X * c + q.Z * s, q.Y, -(z - q.X * s + q.Z * c));
+                }
+            }
+        GL.End();
+        GL.Disable(EnableCap.AlphaTest); GL.Disable(EnableCap.Texture2D);
+        return true;
+    }
+
+    /// <summary>Tamanho do tufo do tipo (enquadrar a prévia); 0 = não abriu.</summary>
+    internal float SizeOf(int type) => KindOf(type)?.Size ?? 0;
 
     Kind? KindOf(int type)
     {
@@ -101,8 +175,7 @@ internal sealed class WorldGrass : IDisposable
         {
             if (_night == value) return;
             _night = value; _light.Clear();
-            foreach (var p in _pieces.Values) if (p.Vbo != 0) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
-            _pieces.Clear();
+            ClearPieces();
         }
     }
 

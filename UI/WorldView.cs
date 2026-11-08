@@ -237,6 +237,7 @@ internal sealed partial class WorldView : Form
             if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
+            if (BrushMouseDown(e)) return;   // pincel de grama
             // inserção (plantio ou Ctrl+V): esquerdo põe UM objeto onde o mouse aponta no chão e sai; direito cancela
             if (_tool == Tool.Scene && Placing)
             {
@@ -260,6 +261,7 @@ internal sealed partial class WorldView : Form
         {
             _dragging = false;
             if (PathMouseUp(e)) return;
+            if (BrushMouseUp()) return;   // fim da pincelada = um passo de Ctrl+Z
             if (ObjGizmoUp()) return;
             if (_gizmoAxis > 0)
             {
@@ -363,6 +365,7 @@ internal sealed partial class WorldView : Form
             }
             _hover = Ray(e.Location);
             if (Placing) _gl.Invalidate();   // prévia de inserir segue o mouse
+            BrushMouseMove();               // círculo do pincel segue o mouse; arrastando, pinta
             var near = _tool == Tool.Scene ? null : PickScreen(e.Location);   // Objetos do mundo: NPCs não se escolhem; não procura a cada movimento
             if (!_pickShown && _gl.Cursor != GameCursor(near)) _gl.Cursor = GameCursor(near);
             // o jogo mostra ((int)x + 4000) / 10 e ((int)z + 5500) / 10 (CECUIHelper::GetShowPos)
@@ -405,6 +408,7 @@ internal sealed partial class WorldView : Form
         if (_editor is { IsDisposed: false, Parent: not null } editor) { editor.AskCancel(); return true; }
         if (_tool == Tool.None) return ClearScreen();
         if (_tool == Tool.Scene && StopPlanting()) return true;   // 1º Esc no plantio: só para de plantar
+        if (_tool == Tool.Scene && StopBrush()) return true;      // 1º Esc no pincel de grama: só sai do pincel
         if (_tool == Tool.Scene && _sceneSel is not null) { _sceneSel = null; ShowObjPanel(); _gl.Invalidate(); return true; }   // 1º Esc: tira a seleção
         LeaveTool();
         return true;
@@ -454,6 +458,9 @@ internal sealed partial class WorldView : Form
                     bool ok = e.KeyCode == Keys.Z ? UndoAny() : RedoAny();
                     _status.Text = ok ? "" : e.KeyCode == Keys.Z ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer");
                     RefreshMarkers(); break;
+                case Keys.C when _tool == Tool.Scene && BrushOn:
+                    GrassEyedropper();   // com o pincel: conta-gotas (o tipo embaixo do mouse)
+                    break;
                 case Keys.C when _tool == Tool.Scene:
                     _objClip = _sceneSel;
                     _status.Text = _objClip is null ? "" : Loc.T("obj.copied", "Objeto copiado — Ctrl+V cola onde está o mouse");
@@ -470,6 +477,13 @@ internal sealed partial class WorldView : Form
                     break;
             }
             e.Handled = true; return;
+        }
+        // atalhos dos modos do objeto escolhido (Objetos do mundo): V mover, R girar, F tamanho (G = grama e H = atalhos já
+        // eram usados; estas estavam livres)
+        if (_tool == Tool.Scene && SelDraft is { Deleted: false } && e.KeyCode is Keys.V or Keys.R or Keys.F && !e.Alt && !e.Shift)
+        {
+            SetObjMode(e.KeyCode == Keys.V ? ObjMode.Move : e.KeyCode == Keys.R ? ObjMode.Turn : ObjMode.Size);
+            e.Handled = e.SuppressKeyPress = true; return;
         }
         switch (e.KeyCode)
         {
@@ -643,6 +657,7 @@ internal sealed partial class WorldView : Form
         if (_showBuildings) _buildings.Draw(_cam, Forward);
         DrawDraftModels();
         DrawObjectBoxes();
+        DrawBrush();
         _trees.Draw(_cam, Forward);
         _grass.Draw(_cam);   // grama do .ecwld/.ecbsd perto da câmera   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();
@@ -1334,6 +1349,7 @@ internal sealed partial class WorldView : Form
             new(K("legend.gPoints", "Pontos"), Header: true),
             new(K("legend.kPick", "selecionar / arrastar o ponto"), Keys: new[] { K("legend.keyLeft", "Esquerdo") }),
             new(K("legend.kGizmo", "setas: mover no eixo · anel: girar (Shift = 15°)"), Keys: new[] { K("legend.keyGizmo", "Setas / anel") }),
+            new(K("legend.kObjModes", "objeto escolhido: mover · girar · tamanho"), Keys: new[] { "V", "R", "F" }),
             new(K("legend.kRight", "novo, clonar, mover, excluir, editar"), Keys: new[] { K("legend.keyRight", "Direito") }),
             new(""),
             new(K("legend.gEdit", "Editar"), Header: true),
@@ -2028,6 +2044,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
         if (_tool == Tool.Domains) return false;   // o editor de territórios tem o Ctrl+Z dele
         if (ZoneUndo(redo: false)) return true;
+        if (GrassUndo(redo: false)) return true;   // pincel ligado ou a última ação foi uma pincelada
         if (ObjectUndo(redo: false)) return true;  // objetos do mundo (rascunho) só se foi a última ação
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
         if (PathUndo(redo: false)) return true;    // caminhos idem
@@ -2048,6 +2065,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Redo();
         if (_tool == Tool.Domains) return false;
         if (ZoneUndo(redo: true)) return true;
+        if (GrassUndo(redo: true)) return true;
         if (ObjectUndo(redo: true)) return true;
         if (SceneUndo(redo: true)) return true;
         if (PathUndo(redo: true)) return true;

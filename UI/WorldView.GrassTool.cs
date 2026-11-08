@@ -1,0 +1,279 @@
+using MyAceEditor.PerfectWorld;
+using MyAceEditor.PerfectWorld.WorldEdit;
+using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
+
+namespace MyAceEditor.UI;
+
+/// <summary>
+/// Pincel de grama e flores da ferramenta Objetos do mundo (docs/superpowers/specs/2026-11-08-grama-design.md): escolher o
+/// tipo na janela de escolher, círculo no chão seguindo o mouse, arrastar pinta (ou apaga com a Borracha), cada arrastada
+/// = um passo de Ctrl+Z; grava no Salvar dos objetos (GrassSaver).
+/// </summary>
+internal sealed partial class WorldView
+{
+    GrassDraft? _grassDraft;
+    int _brushType = -1;                 // tipo em pincel (−1 = pincel desligado)
+    bool _brushErase, _brushDown, _grassLast;
+    float _brushR = 4, _brushDensity = 0.5f;
+    System.Numerics.Vector3? _lastDab;
+    readonly Panel _brushPanel = new() { Width = 250, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(6), Margin = new Padding(0, 4, 0, 4) };
+    readonly Label _brushTitle = new() { AutoSize = false, Height = 40, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9f) };
+    readonly TrackBar _brushSize = new() { Minimum = 1, Maximum = 30, Value = 4, TickFrequency = 5, Dock = DockStyle.Top, Height = 32, AutoSize = false };
+    readonly TrackBar _brushDens = new() { Minimum = 5, Maximum = 100, Value = 50, TickFrequency = 10, Dock = DockStyle.Top, Height = 32, AutoSize = false };
+    readonly Label _brushSizeLbl = new() { Dock = DockStyle.Top, Height = 18, ForeColor = Color.Silver };
+    readonly Label _brushDensLbl = new() { Dock = DockStyle.Top, Height = 18, ForeColor = Color.Silver };
+    Button? _brushEraseBtn;
+
+    bool BrushOn => _brushType >= 0 || _brushErase && _grassDraft is not null;
+
+    /// <summary>Monta o painel do pincel (fica no lugar do cartão do objeto enquanto pinta).</summary>
+    void InitGrassPanel()
+    {
+        _brushSize.ValueChanged += (_, _) => { _brushR = _brushSize.Value; BrushLabels(); _gl.Invalidate(); };
+        _brushDens.ValueChanged += (_, _) => { _brushDensity = _brushDens.Value / 100f; BrushLabels(); };
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 74, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 4, 0, 0) };
+        _brushEraseBtn = SmallButton("", Loc.T("grass.erase", "Borracha (apaga qualquer grama)"), () => { _brushErase = !_brushErase; BrushLabels(); _gl.Invalidate(); });
+        _brushEraseBtn.Width = 236;
+        var other = SmallButton("", Loc.T("grass.other", "Trocar o tipo"), ChooseGrassToPaint); other.Width = 115;
+        var done = SmallButton("", Loc.T("grass.done", "Concluir"), () => StopBrush(), main: true); done.Width = 115;
+        bar.Controls.Add(_brushEraseBtn); bar.Controls.Add(other); bar.Controls.Add(done);
+        var note = new Label { Dock = DockStyle.Top, Height = 46, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
+            Text = Loc.T("grass.note", "Arraste no chão para pintar. Cada arrastada é um passo do Ctrl+Z. Grava no Salvar cenário (só no cliente; o servidor não muda).") };
+        foreach (var c in new Control[] { note, bar, _brushDens, _brushDensLbl, _brushSize, _brushSizeLbl, _brushTitle }) _brushPanel.Controls.Add(c);
+        _brushPanel.Height = _brushPanel.Controls.Cast<Control>().Sum(c => c.Height) + 16;
+        BrushLabels();
+    }
+
+    void BrushLabels()
+    {
+        _brushSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _brushSize.Value);
+        _brushDensLbl.Text = string.Format(Loc.T("grass.density", "Densidade: {0}%"), _brushDens.Value);
+        string name = _grass.Scene is { } sc && _brushType >= 0 && _brushType < sc.GrassTypes.Count ? Path.GetFileNameWithoutExtension(sc.GrassTypes[_brushType].Mox) : "";
+        _brushTitle.Text = _brushErase ? Loc.T("grass.erasing", "Borracha: arraste para apagar a grama") : string.Format(Loc.T("grass.painting", "Pintando: {0}"), name);
+        if (_brushEraseBtn is not null) { _brushEraseBtn.BackColor = _brushErase ? Color.FromArgb(150, 50, 50) : Color.FromArgb(40, 45, 54); }
+    }
+
+    /// <summary>Rascunho da grama (uma vez; precisa da cena da grama e dos blocos do cenário). null = não deu (status explica).</summary>
+    GrassDraft? GrassDraftOrNew()
+    {
+        if (_grassDraft is not null) return _grassDraft;
+        if (_grass.Scene is not { } sc || _draftSrc is null) { _status.Text = Loc.T("grass.noScene", "Este mapa não tem grama para editar (ou o cenário não abriu)."); return null; }
+        try
+        {
+            var ecw = new EcwldFile(File.ReadAllBytes(_draftSrc.EcwldPath));
+            var blocks = ecw.Blocks.Select(bl => ObjectFormats.BlockArea(ecw, bl)).Select(a => (a.X0, a.X1, a.Z0, a.Z1)).ToList();
+            return _grassDraft = new GrassDraft(sc, blocks, _t.PieceAt, _t.HeightAt);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            AppLog.Error("grama: abrir", ex);
+            _status.Text = Loc.T("grass.openFail", "Não deu para abrir a grama deste mapa; veja o log.");
+            return null;
+        }
+    }
+
+    List<GrassKind>? _grassKinds;
+
+    /// <summary>Pílula Grama: tipos deste mapa e de todos os outros (prévia, estrela, recentes); escolher liga o pincel.</summary>
+    void ChooseGrassToPaint()
+    {
+        if (GrassDraftOrNew() is not { } gd) return;
+        var sc = gd.Scene;
+        try { if (_element is not null) _grassKinds ??= GrassKind.All(_element); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("grama: tipos dos mapas", ex); }
+        // linhas: tipos que o arquivo deste mapa já tem; depois os dos outros mapas (world antes), um por .mox + tamanho
+        var rowsK = new List<(GrassKind? Kind, int Type, string Block)>();
+        for (int i = 0; i < gd.FileTypes; i++) rowsK.Add((null, i, MapLabel(_t.Name)));
+        foreach (var k in (_grassKinds ?? []).OrderBy(k => MapRank(k.Maps.OrderBy(MapRank).First())).ThenBy(k => k.Maps.OrderBy(MapRank).First(), StringComparer.OrdinalIgnoreCase))
+            if (!Enumerable.Range(0, gd.FileTypes).Any(i => sc.GrassTypes[i].Mox.Equals(k.Mox, StringComparison.OrdinalIgnoreCase) && sc.GrassTypes[i].Size == k.Type.Size))
+                rowsK.Add((k, -1, MapLabel(k.Maps.OrderBy(MapRank).First())));
+        if (rowsK.Count == 0) { _status.Text = Loc.T("grass.noTypes", "Nenhum tipo de grama no cliente."); return; }
+        int TypeOfRow(int row) => row < 0 || row >= rowsK.Count ? -1 : rowsK[row].Kind is { } k ? gd.TypeFor(k) : rowsK[row].Type;
+        int SigOf(int row) => rowsK[row].Kind?.Sig ?? new GrassKind([.. GrassProps(sc.GrassTypes[rowsK[row].Type])], sc.GrassTypes[rowsK[row].Type].Mox, []).Sig;
+        string NameOf(int row) => Path.GetFileNameWithoutExtension(rowsK[row].Kind?.Mox ?? sc.GrassTypes[rowsK[row].Type].Mox);
+        var rows = rowsK.Select((r, i) => (Id: i, Name: NameOf(i), Block: r.Block)).ToList();
+        JavFavorites? fav = null; List<int> recent = [];
+        if (_element is not null)
+        {
+            var file = JavFavorites.ForFile("grass", _element);
+            fav = new JavFavorites(() => file.Ids.Select(sig => Enumerable.Range(0, rowsK.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList(),
+                i => i >= 0 && i < rowsK.Count && file.Has(SigOf(i)), i => file.Toggle(SigOf(i)));
+            recent = JavRecents.Read("grass", _element).Select(sig => Enumerable.Range(0, rowsK.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList();
+        }
+        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recent, model: (row, yaw) => TypeOfRow(row) is var t && t >= 0 ? GrassThumb(t, yaw) : null, fav: fav, keepBlockOrder: true)
+            { Text = Loc.T("grass.choose", "Escolher grama ou flor para pintar") };
+        if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
+        int type = TypeOfRow(w.Picked);
+        if (type < 0) return;
+        if (_element is not null) JavRecents.Add("grass", _element, SigOf(w.Picked));
+        StopPlanting();
+        _sceneSel = null; ShowObjPanel();
+        _brushType = type; _brushErase = false;
+        _brushPanel.Visible = true; BrushLabels(); FitObjPanel();
+        _status.Text = string.Format(Loc.T("grass.start", "Pincel de {0}: arraste no chão para pintar. Esc ou Concluir sai."), rows[w.Picked].Name);
+        _gl.Focus(); _gl.Invalidate();
+    }
+
+    static byte[] GrassProps(WorldScene.GrassType t)
+    {
+        var b = new byte[24];
+        b[0] = (byte)(t.AlphaBlend ? 1 : 0);
+        BitConverter.GetBytes(t.AlphaRef).CopyTo(b, 4); BitConverter.GetBytes(t.Size).CopyTo(b, 8); BitConverter.GetBytes(t.SizeVar).CopyTo(b, 12);
+        BitConverter.GetBytes(t.Softness).CopyTo(b, 16); BitConverter.GetBytes(t.Sight).CopyTo(b, 20);
+        return b;
+    }
+
+    Image? GrassThumb(int type, float yaw)
+    {
+        float s = MathF.Max(0.5f, _grass.SizeOf(type));
+        float half = MathF.Max(1.2f, s * 1.5f);
+        return OffscreenThumb(new Vector3(-half, 0, -half), new Vector3(half, s * 1.2f, half), yaw, (_, _) => _grass.DrawThumb(type));
+    }
+
+    /// <summary>Sai do pincel (Esc, botão direito ou Concluir). Falso = não estava pintando.</summary>
+    bool StopBrush()
+    {
+        if (!BrushOn && !_brushPanel.Visible) return false;
+        if (_brushDown) EndDab();
+        _brushType = -1; _brushErase = false; _brushPanel.Visible = false;
+        FitObjPanel(); _gl.Invalidate();
+        _status.Text = Loc.T("grass.stopped", "Pincel de grama encerrado.");
+        return true;
+    }
+
+    /// <summary>Começa uma pincelada (botão esquerdo no chão).</summary>
+    bool BrushMouseDown(MouseEventArgs e)
+    {
+        if (_tool != Tool.Scene || !BrushOn) return false;
+        if (e.Button == MouseButtons.Right) { StopBrush(); return true; }
+        if (e.Button != MouseButtons.Left || Ray(e.Location) is not { } g || GrassDraftOrNew() is not { } gd) return e.Button == MouseButtons.Left;
+        gd.BeginStroke(); _brushDown = true; _lastDab = null;
+        Dab(new System.Numerics.Vector3(g.X, g.Y, g.Z));
+        return true;
+    }
+
+    /// <summary>Arrastando: um toque a cada pedaço do raio andado.</summary>
+    void BrushMouseMove()
+    {
+        if (!BrushOn) return;
+        _gl.Invalidate();
+        if (!_brushDown || _hover is not { } h) return;
+        var p = new System.Numerics.Vector3(h.X, h.Y, h.Z);
+        if (_lastDab is { } last && System.Numerics.Vector3.Distance(last, p) < MathF.Max(0.4f, _brushR * 0.35f)) return;
+        Dab(p);
+    }
+
+    bool BrushMouseUp() { if (!_brushDown) return false; EndDab(); return true; }
+
+    void EndDab()
+    {
+        _brushDown = false;
+        if (_grassDraft?.EndStroke() == true) { _grassLast = true; UpdateSideState(); }
+    }
+
+    void Dab(System.Numerics.Vector3 at)
+    {
+        if (_grassDraft is not { } gd) return;
+        int n0 = gd.Scene.Grass.Count;
+        var touched = _brushErase ? gd.Erase(at.X, at.Z, _brushR) : gd.Paint(at.X, at.Z, _brushR, _brushType, _brushDensity, Environment.TickCount ^ (int)(at.X * 31) ^ (int)(at.Z * 17));
+        _grass.Invalidate(touched, gd.Scene.Grass.Count != n0);
+        _lastDab = at;
+        _gl.Invalidate();
+    }
+
+    /// <summary>Ctrl+Z / Ctrl+Y da grama: com o pincel ligado, ou quando a última ação foi uma pincelada.</summary>
+    bool GrassUndo(bool redo)
+    {
+        if (_tool != Tool.Scene || _grassDraft is not { } gd) return false;
+        if (!BrushOn && !_grassLast && (redo ? _draft?.RedoTag is not null : _draft?.UndoTag is not null)) return false;
+        int n0 = gd.Scene.Grass.Count;
+        var touched = redo ? gd.Redo() : gd.Undo();
+        if (touched is null) return false;
+        _grass.Invalidate(touched, gd.Scene.Grass.Count != n0);
+        if (!redo && gd.UndoCount == 0) _grassLast = false;
+        _status.Text = redo ? Loc.T("grass.redone", "Pincelada refeita.") : Loc.T("grass.undone", "Pincelada desfeita (Ctrl+Y refaz).");
+        UpdateSideState(); _gl.Invalidate();
+        return true;
+    }
+
+    /// <summary>Conta-gotas (Ctrl+C com o pincel): o tipo de grama que tem tufo embaixo do mouse vira o tipo do pincel.</summary>
+    bool GrassEyedropper()
+    {
+        if (!BrushOn || _grass.Scene is not { } sc || _hover is not { } h) return false;
+        for (int i = sc.Grass.Count - 1; i >= 0; i--)
+        {
+            var g = sc.Grass[i];
+            float x0 = g.X - g.Cols * g.Cell / 2, z1 = g.Z + g.Rows * g.Cell / 2;
+            int col = (int)MathF.Floor((h.X - x0) / g.Cell), row = (int)MathF.Floor((z1 - h.Z) / g.Cell);   // _hover: coordenadas do jogo
+            if (col < 0 || row < 0 || col >= g.Cols || row >= g.Rows || !g.On(col, row)) continue;
+            _brushType = g.Type; _brushErase = false; BrushLabels();
+            _status.Text = string.Format(Loc.T("grass.picked", "Pincel com o tipo daqui: {0}"), Path.GetFileNameWithoutExtension(sc.GrassTypes[g.Type].Mox));
+            return true;
+        }
+        _status.Text = Loc.T("grass.pickNone", "Não há grama embaixo do mouse.");
+        return true;
+    }
+
+    /// <summary>Círculo do pincel no chão (verde = pinta, vermelho = apaga), acompanhando o relevo.</summary>
+    void DrawBrush()
+    {
+        if (_tool != Tool.Scene || !BrushOn || _hover is not { } h) return;
+        GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.DepthTest);
+        GL.LineWidth(2.5f);
+        GL.Color3(_brushErase ? Color.FromArgb(255, 90, 80) : Color.FromArgb(120, 230, 110));
+        GL.Begin(PrimitiveType.LineLoop);
+        float gz0 = h.Z;   // _hover: coordenadas do jogo
+        for (int i = 0; i < 64; i++)
+        {
+            float t = i / 64f * MathF.Tau, x = h.X + MathF.Sin(t) * _brushR, z = gz0 + MathF.Cos(t) * _brushR;
+            float y = (_t.HeightAt(x, z) ?? h.Y) + 0.15f;
+            GL.Vertex3(x, y, -z);
+        }
+        GL.End();
+        GL.LineWidth(1); GL.Enable(EnableCap.DepthTest);
+    }
+
+    /// <summary>Depois de salvar, abandonar ou restaurar backup: o rascunho da grama sai e a grama é relida do disco.</summary>
+    void ResetGrassEdit()
+    {
+        StopBrush();
+        _grassDraft = null; _grassLast = false;
+        _grass.Reload();
+    }
+
+    /// <summary>
+    /// Para a captura ("dftgrass"): liga o pincel com o 1º tipo do mapa, pinta perto da câmera, desfaz/refaz, apaga com a
+    /// borracha, prévia do tipo e o plano do salvar (sem gravar); deixa o círculo na tela para a foto.
+    /// </summary>
+    internal string DraftGrassTest()
+    {
+        string load = DraftLoadTest();
+        if (GrassDraftOrNew() is not { } gd || _draftSrc is null) return load + " | dftgrass: sem grama";
+        if (gd.FileTypes == 0) return load + " | dftgrass: mapa sem tipos";
+        _brushType = 0; _brushErase = false; _brushPanel.Visible = true; BrushLabels();
+        var at = new System.Numerics.Vector3(_cam.X + Forward.X * 12, 0, -(_cam.Z + Forward.Z * 12));   // perto: a grama só aparece até a distância de vista do tipo
+        at.Y = _t.HeightAt(at.X, at.Z) ?? 0;
+        int t0 = gd.Tufts(gd.Scene.Grass);
+        gd.BeginStroke(); Dab(at); Dab(at + new System.Numerics.Vector3(3, 0, 0)); EndDab();
+        int t1 = gd.Tufts(gd.Scene.Grass);
+        bool undo = GrassUndo(false) && gd.Tufts(gd.Scene.Grass) == t0;
+        bool redo = GrassUndo(true) && gd.Tufts(gd.Scene.Grass) == t1;
+        _brushErase = true; gd.BeginStroke(); Dab(at); EndDab(); _brushErase = false;
+        int t2 = gd.Tufts(gd.Scene.Grass);
+        using (var th = GrassThumb(0, 30) as Bitmap) th?.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "dftgrass-thumb.png"));
+        string sum;
+        try
+        {
+            var plan = new SavePlan(new(StringComparer.OrdinalIgnoreCase), new(StringComparer.OrdinalIgnoreCase), new());
+            GrassSaver.Apply(plan, gd, _draftSrc);
+            sum = string.Join(" / ", plan.Summary) + " arquivos: " + string.Join(", ", plan.Files.Keys.Select(Path.GetFileName));
+        }
+        catch (InvalidDataException ex) { sum = ex.Message; }
+        _brushDensity = 1; gd.BeginStroke(); Dab(at); EndDab(); _brushDensity = 0.5f;   // pincelada cheia para a foto
+        for (int k = 0; k < 120 && (k < 3 || _grass.Pending); k++) CaptureFrame()?.Dispose();   // deixa a grama terminar de desenhar
+        bool dirty = SceneDirty;
+        _hover = new Vector3(at.X, at.Y, at.Z);   // círculo do pincel na foto
+        return load + $" | dftgrass: tufos {t0} -> {t1} ctrlz={undo} ctrly={redo} borracha -> {t2} sujo={dirty} [tipo0 tamanho={_grass.SizeOf(0):0.00} grama-ligada={_grass.Visible} areas={gd.Scene.Grass.Count} nova={gd.NewAreas.FirstOrDefault()?.X:0},{gd.NewAreas.FirstOrDefault()?.Z:0} {gd.NewAreas.FirstOrDefault()?.Cols}x{gd.NewAreas.FirstOrDefault()?.Rows} pincel={at.X:0},{at.Z:0}] plano=\"{sum}\"";
+    }
+}

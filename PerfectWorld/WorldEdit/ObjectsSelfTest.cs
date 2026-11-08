@@ -243,6 +243,15 @@ public static class ObjectsSelfTest
         long second = sw.ElapsedMilliseconds;
         int shapes = idx?.ByMap.Values.Sum(l => l.Count) ?? 0, uniq = idx?.ByMap.Values.SelectMany(l => l).Select(s => s.Sig).Distinct().Count() ?? 0;
         bool same = idx is not null && again is not null && idx.ByMap.Count == again.ByMap.Count && idx.ByMap.All(kv => again.ByMap.TryGetValue(kv.Key, out var l) && l.Count == kv.Value.Count);
+        // o que o .bmd diz do objeto além do número: só os nomes das texturas (amostra de 15 construções do world)
+        try
+        {
+            using var lit = new PckArchive(Path.Combine(element, "litmodels.pck"));
+            var names = lit.Entries.Where(e => e.Path.StartsWith(@"litmodels\world\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd")).Where((e, i) => i % 1500 == 0).Take(15)
+                .Select(e => BmdModel.Read(lit.Read(e)) is { } m ? Path.GetFileName(e.Path) + "=" + string.Join("+", m.Meshes.Select(x => x.Texture).Distinct().Take(3)) : "?").ToList();
+            r.Check("texturas-exemplo", true, string.Join(" | ", names));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException) { r.Check("texturas-exemplo", true, ex.Message); }
         r.Check("indice-todos-os-mapas", idx is { ByMap.Count: > 1 } && same && idx.ByMap.ContainsKey("world"),
             $"{idx?.ByMap.Count} mapas, {idx?.Files} arquivos ({idx?.Failed} com erro), {shapes} formas por mapa, {uniq} formas diferentes; 1a vez {first} ms, com cache {second} ms");
     }

@@ -40,7 +40,7 @@ internal sealed partial class WorldView
         return sc;
     }
 
-    bool SceneDirty => _draft?.Dirty == true || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
+    bool SceneDirty => _draft?.Dirty == true || _grassDraft?.Dirty == true || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
         || _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved));
 
     /// <summary>Um backup voltou: se tocou arquivos deste mapa (ou o pacote de construções), relê tudo do disco.</summary>
@@ -78,6 +78,7 @@ internal sealed partial class WorldView
             if (_element is not null) { _buildings.Reopen(_element); _piece = -1; }
             _trees.Reload();
             ObjectsSaved();
+            ResetGrassEdit();
             _bindex = null;
             if (_tool == Tool.Scene) DraftOpen();
             UpdateSideState();

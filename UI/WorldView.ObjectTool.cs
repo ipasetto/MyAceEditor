@@ -112,7 +112,7 @@ internal sealed partial class WorldView
     {
         if (_draft is null) return _status.Text = Loc.T("obj.noDraft", "Abra a ferramenta Objetos do mundo para mexer nos objetos.");
         var why = _draft.Apply(op, new DraftMark(UndoDepth?.Invoke() ?? 0, _qUndo.Count, _sUndo.Count));
-        if (why is not null) _status.Text = why;
+        if (why is not null) _status.Text = why; else _grassLast = false;   // a última ação passou a ser um objeto
         UpdateSideState();
         return why;
     }
@@ -337,7 +337,7 @@ internal sealed partial class WorldView
         if (_showCollision.Checked)
             foreach (var o in _draft.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Solid && !o.Deleted))
                 if ((Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z) - _cam).LengthSquared < 150 * 150) Box(o, Color.FromArgb(255, 90, 90), 1);
-        if (SelDraft is { Deleted: false } sel) Box(sel, Color.Gold, 2.5f);   // caixa para todos (usuário 08/11: a malha amarela da construção virou caixa, como a da árvore)
+        if (SelDraft is { Deleted: false } sel && _objMode != ObjMode.Turn) Box(sel, Color.Gold, 2.5f);   // no Girar fica só o anel (usuário 08/11)   // caixa para todos (usuário 08/11: a malha amarela da construção virou caixa, como a da árvore)
         GL.LineWidth(1); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
     }
 
@@ -352,6 +352,7 @@ internal sealed partial class WorldView
         try
         {
             plan = DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd);
+            if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc);   // grama e flores no mesmo salvar (tudo ou nada)
             if (_ecwPath is not null && _ecw is not null && !plan.Files.ContainsKey(_ecwPath) && _ecwSaved is not null && !_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)) plan.Files[_ecwPath] = _ecw.Write();
             if (_bsdPath is not null && _bsd is not null && !plan.Files.ContainsKey(_bsdPath) && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved)) plan.Files[_bsdPath] = (byte[])_bsd.Clone();
         }
@@ -447,6 +448,7 @@ internal sealed partial class WorldView
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("objetos: reabrir litmodels.pck", ex); }
         if (server) ServerNotice.Notify("map.bht");   // acende o "Salvar e enviar ao servidor"
         ObjectsSaved();
+        if (plan.Files.Keys.Any(k => k.Contains("bsdata", StringComparison.OrdinalIgnoreCase) || k.EndsWith(".ecbsd", StringComparison.OrdinalIgnoreCase))) ResetGrassEdit();   // grama relida do disco
         if (plan.PckFiles.Count > 0) _bindex = null;   // construções novas: o índice relê só os arquivos novos na próxima vez
         if (plan.Files.Keys.Any(k => k.EndsWith(".ecwld", StringComparison.OrdinalIgnoreCase)) && !_trees.Reload())
             _status.Text = Loc.T("obj.treesReloadFail", "Salvo, mas não deu para reler as árvores; feche e abra o Mundo 3D para vê-las.");
@@ -875,7 +877,7 @@ internal sealed partial class WorldView
             var m = (ObjMode)i;
             var b = new Button { Width = 70, Height = 46, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, Text = Loc.T(defs[i].Key, defs[i].Pt), Image = UiKit.Icon(defs[i].Glyph, Color.White, 18),
                 TextImageRelation = TextImageRelation.ImageAboveText, Margin = new Padding(0, 0, 3, 0), Cursor = Cursors.Hand, Font = new Font("Segoe UI", 8.5f) };
-            _toolTip.SetToolTip(b, Loc.T(defs[i].TipKey, defs[i].Tip));
+            _toolTip.SetToolTip(b, Loc.T(defs[i].TipKey, defs[i].Tip) + "  (" + "VRF"[i] + ")");
             b.Click += (_, _) => { SetObjMode(m); _gl.Focus(); };
             _modeBtns[i] = b; _modeRow.Controls.Add(b);
         }
@@ -1654,6 +1656,7 @@ internal sealed partial class WorldView
         if (MessageBox.Show(this, Loc.T("obj.abandonAsk", "Há mudanças não salvas nos objetos do mundo. Abandonar e perder essas mudanças?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return false;
         _sceneSel = null; ShowObjPanel();
         _draftSrc?.Dispose(); _draftSrc = null; _draft = null; _draftAsked.Clear();
+        ResetGrassEdit();   // pinceladas não salvas saem junto
         _ecw = null; _bsd = null; _ecwWhy = null; _sUndo.Clear(); _sRedo.Clear();
         LoadSceneForEdit();
         UpdateSideState(); _gl.Invalidate();

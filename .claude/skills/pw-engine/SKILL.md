@@ -8,7 +8,7 @@ description: Arquitetura do Perfect World (client+server, protocolo, formatos), 
 > **OBRIGATORIO sempre que esta skill for chamada (regra do usuario, 01/11):**
 > 1. Tudo o que for feito segue as regras do §4 e o layout do §4b (inclusive o padrao do Mundo 3D abaixo), sem excecao.
 > 2. No fim da resposta, listar de forma clara **o que falta**: do trabalho atual + os itens abertos do `docs/AFAZERES.md`.
-> 3. Seguir o limite de tokens pedido; perto de ~100k, parar e pedir permissao para continuar.
+> 3. Seguir SO o limite de tokens que o usuario pedir no chat (parar ao concluir ou ao passar dele); sem parada fixa a cada 100k (usuario 08/11).
 
 > FOCO DO USUARIO (05/11): so a versao 1.5.5. Outras versoes: o que rodar, rodou; nao reconferir.
 
