@@ -5757,5 +5757,14 @@
   "is.favSaveFail": "无法保存收藏（设置文件夹无法访问？）。",
   "is.favNoData": "请先打开 elements.data。",
   "is.favNoItem": "这个物品不在此 elements.data 中。",
-  "is.noModel": "（没有 3D 模型）"
+  "is.noModel": "（没有 3D 模型）",
+  "obj.chkNoBlockObj": "{0}：这个位置没有场景块；游戏不会显示该物体。",
+  "obj.noBuildingsNear": "附近没有已加载的建筑；请靠近城镇或遗迹。",
+  "obj.catSmall": "小型（10 米以内）",
+  "obj.catMedium": "中型（10 到 30 米）",
+  "obj.catBig": "大型（30 米以上）",
+  "obj.catRow": "{0} · {1} · 出现 {2} 次",
+  "obj.chooseBuilding": "选择要放到世界中的建筑",
+  "obj.catGone": "该建筑已不再加载；请重新打开列表。",
+  "obj.pillBuildingsTip": "从附近的建筑中选一个，然后点击地面放一个副本。"
 }

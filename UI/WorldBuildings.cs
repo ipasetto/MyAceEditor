@@ -410,22 +410,46 @@ internal sealed class WorldBuildings : IDisposable
     public void Draw(Vector3 cam, Vector3 forward)
     {
         if (_loaded.Count == 0) return;
-        GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
-        GL.AlphaFunc(AlphaFunction.Greater, 0.4f);
-        // textura × cor do vértice × 2 (luz embutida)
-        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);   // COMBINE
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);          // RGB = MODULATE
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8580, 0x1702);          //   textura
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);          //   × cor
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 2f);              // RGB_SCALE = 2
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8572, 0x1E01);          // ALFA = REPLACE
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8588, 0x1702);          //   da textura
+        BeginDraw();
         var late = new List<(Matrix4 World, Part Part)>();
         foreach (var (_, p, w0, pc) in PickList())   // carregadas (lugar do rascunho) e cópias coladas
             {
                 var d = pc - cam;
                 float dist = d.Length;
                 if (dist - p.Radius > 1100 || Vector3.Dot(d, forward) < -p.Radius || p.Radius / Math.Max(dist, 1) < 0.004f) continue;
+                DrawPlaced(p, w0, late);
+            }
+        EndDraw(late);
+    }
+
+    /// <summary>Estado do OpenGL para desenhar construções (textura × cor do vértice × 2).</summary>
+    static void BeginDraw()
+    {
+        GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
+        GL.AlphaFunc(AlphaFunction.Greater, 0.4f);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, 0x8570);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8571, 0x2100);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8580, 0x1702);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8581, 0x8577);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 2f);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8572, 0x1E01);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8588, 0x1702);
+    }
+
+    void EndDraw(List<(Matrix4 World, Part Part)> late)
+    {
+        DrawSurfaces(late);
+        GL.Disable(EnableCap.CullFace); GL.FrontFace(FrontFaceDirection.Ccw);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 1f);
+        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+        GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.ColorArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
+        GL.Disable(EnableCap.AlphaTest); GL.Disable(EnableCap.Texture2D);
+    }
+
+    /// <summary>Uma construção na matriz dada (as superfícies .sdr vão para late, desenhadas depois).</summary>
+    void DrawPlaced(Placed p, Matrix4 w0, List<(Matrix4 World, Part Part)> late)
+    {
                 GL.PushMatrix();
                 var w = w0; GL.MultMatrix(ref w);
                 foreach (var part in p.Parts)
@@ -452,14 +476,55 @@ internal sealed class WorldBuildings : IDisposable
                     GL.DrawElements(PrimitiveType.Triangles, part.Count, DrawElementsType.UnsignedShort, 0);
                 }
                 GL.PopMatrix();
+    }
+
+    Placed? Loaded(string file)
+    {
+        foreach (var list in _loaded.Values) foreach (var p in list) if (p.File.Equals(file, StringComparison.OrdinalIgnoreCase)) return p;
+        return null;
+    }
+
+    /// <summary>Caixa da construção no espaço dela (prévia do catálogo); null = não carregada.</summary>
+    internal (Vector3 Min, Vector3 Max)? LocalBoxOf(string file) => Loaded(file) is { } p ? (p.Mesh.Min, p.Mesh.Max) : null;
+
+    /// <summary>Desenha só esta construção na matriz dada (prévia do catálogo). Falso = não carregada.</summary>
+    internal bool DrawThumb(string file, Matrix4 world)
+    {
+        if (Loaded(file) is not { } p) return false;
+        BeginDraw();
+        var late = new List<(Matrix4 World, Part Part)>();
+        DrawPlaced(p, world, late);
+        EndDraw(late);
+        return true;
+    }
+
+    /// <summary>
+    /// Catálogo das construções carregadas (pedaços em volta da câmera): iguais (mesma malha e mesmo tamanho) viram uma
+    /// linha só, com quantas vezes aparecem. Sig = número estável da forma (favoritos). Cópias novas e prévia ficam de fora.
+    /// </summary>
+    internal List<(string Key, int Sig, Vector3 Size, int Count)> Catalog()
+    {
+        var groups = new Dictionary<int, (string Key, Vector3 Size, int Count)>();
+        foreach (var list in _loaded.Values)
+            foreach (var p in list)
+            {
+                if (Now(p).Hidden) continue;
+                var size = p.Mesh.Max - p.Mesh.Min;
+                int sig = StableSig(p.Mesh.Pos.Length, p.Mesh.Tri.Length, size);
+                groups[sig] = groups.TryGetValue(sig, out var g) ? g with { Count = g.Count + 1 } : (p.File, size, 1);
             }
-        DrawSurfaces(late);
-        GL.Disable(EnableCap.CullFace); GL.FrontFace(FrontFaceDirection.Ccw);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 1f);
-        GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-        GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.ColorArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
-        GL.Disable(EnableCap.AlphaTest); GL.Disable(EnableCap.Texture2D);
+        return groups.Select(kv => (Key: kv.Value.Key, Sig: kv.Key, kv.Value.Size, kv.Value.Count)).OrderByDescending(x => x.Count).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Número da forma que não muda entre sessões (string.GetHashCode muda a cada execução).</summary>
+    static int StableSig(int verts, int tris, Vector3 size)
+    {
+        unchecked
+        {
+            int h = (int)2166136261;
+            foreach (int v in new[] { verts, tris, (int)MathF.Round(size.X * 10), (int)MathF.Round(size.Y * 10), (int)MathF.Round(size.Z * 10) }) h = (h ^ v) * 16777619;
+            return h & 0x7FFFFFFF;
+        }
     }
 
     /// <summary>Superfícies .sdr depois do que é sólido: a cor é só a textura (SELECTARG1), com o alfa dela e a rolagem no tempo.</summary>

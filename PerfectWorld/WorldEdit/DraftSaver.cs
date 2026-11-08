@@ -97,6 +97,28 @@ public static class DraftSaver
         return list;
     }
 
+    /// <summary>
+    /// Leva as cópias do item (referência de construção ou modelo) para os blocos que cobrem o lugar novo. O cliente carrega
+    /// cada construção pela referência no bloco (CECSceneBlock::LoadOrnaments) e o caminho do .bmd vem do nome no .ecbsd,
+    /// sem olhar o pedaço: mudando os blocos, a construção pode ir para qualquer lugar do mapa (estudo 08/11). Só mexe se
+    /// faltar bloco ou sobrar bloco longe (20 m de folga, para não trocar os blocos do exportador num ajuste pequeno).
+    /// </summary>
+    static bool Rehome(EcwldFile ecw, EcwldFile.Kind k, uint id, Vector3 mn, Vector3 mx)
+    {
+        var hits = ecw.Find(k, id).ToList();
+        if (hits.Count == 0) return false;
+        var now = hits.Select(h => h.Block).Distinct().ToList();
+        var want = BlocksFor(ecw, mn, mx, now).ToList();
+        const float M = 20;
+        bool Near(EcwldFile.Block bl) => ObjectFormats.BlockArea(ecw, bl) is var a && mx.X + M >= a.X0 && mn.X - M <= a.X1 && mx.Z + M >= a.Z0 && mn.Z - M <= a.Z1;
+        var keep = now.Where(Near).Union(want).ToList();
+        if (keep.Count == now.Count && keep.All(now.Contains)) return false;
+        var item = (byte[])hits[0].Block.Items[(int)k][hits[0].Index].Clone();
+        ecw.Delete(k, id);
+        foreach (var bl in keep) bl.Items[(int)k].Add((byte[])item.Clone());
+        return true;
+    }
+
     /// <summary>Bloco do .ecwld cuja área contém o ponto (x, z); null = nenhum (o jogo não carregaria nada ali).</summary>
     internal static EcwldFile.Block? BlockAt(EcwldFile ecw, Vector3 p) =>
         ecw.Blocks.FirstOrDefault(bl => ObjectFormats.BlockArea(ecw, bl) is var a && p.X >= a.X0 && p.X <= a.X1 && p.Z >= a.Z0 && p.Z <= a.Z1);
@@ -215,11 +237,15 @@ public static class DraftSaver
                 foreach (int a in at) TransformBrush(nb, a, r, k, p0, p1);
                 if (BmdModel.Read(nb) is null || BmdModel.CdBrushes(nb)?.Count != at.Count) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
                 plan.PckFiles[f] = nb;
-                foreach (int off in ObjectFormats.OrnamentRefsOf(ecw, bsd, f).Select(x => x.Offset).Distinct())
+                var frefs = ObjectFormats.OrnamentRefsOf(ecw, bsd, f);
+                foreach (int off in frefs.Select(x => x.Offset).Distinct())
                 {
                     ObjectFormats.MoveOrnament(bsd, off, Map, Turn);
                     bsdDirty = true;
                 }
+                // referências nos blocos do lugar novo (gêmeas têm a mesma caixa)
+                var (bmn, bmx) = DraftChecks.WorldBox(o);
+                foreach (uint rid in frefs.Select(x => x.Id).Distinct()) ecwDirty |= Rehome(ecw, EcwldFile.Kind.Ornament, rid, bmn, bmx);
                 done.Add(f);
             }
             if (sel.Count > 0)
@@ -239,7 +265,12 @@ public static class DraftSaver
             var hits = ecw.Find(EcwldFile.Kind.EcModel, id).ToList();
             if (hits.Count == 0) throw new InvalidDataException(string.Format(Loc.T("obj.modelGone", "Modelo {0} não está mais no .ecwld."), id));
             if (o.Deleted) { ecw.Delete(EcwldFile.Kind.EcModel, id); Count(o.Piece, "mdel"); }
-            else { foreach (var (bl, i) in hits) ObjectFormats.WriteEcModel(bl.Items[(int)EcwldFile.Kind.EcModel][i], o.Now); Count(o.Piece, "mmove"); }
+            else
+            {
+                foreach (var (bl, i) in hits) ObjectFormats.WriteEcModel(bl.Items[(int)EcwldFile.Kind.EcModel][i], o.Now);
+                Rehome(ecw, EcwldFile.Kind.EcModel, id, o.Now.Pos, o.Now.Pos);   // blocos do lugar novo
+                Count(o.Piece, "mmove");
+            }
             ecwDirty = true;
         }
 
@@ -445,14 +476,17 @@ public static class DraftChecks
             var t = o.Now;
             int piece = src.PieceAt(t.Pos.X, t.Pos.Z);
             if (piece == 0) { list.Add(new(true, string.Format(Loc.T("obj.chkOut", "{0}: ficou fora do mapa."), name), o.Key)); continue; }
-            if (o.Kind == ObjKind.Tree)
+            // qualquer objeto pode ir para outro pedaço de 1 km (o salvar leva as referências aos blocos novos); só precisa de
+            // bloco de cenário no lugar, senão o jogo não carrega nada ali
+            try { ecw ??= new EcwldFile(File.ReadAllBytes(src.EcwldPath)); }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { list.Add(new(true, ex.Message, o.Key)); continue; }
+            if (DraftSaver.BlockAt(ecw, t.Pos) is null)
             {
-                try { ecw ??= new EcwldFile(File.ReadAllBytes(src.EcwldPath)); }
-                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { list.Add(new(true, ex.Message, o.Key)); continue; }
-                if (DraftSaver.BlockAt(ecw, t.Pos) is null) { list.Add(new(true, string.Format(Loc.T("obj.chkNoBlock", "{0}: nesse lugar não há bloco de cenário; o jogo não mostraria a árvore."), name), o.Key)); continue; }
+                list.Add(new(true, o.Kind == ObjKind.Tree
+                    ? string.Format(Loc.T("obj.chkNoBlock", "{0}: nesse lugar não há bloco de cenário; o jogo não mostraria a árvore."), name)
+                    : string.Format(Loc.T("obj.chkNoBlockObj", "{0}: nesse lugar não há bloco de cenário; o jogo não mostraria o objeto."), name), o.Key));
+                continue;
             }
-            else if (piece != o.Piece)
-            { list.Add(new(true, string.Format(Loc.T("obj.chkPiece", "{0}: saiu do pedaço de 1 km dela; o jogo só carrega a construção no pedaço onde ela nasceu."), name), o.Key)); continue; }
             var (mn, mx) = WorldBox(o);
             if (groundAt is not null)
             {

@@ -5755,5 +5755,14 @@
   "is.favSaveFail": "Could not save the favorite (settings folder without access?).",
   "is.favNoData": "Open an elements.data first.",
   "is.favNoItem": "That item is not in this elements.data.",
-  "is.noModel": "(no 3D model)"
+  "is.noModel": "(no 3D model)",
+  "obj.chkNoBlockObj": "{0}: there is no scenery block at this place; the game would not show the object.",
+  "obj.noBuildingsNear": "No building loaded nearby; get closer to a town or ruin.",
+  "obj.catSmall": "Small (up to 10 m)",
+  "obj.catMedium": "Medium (10 to 30 m)",
+  "obj.catBig": "Large (over 30 m)",
+  "obj.catRow": "{0} · {1} · appears {2}×",
+  "obj.chooseBuilding": "Choose a building to place in the world",
+  "obj.catGone": "That building is no longer loaded; open the list again.",
+  "obj.pillBuildingsTip": "Choose one of the buildings nearby and click on the ground to place a copy."
 }

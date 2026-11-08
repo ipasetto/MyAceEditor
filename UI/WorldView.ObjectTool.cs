@@ -897,11 +897,21 @@ internal sealed partial class WorldView
         _gl.Focus();
     }
 
-    /// <summary>
-    /// Prévia da árvore do tipo para a janela de escolher: desenha num quadro fora da tela (framebuffer) com o contexto do
-    /// Mundo 3D e lê os pixels. null = não deu (a janela mostra sem prévia).
-    /// </summary>
+    /// <summary>Prévia da árvore do tipo para a janela de escolher (enquadrada pela caixa da árvore).</summary>
     Image? TreeThumb(int type, float yaw)
+    {
+        _trees.Prepare(type);
+        Vector3 mn, mx;
+        if (_trees.BoxOf(type) is { } bx) { mn = new Vector3(bx.Min.X, bx.Min.Y, -bx.Max.Z); mx = new Vector3(bx.Max.X, bx.Max.Y, -bx.Min.Z); }
+        else { float r = MathF.Max(2, _trees.SizeOf(type) is var s && s > 0 ? s : 8); mn = new Vector3(-r * 0.45f, 0, -r * 0.45f); mx = new Vector3(r * 0.45f, r * 0.9f, r * 0.45f); }
+        return OffscreenThumb(mn, mx, yaw, (right, up) => _trees.DrawThumb(type, right, up) is not null);
+    }
+
+    /// <summary>
+    /// Desenha num quadro fora da tela (framebuffer) com o contexto do Mundo 3D e lê os pixels: a caixa (espaço do desenho)
+    /// cabe na foto com folga, girada yaw graus. null = não deu (a janela mostra sem prévia).
+    /// </summary>
+    Image? OffscreenThumb(Vector3 mn, Vector3 mx, float yaw, Func<Vector3, Vector3, bool> draw)
     {
         const int Size = 256;
         int fbo = 0, color = 0, depth = 0;
@@ -919,41 +929,30 @@ internal sealed partial class WorldView
             GL.Viewport(0, 0, Size, Size);
             GL.ClearColor(0.12f, 0.13f, 0.16f, 1f); GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.Enable(EnableCap.DepthTest); GL.Disable(EnableCap.Fog); GL.Disable(EnableCap.Lighting);
-            // enquadra pela caixa da árvore (tronco e copa sem as folhas soltas): a maior medida cabe na foto com folga.
-            // Antes era pelo raio do tipo, que conta folhas espalhadas: umas ficavam perto demais, outras longe.
-            _trees.Prepare(type);
-            float r = MathF.Max(2, _trees.SizeOf(type) is var s && s > 0 ? s : 8);
-            Vector3 target; float fit;
-            if (_trees.BoxOf(type) is { } bx)
-            {
-                var c = (bx.Min + bx.Max) / 2; var ext = bx.Max - bx.Min;
-                target = new Vector3(c.X, c.Y, -c.Z);
-                fit = MathF.Max(ext.Y, MathF.Max(ext.X, ext.Z)) * 0.5f;   // meia medida maior
-            }
-            else { target = new Vector3(0, r * 0.32f, 0); fit = r * 0.45f; }
+            var target = (mn + mx) / 2; var ext = mx - mn;
+            float fit = MathF.Max(0.5f, MathF.Max(ext.Y, MathF.Max(ext.X, ext.Z)) * 0.5f);   // meia medida maior
             float a = MathHelper.DegreesToRadians(yaw);
-            float dist = MathF.Max(1.5f, fit / MathF.Tan(MathHelper.DegreesToRadians(20)) * 1.45f);   // 40° de abertura, folga para a copa e o pé
-            r = MathF.Max(r, dist + fit);
+            float dist = MathF.Max(1.5f, fit / MathF.Tan(MathHelper.DegreesToRadians(20)) * 1.45f);   // 40° de abertura, folga
             var eye = target + new Vector3(MathF.Sin(a), 0.2f, MathF.Cos(a)).Normalized() * dist;
-            var proj = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(40), 1, 0.5f, r * 10);
+            var proj = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(40), 1, MathF.Max(0.1f, dist * 0.02f), (dist + fit) * 4);
             var view = Matrix4.LookAt(eye, target, Vector3.UnitY);
             GL.MatrixMode(MatrixMode.Projection); GL.PushMatrix(); GL.LoadMatrix(ref proj);
             GL.MatrixMode(MatrixMode.Modelview); GL.PushMatrix(); GL.LoadMatrix(ref view);
             var fwd = (target - eye).Normalized();
             var right = Vector3.Cross(fwd, Vector3.UnitY).Normalized(); var up = Vector3.Cross(right, fwd).Normalized();
-            float? drawn = _trees.DrawThumb(type, right, up);
+            bool drawn = draw(right, up);
             GL.MatrixMode(MatrixMode.Projection); GL.PopMatrix(); GL.MatrixMode(MatrixMode.Modelview); GL.PopMatrix();
-            if (drawn is null) return null;
+            if (!drawn) return null;
             var px = new byte[Size * Size * 4];
             GL.ReadPixels(0, 0, Size, Size, PixelFormat.Bgra, PixelType.UnsignedByte, px);
+            for (int i = 3; i < px.Length; i += 4) px[i] = 255;   // opaco (o fundo já é a cor da janela)
             var bmp = new Bitmap(Size, Size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             var data = bmp.LockBits(new Rectangle(0, 0, Size, Size), System.Drawing.Imaging.ImageLockMode.WriteOnly, bmp.PixelFormat);
             for (int y = 0; y < Size; y++) System.Runtime.InteropServices.Marshal.Copy(px, (Size - 1 - y) * Size * 4, data.Scan0 + y * data.Stride, Size * 4);   // OpenGL vem de baixo para cima
             bmp.UnlockBits(data);
-            for (int y = 0; y < Size; y++) for (int x = 0; x < Size; x++) { var c = bmp.GetPixel(x, y); if (c.A != 255) bmp.SetPixel(x, y, Color.FromArgb(255, c)); }
             return bmp;
         }
-        catch (Exception ex) { AppLog.Error("objetos: prévia da árvore", ex); return null; }
+        catch (Exception ex) { AppLog.Error("objetos: prévia", ex); return null; }
         finally
         {
             try
@@ -965,6 +964,102 @@ internal sealed partial class WorldView
             }
             catch (Exception ex) { AppLog.Error("objetos: limpar a prévia", ex); }
         }
+    }
+
+    /// <summary>
+    /// Para a captura ("dftcat"): catálogo das construções por perto, prévia, janela com estrela, pôr uma cópia em OUTRO
+    /// pedaço de 1 km (um clique) e o plano do salvar (referências nos blocos do lugar novo); não grava.
+    /// </summary>
+    internal string DraftCatalogTest()
+    {
+        string load = DraftLoadTest();
+        if (_draft is null || _draftSrc is null) return load + " | dftcat: sem rascunho";
+        _catalog = _buildings.Catalog().Where(c => _draft.Find(c.Key) is { Deleted: false, ReadOnlyWhy: null }).ToList();
+        int total = _catalog.Sum(c => c.Count);
+        if (_catalog.Count == 0) return load + " | dftcat: catálogo vazio";
+        using (var th = BuildingThumb(0, 30) as Bitmap) th?.Save(System.IO.Path.Combine(_shotDir ?? System.IO.Path.GetTempPath(), "dftcat-thumb.png"));
+        // janela de escolher como o usuário vê (prévia + estrela), sem favoritos de verdade
+        var rows = _catalog.Select((c, i) => (Id: i, Name: $"{System.IO.Path.GetFileNameWithoutExtension(c.Key)} · {c.Size.X:0}×{c.Size.Y:0}×{c.Size.Z:0} m · {c.Count}×", Block: "c")).ToList();
+        var favSet = new List<int>();
+        using (var jw = new ItemSearchWindow(rows, askQuantity: false, model: BuildingThumb, fav: new JavFavorites(() => favSet, favSet.Contains, i => { if (!favSet.Remove(i)) favSet.Add(i); return null; }))
+            { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
+        {
+            jw.Show(); jw.ShotModel(0); jw.StarTest(0); Application.DoEvents();
+            using var jb = new Bitmap(jw.Width, jw.Height); jw.DrawToBitmap(jb, new Rectangle(0, 0, jw.Width, jw.Height));
+            jb.Save(System.IO.Path.Combine(_shotDir ?? System.IO.Path.GetTempPath(), "dftcat-jav.png"));
+        }
+        // a menor construção (cabe em qualquer lugar), posta num pedaço vizinho carregado
+        int pick = Enumerable.Range(0, _catalog.Count).OrderBy(i => _catalog[i].Size.X * _catalog[i].Size.Z).First();
+        var src = _draft.Find(_catalog[pick].Key)!;
+        var c0 = CenterOf(src);
+        System.Numerics.Vector3? target = null;
+        foreach (var dxz in new[] { (1100f, 0f), (-1100f, 0f), (0f, 1100f), (0f, -1100f), (800f, 800f), (-800f, -800f) })
+        {
+            var g = new System.Numerics.Vector3(c0.X + dxz.Item1, c0.Y, c0.Z + dxz.Item2);
+            int pc = _draftSrc.PieceAt(g.X, g.Z);
+            if (pc > 0 && pc != src.Piece && _draft.Pieces.ContainsKey(pc)) { if (_t.HeightAt(g.X, g.Z) is { } h) g.Y = h; target = g; break; }
+        }
+        if (target is null) return load + $" | dftcat: {_catalog.Count} formas ({total} construções) sem pedaço vizinho carregado";
+        StartPlacing(src);
+        PlaceClick(target.Value);
+        var copy = SelDraft;
+        bool one = !Placing && copy is { CopyOf: not null } && copy.Piece != src.Piece;
+        var checks = DraftChecks.Run(_draft, _draftSrc, (x, z) => _t.HeightAt(x, z) ?? 0, []);
+        bool blocked = checks.Any(c => c.Blocks && c.Key == copy?.Key);
+        string sum = ""; int blocksOk = -1;
+        try
+        {
+            var plan = DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd);
+            sum = string.Join(" / ", plan.Summary);
+            if (_ecwPath is not null && plan.Files.TryGetValue(_ecwPath, out var ew))
+            {
+                var ef = new EcwldFile(ew);
+                uint max = ef.MaxId();
+                blocksOk = ef.Find(EcwldFile.Kind.Ornament, max).Count(h => ObjectFormats.BlockArea(ef, h.Block) is var a && target.Value.X >= a.X0 - 60 && target.Value.X <= a.X1 + 60 && target.Value.Z >= a.Z0 - 60 && target.Value.Z <= a.Z1 + 60);
+            }
+        }
+        catch (InvalidDataException ex) { sum = ex.Message; }
+        ObjectUndo(false);
+        return load + $" | dftcat: {_catalog.Count} formas ({total} construções) 1a={System.IO.Path.GetFileName(_catalog[0].Key)} x{_catalog[0].Count} outro-pedaco={one} (de {src.Piece} para {copy?.Piece}) bloqueou={blocked} blocos-do-lugar-novo={blocksOk} plano=\"{sum}\"";
+    }
+
+    // ---------- pílula Construções: catálogo das construções por perto ----------
+    List<(string Key, int Sig, Vector3 Size, int Count)> _catalog = [];
+
+    /// <summary>Prévia de uma linha do catálogo: a construção no espaço dela (sem giro do mundo), enquadrada pela caixa.</summary>
+    Image? BuildingThumb(int row, float yaw)
+    {
+        if (row < 0 || row >= _catalog.Count || _buildings.LocalBoxOf(_catalog[row].Key) is not { } lb) return null;
+        var m = WorldBuildings.MatrixOf(new ObjTransform(System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitZ, System.Numerics.Vector3.UnitY, 1));   // Z espelhado como no mundo
+        var mn = new Vector3(lb.Min.X, lb.Min.Y, -lb.Max.Z); var mx = new Vector3(lb.Max.X, lb.Max.Y, -lb.Min.Z);
+        return OffscreenThumb(mn, mx, yaw, (_, _) => _buildings.DrawThumb(_catalog[row].Key, m));
+    }
+
+    /// <summary>
+    /// Pílula Construções: janela de escolher com as construções dos pedaços em volta da câmera (iguais numa linha só, com
+    /// tamanho e quantas aparecem), prévia 3D e estrela de favoritos; depois a escolhida segue o mouse e um clique a põe.
+    /// </summary>
+    void ChooseBuildingToPlace()
+    {
+        if (_draft is null) { _status.Text = Loc.T("obj.noDraft", "Abra a ferramenta Objetos do mundo para mexer nos objetos."); return; }
+        _catalog = _buildings.Catalog().Where(c => _draft.Find(c.Key) is { Deleted: false, ReadOnlyWhy: null }).ToList();
+        if (_catalog.Count == 0) { _status.Text = Loc.T("obj.noBuildingsNear", "Nenhuma construção carregada por perto; chegue mais perto de uma cidade ou ruína."); return; }
+        string Size(Vector3 s) => $"{s.X:0.#}×{s.Y:0.#}×{s.Z:0.#} m";
+        string Group(Vector3 s) { float big = MathF.Max(s.X, MathF.Max(s.Y, s.Z)); return big < 10 ? Loc.T("obj.catSmall", "Pequenas (até 10 m)") : big < 30 ? Loc.T("obj.catMedium", "Médias (10 a 30 m)") : Loc.T("obj.catBig", "Grandes (mais de 30 m)"); }
+        var rows = _catalog.Select((c, i) => (Id: i, Name: string.Format(Loc.T("obj.catRow", "{0} · {1} · aparece {2}×"), System.IO.Path.GetFileNameWithoutExtension(c.Key), Size(c.Size), c.Count), Block: Group(c.Size))).ToList();
+        // favoritos pela forma (número estável), não pela linha (a lista muda com o lugar da câmera)
+        JavFavorites? fav = null;
+        if (_element is not null)
+        {
+            var file = JavFavorites.ForFile("building", _element);
+            var cat = _catalog;
+            fav = new JavFavorites(() => file.Ids.Select(sig => cat.FindIndex(c => c.Sig == sig)).Where(i => i >= 0).ToList(), i => i >= 0 && i < cat.Count && file.Has(cat[i].Sig), i => file.Toggle(cat[i].Sig));
+        }
+        using var w = new ItemSearchWindow(rows, askQuantity: false, model: BuildingThumb, fav: fav) { Text = Loc.T("obj.chooseBuilding", "Escolher construção para pôr no mundo") };
+        if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0 || w.Picked >= _catalog.Count) return;
+        if (_draft?.Find(_catalog[w.Picked].Key) is not { Deleted: false } src) { _status.Text = Loc.T("obj.catGone", "Essa construção não está mais carregada; abra a lista de novo."); return; }
+        StartPlacing(src);
+        _gl.Focus();
     }
 
     /// <summary>
@@ -1013,12 +1108,14 @@ internal sealed partial class WorldView
         var srcSel = _placeSrc ?? _objClip switch { BuildingSel b => _draft?.Find(b.File), ModelSel m => _draft?.Find(m.Key), TreeSel t => _draft?.Find(t.Key), _ => null };
         if (srcSel is { Kind: ObjKind.Tree, Deleted: false } tree) return PlantAt(ground, tree.Type, select: true);
         if (srcSel is null || srcSel.Deleted) return _status.Text = Loc.T("obj.nothingCopied", "Nada copiado: escolha um objeto e use Ctrl+C.");
-        if (_draftSrc is { } ds && ds.PieceAt(ground.X, ground.Z) != srcSel.Piece)
-            return _status.Text = Loc.T("obj.pastePiece", "A cópia tem que ficar no mesmo pedaço de 1 km da original; cole mais perto dela.");
+        // pode colar em outro pedaço de 1 km: a cópia entra no pedaço onde fica (precisa estar carregado, perto da câmera)
+        int toPiece = _draftSrc?.PieceAt(ground.X, ground.Z) ?? srcSel.Piece;
+        if (toPiece <= 0) return _status.Text = Loc.T("obj.chkOutShort", "Fora do mapa.");
+        if (_draft is not null && !_draft.Pieces.ContainsKey(toPiece)) return _status.Text = Loc.T("obj.notLoadedPiece", "Esse pedaço do mapa ainda não carregou; chegue mais perto.");
         var pos = GhostOf(srcSel, ground).Pos;
         var copy = new DraftObject
         {
-            Key = "new:" + (++_newSeq), Kind = srcSel.Kind, Piece = srcSel.Piece, Source = srcSel.Source, CopyOf = srcSel.CopyOf ?? srcSel.Key,
+            Key = "new:" + (++_newSeq), Kind = srcSel.Kind, Piece = toPiece, Source = srcSel.Source, CopyOf = srcSel.CopyOf ?? srcSel.Key,
             Solid = srcSel.Solid, LocalBox = srcSel.LocalBox, Original = srcSel.Now with { Pos = pos },
         };
         if (DraftApply(new AddOp(copy.Key, copy)) is { } why) return why;

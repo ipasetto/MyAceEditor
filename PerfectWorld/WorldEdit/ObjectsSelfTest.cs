@@ -285,7 +285,15 @@ public static class ObjectsSelfTest
         int other = Enumerable.Range(1, world.PieceCount).First(i => i != mo.Piece && Enumerable.Range(0, 100).Any(k => world.PieceAt(-5000 + k * 100, 0) == i));
         var far = Enumerable.Range(0, 100).Select(k => new Vector3(-5000 + k * 100, omp.Original.Pos.Y, 0)).First(v => world.PieceAt(v.X, v.Z) == other);
         dmp.Apply(new MoveOp(mo.Key, omp.Original with { Pos = far }));
-        r.Check("modelo-fora-do-pedaco-bloqueia", DraftChecks.Run(dmp, world, null, []).Any(c => c.Blocks && c.Key == mo.Key));
+        // outro pedaço de 1 km agora vale (08/11): o salvar leva o item para os blocos do lugar novo e tira dos antigos
+        bool farBlocked = DraftChecks.Run(dmp, world, null, []).Any(c => c.Blocks && c.Key == mo.Key);
+        var pfar = DraftSaver.Plan(dmp, world);
+        var efar = pfar.Files.TryGetValue(world.EcwldPath, out var wf) ? new EcwldFile(wf) : null;
+        uint mid = uint.Parse(mo.Key[(mo.Key.LastIndexOf(':') + 1)..]);
+        var inBlocks = efar?.Find(EcwldFile.Kind.EcModel, mid).Select(h => ObjectFormats.BlockArea(efar, h.Block)).ToList() ?? [];
+        bool allCover = inBlocks.Count > 0 && inBlocks.All(a => far.X >= a.X0 - 20 && far.X <= a.X1 + 20 && far.Z >= a.Z0 - 20 && far.Z <= a.Z1 + 20);
+        r.Check("modelo-outro-pedaco-vai-para-os-blocos", !farBlocked == (DraftSaver.BlockAt(efar ?? new EcwldFile(File.ReadAllBytes(world.EcwldPath)), far) is not null) && (efar is null ? farBlocked : allCover),
+            $"bloqueou={farBlocked} blocos={inBlocks.Count} cobrem={allCover}");
         r.Check("plano-modelo", hit is not null && ObjectFormats.ReadEcModel(hit) == tom && wNew!.Length == new FileInfo(world.EcwldPath).Length && pm.PckFiles.Count == 0);
 
         // conferências
