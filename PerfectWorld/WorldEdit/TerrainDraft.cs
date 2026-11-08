@@ -49,6 +49,24 @@ public sealed class TerrainDraft(TerrainFile t)
         return !own || EndStroke();
     }
     readonly HashSet<(int Br, int Bc)> _hDirty = new();   // blocos de altura mexidos
+    readonly Dictionary<(int Br, int Bc), float[]> _hOrig = new();   // alturas do arquivo dos blocos mexidos
+
+    /// <summary>Amostra da altura como estava no arquivo (blocos mexidos guardados; o resto = o cache).</summary>
+    float? OrigSample(int u, int v)
+    {
+        int cpb = Terrain.CellsPerBlock, br = Math.Min(v / cpb, Terrain.Rows * Terrain.BlocksPerPiece - 1), bc = Math.Min(u / cpb, Terrain.Cols * Terrain.BlocksPerPiece - 1);
+        if (u < 0 || v < 0 || br < 0 || bc < 0) return null;
+        return _hOrig.TryGetValue((br, bc), out var a) ? a[(v - br * cpb) * (cpb + 1) + (u - bc * cpb)] : Terrain.Sample(u, v);
+    }
+
+    /// <summary>Altura como estava no arquivo num ponto (bilinear na grade de 2 m).</summary>
+    public float? OrigHeightAt(float x, float z)
+    {
+        var (gu, gv) = Terrain.ToGrid(x, z);
+        int u = (int)MathF.Floor(gu), v = (int)MathF.Floor(gv); float fu = gu - u, fv = gv - v;
+        if (OrigSample(u, v) is not float a || OrigSample(u + 1, v) is not float b || OrigSample(u, v + 1) is not float c || OrigSample(u + 1, v + 1) is not float e) return null;
+        return (a * (1 - fu) + b * fu) * (1 - fv) + (c * (1 - fu) + e * fu) * fv;
+    }
     public enum SculptMode { Raise, Lower, Smooth, Flatten }
     readonly List<Stroke> _undo = new(), _redo = new();
     Stroke? _cur;
@@ -271,6 +289,7 @@ public sealed class TerrainDraft(TerrainFile t)
                 int i = (v - br * cpb) * (cpb + 1) + (u - bc * cpb);
                 if (i < 0 || i >= arr.Length) continue;
                 if (_cur is not null && !_cur.HBefore.ContainsKey((br, bc))) _cur.HBefore[(br, bc)] = (float[])arr.Clone();
+                if (!_hOrig.ContainsKey((br, bc))) _hOrig[(br, bc)] = (float[])arr.Clone();   // como estava no arquivo (passagem dos NPCs)
                 arr[i] = h;
                 _hDirty.Add((br, bc));
                 areas.Add(AreaOfBlock((br, bc)));
@@ -306,14 +325,27 @@ public sealed class TerrainDraft(TerrainFile t)
     {
         var d = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         if (Water is { Dirty: true } w) foreach (var (k, v) in w.Files(serverMapDir, summary ?? new List<string>())) d[k] = v;
-        int bpp = Terrain.BlocksPerPiece;
+        int bpp = Terrain.BlocksPerPiece, rmapChanged = 0;
         foreach (var piece in _hDirty.Select(k => k.Br / bpp * Terrain.Cols + k.Bc / bpp + 1).Distinct())
         {
             var path = Path.Combine(Terrain.Dir, $"{Terrain.Name}_{piece}.t2bk");
             var nb = HeightFiles.RewriteT2bk(System.IO.File.ReadAllBytes(path), (row, col) => _hDirty.Contains((row, col)) ? Terrain.BlockHeights(row, col) : null);
             d[path] = nb;
             if (serverMapDir is not null && Directory.Exists(Path.Combine(serverMapDir, "map"))) d[Path.Combine(serverMapDir, "map", $"{piece}.hmap")] = HeightFiles.Hmap(Terrain, piece);
+            // passagem dos NPCs: refaz os metros cujo chão mudou (pedaço sem .rmap no servidor = sem passagem: nada a fazer)
+            var rp = serverMapDir is null ? null : Path.Combine(serverMapDir, "movemap", $"{piece}.rmap");
+            if (rp is not null && System.IO.File.Exists(rp))
+            {
+                float pm = Terrain.CellsPerPiece * Terrain.Cell, bm = Terrain.CellsPerBlock * Terrain.Cell;
+                int pr = (piece - 1) / Terrain.Cols, pc = (piece - 1) % Terrain.Cols;
+                float px0 = -Terrain.Width / 2 + pc * pm, pzS = Terrain.Height / 2 - (pr + 1) * pm;
+                var rects = _hDirty.Where(k => k.Br / bpp * Terrain.Cols + k.Bc / bpp + 1 == piece)
+                    .Select(k => (X0: -Terrain.Width / 2 + k.Bc * bm, Z0: Terrain.Height / 2 - (k.Br + 1) * bm, X1: -Terrain.Width / 2 + (k.Bc + 1) * bm, Z1: Terrain.Height / 2 - k.Br * bm)).ToList();
+                var (nr, n) = MoveMapFile.Update(System.IO.File.ReadAllBytes(rp), px0, pzS, rects, Terrain.HeightAt, OrigHeightAt);
+                if (n > 0) { d[rp] = nr; rmapChanged += n; }
+            }
         }
+        if (rmapChanged > 0) summary?.Add(string.Format(Loc.T("terrain.rmapSummary", "Passagem dos NPCs: {0} metro(s) refeito(s) onde o chão mudou"), rmapChanged));
         foreach (int p in _dirty)
         {
             Flush(p);
@@ -356,8 +388,10 @@ public static class TerrainSaver
         BackupSets.Save(new BackupSet("terrain", map, DateTime.Now, baks.Where(kv => kv.Value is not null).Select(kv => new BackupSetEntry(kv.Key, kv.Value!)).ToList()));
         bool hmap = files.Keys.Any(k => k.EndsWith(".hmap", StringComparison.OrdinalIgnoreCase));
         bool wmap = files.Keys.Any(k => k.EndsWith(".wmap", StringComparison.OrdinalIgnoreCase));
+        bool rmap = files.Keys.Any(k => k.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase));
         return new SaveResult(hmap || wmap ? SaveKind.Both : SaveKind.ClientOnly, string.Format(Loc.T("terrain.saved2", "Terreno salvo: {0} arquivo(s)."), files.Count)
             + (wmap ? " " + Loc.T("water.savedServer", "A água do servidor (watermap) também mudou: envie ao servidor. A passagem dos monstros de água não foi refeita.") : "")
-            + (hmap ?" " + Loc.T("terrain.savedServer", "A altura do servidor (map\\N.hmap) também mudou: envie ao servidor. A passagem dos NPCs não foi refeita; onde o chão mudou muito os monstros podem andar no relevo antigo.") : ""));
+            + (hmap ? " " + Loc.T("terrain.savedServer2", "A altura do servidor (map\\N.hmap) também mudou: envie ao servidor.")
+                + " " + (rmap ? Loc.T("terrain.rmapDone", "A passagem dos NPCs foi refeita onde o chão mudou (movemap\\N.rmap).") : Loc.T("terrain.rmapSame", "A passagem dos NPCs não precisou mudar (nenhum trecho ficou íngreme demais ou plano de novo).")) : ""));
     }
 }

@@ -5953,5 +5953,9 @@
   "texnames.title": "重命名纹理",
   "texnames.info": "只修改编辑器中显示的名称，仅限此客户端和此语言（游戏文件不变）。文件：{0} · 自动：{1}",
   "texnames.auto": "恢复自动",
-  "texnames.saveFail": "无法保存名称（设置文件夹无法访问？）。"
+  "texnames.saveFail": "无法保存名称（设置文件夹无法访问？）。",
+  "terrain.rmapSummary": "NPC 通行：在地面变化处重建了 {0} 米",
+  "terrain.savedServer2": "服务器的高度（map\\N.hmap）也已改变：请发送到服务器。",
+  "terrain.rmapDone": "已在地面变化处重建 NPC 通行（movemap\\N.rmap）。",
+  "terrain.rmapSame": "NPC 通行无需改变（没有地方变得过陡或重新变平）。"
 }

@@ -19,6 +19,8 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        Sombra no chao = pintada no mapa de luz do terreno (.t2lm): refazer junto com a ferramenta de terreno
        [x] terreno: pincel de altura (subir, descer, alisar, plainar) + .hmap do servidor (08/11; falta testar no jogo)
        [x] agua: escolher, nova, nivel, tamanho, cor, apagar, copiar/colar; cliente (bsdata/.ecbsd/.ecwld) + servidor (watermap) (08/11; falta testar no jogo; espuma da margem nova e passagem dos monstros de agua depois)
+       [x] passagem dos NPCs: .rmap refeito onde o chao mudou ao salvar (08/11; .dhmap e regeracao completa com colisao depois)
+       [x] nomes das texturas no idioma do MyAce + Renomear (F2) no glossario do cliente (08/11)
        [x] textura do chao: pincel por camadas (08/11; falta testar no jogo; texturas novas no .trn2 depois)
        [ ] grama: pincel de grama e flores
        [ ] arvores: plantar, mover, apagar (+ colisao da arvore no map.bht)

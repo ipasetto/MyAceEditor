@@ -5951,5 +5951,9 @@
   "texnames.title": "Rename texture",
   "texnames.info": "Only changes the name shown in the editor, for this client and this language (the game file does not change). File: {0} · automatic: {1}",
   "texnames.auto": "Back to automatic",
-  "texnames.saveFail": "Could not save the name (settings folder not accessible?)."
+  "texnames.saveFail": "Could not save the name (settings folder not accessible?).",
+  "terrain.rmapSummary": "NPC passage: {0} meter(s) rebuilt where the ground changed",
+  "terrain.savedServer2": "The server height (map\\N.hmap) also changed: send it to the server.",
+  "terrain.rmapDone": "NPC passage was rebuilt where the ground changed (movemap\\N.rmap).",
+  "terrain.rmapSame": "NPC passage did not need to change (no stretch became too steep or flat again)."
 }

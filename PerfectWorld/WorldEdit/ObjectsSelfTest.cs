@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { TerrainHeights(r, element, config); }
         catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { MoveMap(r, element, config); }
+        catch (Exception ex) { r.Check("passagem-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { TextureNames(r, element); }
         catch (Exception ex) { r.Check("texturas-nomes-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { TerrainWater(r, element, config); }
@@ -223,6 +225,33 @@ public static class ObjectsSelfTest
             for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
             r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
         }
+    }
+
+    /// <summary>Passagem dos NPCs: morro íngreme levantado fica bloqueado no .rmap; longe dele nada muda.</summary>
+    static void MoveMap(Report r, string element, string? config)
+    {
+        if (config is null || !File.Exists(Path.Combine(config, "world", "movemap", "38.rmap"))) return;
+        var t = TerrainFile.Open(Path.Combine(element, "maps", "world"))!;
+        var d = new TerrainDraft(t);
+        float x = 1100, z = 1030;
+        int piece = t.PieceAt(x, z);
+        d.BeginStroke();
+        for (int k = 0; k < 40; k++) d.Sculpt(x, z, 8, TerrainDraft.SculptMode.Raise, 1, 0);
+        d.EndStroke();
+        var sum = new List<string>();
+        var files = d.Files(Path.Combine(config, "world"), sum);
+        var rp = Path.Combine(config, "world", "movemap", $"{piece}.rmap");
+        var old = File.ReadAllBytes(rp);
+        bool has = files.TryGetValue(rp, out var nr);
+        var (w, _, _, _, _) = MoveMapFile.Header(old);
+        float pm = t.CellsPerPiece * t.Cell; int pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols;
+        float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm;
+        int U(float wx) => (int)(wx - px0); int V(float wz) => (int)(wz - pzS);
+        // encosta a ~5 m do centro (subiu muito em poucos metros) e um ponto longe (200 m)
+        bool slopeBlocked = has && !MoveMapFile.Reach(nr!, w, U(x + 5), V(z));
+        bool farSame = has && MoveMapFile.Reach(nr!, w, U(x + 200), V(z)) == MoveMapFile.Reach(old, w, U(x + 200), V(z));
+        float h0 = d.OrigHeightAt(x + 5, z) ?? 0, h1 = t.HeightAt(x + 5, z) ?? 0;
+        r.Check("passagem-morro-bloqueia", slopeBlocked && farSame, $"pedaço {piece}, altura na encosta {h0:0.0} -> {h1:0.0}; {string.Join(" | ", sum)}");
     }
 
     /// <summary>Nomes das texturas: todas as de todos os mapas saem sem chinês em pt, en e ru; renomear vale no idioma.</summary>
