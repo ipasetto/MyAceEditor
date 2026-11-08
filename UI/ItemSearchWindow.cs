@@ -43,7 +43,7 @@ internal sealed class ItemSearchWindow : Form
     IReadOnlyList<int> _favorites => _fav is null ? _favList : _fav.Ids.Where(_known.Contains).ToList();
     const int AllRow = 0, FavRow = 1, RecentRow = 2, FirstBlockRow = 3;
 
-    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null, JavFavorites? fav = null)
+    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null, JavFavorites? fav = null, bool keepBlockOrder = false)
     {
         _fav = fav;
         _all = items; _icon = icon ?? (_ => null); _hasIcon = icon is not null; _model = model;
@@ -60,7 +60,8 @@ internal sealed class ItemSearchWindow : Form
         _blocks.Items.Add(Loc.T("is.all", "Todos os itens"));
         _blocks.Items.Add(string.Format(Loc.T("is.favorites", "Favoritos ({0})"), _favorites.Count));
         _blocks.Items.Add(string.Format(Loc.T("is.recent", "Recentes ({0})"), _recent.Count));
-        foreach (var b in _all.Select(i => i.Block).Distinct().OrderBy(b => b)) _blocks.Items.Add(b);
+        // grupos em ordem alfabética; keepBlockOrder = na ordem em que aparecem (catálogo: por perto, este mapa, world, ...)
+        foreach (var b in keepBlockOrder ? _all.Select(i => i.Block).Distinct() : _all.Select(i => i.Block).Distinct().OrderBy(b => b)) _blocks.Items.Add(b);
         _blocks.SelectedIndex = 0;
         _blocks.DrawItem += DrawBlock;
         _blocks.SelectedIndexChanged += (_, _) => Fill();

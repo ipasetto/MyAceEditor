@@ -94,6 +94,8 @@ internal sealed partial class WorldView : Form
     readonly Func<object?> _selected;
     readonly Action<object> _select;
     readonly GLControl _gl;
+    // barra azul do andamento dos salvares do Mundo 3D (usuário 08/11: com andamento visível a espera irrita menos)
+    readonly SaveProgressBar _saveBar = new() { Dock = DockStyle.Bottom, Height = 22, Visible = false };
     readonly StatusLine _status = new() { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.Gainsboro };
     readonly ToolStrip _showBar = new() { Dock = DockStyle.Bottom, LayoutStyle = ToolStripLayoutStyle.Flow, GripStyle = ToolStripGripStyle.Hidden, Renderer = new DarkBarRenderer(),
         BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Padding = new Padding(6, 3, 6, 3) };
@@ -194,7 +196,7 @@ internal sealed partial class WorldView : Form
         _showBar.Items.Add(pathsBtn);
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
-        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_showBar); Controls.Add(_status);   // painel de quests acima da barra de status
+        Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_showBar); Controls.Add(_saveBar); Controls.Add(_status);   // painel de quests acima da barra de status
         var element = Path.GetDirectoryName(Path.GetDirectoryName(t.Dir));
         _element = element;
         if (element is not null) _clientNames = MapTags.LocalMapNames(element);
@@ -243,10 +245,11 @@ internal sealed partial class WorldView : Form
             }
             // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
             if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
-            { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; return; }
+            { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; if (oax == 4) StartTurn(e.Location); return; }
             if (e.Button == MouseButtons.Left && _tool != Tool.Scene && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
             {
                 _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null; _gizmoSize = null;
+                if (ax == 4) { _gizmoTurn0 = NpcMouseAngle(e.Location, _gizmoStart); _gizmoYaw0 = gm.Yaw; }
                 return;
             }
             // esquerdo em cima de um ponto (na tela): arrasta o ponto; no vazio ou botão do meio: gira a câmera
@@ -696,6 +699,7 @@ internal sealed partial class WorldView : Form
             DrawLabel($"{m.Name}\n{lp.X:0}, {lp.Y:0}, {lp.Z:0}", new Vector3(lp.X, lp.Y + top, lp.Z), m.Tag == sel ? Color.Yellow : m.LabelColor.IsEmpty ? Color.White : m.LabelColor);
         }
         GizmoLabels();
+        ObjGizmoLabels();
         DrawLegend();
         DrawToolFrame();
         GL.Disable(EnableCap.Texture2D); GL.DepthMask(true); GL.Disable(EnableCap.Blend);
@@ -1509,6 +1513,21 @@ internal sealed partial class WorldView : Form
         return new Vector3(hx, (_t.HeightAt(hx, hz) ?? m.Y) + 0.4f, hz);
     }
 
+    float? _gizmoTurn0; float _gizmoYaw0;   // giro do NPC: ângulo do mouse e giro no clique
+
+    float? NpcMouseAngle(Point p, Vector3 c)
+    {
+        float nx = 2f * p.X / _gl.Width - 1, ny = 1 - 2f * p.Y / _gl.Height;
+        var inv = Matrix4.Invert(View * Proj);
+        var a4 = new Vector4(nx, ny, -1, 1) * inv; var b4 = new Vector4(nx, ny, 1, 1) * inv;
+        var o = a4.Xyz / a4.W; var d = Vector3.Normalize(b4.Xyz / b4.W - o);
+        if (MathF.Abs(d.Y) < 1e-4f) return null;
+        float s0 = (c.Y - o.Y) / d.Y;
+        if (s0 <= 0) return null;
+        var hit = o + d * s0;
+        return MathHelper.RadiansToDegrees(MathF.Atan2(hit.X - c.X, -hit.Z - c.Z));
+    }
+
     int GizmoHit(Point p)
     {
         if (SelectedMark() is not { } m) return 0;
@@ -1573,10 +1592,14 @@ internal sealed partial class WorldView : Form
             float s0 = (c.Y - o.Y) / d.Y;
             if (s0 <= 0) return;
             var hit = o + d * s0;   // OpenGL: z do jogo invertido
-            float yaw = MathHelper.RadiansToDegrees(MathF.Atan2(hit.X - c.X, -hit.Z - c.Z));
-            if ((ModifierKeys & Keys.Shift) != 0) yaw = MathF.Round(yaw / 15) * 15;
-            _gizmoYaw = (yaw + 360) % 360;
-            _status.Text = string.Format(Loc.T("gizmo.turning", "Girando: {0:0}° (Shift = de 15 em 15°)"), _gizmoYaw);
+            // relativo ao ponto onde clicou (antes o NPC pulava para olhar o mouse); de 5 em 5°, Shift = 15°, Ctrl = livre
+            float ang = MathHelper.RadiansToDegrees(MathF.Atan2(hit.X - c.X, -hit.Z - c.Z));
+            float delta = ang - (_gizmoTurn0 ?? ang);
+            while (delta > 180) delta -= 360; while (delta < -180) delta += 360;
+            float step = (ModifierKeys & Keys.Control) != 0 ? 1 : (ModifierKeys & Keys.Shift) != 0 ? 15 : 5;
+            float yaw = MathF.Round((_gizmoYaw0 + delta) / step) * step;
+            _gizmoYaw = (yaw % 360 + 360) % 360;
+            _status.Text = string.Format(Loc.T("gizmo.turning2", "Girando: {0:0}° (de 5 em 5°; Shift = 15°, Ctrl = livre)"), _gizmoYaw);
         }
         _gl.Invalidate();
     }
@@ -1607,6 +1630,12 @@ internal sealed partial class WorldView : Form
         for (int i = 0; i < 48; i++) { float t = i / 48f * MathF.Tau; V(c + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * L * 0.8f); }
         GL.End();
         GL.Begin(PrimitiveType.Lines); V(c); V(c + new Vector3(MathF.Sin(yaw), 0, MathF.Cos(yaw)) * L * 0.8f); GL.End();
+        // bolinha na frente do NPC (onde pegar para girar)
+        var knob = c + new Vector3(MathF.Sin(yaw), 0, MathF.Cos(yaw)) * L * 0.8f;
+        Col(hot == 4 ? Color.White : Color.Orange);
+        GL.Begin(PrimitiveType.TriangleFan); V(knob);
+        for (int i = 0; i <= 16; i++) { float t = i / 16f * MathF.Tau; V(knob + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * L * 0.07f); }
+        GL.End();
         GL.LineWidth(1);
         GL.Enable(EnableCap.DepthTest);
     }

@@ -450,15 +450,19 @@ public static class DraftSaver
     /// Grava tudo ou nada: confere que nenhum arquivo está preso; cópia de segurança dos arquivos; grava os arquivos e
     /// por último o pacote (o maior e mais demorado); se algo falhar, os já gravados voltam das cópias.
     /// </summary>
-    public static SaveResult Write(SavePlan p, DraftSources src)
+    public static SaveResult Write(SavePlan p, DraftSources src, Action<int>? progress = null)
     {
         Interlocked.Increment(ref Writing);
-        try { return WriteCore(p, src); }
+        try { return WriteCore(p, src, progress); }
         finally { Interlocked.Decrement(ref Writing); }
     }
 
-    static SaveResult WriteCore(SavePlan p, DraftSources src)
+    static SaveResult WriteCore(SavePlan p, DraftSources src, Action<int>? progress)
     {
+        // andamento em % para a barra azul: cópias 0-10, arquivos pequenos 10-20, pacote 20-98 (é o grosso), fim 100
+        int last = -1;
+        void Report(int pct) { pct = Math.Clamp(pct, 0, 100); if (pct != last) { last = pct; progress?.Invoke(pct); } }
+        Report(0);
         if (p.Empty) return new SaveResult(SaveKind.ClientOnly, Loc.T("obj.nothing", "Nada para salvar."));
         var pckPath = PckArchive.Locate(src.LitPath) ?? src.LitPath;
         var targets = p.Files.Keys.ToList();
@@ -473,7 +477,7 @@ public static class DraftSaver
             }
         }
         var baks = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        try { foreach (var f in p.Files.Keys) baks[f] = File.Exists(f) ? BackupStore.Save(f) : null; }
+        try { foreach (var f in p.Files.Keys) baks[f] = File.Exists(f) ? BackupStore.Save(f) : null; Report(10); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             AppLog.Error("objetos: cópia de segurança", ex);
@@ -489,6 +493,7 @@ public static class DraftSaver
                 if (FailAfter >= 0 && written.Count >= FailAfter) throw new IOException("falha simulada (teste)");
                 AtomicFileSave.Write(f, bytes);
                 written.Add(f);
+                Report(10 + 10 * written.Count / Math.Max(1, p.Files.Count));
             }
             if (FailAfter >= 0 && written.Count >= FailAfter) throw new IOException("falha simulada (teste)");
             if (FailWith is { } fw) throw fw();
@@ -502,7 +507,7 @@ public static class DraftSaver
                     var head = new byte[4]; fs.Position = 4; fs.ReadExactly(head);
                     pckHead = Convert.ToHexString(head);
                 }
-                var pbak = PckWriter.Write(src.LitPath, p.PckFiles);
+                var pbak = PckWriter.Write(src.LitPath, p.PckFiles, f => Report(20 + (int)(78 * f)));
                 setFiles.Add(new BackupSetEntry(target, pbak));
             }
         }
@@ -521,6 +526,7 @@ public static class DraftSaver
         }
         // um item único "Objetos do mundo" no Restaurar backup volta todos os arquivos deste Salvar juntos
         BackupSets.Save(new BackupSet("objects", src.Map, DateTime.Now, setFiles, pckHead is null ? null : pckPath, pckHead));
+        Report(100);
         return new SaveResult(SaveKind.Both, string.Format(Loc.T("obj.saved", "Salvo: {0}"), string.Join(" ", p.Summary)));
     }
 }

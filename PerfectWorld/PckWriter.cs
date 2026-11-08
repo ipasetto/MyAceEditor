@@ -25,14 +25,17 @@ public static class PckWriter
     /// a tabela fica no fim da ÚLTIMA parte, então só ela é copiada, gravada e trocada (com backup); o .pck só muda no
     /// cabeçalho (u32 em +4 = tamanho lógico de todas as partes, que o cliente usa para achar a tabela), 4 bytes no lugar.
     /// </summary>
-    public static string Write(string pckPath, IReadOnlyDictionary<string, byte[]> files)
+    public static string Write(string pckPath, IReadOnlyDictionary<string, byte[]> files) => Write(pckPath, files, null);
+
+    /// <param name="progress">0..1 do trabalho (a cópia da parte do pacote é quase todo o tempo); vem desta thread.</param>
+    public static string Write(string pckPath, IReadOnlyDictionary<string, byte[]> files, Action<double>? progress)
     {
         pckPath = PckArchive.Locate(pckPath) ?? pckPath;
         var parts = PckArchive.PartPaths(pckPath);
         var target = parts.Count > 0 ? parts[^1] : pckPath;                       // arquivo que muda de verdade
         long start = parts.Count > 0 ? new FileInfo(pckPath).Length + parts.Take(parts.Count - 1).Sum(x => new FileInfo(x).Length) : 0;   // onde ele começa no pacote lógico
         var tmp = target + ".tmp";
-        File.Copy(target, tmp, true);
+        CopyWithProgress(target, tmp, progress);
         long newLength;
         try
         {
@@ -207,5 +210,17 @@ public static class PckWriter
         using var z = new ZLibStream(new MemoryStream(data), CompressionMode.Decompress);
         z.ReadAtLeast(o, size, false);
         return o;
+    }
+
+    /// <summary>Cópia em blocos de 4 MB contando o andamento (0..0,9; o resto é a tabela e a troca).</summary>
+    static void CopyWithProgress(string from, string to, Action<double>? progress)
+    {
+        if (progress is null) { File.Copy(from, to, true); return; }
+        using var src = new FileStream(from, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20);
+        using var dst = new FileStream(to, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20);
+        long total = Math.Max(1, src.Length), done = 0;
+        var buf = new byte[4 << 20];
+        int n;
+        while ((n = src.Read(buf, 0, buf.Length)) > 0) { dst.Write(buf, 0, n); done += n; progress(0.9 * done / total); }
     }
 }

@@ -63,3 +63,41 @@ public sealed class JavFavorites
         });
     }
 }
+
+/// <summary>
+/// Recentes de uma janela de escolher (árvore, construção...) por tipo e cliente, o último primeiro (até 30). Itens e
+/// criaturas usam os recentes do editor de elements. %AppData%\MyAceEditor\jav-recent-&lt;tipo&gt;-&lt;cliente&gt;.txt.
+/// </summary>
+public static class JavRecents
+{
+    const int Keep = 30;
+    static string PathFor(string kind, string elementDir) => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", $"jav-recent-{kind}-{JavFavorites.ClientKey(elementDir)}.txt");
+
+    public static List<int> Read(string kind, string elementDir)
+    {
+        var list = new List<int>();
+        try
+        {
+            string p = PathFor(kind, elementDir);
+            if (File.Exists(p)) foreach (var line in File.ReadAllLines(p)) if (int.TryParse(line.Trim(), out int n) && !list.Contains(n)) list.Add(n);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("recentes da JAV: ler", ex); }
+        return list;
+    }
+
+    /// <summary>Põe no topo dos recentes (o que foi posto no mundo). Erro só vai para o log (não atrapalha o trabalho).</summary>
+    public static void Add(string kind, string elementDir, int id)
+    {
+        try
+        {
+            var list = Read(kind, elementDir);
+            list.Remove(id); list.Insert(0, id);
+            if (list.Count > Keep) list.RemoveRange(Keep, list.Count - Keep);
+            string p = PathFor(kind, elementDir);
+            Directory.CreateDirectory(Path.GetDirectoryName(p)!);
+            File.WriteAllText(p + ".tmp", string.Join(Environment.NewLine, list));
+            File.Move(p + ".tmp", p, true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("recentes da JAV: gravar", ex); }
+    }
+}

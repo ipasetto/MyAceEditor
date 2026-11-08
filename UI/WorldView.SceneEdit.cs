@@ -26,7 +26,7 @@ internal sealed partial class WorldView
     readonly Panel _objPanel = new() { Width = 225, Height = 250, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(4) };
     readonly Label _objTitle = new() { AutoSize = false, Height = 96, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI", 8.5f) };
     readonly NumericUpDown[] _objXYZ = Enumerable.Range(0, 3).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 64, Increment = 0.5m }).ToArray();
-    Button? _objCloneBtn, _objDeleteBtn;
+    Button? _objCloneBtn, _objDeleteBtn, _objSeatBtn;
     bool _objBinding;
 
     WorldScene? ObjScene => _objScene ?? _trees.Scene;
@@ -132,7 +132,9 @@ internal sealed partial class WorldView
         }
         _objCloneBtn = B("world.objClone", "Clonar", "", CloneSceneObject);
         _objDeleteBtn = B("world.objDelete", "Apagar", "", DeleteSceneObject);
-        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn });
+        _objSeatBtn = B("obj.seat", "Assentar no chão", "", SeatSelected);
+        _toolTip.SetToolTip(_objSeatBtn, Loc.T("obj.seatTip", "Desce (ou sobe) o objeto até a base inteira encostar no chão: nenhuma ponta fica flutuando."));
+        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, _objSeatBtn });
         var note = new Label { Dock = DockStyle.Top, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
             Text = Loc.T("world.objNote4", "Efeitos, sons e bichos: só no cliente. Construções: Salvar grava o cliente (litmodels.pck) e a colisão do servidor (map.bht).") };
         _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); InitObjectCard(); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(_objTitle);
@@ -183,6 +185,7 @@ internal sealed partial class WorldView
         if (SelDraft is { } sz) _objScale.Value = (decimal)Math.Clamp(MathF.Round(sz.Now.Scale, 2), 0.1f, 10f);
         if (_objCloneBtn is not null) _objCloneBtn.Visible = false;
         if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter && !drafted && _sceneSel is not BuildingSel;
+        if (_objSeatBtn is not null) _objSeatBtn.Visible = SelDraft is { Kind: ObjKind.Building or ObjKind.Model, Deleted: false, ReadOnlyWhy: null };
         if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : !critter && _sceneSel is not BuildingSel;
         _objBinding = false;
         FitObjPanel();
@@ -391,6 +394,7 @@ internal sealed partial class WorldView
             if (ecwChanged) { AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
             if (bsdChanged && _bsdPath is not null) { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
             UpdateSideState();
+            FlashSaveProgress(Loc.T("world.savedBar", "Salvo"), true);   // barra azul cheia por um instante (todo salvar do Mundo 3D)
             if (interactive) BeginInvoke(() => SavedDialog.Show(this, Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.")));
             _status.Text = string.Format(Loc.T("world.sceneSaved", "Cenário salvo em {0} (backup feito). Só o cliente muda; não precisa enviar ao servidor."),
                 string.Join(" + ", new[] { ecwChanged ? Path.GetFileName(_ecwPath) : null, bsdChanged ? Path.GetFileName(_bsdPath) : null }.Where(s => s is not null)));

@@ -477,6 +477,7 @@ internal sealed partial class WorldView
         _tpd = null; _tpDirty = false; _tpSavedHint = true;
         _status.Text = string.Format(Loc.T("tp.saved", "Teleporte {0} salvo. Clique em Salvar e enviar ao servidor para ver no jogo. Ctrl+Z desfaz."), point.Name);
         ServerNotice.Notify("world_targets.sev");
+        FlashSaveProgress(Loc.T("world.savedBar", "Salvo"), true);   // barra azul cheia por um instante (todo salvar do Mundo 3D)
         SavedDialog.Show(this, string.Format(Loc.T("tp.savedShort", "Teleporte {0} salvo."), point.Name), SaveAndSendAll);
         UpdateTeleportPanel();
         _gl.Invalidate();

@@ -5773,5 +5773,15 @@
   "obj.catIndexing": "正在读取其他地图… {0}%",
   "obj.catNoPack": "无法打开 litmodels.pck。",
   "obj.catMaps": "分布于 {0} 张地图",
-  "obj.fromMapGone": "{0}：客户端中没有来源地图（{1}）的场景；没有保存任何内容。"
+  "obj.fromMapGone": "{0}：客户端中没有来源地图（{1}）的场景；没有保存任何内容。",
+  "obj.seat": "贴合地面",
+  "obj.seatTip": "将物体下移（或上移）直到整个底部接触地面：不会有角悬空。",
+  "obj.seatNoGround": "这个物体下方没有地面。",
+  "obj.seatAlready": "底部已经接触地面。",
+  "obj.seated": "物体已贴合地面（{0:+0.0;-0.0} 米；尚未保存）。",
+  "obj.savingBar": "正在保存世界物体",
+  "world.savedBar": "已保存",
+  "obj.turning": "旋转：{0:0}°（每步 5°；Shift = 15°，Ctrl = 自由）",
+  "gizmo.turning2": "旋转：{0:0}°（每步 5°；Shift = 15°，Ctrl = 自由）",
+  "obj.turnedRing": "已旋转到 {0:0}°（尚未保存；Ctrl+Z 撤销）"
 }

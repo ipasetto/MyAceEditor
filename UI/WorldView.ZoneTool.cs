@@ -440,6 +440,7 @@ internal sealed partial class WorldView
         if (result.Kind is not (SaveKind.Both or SaveKind.ClientOnly)) return;
         bool server = result.Kind == SaveKind.Both;
         if (server) ServerNotice.Notify(Path.Combine(Path.GetFileName(_t.Dir.TrimEnd('\\', '/')), "precinct.sev"));
+        FlashSaveProgress(Loc.T("world.savedBar", "Salvo"), true);   // barra azul cheia por um instante (todo salvar do Mundo 3D)
         SavedDialog.Show(this, result.Message, server ? SaveAndSendAll : null);
     }
 

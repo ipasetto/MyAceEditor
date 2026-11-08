@@ -5771,5 +5771,15 @@
   "obj.catIndexing": "reading the other maps… {0}%",
   "obj.catNoPack": "Could not open litmodels.pck.",
   "obj.catMaps": "in {0} maps",
-  "obj.fromMapGone": "{0}: the scenery of the source map ({1}) is not in the client; nothing was saved."
+  "obj.fromMapGone": "{0}: the scenery of the source map ({1}) is not in the client; nothing was saved.",
+  "obj.seat": "Rest on ground",
+  "obj.seatTip": "Lowers (or raises) the object until the whole base touches the ground: no corner is left floating.",
+  "obj.seatNoGround": "There is no ground under this object to rest it on.",
+  "obj.seatAlready": "The base already touches the ground.",
+  "obj.seated": "Object rested on the ground ({0:+0.0;-0.0} m; not saved yet).",
+  "obj.savingBar": "Saving the world objects",
+  "world.savedBar": "Saved",
+  "obj.turning": "Turning: {0:0}° (5° steps; Shift = 15°, Ctrl = free)",
+  "gizmo.turning2": "Turning: {0:0}° (5° steps; Shift = 15°, Ctrl = free)",
+  "obj.turnedRing": "Turned to {0:0}° (not saved yet; Ctrl+Z undoes)"
 }

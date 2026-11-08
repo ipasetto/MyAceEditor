@@ -462,6 +462,7 @@ internal sealed partial class WorldView
             _pathSavedAt = DateTime.Now;
             FlashSaved();
             ServerNotice.Notify("path.sev");
+            FlashSaveProgress(Loc.T("world.savedBar", "Salvo"), true);   // barra azul cheia por um instante (todo salvar do Mundo 3D)
             BeginInvoke(() => SavedDialog.Show(this, Loc.T("path.savedShort", "Caminhos salvos. A ligação do monstro ao caminho vai no npcgen.data: ele é salvo junto ao enviar."), SaveAndSendAll));
             _status.Text = Loc.T("path.saved", "path.sev salvo (backup feito). A ligação do monstro ao caminho vai no npcgen.data: salve também no NPCGen. Reinicie o mapa no servidor.");
         }

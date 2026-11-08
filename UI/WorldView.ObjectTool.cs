@@ -219,6 +219,38 @@ internal sealed partial class WorldView
         ShowObjPanel(); _gl.Invalidate();
     }
 
+    /// <summary>
+    /// Assentar no chão: mede o chão embaixo da base (cantos da caixa girada, meios das bordas e centro) e põe a base na
+    /// MENOR altura medida; assim nenhuma ponta fica flutuando (usuário 08/11: casa no morro ficava com pontas no ar).
+    /// Um passo só (Ctrl+Z desfaz).
+    /// </summary>
+    void SeatSelected()
+    {
+        if (SelDraft is not { Kind: ObjKind.Building or ObjKind.Model, Deleted: false, ReadOnlyWhy: null } o) return;
+        var t = o.Now;
+        var up = System.Numerics.Vector3.Normalize(t.Up); var dir = System.Numerics.Vector3.Normalize(t.Dir);
+        var right = System.Numerics.Vector3.Cross(up, dir);
+        float s = t.Scale is > 0 and < 1000 ? t.Scale : 1;
+        var (mn, mx) = o.LocalBox;
+        var pts = new List<System.Numerics.Vector3>();
+        if ((mx - mn).LengthSquared() < 1e-6f) pts.Add(t.Pos);
+        else
+            foreach (float fx in new[] { 0f, 0.5f, 1f })
+                foreach (float fz in new[] { 0f, 0.5f, 1f })
+                {
+                    float lx = mn.X + (mx.X - mn.X) * fx, lz = mn.Z + (mx.Z - mn.Z) * fz;
+                    pts.Add(t.Pos + (right * lx + up * mn.Y + dir * lz) * s);
+                }
+        var ground = pts.Select(p => _t.HeightAt(p.X, p.Z)).Where(h => h is not null).Select(h => h!.Value).ToList();
+        if (ground.Count == 0) { _status.Text = Loc.T("obj.seatNoGround", "Não há chão embaixo deste objeto para assentar."); return; }
+        float baseY = pts.Count == 1 ? t.Pos.Y : DraftChecks.WorldBox(o).Min.Y;
+        float dy = ground.Min() - baseY;
+        if (MathF.Abs(dy) < 0.01f) { _status.Text = Loc.T("obj.seatAlready", "A base já está encostada no chão."); return; }
+        if (DraftApply(new MoveOp(o.Key, t with { Pos = t.Pos + new System.Numerics.Vector3(0, dy, 0) })) is null)
+            _status.Text = string.Format(Loc.T("obj.seated", "Objeto assentado no chão ({0:+0.0;-0.0} m; ainda não gravado)."), dy);
+        ShowObjPanel(); _gl.Invalidate();
+    }
+
     /// <summary>Gira o objeto escolhido até o giro pedido (graus, em volta do eixo vertical e do centro do desenho).</summary>
     void TurnSelected(float yaw)
     {
@@ -337,9 +369,11 @@ internal sealed partial class WorldView
             _saving = true; _gl.Enabled = false; _tools.Enabled = false;
             _status.Text = Loc.T("obj.saving", "Salvando… o pacote do jogo é grande, pode levar até um minuto.");
             var srcW = _draftSrc;
-            System.Threading.Tasks.Task.Run(() => DraftSaver.Write(plan, srcW)).ContinueWith(t => BeginInvoke(() =>
+            ShowSaveProgress(Loc.T("obj.savingBar", "Salvando os objetos do mundo"), 0);
+            System.Threading.Tasks.Task.Run(() => DraftSaver.Write(plan, srcW, pct => { try { BeginInvoke(() => ShowSaveProgress(null, pct)); } catch (InvalidOperationException) { } })).ContinueWith(t => BeginInvoke(() =>
             {
                 _saving = false; _gl.Enabled = true; _tools.Enabled = true;
+                HideSaveProgress(!t.IsFaulted && t.Result.Kind is SaveKind.Both or SaveKind.ClientOnly);
                 var r2 = t.IsFaulted ? new SaveResult(SaveKind.Failed, t.Exception?.GetBaseException().Message ?? "?") : t.Result;
                 AfterObjectsWrite(r2, plan, ask);
             }));
@@ -349,6 +383,31 @@ internal sealed partial class WorldView
     }
 
     bool _saving;
+    readonly System.Windows.Forms.Timer _saveBarHide = new() { Interval = 900 };
+
+    /// <summary>Mostra a barra azul do salvar (label null = mantém o texto) com a porcentagem.</summary>
+    internal void ShowSaveProgress(string? label, int pct)
+    {
+        _saveBarHide.Stop();
+        if (label is not null) _saveBar.Label = label;
+        _saveBar.Value = pct;
+        if (!_saveBar.Visible) _saveBar.Visible = true;
+        _saveBar.Update();
+    }
+
+    /// <summary>Fim do salvar: completa (deu certo) e some num instante; falha some na hora (a mensagem explica).</summary>
+    internal void HideSaveProgress(bool ok)
+    {
+        if (!ok) { _saveBar.Visible = false; return; }
+        _saveBar.Value = 100; _saveBar.Update();
+        _saveBarHide.Tick -= SaveBarHideTick; _saveBarHide.Tick += SaveBarHideTick;
+        _saveBarHide.Start();
+    }
+
+    void SaveBarHideTick(object? s, EventArgs e) { _saveBarHide.Stop(); _saveBar.Visible = false; }
+
+    /// <summary>Salvar rápido (na thread da tela): a barra aparece cheia por um instante, para mostrar que gravou.</summary>
+    internal void FlashSaveProgress(string label, bool ok) { ShowSaveProgress(label, ok ? 100 : 0); HideSaveProgress(ok); }
 
     /// <summary>Depois da gravação (na thread da tela): erro em frase simples, ou relê tudo do disco e acende o envio.</summary>
     bool AfterObjectsWrite(SaveResult res, SavePlan plan, bool ask)
@@ -398,10 +457,33 @@ internal sealed partial class WorldView
         using (var shot2 = ToolsShot()) shot2.Save(System.IO.Path.Combine(outDir, "dftcard-panel-end.png"), System.Drawing.Imaging.ImageFormat.Png);
         int inner = _objPanel.Controls.Cast<Control>().Where(c => c.Visible).Sum(c => c.Height + c.Margin.Vertical);
         _scenePage.AutoScrollPosition = new Point(0, 0);
+        // anel de girar: clique num ponto do anel, arrasta 90° em volta: um passo só; Ctrl+Z volta
+        string ringTxt = "-";
+        if (TurnRing() is { } ring)
+        {
+            float y0 = YawOf(o.Now); int u0 = _draft!.UndoCount;
+            var p0 = Project(ring.C + new Vector3(1, 0, 0) * ring.R); var p1 = Project(ring.C + new Vector3(0, 0, 1) * ring.R); var pm = Project(ring.C + new Vector3(0.7071f, 0, 0.7071f) * ring.R);
+            if (p0 is { } a0 && p1 is { } a1 && pm is { } am)
+            {
+                bool hitRing = ObjGizmoHit(Point.Round(a0)) == 4;
+                _objAxis = 4; StartTurn(Point.Round(a0)); TurnDrag(Point.Round(am)); TurnDrag(Point.Round(a1)); ObjGizmoUp();
+                float dy = ((YawOf(o.Now) - y0) % 360 + 540) % 360 - 180;
+                bool oneStep = _draft.UndoCount == u0 + 1;
+                bool back = ObjectUndo(false) && MathF.Abs(((YawOf(o.Now) - y0) % 360 + 540) % 360 - 180) < 0.5f;
+                ringTxt = $"anel-acha={hitRing} girou={dy:0} um-passo={oneStep} ctrlz-volta={back}";
+            }
+        }
+        // assentar no chão: sobe 6 m e assenta: a base fica na menor altura do chão embaixo
+        var cs = CenterOf(o);
+        MoveSelectedCenter(cs.X, cs.Y + 6, cs.Z, stick: false);
+        SeatSelected();
+        var (smn, _) = DraftChecks.WorldBox(o);
+        string seatTxt = $"assentou-base={smn.Y:0.0} chao-centro={_t.HeightAt(cs.X, cs.Z) ?? 0:0.0}";
+        ObjectUndo(false); ObjectUndo(false);
         DeleteSelected();
         bool deleted = o.Deleted;
         bool undo = ObjectUndo(false) && !o.Deleted;
-        return load + $" | dftcard: {System.IO.Path.GetFileName(near.File)} girou={turned} moveu5={moved} apagou={deleted} ctrlz={undo} conferencias={checks.Count} plano=[{string.Join(" ", plan?.Summary ?? [])}] arquivos={plan?.Files.Count}+{plan?.PckFiles.Count} {planErr} cartão=\"{card}\" painel {_objPanel.Height} px para {inner} px de conteúdo";
+        return load + $" | {ringTxt} {seatTxt} | dftcard: {System.IO.Path.GetFileName(near.File)} girou={turned} moveu5={moved} apagou={deleted} ctrlz={undo} conferencias={checks.Count} plano=[{string.Join(" ", plan?.Summary ?? [])}] arquivos={plan?.Files.Count}+{plan?.PckFiles.Count} {planErr} cartão=\"{card}\" painel {_objPanel.Height} px para {inner} px de conteúdo";
     }
 
     /// <summary>Depois de gravar: solta a seleção e o rascunho (relido do disco no DraftOpen).</summary>
@@ -739,11 +821,73 @@ internal sealed partial class WorldView
         if (Project(c) is not { } a) return 0;
         for (int k = 0; k < 3; k++)
             if (Project(c + GizmoDirs[k] * L * 1.18f) is { } b && SegDist(p, a, b, 0.2f) < 9) return k + 1;
+        // anel de girar (construção e modelo; árvore não gira no jogo): na base, em volta do objeto
+        if (TurnRing() is { } ring)
+        {
+            PointF? prev = null;
+            for (int i = 0; i <= 64; i++)
+            {
+                float t = i / 64f * MathF.Tau;
+                var q = Project(ring.C + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * ring.R);
+                if (q is { } qq && prev is { } pp && SegDist(p, pp, qq, 0) < 8) return 4;
+                prev = q;
+            }
+            if (Project(ring.C + new Vector3(MathF.Sin(ring.Yaw), 0, MathF.Cos(ring.Yaw)) * ring.R) is { } kq && MathF.Abs(kq.X - p.X) < 11 && MathF.Abs(kq.Y - p.Y) < 11) return 4;   // bolinha
+        }
         return 0;
+    }
+
+    /// <summary>Anel de girar do objeto escolhido: centro na base, raio que envolve a planta do objeto, giro atual (rad).</summary>
+    (Vector3 C, float R, float Yaw)? TurnRing()
+    {
+        if (!ObjGizmoOn || SelDraft is not { Kind: ObjKind.Building or ObjKind.Model } o) return null;
+        var (mn, mx) = DraftChecks.WorldBox(o);
+        var c = V3((mn + mx) / 2); c.Y = mn.Y + 0.3f;
+        float half = MathF.Sqrt((mx.X - mn.X) * (mx.X - mn.X) + (mx.Z - mn.Z) * (mx.Z - mn.Z)) / 2;
+        float r = Math.Clamp(MathF.Max(half * 1.05f, GizmoSize(c) * 0.9f), 1.5f, 120f);
+        return (c, r, YawOf(o.Now) * MathF.PI / 180);
+    }
+
+    /// <summary>Ângulo (graus, igual ao giro do objeto) do ponto do mouse no plano horizontal da altura y.</summary>
+    float? MouseAngleAt(Point p, Vector3 c)
+    {
+        var (o, d) = MouseRay(p);
+        if (MathF.Abs(d.Y) < 1e-4f) return null;
+        float s = (c.Y - o.Y) / d.Y;
+        if (s <= 0) return null;
+        var hit = o + d * s;   // OpenGL: Z do jogo invertido
+        return MathHelper.RadiansToDegrees(MathF.Atan2(hit.X - c.X, -hit.Z - c.Z));
+    }
+
+    // giro pelo anel: relativo ao ponto onde clicou (não pula), um passo só no Ctrl+Z
+    float _turnMouse0, _turnYaw0; int _turnUndoBase; bool _turnMoved;
+
+    void StartTurn(Point p)
+    {
+        if (TurnRing() is not { } ring || SelDraft is not { } o) return;
+        _turnMouse0 = MouseAngleAt(p, ring.C) ?? 0;
+        _turnYaw0 = YawOf(o.Now); _turnUndoBase = _draft?.UndoCount ?? 0; _turnMoved = false;
+    }
+
+    void TurnDrag(Point p)
+    {
+        if (TurnRing() is not { } ring || _draft is null) return;
+        if (MouseAngleAt(p, ring.C) is not { } ang) return;
+        float delta = ang - _turnMouse0;
+        while (delta > 180) delta -= 360; while (delta < -180) delta += 360;
+        float yaw = _turnYaw0 + delta;
+        float step = (ModifierKeys & Keys.Control) != 0 ? 1 : (ModifierKeys & Keys.Shift) != 0 ? 15 : 5;
+        yaw = MathF.Round(yaw / step) * step;
+        yaw = ((yaw + 180) % 360 + 360) % 360 - 180;
+        if (_draft.UndoCount > _turnUndoBase) _draft.Undo();   // tira o passo do arrasto anterior: fica um só
+        TurnSelected(yaw);
+        _turnMoved = true;
+        _status.Text = string.Format(Loc.T("obj.turning", "Girando: {0:0}° (de 5 em 5°; Shift = 15°, Ctrl = livre)"), yaw);
     }
 
     void ObjGizmoDrag(Point p)
     {
+        if (_objAxis == 4) { TurnDrag(p); _gl.Invalidate(); return; }
         var c = V3(_objStart); float L = GizmoSize(c);
         var dir = GizmoDirs[_objAxis - 1];
         if (Project(c) is not { } a || Project(c + dir * L) is not { } b) return;
@@ -760,6 +904,7 @@ internal sealed partial class WorldView
     bool ObjGizmoUp()
     {
         if (_objAxis == 0) return false;
+        if (_objAxis == 4 && _turnMoved && SelDraft is { } to) _status.Text = string.Format(Loc.T("obj.turnedRing", "Girado para {0:0}° (ainda não gravado; Ctrl+Z desfaz)"), YawOf(to.Now));
         if (_objPos is { } op) MoveSelectedCenter(op.X, op.Y, op.Z, stick: _objAxis != 2 && _stickGround.Checked);
         _objAxis = 0; _objPos = null; _gl.Invalidate();
         return true;
@@ -784,7 +929,36 @@ internal sealed partial class WorldView
             for (int i = 0; i <= 8; i++) { float t = i / 8f * MathF.Tau; V(tip + (u * MathF.Cos(t) + w * MathF.Sin(t)) * L * 0.06f); }
             GL.End();
         }
+        // anel de girar: dourado (branco com o mouse em cima ou girando), riscos a cada 45° e a bolinha na frente do objeto
+        if (_objPos is null && TurnRing() is { } ring)
+        {
+            bool on = hot == 4;
+            GL.LineWidth(on ? 4.5f : 3);
+            Col(on ? Color.White : Color.Gold);
+            GL.Begin(PrimitiveType.LineLoop);
+            for (int i = 0; i < 96; i++) { float t = i / 96f * MathF.Tau; V(ring.C + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * ring.R); }
+            GL.End();
+            GL.LineWidth(2);
+            GL.Begin(PrimitiveType.Lines);
+            for (int i = 0; i < 8; i++) { float t = i / 8f * MathF.Tau; var dd = new Vector3(MathF.Sin(t), 0, MathF.Cos(t)); V(ring.C + dd * ring.R * 0.93f); V(ring.C + dd * ring.R * 1.07f); }
+            var f = new Vector3(MathF.Sin(ring.Yaw), 0, MathF.Cos(ring.Yaw));
+            V(ring.C); V(ring.C + f * ring.R);
+            GL.End();
+            var knob = ring.C + f * ring.R; float kr = MathF.Max(0.35f, GizmoSize(knob) * 0.07f);
+            Col(on ? Color.White : Color.Orange);
+            GL.Begin(PrimitiveType.TriangleFan); V(knob);
+            for (int i = 0; i <= 16; i++) { float t = i / 16f * MathF.Tau; V(knob + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * kr); }
+            GL.End();
+        }
         GL.LineWidth(1); GL.Enable(EnableCap.DepthTest);
+    }
+
+    /// <summary>Número do giro em cima da bolinha enquanto gira.</summary>
+    void ObjGizmoLabels()
+    {
+        if (_objAxis != 4 || TurnRing() is not { } ring) return;
+        var f = new Vector3(MathF.Sin(ring.Yaw), 0, MathF.Cos(ring.Yaw));
+        DrawLabel($"{ring.Yaw * 180 / MathF.PI:0}°", ring.C + f * ring.R + new Vector3(0, GizmoSize(ring.C) * 0.25f, 0), Color.White);
     }
 
     // ---------- copiar e colar, painel na medida, moldura da ferramenta ----------
@@ -823,14 +997,21 @@ internal sealed partial class WorldView
     {
         var c = CenterOf(src);
         var pos = src.Now.Pos + new System.Numerics.Vector3(ground.X - c.X, 0, ground.Z - c.Z);
-        if (_stickGround.Checked && _t.HeightAt(pos.X, pos.Z) is { } g && _t.HeightAt(src.Now.Pos.X, src.Now.Pos.Z) is { } g0) pos.Y = g + (src.Now.Pos.Y - g0);
+        if (src.Piece == 0)
+        {
+            // veio do catálogo de outro mapa (ou de longe): a altura de origem é de OUTRO terreno; a base da caixa vai para o
+            // chão do ponto (antes ficava na altura do mapa de origem, até 200 m abaixo do chão, e parecia invisível)
+            float baseY = DraftChecks.WorldBox(src).Min.Y;
+            pos.Y = (_t.HeightAt(ground.X, ground.Z) ?? ground.Y) + (src.Now.Pos.Y - baseY);
+        }
+        else if (_stickGround.Checked && _t.HeightAt(pos.X, pos.Z) is { } g && _t.HeightAt(src.Now.Pos.X, src.Now.Pos.Z) is { } g0) pos.Y = g + (src.Now.Pos.Y - g0);
         return src.Now with { Pos = pos };
     }
 
     /// <summary>Ctrl+V: entra na inserção do objeto copiado; a prévia segue o mouse e um clique fixa a cópia e sai.</summary>
     void StartPlacing(DraftObject src)
     {
-        _plantType = -1; _placeSrc = src;
+        _plantType = -1; _placeSrc = src; _placeRecent = null;
         _status.Text = string.Format(Loc.T("obj.placingOne", "Inserindo {0}: a prévia segue o mouse; clique onde ele vai ficar. Esc ou botão direito cancela."), System.IO.Path.GetFileName(src.Source));
         _gl.Invalidate();
     }
@@ -902,9 +1083,9 @@ internal sealed partial class WorldView
         // linhas: deste mapa primeiro; depois os outros (um por par .spt + folhas), no 1º mapa que usa
         var rowsK = new List<(string Spt, string Comp, string Block)>();
         foreach (var t in types.ToList()) rowsK.Add((t.Spt, t.CompositeMap, MapLabel(_t.Name)));
-        foreach (var k in _treeKinds ?? [])
+        foreach (var k in (_treeKinds ?? []).OrderBy(k => MapRank(k.Maps.OrderBy(MapRank).First())).ThenBy(k => k.Maps.OrderBy(MapRank).First(), StringComparer.OrdinalIgnoreCase))
             if (!rowsK.Any(r => r.Spt.Equals(k.Spt, StringComparison.OrdinalIgnoreCase) && r.Comp.Equals(k.Comp, StringComparison.OrdinalIgnoreCase)))
-                rowsK.Add((k.Spt, k.Comp, MapLabel(k.Maps[0])));
+                rowsK.Add((k.Spt, k.Comp, MapLabel(k.Maps.OrderBy(MapRank).First())));
         if (rowsK.Count == 0) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
         var rows = rowsK.Select((r, i) => (Id: i, Name: System.IO.Path.GetFileNameWithoutExtension(r.Spt), Block: r.Block)).ToList();
         int TypeOfRow(int row) => row >= 0 && row < rowsK.Count ? _trees.TypeFor(rowsK[row].Spt, rowsK[row].Comp) : -1;
@@ -916,12 +1097,14 @@ internal sealed partial class WorldView
             fav = new JavFavorites(() => file.Ids.Select(sig => Enumerable.Range(0, rowsK.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList(),
                 i => i >= 0 && i < rowsK.Count && file.Has(SigOf(i)), i => file.Toggle(SigOf(i)));
         }
-        using var w = new ItemSearchWindow(rows, askQuantity: false, model: (row, yaw) => TypeOfRow(row) is var t && t >= 0 ? TreeThumb(t, yaw) : null, fav: fav)
+        var recentT = _element is null ? [] : JavRecents.Read("tree", _element).Select(sig => Enumerable.Range(0, rowsK.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList();
+        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recentT, model: (row, yaw) => TypeOfRow(row) is var t && t >= 0 ? TreeThumb(t, yaw) : null, fav: fav, keepBlockOrder: true)
             { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
         int type = TypeOfRow(w.Picked);
         if (type < 0) return;
         _placeSrc = null; _plantType = type;
+        _placeRecent = ("tree", SigOf(w.Picked));
         _status.Text = string.Format(Loc.T("obj.plantingOne", "Plantando {0}: clique no chão onde a árvore vai ficar. Esc ou botão direito cancela."), rows[w.Picked].Name);
         _gl.Focus();
     }
@@ -1024,8 +1207,18 @@ internal sealed partial class WorldView
         // a menor construção (cabe em qualquer lugar), posta num pedaço vizinho carregado
         int pick = Enumerable.Range(0, _catalog.Count).OrderBy(i => _catalog[i].Size.X * _catalog[i].Size.Z).First();
         // prévia de uma construção de OUTRO mapa (carregada na hora)
+        var c0probe = CenterOf(_draft.Find(_catalog[pick].Key)!);
         int far = _catRows.FindIndex(c => !c.Near && !c.Block.StartsWith(Loc.T("obj.catThisMap", "Este mapa: {0}")[..4]));
         string farThumb = "-";
+        string farGhost = "-";
+        if (far >= 0 && CatalogSource(_catRows[far]) is { } fps)
+        {
+            var gp = new System.Numerics.Vector3(c0probe.X, 0, c0probe.Z);
+            var gt = GhostOf(fps, gp);
+            var probe = new DraftObject { Key = "probe", Kind = ObjKind.Building, Original = gt, LocalBox = fps.LocalBox };
+            float baseY = DraftChecks.WorldBox(probe).Min.Y, gy = _t.HeightAt(gp.X, gp.Z) ?? 0;
+            farGhost = $"base={baseY:0.0} chao={gy:0.0} origem-y={fps.Original.Pos.Y:0.0}";
+        }
         if (far >= 0) using (var ft = BuildingThumb(far, 30) as Bitmap) { farThumb = ft is null ? "falhou" : "ok " + System.IO.Path.GetFileName(_catRows[far].Key); ft?.Save(System.IO.Path.Combine(_shotDir ?? System.IO.Path.GetTempPath(), "dftcat-thumb-outro-mapa.png")); }
         var src = _draft.Find(_catalog[pick].Key)!;
         var c0 = CenterOf(src);
@@ -1057,7 +1250,7 @@ internal sealed partial class WorldView
         }
         catch (InvalidDataException ex) { sum = ex.Message; }
         ObjectUndo(false);
-        return load + $" | dftcat: indice={others} formas de {otherMaps} mapas {note} previa-outro-mapa={farThumb} | {_catalog.Count} formas ({total} construções) 1a={System.IO.Path.GetFileName(_catalog[0].Key)} x{_catalog[0].Count} outro-pedaco={one} (de {src.Piece} para {copy?.Piece}) bloqueou={blocked} blocos-do-lugar-novo={blocksOk} plano=\"{sum}\"";
+        return load + $" | dftcat: indice={others} formas de {otherMaps} mapas {note} previa-outro-mapa={farThumb} altura-outro-mapa=[{farGhost}] | {_catalog.Count} formas ({total} construções) 1a={System.IO.Path.GetFileName(_catalog[0].Key)} x{_catalog[0].Count} outro-pedaco={one} (de {src.Piece} para {copy?.Piece}) bloqueou={blocked} blocos-do-lugar-novo={blocksOk} plano=\"{sum}\"";
     }
 
     // ---------- pílula Construções: por perto + todos os mapas e instâncias (índice) ----------
@@ -1067,6 +1260,7 @@ internal sealed partial class WorldView
         public System.Numerics.Vector3 Size => Max - Min;
     }
     List<CatRow> _catRows = [];
+    (string Kind, int Sig)? _placeRecent;   // o que a inserção em andamento grava nos recentes da JAV ao dar certo
     Task<BuildingIndex?>? _bindex;      // índice de todos os mapas (segundo plano, uma vez por janela)
     int _bxDone, _bxTotal;
     Dictionary<string, string>? _mapNames;
@@ -1078,6 +1272,9 @@ internal sealed partial class WorldView
         string el = _element;
         _bindex = Task.Run(() => BuildingIndex.Build(el, (d, t) => { Volatile.Write(ref _bxDone, d); Volatile.Write(ref _bxTotal, t); }));
     }
+
+    /// <summary>Ordem dos grupos do catálogo: este mapa, depois o world (mundo aberto, usuário 08/11), depois os outros.</summary>
+    int MapRank(string map) => map.Equals(_t.Name, StringComparison.OrdinalIgnoreCase) ? 0 : map.Equals("world", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
 
     string MapLabel(string map)
     {
@@ -1107,7 +1304,7 @@ internal sealed partial class WorldView
                     best[s.Sig] = best.TryGetValue(s.Sig, out var b)
                         ? (s.Count > b.S.Count ? map : b.Map, s.Count > b.S.Count ? s : b.S, b.Total + s.Count, b.Maps + 1)
                         : (map, s, s.Count, 1);
-            foreach (var (sig, b) in best.OrderBy(kv => kv.Value.Map.Equals(_t.Name, StringComparison.OrdinalIgnoreCase) ? 0 : 1).ThenBy(kv => kv.Value.Map, StringComparer.OrdinalIgnoreCase).ThenByDescending(kv => kv.Value.Total))
+            foreach (var (sig, b) in best.OrderBy(kv => MapRank(kv.Value.Map)).ThenBy(kv => kv.Value.Map, StringComparer.OrdinalIgnoreCase).ThenByDescending(kv => kv.Value.Total))
                 rows.Add(new CatRow(b.S.Sample, sig, b.S.Min, b.S.Max, b.S.Solid, b.Total, b.Maps, MapLabel(b.Map), false));
         }
         else if (_bindex is { IsCompleted: true }) note = Loc.T("obj.catIndexFail", "não deu para ler os outros mapas (veja o log)");
@@ -1172,11 +1369,13 @@ internal sealed partial class WorldView
             var cat = _catRows;
             fav = new JavFavorites(() => file.Ids.Select(sig => cat.FindIndex(c => c.Sig == sig)).Where(i => i >= 0).ToList(), i => i >= 0 && i < cat.Count && file.Has(cat[i].Sig), i => file.Toggle(cat[i].Sig));
         }
-        using var w = new ItemSearchWindow(rows, askQuantity: false, model: BuildingThumb, fav: fav)
+        var recentB = _element is null ? [] : JavRecents.Read("building", _element).Select(sig => _catRows.FindIndex(c => c.Sig == sig)).Where(i => i >= 0).ToList();
+        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recentB, model: BuildingThumb, fav: fav, keepBlockOrder: true)
             { Text = Loc.T("obj.chooseBuilding", "Escolher construção para pôr no mundo") + (note is null ? "" : " — " + note) };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0 || w.Picked >= _catRows.Count) return;
         if (CatalogSource(_catRows[w.Picked]) is not { } src) return;
         StartPlacing(src);
+        _placeRecent = ("building", _catRows[w.Picked].Sig);
         _gl.Focus();
     }
 
@@ -1191,6 +1390,8 @@ internal sealed partial class WorldView
             : PasteAt(ground);
         if (SelDraft?.Key == "new:" + _newSeq && SelDraft.CopyOf is not null)
         {
+            if (_placeRecent is { } pr && _element is not null) JavRecents.Add(pr.Kind, _element, pr.Sig);   // aparece em Recentes da JAV
+            _placeRecent = null;
             _plantType = -1; _placeSrc = null;
             _status.Text = msg; _gl.Invalidate();
         }
@@ -1201,7 +1402,7 @@ internal sealed partial class WorldView
     bool StopPlanting()
     {
         if (!Placing) return false;
-        _plantType = -1; _placeSrc = null; _gl.Invalidate();
+        _plantType = -1; _placeSrc = null; _placeRecent = null; _gl.Invalidate();
         _status.Text = Loc.T("obj.plantStop", "Plantio encerrado.");
         return true;
     }
