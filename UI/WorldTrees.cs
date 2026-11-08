@@ -48,6 +48,10 @@ internal sealed class WorldTrees : IDisposable
     internal static Vector3 Sun = new Vector3(-0.4f, 1f, 0.3f).Normalized();
 
     public int Count => _scene?.Trees.Count ?? 0;
+    /// <summary>Árvore mexida ou apagada no rascunho (índice em Scene.Trees): sai do laço normal.</summary>
+    public Func<int, bool>? Overridden { get; set; }
+    /// <summary>Árvores mexidas e plantadas no rascunho (tipo e posição do jogo), desenhadas à parte.</summary>
+    public Func<IEnumerable<(int Type, Vector3 Pos)>>? Extras { get; set; }
 
     public WorldTrees(string? elementDir, string map)
     {
@@ -292,37 +296,53 @@ internal sealed class WorldTrees : IDisposable
                 if (!_cells.TryGetValue((cx, cz), out var list)) continue;
                 foreach (int i in list)
                 {
+                    if (Overridden?.Invoke(i) == true) continue;   // mexida/apagada: desenhada pelos extras (ou some)
                     var t = _scene.Trees[i];
                     var at = new Vector3(t.X, t.Y, -t.Z);
                     var d = at - cam;
                     float dist = d.Length;
                     if (dist > Range || Vector3.Dot(d, forward) < -40) continue;
-                    if (!_kinds.TryGetValue(t.Type, out var k))
-                    {
-                        if (built >= 2) { Pending = true; continue; }   // gera aos poucos para não travar a câmera
-                        _kinds[t.Type] = k = Build(t.Type); built++;
-                        GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
-                    }
-                    if (k is null || k.Radius / Math.Max(dist, 1) < 0.003f) continue;
-                    GL.PushMatrix();
-                    GL.Translate(at);
-                    DrawPart(k.Wood, false);
-                    DrawPart(k.Fronds, true);
-                    if (k.Set is { } ls && k.Leaves is { } lp && (Vector3.Dot(ls.R, camRight) < 0.9995f || Vector3.Dot(ls.U, camUp) < 0.9995f))
-                    {
-                        ls.Fill(camRight, camUp);   // uma vez por tipo quando a câmera gira (todas as árvores do tipo usam)
-                        GL.BindBuffer(BufferTarget.ArrayBuffer, lp.Vbo);
-                        GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, ls.Buf.Length * 4, ls.Buf);
-                    }
-                    DrawPart(k.Leaves, true);
-                    GL.PopMatrix();
+                    if (!DrawOne(t.Type, at, dist, camRight, camUp, ref built)) continue;
                 }
+            }
+        if (Extras?.Invoke() is { } ex)
+            foreach (var (type, gp) in ex)
+            {
+                var at = new Vector3(gp.X, gp.Y, -gp.Z);
+                var d = at - cam; float dist = d.Length;
+                if (dist > Range || Vector3.Dot(d, forward) < -40) continue;
+                DrawOne(type, at, dist, camRight, camUp, ref built);
             }
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8573, 1f);
         GL.TexEnv(TextureEnvTarget.TextureEnv, TextureEnvParameter.TextureEnvMode, (int)TextureEnvMode.Modulate);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
         GL.DisableClientState(ArrayCap.VertexArray); GL.DisableClientState(ArrayCap.ColorArray); GL.DisableClientState(ArrayCap.TextureCoordArray);
         GL.Disable(EnableCap.Texture2D);
+    }
+
+    /// <summary>Desenha uma árvore do tipo no lugar (OpenGL); falso se o tipo ainda não foi gerado ou está longe demais para valer.</summary>
+    bool DrawOne(int type, Vector3 at, float dist, Vector3 camRight, Vector3 camUp, ref int built)
+    {
+        if (!_kinds.TryGetValue(type, out var k))
+        {
+            if (built >= 2) { Pending = true; return false; }   // gera aos poucos para não travar a câmera
+            _kinds[type] = k = Build(type); built++;
+            GL.EnableClientState(ArrayCap.VertexArray); GL.EnableClientState(ArrayCap.ColorArray); GL.EnableClientState(ArrayCap.TextureCoordArray);
+        }
+        if (k is null || k.Radius / Math.Max(dist, 1) < 0.003f) return false;
+        GL.PushMatrix();
+        GL.Translate(at);
+        DrawPart(k.Wood, false);
+        DrawPart(k.Fronds, true);
+        if (k.Set is { } ls && k.Leaves is { } lp && (Vector3.Dot(ls.R, camRight) < 0.9995f || Vector3.Dot(ls.U, camUp) < 0.9995f))
+        {
+            ls.Fill(camRight, camUp);   // uma vez por tipo quando a câmera gira (todas as árvores do tipo usam)
+            GL.BindBuffer(BufferTarget.ArrayBuffer, lp.Vbo);
+            GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, ls.Buf.Length * 4, ls.Buf);
+        }
+        DrawPart(k.Leaves, true);
+        GL.PopMatrix();
+        return true;
     }
 
     static void DrawPart(Part? p, bool cutout)

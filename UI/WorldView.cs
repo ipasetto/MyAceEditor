@@ -235,6 +235,12 @@ internal sealed partial class WorldView : Form
             if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
+            // plantio de árvores: esquerdo planta onde o mouse aponta no chão, direito para
+            if (_tool == Tool.Scene && _plantType >= 0)
+            {
+                if (e.Button == MouseButtons.Right) { StopPlanting(); return; }
+                if (e.Button == MouseButtons.Left && Ray(e.Location) is { } pg) { PlantAt(new System.Numerics.Vector3(pg.X, pg.Y, pg.Z), _plantType, select: false); return; }
+            }
             // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
             if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
             { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; return; }
@@ -392,6 +398,7 @@ internal sealed partial class WorldView : Form
         if (CancelStep()) return true;
         if (_editor is { IsDisposed: false, Parent: not null } editor) { editor.AskCancel(); return true; }
         if (_tool == Tool.None) return ClearScreen();
+        if (_tool == Tool.Scene && StopPlanting()) return true;   // 1º Esc no plantio: só para de plantar
         if (_tool == Tool.Scene && _sceneSel is not null) { _sceneSel = null; ShowObjPanel(); _gl.Invalidate(); return true; }   // 1º Esc: tira a seleção
         LeaveTool();
         return true;

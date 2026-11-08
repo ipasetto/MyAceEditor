@@ -124,7 +124,7 @@ internal sealed partial class WorldView
             : critter ? "\n" + Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto") : "");
         _objXYZ[0].Value = (decimal)Math.Clamp(x, -100000, 100000); _objXYZ[1].Value = (decimal)Math.Clamp(y, -100000, 100000); _objXYZ[2].Value = (decimal)Math.Clamp(z, -100000, 100000);
         foreach (var n in _objXYZ) n.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : _sceneSel is not BuildingSel && _ecw is not null && (!critter || _bsd is not null);
-        _objYaw.Enabled = SelDraft is { ReadOnlyWhy: null, Deleted: false };
+        _objYaw.Enabled = SelDraft is { ReadOnlyWhy: null, Deleted: false, Kind: ObjKind.Building or ObjKind.Model };
         if (SelDraft is { } sy) _objYaw.Value = (decimal)Math.Round(YawOf(sy.Now));
         _objScale.Enabled = SelDraft is { Kind: ObjKind.Building, ReadOnlyWhy: null, Deleted: false };
         if (SelDraft is { } sz) _objScale.Value = (decimal)Math.Clamp(MathF.Round(sz.Now.Scale, 2), 0.1f, 10f);

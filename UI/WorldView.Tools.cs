@@ -145,9 +145,10 @@ internal sealed partial class WorldView
             ("\uE80F", "obj.pillBuildings", "Construções"), ("\uE913", "obj.pillTrees", "Árvores"), ("\uE790", "obj.pillGrass", "Grama"),
             ("\uE7B8", "obj.pillModels", "Modelos"), ("\uE781", "obj.pillLights", "Luzes") })
         {
-            var b = SmallButton(g, Loc.T(k, pt), () => { });
-            b.Enabled = false; b.ForeColor = Color.Gray;
-            _toolTip.SetToolTip(b, Loc.T("obj.pillSoon", "Chega na próxima etapa da ferramenta."));
+            bool trees = k == "obj.pillTrees";
+            var b = SmallButton(g, Loc.T(k, pt), trees ? ChooseTreeToPlant : () => { });
+            if (trees) _toolTip.SetToolTip(b, Loc.T("obj.pillTreesTip", "Escolher o tipo de árvore e clicar no chão para plantar."));
+            else { b.Enabled = false; b.ForeColor = Color.Gray; _toolTip.SetToolTip(b, Loc.T("obj.pillSoon", "Chega na próxima etapa da ferramenta.")); }
             _scenePage.Controls.Add(b);
         }
         _objPanel.Visible = false; _objPanel.Width = 250; _objPanel.Height = 330; _objPanel.Margin = new Padding(0, 4, 0, 4);

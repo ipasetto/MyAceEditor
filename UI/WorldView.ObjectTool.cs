@@ -37,7 +37,7 @@ internal sealed partial class WorldView
         try
         {
             _draftSrc ??= new DraftSources(_element, _t.Name, ServerConfigDir, _t.PieceAt, _t.Rows * _t.Cols);
-            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); _buildings.Extras = DraftExtras; }
+            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); _buildings.Extras = DraftExtras; _trees.Overridden = i => _draft?.Find($"tree:{i}") is { Changed: true }; _trees.Extras = DraftTreeExtras; }
             DraftWant(PiecesAroundCamera());
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -215,7 +215,7 @@ internal sealed partial class WorldView
     /// <summary>Gira o objeto escolhido até o giro pedido (graus, em volta do eixo vertical e do centro do desenho).</summary>
     void TurnSelected(float yaw)
     {
-        if (SelDraft is not { } o || o.Deleted) return;
+        if (SelDraft is not { } o || o.Deleted || o.Kind == ObjKind.Tree) return;
         float delta = (yaw - YawOf(o.Now)) * MathF.PI / 180;
         if (MathF.Abs(delta) < 1e-5f) return;
         var r = System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitY, delta);
@@ -458,6 +458,39 @@ internal sealed partial class WorldView
         return load + $" | dftesc: 1o Esc tira a seleção e fica={first} 2o Esc sai={second}";
     }
 
+    /// <summary>Para a captura ("dfttree"): árvore mais perto — seta X, apagar e desfazer, copiar e colar, plantar e Esc; não grava.</summary>
+    internal string DraftTreeTest()
+    {
+        string load = DraftLoadTest();
+        var t = _draft?.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Tree).OrderBy(o => (Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z) - _cam).LengthSquared).FirstOrDefault();
+        if (t is null) return load + " | dfttree: sem árvore carregada";
+        _sceneSel = new TreeSel(t.Key); ShowObjPanel();
+        var c0 = CenterOf(t); var cv = V3(c0); float L = GizmoSize(cv);
+        bool moved = false;
+        if (Project(cv) is { } pa && Project(cv + Vector3.UnitX * L) is { } pb)
+        {
+            var tip = Point.Round(new PointF(pa.X + (pb.X - pa.X) * 0.8f, pa.Y + (pb.Y - pa.Y) * 0.8f));
+            float len = MathF.Sqrt((pb.X - pa.X) * (pb.X - pa.X) + (pb.Y - pa.Y) * (pb.Y - pa.Y));
+            _objAxis = ObjGizmoHit(tip); _objStart = c0; _objDown = tip; _objPos = null;
+            if (_objAxis == 1) ObjGizmoDrag(Point.Round(new PointF(tip.X + (pb.X - pa.X) / len * 60, tip.Y + (pb.Y - pa.Y) / len * 60)));
+            ObjGizmoUp();
+            moved = t.Now.Pos.X > c0.X + 0.5f;
+        }
+        bool turnRefused = _draft!.Apply(new MoveOp(t.Key, t.Now with { Dir = new System.Numerics.Vector3(1, 0, 0) })) is not null;
+        DeleteSelected(); bool del = t.Deleted;
+        bool undo = ObjectUndo(false) && !t.Deleted;
+        _objClip = new TreeSel(t.Key);
+        string? pasted = PasteAt(t.Now.Pos + new System.Numerics.Vector3(-6, 0, 0));
+        bool copyOk = SelDraft is { Kind: ObjKind.Tree, CopyOf: not null } cp && cp.Type == t.Type;
+        _plantType = t.Type;
+        string? planted = PlantAt(t.Now.Pos + new System.Numerics.Vector3(0, 0, 6), _plantType, select: false);
+        bool escStops = EscapeStep() && _plantType < 0 && _tool == Tool.Scene;
+        string sum = "";
+        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (InvalidDataException ex) { sum = ex.Message; }
+        _sceneSel = new TreeSel(t.Key); ShowObjPanel();
+        return load + $" | dfttree: {System.IO.Path.GetFileName(t.Source)} seta-x={moved} giro-recusado={turnRefused} apagou={del} ctrlz={undo} colou={copyOk} plantou={planted?.Length > 0} esc-para-plantio={escStops} plano=\"{sum}\"";
+    }
+
     /// <summary>Leva a câmera até o objeto (conferência "levar até ele").</summary>
     void FlyTo(string key)
     {
@@ -634,7 +667,7 @@ internal sealed partial class WorldView
     System.Numerics.Vector3? _objPos;
     static Vector3 V3(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
 
-    bool ObjGizmoOn => _tool == Tool.Scene && SelDraft is { ReadOnlyWhy: null, Deleted: false, Kind: ObjKind.Building or ObjKind.Model };
+    bool ObjGizmoOn => _tool == Tool.Scene && SelDraft is { ReadOnlyWhy: null, Deleted: false, Kind: ObjKind.Building or ObjKind.Model or ObjKind.Tree };
 
     int ObjGizmoHit(Point p)
     {
@@ -716,8 +749,7 @@ internal sealed partial class WorldView
     void PasteObject()
     {
         if (_objClip is null) { _status.Text = Loc.T("obj.nothingCopied", "Nada copiado: escolha um objeto e use Ctrl+C."); return; }
-        if (_objClip is TreeSel) { _status.Text = Loc.T("obj.pasteTreeLater", "Copiar árvores chega na etapa das árvores."); return; }
-        if (_objClip is BuildingSel or ModelSel)
+        if (_objClip is BuildingSel or ModelSel or TreeSel)
         {
             if ((_hover ?? Ray(_gl.PointToClient(Cursor.Position))) is { } g0) PasteAt(new System.Numerics.Vector3(g0.X, g0.Y, g0.Z));
             return;
@@ -734,6 +766,59 @@ internal sealed partial class WorldView
     }
 
     int _newSeq;
+    int _plantType = -1;   // tipo de árvore em plantio (−1 = não está plantando)
+
+    /// <summary>Árvores mexidas (fora do laço normal) e plantadas, para o desenho.</summary>
+    IEnumerable<(int Type, Vector3 Pos)> DraftTreeExtras()
+    {
+        if (_draft is null) yield break;
+        foreach (var p in _draft.Pieces.Values)
+            foreach (var o in p.Objects.Concat(p.Added))
+                if (o.Kind == ObjKind.Tree && !o.Deleted && (o.CopyOf is not null || o.Changed)) yield return (o.Type, V3(o.Now.Pos));
+    }
+
+    /// <summary>Planta (ou cola) uma árvore do tipo no ponto do chão. Árvore pode ir para qualquer pedaço que tenha bloco de cenário.</summary>
+    internal string? PlantAt(System.Numerics.Vector3 ground, int type, bool select)
+    {
+        if (_draft is null || _draftSrc is null) return _status.Text = Loc.T("obj.noDraft", "Abra a ferramenta Objetos do mundo para mexer nos objetos.");
+        var types = _trees.Scene?.TreeTypes;
+        if (types is null || type < 0 || type >= types.Count) return _status.Text = Loc.T("obj.treeNoType", "Árvore nova sem tipo.");
+        int piece = _draftSrc.PieceAt(ground.X, ground.Z);
+        if (piece <= 0) return _status.Text = Loc.T("obj.chkOutShort", "Fora do mapa.");
+        if (!_draft.Pieces.ContainsKey(piece)) return _status.Text = Loc.T("obj.notLoadedPiece", "Esse pedaço do mapa ainda não carregou; chegue mais perto.");
+        if (_t.HeightAt(ground.X, ground.Z) is { } h) ground.Y = h;
+        var tree = new DraftObject
+        {
+            Key = "new:" + (++_newSeq), Kind = ObjKind.Tree, Piece = piece, Type = type, Source = types[type].Spt, CopyOf = "planted",
+            Original = new ObjTransform(ground, System.Numerics.Vector3.UnitZ, System.Numerics.Vector3.UnitY, 1),
+        };
+        if (DraftApply(new AddOp(tree.Key, tree)) is { } why) return why;
+        if (select) { _sceneSel = new TreeSel(tree.Key); ShowObjPanel(); }
+        _gl.Invalidate();
+        return _status.Text = string.Format(Loc.T("obj.planted", "Árvore {0} plantada (só grava no Salvar; Ctrl+Z tira)."), System.IO.Path.GetFileNameWithoutExtension(tree.Source));
+    }
+
+    /// <summary>Pílula Árvores: escolhe o tipo na janela de escolher (tipos que este mapa já usa) e entra no plantio.</summary>
+    void ChooseTreeToPlant()
+    {
+        var types = _trees.Scene?.TreeTypes;
+        if (types is null || types.Count == 0) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
+        var rows = types.Select((t, i) => (Id: i, Name: System.IO.Path.GetFileNameWithoutExtension(t.Spt), Block: Loc.T("obj.pillTrees", "Árvores"))).ToList();
+        using var w = new ItemSearchWindow(rows, askQuantity: false) { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
+        if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
+        _plantType = w.Picked;
+        _status.Text = string.Format(Loc.T("obj.planting", "Plantando {0}: clique no chão para cada árvore. Esc ou botão direito para parar."), rows[_plantType].Name);
+        _gl.Focus();
+    }
+
+    /// <summary>Sai do plantio (Esc ou botão direito). Falso = não estava plantando.</summary>
+    bool StopPlanting()
+    {
+        if (_plantType < 0) return false;
+        _plantType = -1;
+        _status.Text = Loc.T("obj.plantStop", "Plantio encerrado.");
+        return true;
+    }
 
     /// <summary>Cópias coladas (construções) para o desenho e o clique do WorldBuildings.</summary>
     IEnumerable<(string Key, string Src, Matrix4 World)> DraftExtras()
@@ -750,7 +835,8 @@ internal sealed partial class WorldView
     /// </summary>
     internal string? PasteAt(System.Numerics.Vector3 ground)
     {
-        var srcSel = _objClip switch { BuildingSel b => _draft?.Find(b.File), ModelSel m => _draft?.Find(m.Key), _ => null };
+        var srcSel = _objClip switch { BuildingSel b => _draft?.Find(b.File), ModelSel m => _draft?.Find(m.Key), TreeSel t => _draft?.Find(t.Key), _ => null };
+        if (srcSel is { Kind: ObjKind.Tree, Deleted: false } tree) return PlantAt(ground, tree.Type, select: true);
         if (srcSel is null || srcSel.Deleted) return _status.Text = Loc.T("obj.nothingCopied", "Nada copiado: escolha um objeto e use Ctrl+C.");
         if (_draftSrc is { } ds && ds.PieceAt(ground.X, ground.Z) != srcSel.Piece)
             return _status.Text = Loc.T("obj.pastePiece", "A cópia tem que ficar no mesmo pedaço de 1 km da original; cole mais perto dela.");

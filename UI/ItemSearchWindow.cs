@@ -89,6 +89,10 @@ internal sealed class ItemSearchWindow : Form
         add.Click += (_, _) => Accept();
         var foot = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 52, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10), BackColor = Side };
         foot.Controls.Add(add);
+        var close = new Button { Text = Loc.T("is.close", "Fechar"), AutoSize = true, Height = 32, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(60, 66, 78), Margin = new Padding(12, 0, 0, 0), DialogResult = DialogResult.Cancel };
+        close.FlatAppearance.BorderSize = 0;
+        close.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
+        foot.Controls.Add(close);
         if (askQuantity)
         {
             foot.Controls.Add(_qty);
