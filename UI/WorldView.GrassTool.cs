@@ -23,26 +23,74 @@ internal sealed partial class WorldView
     readonly TrackBar _brushDens = new() { Minimum = 5, Maximum = 100, Value = 50, TickFrequency = 10, Dock = DockStyle.Top, Height = 32, AutoSize = false };
     readonly Label _brushSizeLbl = new() { Dock = DockStyle.Top, Height = 18, ForeColor = Color.Silver };
     readonly Label _brushDensLbl = new() { Dock = DockStyle.Top, Height = 18, ForeColor = Color.Silver };
-    Button? _brushEraseBtn;
+    Button? _brushPaintBtn, _brushEraseBtn;
+    bool _brushActive;   // pincel ou borracha ligado (o painel pode estar aberto com os dois apagados)
 
-    bool BrushOn => _brushType >= 0 || _brushErase && _grassDraft is not null;
+    /// <summary>Pincel valendo: painel aberto e Pincel (com tipo) ou Borracha ligados.</summary>
+    bool BrushOn => _brushPanel.Visible && _brushActive && (_brushErase || _brushType >= 0);
 
-    /// <summary>Monta o painel do pincel (fica no lugar do cartão do objeto enquanto pinta).</summary>
+    /// <summary>Botão grande do painel: ícone em cima, nome e a tecla embaixo (como os modos do objeto).</summary>
+    Button BigButton(string glyph, string text, string key, Action a, int width)
+    {
+        var b = new Button { Width = width, Height = 62, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, Text = text + "\n" + key, Image = UiKit.Icon(glyph, Color.White, 18),
+            TextImageRelation = TextImageRelation.ImageAboveText, Margin = new Padding(0, 0, 4, 0), Cursor = Cursors.Hand, Font = new Font("Segoe UI", 8.5f), BackColor = Color.FromArgb(40, 45, 54) };
+        b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
+        b.Click += (_, _) => { a(); _gl.Focus(); };
+        return b;
+    }
+
+    /// <summary>Monta o painel da grama: Pincel (B), Borracha (E), Escolher tipo; tamanho e densidade; Concluir.</summary>
     void InitGrassPanel()
     {
         _brushSize.ValueChanged += (_, _) => { _brushR = _brushSize.Value; BrushLabels(); _gl.Invalidate(); };
         _brushDens.ValueChanged += (_, _) => { _brushDensity = _brushDens.Value / 100f; BrushLabels(); };
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 74, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 4, 0, 0) };
-        _brushEraseBtn = SmallButton("", Loc.T("grass.erase", "Borracha (apaga qualquer grama)"), () => { _brushErase = !_brushErase; BrushLabels(); _gl.Invalidate(); });
-        _brushEraseBtn.Width = 236;
-        var other = SmallButton("", Loc.T("grass.other", "Trocar o tipo"), ChooseGrassToPaint); other.Width = 115;
-        var done = SmallButton("", Loc.T("grass.done", "Concluir"), () => StopBrush(), main: true); done.Width = 115;
-        bar.Controls.Add(_brushEraseBtn); bar.Controls.Add(other); bar.Controls.Add(done);
-        var note = new Label { Dock = DockStyle.Top, Height = 46, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
-            Text = Loc.T("grass.note", "Arraste no chão para pintar. Cada arrastada é um passo do Ctrl+Z. Grava no Salvar cenário (só no cliente; o servidor não muda).") };
-        foreach (var c in new Control[] { note, bar, _brushDens, _brushDensLbl, _brushSize, _brushSizeLbl, _brushTitle }) _brushPanel.Controls.Add(c);
+        NoWheel(_brushSize); NoWheel(_brushDens);
+        var modes = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 74, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 4, 0, 8), WrapContents = false };
+        _brushPaintBtn = BigButton("\uE76D", Loc.T("grass.brush", "Pincel"), "B", BrushPaint, 74);
+        _brushEraseBtn = BigButton("\uE75C", Loc.T("grass.eraser", "Borracha"), "E", BrushEraser, 74);
+        var pick = BigButton("\uE790", Loc.T("grass.pickType", "Escolher tipo"), "", ChooseGrassToPaint, 82);
+        _toolTip.SetToolTip(_brushPaintBtn, Loc.T("grass.brushTip", "Pinta o tipo escolhido arrastando no chão (Ctrl + roda do mouse muda o tamanho)."));
+        _toolTip.SetToolTip(_brushEraseBtn, Loc.T("grass.eraserTip", "Apaga a grama e as flores de qualquer tipo arrastando no chão."));
+        _toolTip.SetToolTip(pick, Loc.T("grass.pickTip", "Abre a lista de gramas e flores de todos os mapas."));
+        modes.Controls.Add(_brushPaintBtn); modes.Controls.Add(_brushEraseBtn); modes.Controls.Add(pick);
+        var gap = new Panel { Dock = DockStyle.Top, Height = 10, BackColor = _brushPanel.BackColor };
+        var doneRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 8, 0, 0) };
+        var done = SmallButton("\uE73E", Loc.T("grass.done", "Concluir"), () => StopBrush(), main: true); done.Width = 236;
+        doneRow.Controls.Add(done);
+        var note = new Label { Dock = DockStyle.Top, Height = 46, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Padding = new Padding(0, 6, 0, 0),
+            Text = Loc.T("grass.note2", "Cada arrastada é um passo do Ctrl+Z. Grava no Salvar cenário (só no cliente; o servidor não muda).") };
+        foreach (var c in new Control[] { note, doneRow, _brushDens, _brushDensLbl, gap, _brushSize, _brushSizeLbl, modes, _brushTitle }) _brushPanel.Controls.Add(c);
         _brushPanel.Height = _brushPanel.Controls.Cast<Control>().Sum(c => c.Height) + 16;
         BrushLabels();
+    }
+
+    /// <summary>A roda do mouse em cima de um campo ou barra não muda o valor (só clicar e digitar/arrastar; usuário 08/11).</summary>
+    static void NoWheel(Control c) => c.MouseWheel += (_, e) => { if (e is HandledMouseEventArgs h) h.Handled = true; };
+
+    /// <summary>Pincel (B): sem tipo escolhido, abre a lista primeiro.</summary>
+    void BrushPaint()
+    {
+        if (_brushType < 0) { ChooseGrassToPaint(); return; }
+        _brushErase = false; _brushActive = true; BrushLabels(); _gl.Invalidate();
+    }
+
+    /// <summary>Borracha (E): apaga qualquer grama.</summary>
+    void BrushEraser()
+    {
+        if (GrassDraftOrNew() is null) return;
+        _brushErase = true; _brushActive = true; BrushLabels(); _gl.Invalidate();
+    }
+
+    /// <summary>Pílula Grama: abre o painel com o pincel apagado (o usuário escolhe Pincel, Borracha ou o tipo).</summary>
+    void OpenGrassPanel()
+    {
+        if (GrassDraftOrNew() is null) return;
+        StopPlanting();
+        _sceneSel = null; ShowObjPanel();
+        _brushActive = false; _brushErase = false;
+        _brushPanel.Visible = true; BrushLabels(); FitObjPanel();
+        _status.Text = Loc.T("grass.open", "Grama e flores: escolha Pincel (B) com um tipo, ou Borracha (E). Ctrl + roda do mouse muda o tamanho.");
+        _gl.Focus(); _gl.Invalidate();
     }
 
     void BrushLabels()
@@ -50,8 +98,11 @@ internal sealed partial class WorldView
         _brushSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _brushSize.Value);
         _brushDensLbl.Text = string.Format(Loc.T("grass.density", "Densidade: {0}%"), _brushDens.Value);
         string name = _grass.Scene is { } sc && _brushType >= 0 && _brushType < sc.GrassTypes.Count ? Path.GetFileNameWithoutExtension(sc.GrassTypes[_brushType].Mox) : "";
-        _brushTitle.Text = _brushErase ? Loc.T("grass.erasing", "Borracha: arraste para apagar a grama") : string.Format(Loc.T("grass.painting", "Pintando: {0}"), name);
-        if (_brushEraseBtn is not null) { _brushEraseBtn.BackColor = _brushErase ? Color.FromArgb(150, 50, 50) : Color.FromArgb(40, 45, 54); }
+        _brushTitle.Text = !_brushActive ? (name.Length > 0 ? string.Format(Loc.T("grass.typeOff", "Tipo: {0} (pincel apagado)"), name) : Loc.T("grass.noTypeYet", "Nenhum tipo escolhido: use Escolher tipo ou a Borracha."))
+            : _brushErase ? Loc.T("grass.erasing", "Borracha: arraste para apagar a grama") : string.Format(Loc.T("grass.painting", "Pintando: {0}"), name);
+        bool paintOn = _brushActive && !_brushErase, eraseOn = _brushActive && _brushErase;
+        if (_brushPaintBtn is not null) { _brushPaintBtn.BackColor = paintOn ? UiKit.Accent : Color.FromArgb(40, 45, 54); _brushPaintBtn.FlatAppearance.BorderColor = paintOn ? UiKit.Accent : Color.FromArgb(62, 70, 84); }
+        if (_brushEraseBtn is not null) { _brushEraseBtn.BackColor = eraseOn ? Color.FromArgb(150, 50, 50) : Color.FromArgb(40, 45, 54); _brushEraseBtn.FlatAppearance.BorderColor = eraseOn ? Color.FromArgb(150, 50, 50) : Color.FromArgb(62, 70, 84); }
     }
 
     /// <summary>Rascunho da grama (uma vez; precisa da cena da grama e dos blocos do cenário). null = não deu (status explica).</summary>
@@ -109,7 +160,7 @@ internal sealed partial class WorldView
         if (_element is not null) JavRecents.Add("grass", _element, SigOf(w.Picked));
         StopPlanting();
         _sceneSel = null; ShowObjPanel();
-        _brushType = type; _brushErase = false;
+        _brushType = type; _brushErase = false; _brushActive = true;
         _brushPanel.Visible = true; BrushLabels(); FitObjPanel();
         _status.Text = string.Format(Loc.T("grass.start", "Pincel de {0}: arraste no chão para pintar. Esc ou Concluir sai."), rows[w.Picked].Name);
         _gl.Focus(); _gl.Invalidate();
@@ -134,11 +185,38 @@ internal sealed partial class WorldView
     /// <summary>Sai do pincel (Esc, botão direito ou Concluir). Falso = não estava pintando.</summary>
     bool StopBrush()
     {
-        if (!BrushOn && !_brushPanel.Visible) return false;
+        if (!_brushPanel.Visible) return false;
         if (_brushDown) EndDab();
-        _brushType = -1; _brushErase = false; _brushPanel.Visible = false;
+        _brushErase = false; _brushActive = false; _brushPanel.Visible = false;   // o tipo fica lembrado para a próxima vez
         FitObjPanel(); _gl.Invalidate();
         _status.Text = Loc.T("grass.stopped", "Pincel de grama encerrado.");
+        return true;
+    }
+
+    /// <summary>Esc no painel da grama: 1º apaga o pincel/borracha, 2º fecha o painel. Falso = não estava na grama.</summary>
+    bool GrassEscape()
+    {
+        if (!_brushPanel.Visible) return false;
+        if (_brushActive) { if (_brushDown) EndDab(); _brushActive = false; BrushLabels(); _gl.Invalidate(); _status.Text = Loc.T("grass.off", "Pincel apagado (Esc de novo fecha a grama)."); return true; }
+        return StopBrush();
+    }
+
+    /// <summary>Teclas do painel da grama: B pincel, E borracha. Falso = não era do painel.</summary>
+    bool GrassKey(Keys k)
+    {
+        if (_tool != Tool.Scene || !_brushPanel.Visible) return false;
+        if (k == Keys.B) { BrushPaint(); return true; }
+        if (k == Keys.E) { BrushEraser(); return true; }
+        return false;
+    }
+
+    /// <summary>Ctrl + roda do mouse com o painel da grama aberto: muda o tamanho do pincel (a câmera não anda). Falso = não era.</summary>
+    bool GrassWheel(MouseEventArgs e)
+    {
+        if (_tool != Tool.Scene || !_brushPanel.Visible || (ModifierKeys & Keys.Control) == 0) return false;
+        int v = Math.Clamp(_brushSize.Value + Math.Sign(e.Delta) * ((ModifierKeys & Keys.Shift) != 0 ? 5 : 1), _brushSize.Minimum, _brushSize.Maximum);
+        _brushSize.Value = v;
+        _status.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), v);
         return true;
     }
 
@@ -177,7 +255,7 @@ internal sealed partial class WorldView
         if (_grassDraft is not { } gd) return;
         int n0 = gd.Scene.Grass.Count;
         var touched = _brushErase ? gd.Erase(at.X, at.Z, _brushR) : gd.Paint(at.X, at.Z, _brushR, _brushType, _brushDensity, Environment.TickCount ^ (int)(at.X * 31) ^ (int)(at.Z * 17));
-        _grass.Invalidate(touched, gd.Scene.Grass.Count != n0);
+        _grass.Invalidate(touched, gd.Scene.Grass.Count != n0, at.X, at.Z, _brushR + 1);
         _lastDab = at;
         _gl.Invalidate();
     }
@@ -251,7 +329,7 @@ internal sealed partial class WorldView
         string load = DraftLoadTest();
         if (GrassDraftOrNew() is not { } gd || _draftSrc is null) return load + " | dftgrass: sem grama";
         if (gd.FileTypes == 0) return load + " | dftgrass: mapa sem tipos";
-        _brushType = 0; _brushErase = false; _brushPanel.Visible = true; BrushLabels();
+        _brushType = 0; _brushErase = false; _brushActive = true; _brushPanel.Visible = true; BrushLabels();
         var at = new System.Numerics.Vector3(_cam.X + Forward.X * 12, 0, -(_cam.Z + Forward.Z * 12));   // perto: a grama só aparece até a distância de vista do tipo
         at.Y = _t.HeightAt(at.X, at.Z) ?? 0;
         int t0 = gd.Tufts(gd.Scene.Grass);
@@ -261,6 +339,15 @@ internal sealed partial class WorldView
         bool redo = GrassUndo(true) && gd.Tufts(gd.Scene.Grass) == t1;
         _brushErase = true; gd.BeginStroke(); Dab(at); EndDab(); _brushErase = false;
         int t2 = gd.Tufts(gd.Scene.Grass);
+        // densidade: 6 toques no mesmo lugar com 25% numa área limpa têm que dar perto de 25% das células do círculo
+        var at2 = at + new System.Numerics.Vector3(0, 0, 14);
+        _brushErase = true; gd.BeginStroke(); Dab(at2); EndDab(); _brushErase = false;
+        int d0 = gd.Tufts(gd.Scene.Grass);
+        _brushDensity = 0.25f; gd.BeginStroke(); for (int k = 0; k < 6; k++) { _lastDab = null; Dab(at2 + new System.Numerics.Vector3(k * 0.2f, 0, 0)); } EndDab(); _brushDensity = 0.5f;
+        float cells = MathF.PI * _brushR * _brushR / 0.25f;
+        float densPct = 100f * (gd.Tufts(gd.Scene.Grass) - d0) / cells;
+        GrassUndo(false); GrassUndo(false);
+        using (var gp = ToolsShot()) gp.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "dftgrass-painel.png"));
         using (var th = GrassThumb(0, 30) as Bitmap) th?.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "dftgrass-thumb.png"));
         string sum;
         try
@@ -274,6 +361,6 @@ internal sealed partial class WorldView
         for (int k = 0; k < 120 && (k < 3 || _grass.Pending); k++) CaptureFrame()?.Dispose();   // deixa a grama terminar de desenhar
         bool dirty = SceneDirty;
         _hover = new Vector3(at.X, at.Y, at.Z);   // círculo do pincel na foto
-        return load + $" | dftgrass: tufos {t0} -> {t1} ctrlz={undo} ctrly={redo} borracha -> {t2} sujo={dirty} [tipo0 tamanho={_grass.SizeOf(0):0.00} grama-ligada={_grass.Visible} areas={gd.Scene.Grass.Count} nova={gd.NewAreas.FirstOrDefault()?.X:0},{gd.NewAreas.FirstOrDefault()?.Z:0} {gd.NewAreas.FirstOrDefault()?.Cols}x{gd.NewAreas.FirstOrDefault()?.Rows} pincel={at.X:0},{at.Z:0}] plano=\"{sum}\"";
+        return load + $" | dftgrass: tufos {t0} -> {t1} ctrlz={undo} ctrly={redo} borracha -> {t2} densidade25%-com-6-toques={densPct:0}% sujo={dirty} [tipo0 tamanho={_grass.SizeOf(0):0.00} grama-ligada={_grass.Visible} areas={gd.Scene.Grass.Count} nova={gd.NewAreas.FirstOrDefault()?.X:0},{gd.NewAreas.FirstOrDefault()?.Z:0} {gd.NewAreas.FirstOrDefault()?.Cols}x{gd.NewAreas.FirstOrDefault()?.Rows} pincel={at.X:0},{at.Z:0}] plano=\"{sum}\"";
     }
 }

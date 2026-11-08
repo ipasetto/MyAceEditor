@@ -5813,5 +5813,17 @@
   "grass.bsBad": "bsdata\\{0}.dat in an unknown format; the grass was not saved.",
   "grass.bsRaw": "bsdata\\{0}.dat without compression (not supported yet); the grass was not saved.",
   "grass.noType": "New grass without a type; nothing was saved.",
-  "grass.summary": "Grass: {0} area(s) changed, {1} new, {2} tuft(s)"
+  "grass.summary": "Grass: {0} area(s) changed, {1} new, {2} tuft(s)",
+  "grass.brush": "Brush",
+  "grass.eraser": "Eraser",
+  "grass.pickType": "Choose type",
+  "grass.brushTip": "Paints the chosen type by dragging on the ground (Ctrl + mouse wheel changes the size).",
+  "grass.eraserTip": "Removes grass and flowers of any type by dragging on the ground.",
+  "grass.pickTip": "Opens the list of grasses and flowers from all maps.",
+  "grass.note2": "Each drag is one Ctrl+Z step. Saved with Save scenery (client only; the server does not change).",
+  "grass.open": "Grass and flowers: choose Brush (B) with a type, or Eraser (E). Ctrl + mouse wheel changes the size.",
+  "grass.typeOff": "Type: {0} (brush off)",
+  "grass.noTypeYet": "No type chosen: use Choose type or the Eraser.",
+  "grass.off": "Brush off (Esc again closes grass).",
+  "legend.kGrassBrush": "grass and flowers: brush · eraser · size"
 }

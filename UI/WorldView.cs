@@ -287,6 +287,9 @@ internal sealed partial class WorldView : Form
                 _status.Text = info; ShowObjPanel(); _gl.Invalidate();
                 return;
             }
+            // Objetos do mundo: clique no vazio (sem arrastar) tira a seleção e o cartão some
+            if (_tool == Tool.Scene && e.Button == MouseButtons.Left && _movingTag is null && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4 && _sceneSel is not null && !BrushOn)
+            { _sceneSel = null; ShowObjPanel(); _gl.Invalidate(); return; }
             if (_movingTag is null && e.Button == MouseButtons.Left && Math.Abs(e.X - _down.X) <= 4 && Math.Abs(e.Y - _down.Y) <= 4 && TeleportClick(e.Location)) return;
             if (_movingTag is { } tag)
             {
@@ -374,7 +377,7 @@ internal sealed partial class WorldView : Form
                 + (near is null ? "" : "   ·   " + near.Name) : "";
         };
         // roda: aproxima/afasta a câmera para onde ela olha (Shift = 4×)
-        _gl.MouseWheel += (_, e) => { _cam += Forward * (e.Delta / 120f) * 12f * ((ModifierKeys & Keys.Shift) != 0 ? 4 : 1); ClampCamera(); _gl.Invalidate(); };
+        _gl.MouseWheel += (_, e) => { if (GrassWheel(e)) return; _cam += Forward * (e.Delta / 120f) * 12f * ((ModifierKeys & Keys.Shift) != 0 ? 4 : 1); ClampCamera(); _gl.Invalidate(); };
         KeyDown += (_, e) => OnKey(e);
         KeyUp += (_, e) => _keys.Remove(e.KeyCode);
         Deactivate += (_, _) => _keys.Clear();
@@ -408,7 +411,7 @@ internal sealed partial class WorldView : Form
         if (_editor is { IsDisposed: false, Parent: not null } editor) { editor.AskCancel(); return true; }
         if (_tool == Tool.None) return ClearScreen();
         if (_tool == Tool.Scene && StopPlanting()) return true;   // 1º Esc no plantio: só para de plantar
-        if (_tool == Tool.Scene && StopBrush()) return true;      // 1º Esc no pincel de grama: só sai do pincel
+        if (_tool == Tool.Scene && GrassEscape()) return true;    // Esc na grama: apaga o pincel, depois fecha o painel
         if (_tool == Tool.Scene && _sceneSel is not null) { _sceneSel = null; ShowObjPanel(); _gl.Invalidate(); return true; }   // 1º Esc: tira a seleção
         LeaveTool();
         return true;
@@ -450,6 +453,7 @@ internal sealed partial class WorldView : Form
         if (_tool == Tool.Domains) return;   // editor de territórios: as teclas são dele (T apagava o chão do mundo)
         if (_find.Focused || ActiveControl is TextBoxBase or NumericUpDown or ListView || _editor?.ContainsFocus == true) return;   // digitando no painel: sem andar
         if (PathKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }
+        if (!e.Control && !e.Alt && GrassKey(e.KeyCode)) { e.Handled = e.SuppressKeyPress = true; return; }   // grama: B pincel, E borracha
         if (e.Control)
         {
             switch (e.KeyCode)
@@ -490,7 +494,7 @@ internal sealed partial class WorldView : Form
             case Keys.M: ShowMap(); return;
             case Keys.H or Keys.F1: ToggleLegend(); return;
             case Keys.T: _terrain.Visible = !_terrain.Visible; _gl.Invalidate(); return;   // ver por dentro de cavernas
-            case Keys.B: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // esconde construções (pontos dentro de cidades)
+            case Keys.C: _showBuildings = !_showBuildings; _gl.Invalidate(); return;     // C esconde construções (era B; B virou o pincel, usuário 08/11)
             case Keys.G: _grassBtn.Checked = !_grassBtn.Checked; return;    // esconde a grama (botão Grama de cima acompanha)
             case Keys.P:   // caminhos de patrulha (path.sev) perto da câmera
                 _allPaths = !_allPaths; _syncPathsBtn?.Invoke(); _gl.Invalidate();
@@ -1339,7 +1343,8 @@ internal sealed partial class WorldView : Form
         {
             new(K("legend.gView", "Visão"), Header: true),
             new(K("legend.kTerrain", "esconder o terreno (ver cavernas)"), Keys: new[] { "T" }),
-            new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "B" }),
+            new(K("legend.kBuildings", "esconder as construções"), Keys: new[] { "C" }),
+            new(K("legend.kGrassBrush", "grama e flores: pincel · borracha · tamanho"), Keys: new[] { "B", "E", "Ctrl+roda" }),
             new(K("legend.kGrass", "esconder a grama"), Keys: new[] { "G" }),
             new(K("legend.kPaths", "caminhos de patrulha (todos / só o do ponto)"), Keys: new[] { "P" }),
             new(K("legend.kFog", "neblina do jogo / neblina longe"), Keys: new[] { "N" }),

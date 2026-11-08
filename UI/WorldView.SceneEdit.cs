@@ -163,8 +163,11 @@ internal sealed partial class WorldView
     /// <summary>Mostra/esconde o painel do objeto escolhido (com as coordenadas atuais).</summary>
     void ShowObjPanel()
     {
+        // objeto do rascunho que não existe mais (desfeito, relido): nada escolhido, o cartão some
+        if (_sceneSel is BuildingSel or ModelSel or TreeSel && SelDraft is null && _sceneSel is not BuildingSel) _sceneSel = null;
         UpdateModeButtons();
-        if (_sceneSel is null) { _objPanel.Visible = false; return; }
+        if (_sceneSel is null) { _objPanel.Visible = false; FitObjPanel(); return; }
+        if (_brushPanel.Visible) { if (_brushDown) EndDab(); _brushActive = false; _brushPanel.Visible = false; }   // escolheu um objeto: a grama fecha (um painel por vez)
         var (name, x, y, z) = _sceneSel switch
         {
             WorldScene.SceneEffect fx => (Loc.T("world.objEffect", "Efeito") + ": " + fx.Gfx, fx.X, fx.Y, fx.Z),
@@ -373,7 +376,7 @@ internal sealed partial class WorldView
 
     bool SaveScene(bool interactive = true, bool wait = false)
     {
-        if (_draft?.Dirty == true) return SaveObjects(interactive, wait);
+        if (_draft?.Dirty == true || _grassDraft?.Dirty == true) return SaveObjects(interactive, wait);   // grama só: também (antes dizia "nada a salvar")
         if (_ecw is null || _ecwPath is null) return false;
         // construções primeiro: gravam litmodels.pck + map.bht e mexem no ornamento do .ecbsd (gravado logo abaixo)
         bool built = false;

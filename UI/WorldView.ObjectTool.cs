@@ -169,6 +169,8 @@ internal sealed partial class WorldView
     /// <summary>Monta os controles novos do cartão (giro, grudar no chão, ver colisão) dentro do painel do objeto.</summary>
     void InitObjectCard()
     {
+        foreach (var n in _objXYZ) NoWheel(n);
+        NoWheel(_objYaw); NoWheel(_objScale);   // só clicar e digitar muda (a roda em cima do campo mudava o valor)
         _stickGround.Text = Loc.T("obj.stick", "Grudar no chão");
         _showCollision.Text = Loc.T("obj.showCollision", "Ver colisão");
         _showCollision.CheckedChanged += (_, _) => _gl.Invalidate();
@@ -352,9 +354,10 @@ internal sealed partial class WorldView
         try
         {
             plan = DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd);
-            if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc);   // grama e flores no mesmo salvar (tudo ou nada)
             if (_ecwPath is not null && _ecw is not null && !plan.Files.ContainsKey(_ecwPath) && _ecwSaved is not null && !_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)) plan.Files[_ecwPath] = _ecw.Write();
             if (_bsdPath is not null && _bsd is not null && !plan.Files.ContainsKey(_bsdPath) && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved)) plan.Files[_bsdPath] = (byte[])_bsd.Clone();
+            // grama e flores por último, em cima do que o cenário já mudou (efeitos, sons, objetos): tudo ou nada no mesmo salvar
+            if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -865,7 +868,7 @@ internal sealed partial class WorldView
     /// <summary>Linha com os 3 botões de modo (ícone em cima, nome embaixo); fica acima dos campos digitáveis.</summary>
     Control ObjModeRow()
     {
-        _modeRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 54, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 4), WrapContents = false };
+        _modeRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 80, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 12), WrapContents = false };   // 12 px antes dos campos
         (string Glyph, string Key, string Pt, string TipKey, string Tip)[] defs =
         {
             ("\uE7C2", "obj.modeMove", "Mover", "obj.modeMoveTip", "Setas X, Y e Z: arraste uma seta para mover nesse eixo."),
@@ -875,9 +878,9 @@ internal sealed partial class WorldView
         for (int i = 0; i < 3; i++)
         {
             var m = (ObjMode)i;
-            var b = new Button { Width = 70, Height = 46, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, Text = Loc.T(defs[i].Key, defs[i].Pt), Image = UiKit.Icon(defs[i].Glyph, Color.White, 18),
+            var b = new Button { Width = 72, Height = 62, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, Text = Loc.T(defs[i].Key, defs[i].Pt) + "\n" + "VRF"[i], Image = UiKit.Icon(defs[i].Glyph, Color.White, 18),
                 TextImageRelation = TextImageRelation.ImageAboveText, Margin = new Padding(0, 0, 3, 0), Cursor = Cursors.Hand, Font = new Font("Segoe UI", 8.5f) };
-            _toolTip.SetToolTip(b, Loc.T(defs[i].TipKey, defs[i].Tip) + "  (" + "VRF"[i] + ")");
+            _toolTip.SetToolTip(b, Loc.T(defs[i].TipKey, defs[i].Tip));
             b.Click += (_, _) => { SetObjMode(m); _gl.Focus(); };
             _modeBtns[i] = b; _modeRow.Controls.Add(b);
         }

@@ -5815,5 +5815,17 @@
   "grass.bsBad": "bsdata\\{0}.dat 格式未知；草未保存。",
   "grass.bsRaw": "bsdata\\{0}.dat 未压缩（暂不支持）；草未保存。",
   "grass.noType": "新草没有类型；没有保存任何内容。",
-  "grass.summary": "草：修改 {0} 个区域，新增 {1} 个，{2} 簇"
+  "grass.summary": "草：修改 {0} 个区域，新增 {1} 个，{2} 簇",
+  "grass.brush": "画笔",
+  "grass.eraser": "橡皮擦",
+  "grass.pickType": "选择类型",
+  "grass.brushTip": "在地面上拖动绘制所选类型（Ctrl + 鼠标滚轮改变大小）。",
+  "grass.eraserTip": "在地面上拖动擦除任何类型的草和花。",
+  "grass.pickTip": "打开所有地图的草和花列表。",
+  "grass.note2": "每次拖动是一步 Ctrl+Z。用“保存场景”保存（仅客户端；服务器不变）。",
+  "grass.open": "草和花：选择画笔 (B) 和类型，或橡皮擦 (E)。Ctrl + 鼠标滚轮改变大小。",
+  "grass.typeOff": "类型：{0}（画笔关闭）",
+  "grass.noTypeYet": "未选择类型：使用“选择类型”或橡皮擦。",
+  "grass.off": "画笔已关闭（再按 Esc 关闭草）。",
+  "legend.kGrassBrush": "草和花：画笔 · 橡皮擦 · 大小"
 }

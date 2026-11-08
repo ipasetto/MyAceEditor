@@ -71,14 +71,22 @@ internal sealed class WorldGrass : IDisposable
     }
 
     /// <summary>Refaz o desenho das áreas mexidas pelo pincel (lista mudou = refaz tudo por perto).</summary>
-    internal void Invalidate(IEnumerable<WorldScene.GrassArea> areas, bool listChanged)
+    internal void Invalidate(IEnumerable<WorldScene.GrassArea> areas, bool listChanged, float? cx = null, float? cz = null, float r = 0)
     {
         if (_scene is null) return;
         // áreas novas entram no fim e o Ctrl+Z tira do fim: só refaz as mexidas e solta as que saíram da lista
         // (antes apagava toda a grama por perto e ela demorava a voltar)
         var idx = areas.Select(a => _scene.Grass.IndexOf(a)).Where(i => i >= 0).ToHashSet();
         int n = _scene.Grass.Count;
-        foreach (var key in _pieces.Keys.Where(k => idx.Contains(k.A) || listChanged && k.A >= n).ToList())
+        // com o círculo do pincel: só os pedaços de 32×32 células que ele pega (antes refazia a área inteira e a câmera travava)
+        bool Near((int A, int X, int Y) k)
+        {
+            if (cx is not { } x || cz is not { } z || k.A < 0 || k.A >= n) return true;
+            var g = _scene.Grass[k.A]; var (ox, oz) = Origin(g); float ps = Patch * g.Cell;
+            float x0 = ox + k.X * ps, x1 = x0 + ps, z1 = oz - k.Y * ps, z0 = z1 - ps;
+            return x + r >= x0 && x - r <= x1 && z + r >= z0 && z - r <= z1;
+        }
+        foreach (var key in _pieces.Keys.Where(k => idx.Contains(k.A) && Near(k) || listChanged && k.A >= n).ToList())
         {
             var p = _pieces[key];
             if (p.Vbo != 0) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }

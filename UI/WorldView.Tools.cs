@@ -146,7 +146,7 @@ internal sealed partial class WorldView
             ("\uE7B8", "obj.pillModels", "Modelos"), ("\uE781", "obj.pillLights", "Luzes") })
         {
             bool trees = k == "obj.pillTrees", blds = k == "obj.pillBuildings", grass = k == "obj.pillGrass";
-            var b = SmallButton(g, Loc.T(k, pt), trees ? ChooseTreeToPlant : blds ? ChooseBuildingToPlace : grass ? ChooseGrassToPaint : () => { });
+            var b = SmallButton(g, Loc.T(k, pt), trees ? ChooseTreeToPlant : blds ? ChooseBuildingToPlace : grass ? OpenGrassPanel : () => { });
             if (trees) _toolTip.SetToolTip(b, Loc.T("obj.pillTreesTip", "Escolher o tipo de árvore e clicar no chão para plantar."));
             else if (blds) _toolTip.SetToolTip(b, Loc.T("obj.pillBuildingsTip", "Escolher uma construção das que estão por perto e clicar no chão para pôr uma cópia."));
             else if (grass) _toolTip.SetToolTip(b, Loc.T("obj.pillGrassTip", "Escolher a grama ou flor e pintar no chão com o pincel (Borracha apaga)."));
@@ -186,7 +186,7 @@ internal sealed partial class WorldView
     void LayoutTools()
     {
         var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, Tool.Create => _createPage, Tool.Teleports => _tpPage, Tool.Zones => _zonePage, _ => _toolMenu };
-        int body = _tool switch { Tool.Domains => 0, Tool.Scene => Math.Min(640, _gl.Height - 60), Tool.Zones => _gl.Height - 60, Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Teleports => Math.Min(_tpPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        int body = _tool switch { Tool.Domains => 0, Tool.Scene => Math.Max(200, _gl.Height - 32 - _toolHead.Height) /* até embaixo (antes 640 e rolava) */, Tool.Zones => _gl.Height - 60, Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Teleports => Math.Min(_tpPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
         foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage, _createPage, _tpPage, _zonePage }) p.Visible = !_toolsFolded && p == page;
         _zFoot.Visible = _tool == Tool.Zones && !_toolsFolded && _zDrawing == ZoneDraw.None;

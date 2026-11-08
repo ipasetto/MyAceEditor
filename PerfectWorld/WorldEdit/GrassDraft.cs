@@ -80,6 +80,9 @@ public sealed class GrassDraft(WorldScene scene, IReadOnlyList<(float X0, float 
         public Dictionary<WorldScene.GrassArea, byte[]> After = new();
         public int AreasBefore, AreasAfter;
         public readonly List<WorldScene.GrassArea> Added = new();
+        /// <summary>Células já sorteadas nesta pincelada: cada uma decide uma vez só (antes cada toque sorteava de novo e a
+        /// densidade baixa enchia tudo ao arrastar).</summary>
+        public readonly Dictionary<WorldScene.GrassArea, HashSet<int>> Seen = new();
     }
     readonly List<Stroke> _undo = new(), _redo = new();
     Stroke? _cur;
@@ -183,6 +186,11 @@ public sealed class GrassDraft(WorldScene scene, IReadOnlyList<(float X0, float 
                 float x = x0 + (col + 0.5f) * g.Cell, z = z1 - (row + 0.5f) * g.Cell;
                 if ((x - cx) * (x - cx) + (z - cz) * (z - cz) > r * r) continue;
                 int i = row * stride + (col >> 3); byte bit = (byte)(1 << (7 - (col & 7)));
+                if (on && _cur is not null)
+                {
+                    if (!_cur.Seen.TryGetValue(g, out var seen)) _cur.Seen[g] = seen = new HashSet<int>();
+                    if (!seen.Add(row * g.Cols + col)) continue;   // já sorteada nesta pincelada
+                }
                 bool isOn = (g.Bits[i] & bit) != 0;
                 if (on == isOn) continue;
                 if (on && rnd is not null && rnd.NextDouble() > density) continue;
