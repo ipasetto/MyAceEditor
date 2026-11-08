@@ -43,6 +43,53 @@ internal sealed partial class WorldView
     bool SceneDirty => _draft?.Dirty == true || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
         || _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved));
 
+    /// <summary>Um backup voltou: se tocou arquivos deste mapa (ou o pacote de construções), relê tudo do disco.</summary>
+    void OnBackupRestored(IReadOnlyCollection<string> files)
+    {
+        if (IsDisposed || _element is null) return;
+        string sep = Path.DirectorySeparatorChar.ToString();
+        string mapDir = Path.GetFullPath(Path.Combine(_element, "maps", _t.Name)) + sep;
+        bool mine = files.Any(f =>
+        {
+            var full = Path.GetFullPath(f);
+            var name = Path.GetFileName(full);
+            return full.StartsWith(mapDir, StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("litmodels.p", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("map.bht", StringComparison.OrdinalIgnoreCase) && full.Contains(sep + _t.Name + sep, StringComparison.OrdinalIgnoreCase);
+        });
+        if (!mine) return;
+        if (InvokeRequired) { BeginInvoke(ReloadFromDisk); return; }
+        ReloadFromDisk();
+    }
+
+    /// <summary>
+    /// Relê do disco o cenário (.ecwld/.ecbsd), as construções (litmodels.pck), as árvores e o rascunho dos objetos; a
+    /// seleção, a inserção e o Ctrl+Z da ferramenta saem (eram do estado de antes). Usado depois de restaurar backup.
+    /// </summary>
+    internal void ReloadFromDisk()
+    {
+        if (IsDisposed || _saving) return;
+        try
+        {
+            StopPlanting();
+            bool wasEditing = _ecw is not null;
+            _ecw = null; _ecwWhy = null; _ecwSaved = null; _bsd = null; _bsdSaved = null; _bsdPath = null;
+            if (wasEditing) LoadSceneForEdit();
+            if (_element is not null) { _buildings.Reopen(_element); _piece = -1; }
+            _trees.Reload();
+            ObjectsSaved();
+            if (_tool == Tool.Scene) DraftOpen();
+            UpdateSideState();
+            _status.Text = Loc.T("obj.reloaded", "Backup restaurado: o Mundo 3D releu os arquivos do disco.");
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            AppLog.Error("mundo 3D: reler depois do backup", ex);
+            _status.Text = Loc.T("obj.reloadFail", "O backup voltou, mas não deu para reler o mapa; feche e abra o Mundo 3D.");
+        }
+        _gl.Invalidate();
+    }
+
     /// <summary>Carrega o .ecwld (e o .ecbsd) para editar (na 1ª vez que O liga).</summary>
     void LoadSceneForEdit()
     {
@@ -91,12 +138,16 @@ internal sealed partial class WorldView
         // o painel do objeto escolhido mora na ferramenta Editar cenário do menu flutuante (WorldView.Tools.cs)
         FormClosing += (_, e) =>
         {
+            if (Headless) return;   // captura de teste: fecha sem perguntar (nada foi gravado)
             if (_saving) { e.Cancel = true; MessageBox.Show(this, Loc.T("obj.waitSave", "Espere o Salvar terminar antes de fechar."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             if (!SceneDirty) return;
             var r = MessageBox.Show(this, Loc.T("obj.askSave", "Há mudanças não salvas nos objetos do mundo (construções, modelos, efeitos, sons ou bichos). Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             e.Cancel = CancelClose(r, interactive: true);
         };
     }
+
+    /// <summary>Captura de linha de comando (--world-shot): fechar não pergunta nada e o processo termina sozinho.</summary>
+    internal static bool Headless;
 
     (EcwldFile.Kind Kind, uint Id)? SelKey => _sceneSel switch
     {

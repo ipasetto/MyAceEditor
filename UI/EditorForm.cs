@@ -5652,7 +5652,7 @@ public sealed class EditorForm : Form
         string list = string.Join(Environment.NewLine, set.Files.Select(f => "• " + f.Original));
         var ask = string.Format(Loc.T("bak.setAsk", "Voltar estes arquivos como estavam antes do Salvar de {0} ({1:dd/MM/yyyy HH:mm})?"), BackupSets.ToolName(set.Tool), set.When)
             + Environment.NewLine + Environment.NewLine + list + Environment.NewLine + Environment.NewLine
-            + Loc.T("bak.setClose", "Feche o Mundo 3D e o jogo antes; o servidor precisa receber os arquivos de novo depois.");
+            + Loc.T("bak.setReload", "Feche o jogo antes. O Mundo 3D aberto relê os arquivos sozinho (mudanças não salvas nele se perdem); o servidor precisa receber os arquivos de novo depois.");
         if (MessageBox.Show(this, ask, Loc.T("menu.restore", "&Restaurar backup").Replace("&", ""), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         var why = BackupSets.Restore(set);
         MessageBox.Show(this, why ?? Loc.T("bak.setDone", "Pronto: todos os arquivos voltaram."), Loc.T("menu.restore", "&Restaurar backup").Replace("&", ""), MessageBoxButtons.OK, why is null ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
@@ -5688,6 +5688,7 @@ public sealed class EditorForm : Form
         {
             AtomicFileSave.Write(target, BackupStore.Read(bak));   // guarda o atual no armazém antes
             AppLog.Info($"backup restaurado: {bak} -> {target}");
+            BackupSets.NotifyRestored([target]);   // janelas abertas (Mundo 3D) releem do disco
             if (isEl) LoadElements(target);
             else if (isTasks) LoadTasks(target);
             else if (string.Equals(target, _aiView?.FilePath, StringComparison.OrdinalIgnoreCase)) _aiView?.LoadFile(target);

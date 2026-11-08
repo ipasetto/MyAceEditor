@@ -18,6 +18,17 @@ public sealed record BackupSet(string Tool, string Map, DateTime When, List<Back
 public static class BackupSets
 {
     internal static string? FolderOverride;   // só teste
+
+    /// <summary>
+    /// Avisa que arquivos voltaram de um backup (conjunto ou arquivo único), para as janelas abertas relerem do disco
+    /// (pedido do usuário 08/11: o Mundo 3D seguia mostrando a árvore plantada até fechar e abrir). Vem na thread da tela.
+    /// </summary>
+    public static event Action<IReadOnlyCollection<string>>? Restored;
+    public static void NotifyRestored(IReadOnlyCollection<string> files)
+    {
+        try { Restored?.Invoke(files); }
+        catch (Exception ex) { AppLog.Error("backup: recarregar depois de restaurar", ex); }
+    }
     public static string Folder => FolderOverride ?? Path.Combine(BackupStore.Root, "conjuntos");
     const int Keep = 40;
     static readonly JsonSerializerOptions Opt = new() { WriteIndented = true };
@@ -43,14 +54,14 @@ public static class BackupSets
         }
     }
 
-    /// <summary>Conjuntos gravados, do mais novo para o mais velho (arquivo ilegível fica de fora).</summary>
+    /// <summary>Conjuntos gravados, do mais novo para o mais velho (arquivo ilegível ou com cópia que já saiu fica de fora).</summary>
     public static List<BackupSet> List()
     {
         var list = new List<BackupSet>();
         if (!Directory.Exists(Folder)) return list;
         foreach (var f in Directory.GetFiles(Folder, "*.json").OrderByDescending(f => f, StringComparer.Ordinal))
         {
-            try { if (JsonSerializer.Deserialize<BackupSet>(File.ReadAllText(f)) is { Files.Count: > 0 } s) list.Add(s); }
+            try { if (JsonSerializer.Deserialize<BackupSet>(File.ReadAllText(f)) is { Files.Count: > 0 } s && s.Files.All(e => File.Exists(e.Backup))) list.Add(s); }   // cópia já podada (o armazém guarda 5 por arquivo): fica fora do menu
             catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { AppLog.Error("backup: ler " + f, ex); }
         }
         return list;
@@ -103,6 +114,8 @@ public static class BackupSets
                 failed.Add(Path.GetFileName(main));
             }
         }
+        var back = set.Files.Select(f => f.Original).Where(f => !failed.Contains(Path.GetFileName(f))).ToList();
+        if (back.Count > 0) NotifyRestored(back);
         return failed.Count == 0 ? null : string.Format(Loc.T("bak.setFailed", "Não deu para restaurar: {0} (aberto em outro programa?). Os outros arquivos voltaram."), string.Join(", ", failed));
     }
 

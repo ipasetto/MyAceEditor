@@ -14,7 +14,7 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        docs/superpowers/specs/2026-11-07-objetos-do-mundo-design.md
        [x] etapa 1 no codigo (07/11): mover, girar e apagar construcoes e modelos, Salvar tudo ou nada; falta testar no jogo
        [x] etapa 2a (07/11): Ctrl+C/Ctrl+V de construcoes e modelos + tamanho da construcao; falta testar no jogo
-       [x] 3 arvores (08/11): mover, apagar, copiar/colar, plantar pelos tipos do mapa; so .ecwld (sem colisao no servidor); falta testar no jogo
+       [x] 3 arvores (08/11): mover, apagar, copiar/colar, plantar pelos tipos do mapa; so .ecwld (sem colisao no servidor); falta testar no jogo; um por clique, recarrega apos backup, caixa da arvore inteira (08/11)
        [ ] 2b catalogo com miniaturas | [ ] arvores de tipos que o mapa nao usa | [ ] 4 luzes | [ ] 5 pincel de grama
        Sombra no chao = pintada no mapa de luz do terreno (.t2lm): refazer junto com a ferramenta de terreno
        [ ] terreno: pincel de altura (puxar, empurrar, alisar)

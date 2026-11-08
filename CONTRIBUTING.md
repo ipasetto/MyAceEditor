@@ -56,6 +56,11 @@ Rode o modo do formato que você mexeu antes de abrir o PR, e cole o resultado n
 6. **Tratamento de erro em tudo.** Validar antes de agir; arquivo, rede e servidor sempre com `try/catch`; mensagem
    curta e simples para o usuário (via `Loc.T`) e o detalhe técnico no log; nunca deixar arquivo meio gravado nem
    operação meio enviada; nada falha em silêncio.
+7. **Toda ferramenta tem o pacote completo.** Confirmação de abandonar a edição não salva (Esc, voltar, fechar);
+   Ctrl+C/Ctrl+V com prévia seguindo o mouse e um objeto por clique; botão de fechar clicável; Esc cancela o passo e
+   depois sai; Ctrl+Z/Ctrl+Y; tratamento de erro; Salvar tudo-ou-nada com confirmação; **backup por ferramenta**
+   (`BackupSets`: um Salvar volta inteiro pelo Restaurar backup); recarrega sozinha depois de um backup restaurado
+   (`BackupSets.Restored`); testes de linha de comando não mostram perguntas e encerram o processo.
 
 ## 4. Base de conhecimento (KB)
 

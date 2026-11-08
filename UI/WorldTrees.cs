@@ -12,7 +12,7 @@ namespace MyAceEditor.UI;
 internal sealed class WorldTrees : IDisposable
 {
     sealed record Part(int Vbo, int Ibo, int Count, int Tex);
-    sealed record Kind(Part? Wood, Part? Fronds, Part? Leaves, LeafSet? Set, float Radius);
+    sealed record Kind(Part? Wood, Part? Fronds, Part? Leaves, LeafSet? Set, float Radius, Vector3 BoxMin = default, Vector3 BoxMax = default);
 
     /// <summary>Folhas de um tipo: centro + canto de cada cartão; os vértices são refeitos quando a câmera gira (viram para ela).</summary>
     internal sealed class LeafSet
@@ -90,6 +90,37 @@ internal sealed class WorldTrees : IDisposable
         if (_ecwld is null) return false;
         try { _scene = new WorldScene(_ecwld); Index(); return true; }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("árvores: reler o .ecwld", ex); return false; }
+    }
+
+    /// <summary>Caixa dos pontos sem as pontas soltas: 2% mais baixos/altos de cada eixo ficam de fora (folhas espalhadas).</summary>
+    static (Vector3 Min, Vector3 Max) TrimmedBox(List<Vector3> pts)
+    {
+        if (pts.Count == 0) return (new Vector3(-1, 0, -1), new Vector3(1, 2, 1));
+        float Cut(Func<Vector3, float> axis, float q)
+        {
+            var a = pts.Select(axis).OrderBy(x => x).ToArray();
+            return a[Math.Clamp((int)(q * (a.Length - 1)), 0, a.Length - 1)];
+        }
+        var mn = new Vector3(Cut(p => p.X, 0.02f), MathF.Min(0, Cut(p => p.Y, 0)), Cut(p => p.Z, 0.02f));
+        var mx = new Vector3(Cut(p => p.X, 0.98f), Cut(p => p.Y, 0.99f), Cut(p => p.Z, 0.98f));
+        return (mn, mx);
+    }
+
+    /// <summary>
+    /// Caixa da árvore do tipo em volta do pé, no espaço do jogo (Z do jogo = −Z do desenho); null = tipo ainda não gerado.
+    /// </summary>
+    internal (System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)? BoxOf(int type)
+    {
+        if (!_kinds.TryGetValue(type, out var k) || k is null || k.BoxMax == k.BoxMin) return null;
+        return (new System.Numerics.Vector3(k.BoxMin.X, k.BoxMin.Y, -k.BoxMax.Z), new System.Numerics.Vector3(k.BoxMax.X, k.BoxMax.Y, -k.BoxMin.Z));
+    }
+
+    /// <summary>Gera o tipo agora (prévia da janela de escolher precisa da caixa antes de pôr a câmera); falso = não deu.</summary>
+    internal bool Prepare(int type)
+    {
+        if (_scene is null || type < 0 || type >= _scene.TreeTypes.Count) return false;
+        if (!_kinds.TryGetValue(type, out var k)) _kinds[type] = k = Build(type);
+        return k is not null;
     }
 
     /// <summary>Raio da árvore do tipo (0 = ainda não gerado).</summary>
@@ -170,7 +201,12 @@ internal sealed class WorldTrees : IDisposable
                 set.Fill(Vector3.UnitX, Vector3.UnitY);
                 leaves = Upload(set.Buf, li, comp, BufferUsageHint.DynamicDraw);
             }
-            return new Kind(wood, fronds, leaves, set, radius);
+            // caixa da árvore (contorno da seleção): pontos do tronco, frondes e folhas sem as pontas soltas (2% de cada lado)
+            var pts = new List<Vector3>(m.Pos.Count + m.FrondPos.Count + m.Leaves.Count);
+            pts.AddRange(m.Pos); pts.AddRange(m.FrondPos);
+            foreach (var lf in m.Leaves) pts.Add(lf.Pos);
+            var (bmin, bmax) = TrimmedBox(pts);
+            return new Kind(wood, fronds, leaves, set, radius, bmin, bmax);
         }
         catch (Exception ex) { AppLog.Info($"árvore {type}: {ex.Message}"); return null; }
     }

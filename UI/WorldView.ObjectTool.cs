@@ -37,7 +37,7 @@ internal sealed partial class WorldView
         try
         {
             _draftSrc ??= new DraftSources(_element, _t.Name, ServerConfigDir, _t.PieceAt, _t.Rows * _t.Cols);
-            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); _buildings.Extras = DraftExtras; _trees.Overridden = i => _draft?.Find($"tree:{i}") is { Changed: true }; _trees.Extras = DraftTreeExtras; }
+            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { DraftTreesCache(); if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); _buildings.Extras = DraftExtras; _trees.Overridden = _treeMoved.Contains; _trees.Extras = DraftTreeExtras; }
             DraftWant(PiecesAroundCamera());
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -269,6 +269,11 @@ internal sealed partial class WorldView
         void Box(DraftObject o, Color c, float w)
         {
             var (mn, mx) = DraftChecks.WorldBox(o);
+            if (o.Kind == ObjKind.Tree)   // árvore: a caixa envolve tronco e copa (antes ficava só no pé)
+            {
+                if (_trees.BoxOf(o.Type) is { } tb) { mn = o.Now.Pos + tb.Min; mx = o.Now.Pos + tb.Max; }
+                else { var r = new System.Numerics.Vector3(3, 0, 3); mn = o.Now.Pos - r; mx = o.Now.Pos + r + new System.Numerics.Vector3(0, 12, 0); }
+            }
             if (mn == mx) { mn -= new System.Numerics.Vector3(1); mx += new System.Numerics.Vector3(1); }
             GL.LineWidth(w); GL.Color3(c);
             GL.Begin(PrimitiveType.Lines);
@@ -402,6 +407,7 @@ internal sealed partial class WorldView
     {
         _sceneSel = null; ShowObjPanel();
         _draftSrc?.Dispose(); _draftSrc = null; _draft = null; _draftAsked.Clear();
+        _treeMoved.Clear(); _treeDrawn.Clear();
         // as cópias do Ctrl+Z do cenário são de ANTES do salvar (traziam de volta construção apagada, modelo...): saem
         _sUndo.Clear(); _sRedo.Clear();
     }
@@ -507,10 +513,24 @@ internal sealed partial class WorldView
         bool ghost = Placing && DraftTreeExtras().Any(x => MathF.Abs(x.Pos.X - _hover.Value.X) < 0.01f);
         _draft.Apply(new MoveOp(t.Key, t.Now));   // passo vazio não entra; o Ctrl+Z abaixo desfaz o plantio anterior
         bool undoStops = ObjectUndo(false) && !Placing;
+        // um por vez: o clique de inserir põe um objeto, sai da inserção e deixa o novo escolhido (plantio e Ctrl+V)
+        _placeSrc = null; _plantType = t.Type;
+        PlaceClick(t.Now.Pos + new System.Numerics.Vector3(4, 0, -4));
+        bool onePlant = !Placing && SelDraft is { CopyOf: "planted" };
+        _objClip = new TreeSel(t.Key); PasteObject();
+        PlaceClick(t.Now.Pos + new System.Numerics.Vector3(-4, 0, -4));
+        bool onePaste = !Placing && SelDraft is { CopyOf: not null } && SelDraft.Key == "new:" + _newSeq;
+        // caixa da árvore inteira (tronco e copa), não só o pé
+        var tbox = _trees.BoxOf(t.Type);
+        string boxTxt = tbox is { } bb ? $"{bb.Max.X - bb.Min.X:0}x{bb.Max.Y - bb.Min.Y:0}x{bb.Max.Z - bb.Min.Z:0}" : "nenhuma";
         string sum = "";
-        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (InvalidDataException ex) { sum = ex.Message; }
-        _sceneSel = new TreeSel(t.Key); ShowObjPanel();
-        return load + $" | dfttree: previa-jav={thumbOk} copa={canopy} (raio {sz:0.0}) ctrlv-previa={ghost} ctrlz-encerra={undoStops} | {System.IO.Path.GetFileName(t.Source)} seta-x={moved} giro-recusado={turnRefused} apagou={del} ctrlz={undo} colou={copyOk} plantou={planted?.Length > 0} esc-para-plantio={escStops} plano=\"{sum}\"";
+        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft!, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (InvalidDataException ex) { sum = ex.Message; }
+        // backup restaurado com a ferramenta aberta: relê do disco e as plantadas (não salvas) somem sem fechar a janela
+        int addedBefore = _draft!.Pieces.Values.Sum(p => p.Added.Count(a => !a.Deleted));
+        OnBackupRestored([System.IO.Path.Combine(_element!, "maps", _t.Name, _t.Name + ".ecwld")]);
+        int addedAfter = _draft?.Pieces.Values.Sum(p => p.Added.Count(a => !a.Deleted)) ?? 0;
+        bool reloaded = addedBefore > 0 && addedAfter == 0 && _sceneSel is null && _status.Text.Length > 0;
+        return load + $" | dfttree: previa-jav={thumbOk} copa={canopy} (raio {sz:0.0}) ctrlv-previa={ghost} ctrlz-encerra={undoStops} um-por-vez plantio={onePlant} ctrlv={onePaste} caixa={boxTxt} backup-recarrega={reloaded} ({addedBefore}->{addedAfter}) | {System.IO.Path.GetFileName(t.Source)} seta-x={moved} giro-recusado={turnRefused} apagou={del} ctrlz={undo} colou={copyOk} plantou={planted?.Length > 0} esc-para-plantio={escStops} plano=\"{sum}\"";
     }
 
     /// <summary>Leva a câmera até o objeto (conferência "levar até ele").</summary>
@@ -747,18 +767,29 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Contorno amarelo da malha da construção escolhida (linhas dos triângulos), como nos programas de modelagem.</summary>
+    int _selList; float[]? _selListPos;   // contorno da construção escolhida numa lista do OpenGL, feita uma vez por malha
+
     void DrawSelectedMesh()
     {
         if (_tool != Tool.Scene || SelDraft is not { Kind: ObjKind.Building, Deleted: false } o || _buildings.MeshOf(o.Key) is not { } m) return;
+        // antes mandava todos os triângulos (dezenas de milhares) a cada quadro: a câmera travava com construção escolhida
+        if (!ReferenceEquals(_selListPos, m.Pos))
+        {
+            if (_selList != 0) GL.DeleteLists(_selList, 1);
+            _selList = GL.GenLists(1); _selListPos = m.Pos;
+            GL.NewList(_selList, ListMode.Compile);
+            GL.Begin(PrimitiveType.Triangles);
+            for (int i = 0; i + 2 < m.Tri.Length; i++) { int v = m.Tri[i] * 3; if (v + 2 < m.Pos.Length) GL.Vertex3(m.Pos[v], m.Pos[v + 1], m.Pos[v + 2]); else GL.Vertex3(0f, 0f, 0f); }
+            GL.End();
+            GL.EndList();
+        }
         GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.DepthTest);
         GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
         GL.Color4(1f, 0.85f, 0.1f, 0.55f);
         GL.PushMatrix();
         var w = m.World; GL.MultMatrix(ref w);
-        GL.Begin(PrimitiveType.Triangles);
-        for (int i = 0; i + 2 < m.Tri.Length; i++) { int v = m.Tri[i] * 3; if (v + 2 < m.Pos.Length) GL.Vertex3(m.Pos[v], m.Pos[v + 1], m.Pos[v + 2]); else GL.Vertex3(0f, 0f, 0f); }
-        GL.End();
+        GL.CallList(_selList);
         GL.PopMatrix();
         GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
         GL.Disable(EnableCap.Blend); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
@@ -804,22 +835,38 @@ internal sealed partial class WorldView
         return src.Now with { Pos = pos };
     }
 
-    /// <summary>Ctrl+V: entra na inserção do objeto copiado; a prévia segue o mouse e cada clique fixa uma cópia.</summary>
+    /// <summary>Ctrl+V: entra na inserção do objeto copiado; a prévia segue o mouse e um clique fixa a cópia e sai.</summary>
     void StartPlacing(DraftObject src)
     {
         _plantType = -1; _placeSrc = src;
-        _status.Text = string.Format(Loc.T("obj.placing", "Inserindo {0}: a prévia segue o mouse; clique para fixar. Esc ou botão direito para parar."), System.IO.Path.GetFileName(src.Source));
+        _status.Text = string.Format(Loc.T("obj.placingOne", "Inserindo {0}: a prévia segue o mouse; clique onde ele vai ficar. Esc ou botão direito cancela."), System.IO.Path.GetFileName(src.Source));
         _gl.Invalidate();
+    }
+
+    // árvores do arquivo mexidas/apagadas (saem do laço normal) e as que o desenho põe no lugar novo; refeitas só quando o
+    // rascunho muda (antes cada quadro procurava "tree:N" de cada árvore e varria o rascunho: lixo de memória e travadinhas)
+    readonly HashSet<int> _treeMoved = new();
+    readonly List<(int Type, Vector3 Pos)> _treeDrawn = new();
+
+    void DraftTreesCache()
+    {
+        _treeMoved.Clear(); _treeDrawn.Clear();
+        if (_draft is null) return;
+        foreach (var p in _draft.Pieces.Values)
+            foreach (var o in p.Objects.Concat(p.Added))
+            {
+                if (o.Kind != ObjKind.Tree) continue;
+                if (o.Changed && o.Key.StartsWith("tree:", StringComparison.Ordinal) && int.TryParse(o.Key.AsSpan(5), out int i)) _treeMoved.Add(i);
+                if (!o.Deleted && (o.CopyOf is not null || o.Changed)) _treeDrawn.Add((o.Type, V3(o.Now.Pos)));
+            }
     }
 
     /// <summary>Árvores mexidas (fora do laço normal) e plantadas, para o desenho.</summary>
     IEnumerable<(int Type, Vector3 Pos)> DraftTreeExtras()
     {
         if (_draft is null) yield break;
-        foreach (var p in _draft.Pieces.Values)
-            foreach (var o in p.Objects.Concat(p.Added))
-                if (o.Kind == ObjKind.Tree && !o.Deleted && (o.CopyOf is not null || o.Changed)) yield return (o.Type, V3(o.Now.Pos));
-        if (_hover is { } hv)
+        foreach (var t in _treeDrawn) yield return t;
+        if (Placing && _hover is { } hv)
         {
             int ghost = _plantType >= 0 ? _plantType : _placeSrc is { Kind: ObjKind.Tree } ts ? ts.Type : -1;
             if (ghost >= 0) yield return (ghost, new Vector3(hv.X, _t.HeightAt(hv.X, hv.Z) ?? hv.Y, hv.Z));   // prévia do plantio
@@ -856,7 +903,7 @@ internal sealed partial class WorldView
         using var w = new ItemSearchWindow(rows, askQuantity: false, model: TreeThumb) { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
         _placeSrc = null; _plantType = w.Picked;
-        _status.Text = string.Format(Loc.T("obj.planting", "Plantando {0}: clique no chão para cada árvore. Esc ou botão direito para parar."), rows[_plantType].Name);
+        _status.Text = string.Format(Loc.T("obj.plantingOne", "Plantando {0}: clique no chão onde a árvore vai ficar. Esc ou botão direito cancela."), rows[_plantType].Name);
         _gl.Focus();
     }
 
@@ -882,10 +929,22 @@ internal sealed partial class WorldView
             GL.Viewport(0, 0, Size, Size);
             GL.ClearColor(0.12f, 0.13f, 0.16f, 1f); GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.Enable(EnableCap.DepthTest); GL.Disable(EnableCap.Fog); GL.Disable(EnableCap.Lighting);
+            // enquadra pela caixa da árvore (tronco e copa sem as folhas soltas): a maior medida cabe na foto com folga.
+            // Antes era pelo raio do tipo, que conta folhas espalhadas: umas ficavam perto demais, outras longe.
+            _trees.Prepare(type);
             float r = MathF.Max(2, _trees.SizeOf(type) is var s && s > 0 ? s : 8);
-            var target = new Vector3(0, r * 0.32f, 0);   // o raio do tipo inclui as folhas espalhadas: a árvore visível é menor
+            Vector3 target; float fit;
+            if (_trees.BoxOf(type) is { } bx)
+            {
+                var c = (bx.Min + bx.Max) / 2; var ext = bx.Max - bx.Min;
+                target = new Vector3(c.X, c.Y, -c.Z);
+                fit = MathF.Max(ext.Y, MathF.Max(ext.X, ext.Z)) * 0.5f;   // meia medida maior
+            }
+            else { target = new Vector3(0, r * 0.32f, 0); fit = r * 0.45f; }
             float a = MathHelper.DegreesToRadians(yaw);
-            var eye = target + new Vector3(MathF.Sin(a), 0.2f, MathF.Cos(a)) * r * 1.15f;
+            float dist = MathF.Max(1.5f, fit / MathF.Tan(MathHelper.DegreesToRadians(20)) * 1.45f);   // 40° de abertura, folga para a copa e o pé
+            r = MathF.Max(r, dist + fit);
+            var eye = target + new Vector3(MathF.Sin(a), 0.2f, MathF.Cos(a)).Normalized() * dist;
             var proj = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(40), 1, 0.5f, r * 10);
             var view = Matrix4.LookAt(eye, target, Vector3.UnitY);
             GL.MatrixMode(MatrixMode.Projection); GL.PushMatrix(); GL.LoadMatrix(ref proj);
@@ -916,6 +975,23 @@ internal sealed partial class WorldView
             }
             catch (Exception ex) { AppLog.Error("objetos: limpar a prévia", ex); }
         }
+    }
+
+    /// <summary>
+    /// Um clique de inserção: põe um objeto (árvore plantada ou cópia do Ctrl+V), sai da inserção e deixa o novo escolhido
+    /// para ajustar. Um por vez (pedido do usuário 08/11: antes seguia pondo até o Esc). Se não deu, continua inserindo.
+    /// </summary>
+    internal string? PlaceClick(System.Numerics.Vector3 ground)
+    {
+        string? msg = _plantType >= 0 ? PlantAt(ground, _plantType, select: true)
+            : _placeSrc is { Kind: ObjKind.Tree } ts ? PlantAt(ground, ts.Type, select: true)
+            : PasteAt(ground);
+        if (SelDraft?.Key == "new:" + _newSeq && SelDraft.CopyOf is not null)
+        {
+            _plantType = -1; _placeSrc = null;
+            _status.Text = msg; _gl.Invalidate();
+        }
+        return msg;
     }
 
     /// <summary>Sai do plantio (Esc ou botão direito). Falso = não estava plantando.</summary>

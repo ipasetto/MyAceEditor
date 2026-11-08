@@ -396,7 +396,7 @@ internal static class Program
             File.WriteAllText(args[2], $"quests {total}, assistente completo {strict}, abrem agora {opened}, sem mudar nada igual {noChange}, só o ouro muda {onlyGold}, volta igual {back}\n{first}\n");
             return;
         }
-        if (args.Length >= 4 && args[0] == "--objects-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.Run(args[1], args[2], args[3]); return; }   // <element> <config> <saída>: objetos do mundo sem janela
+        if (args.Length >= 4 && args[0] == "--objects-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.Run(args[1], args[2], args[3]); Environment.Exit(Environment.ExitCode); }   // <element> <config> <saída>: objetos do mundo sem janela
         if (args.Length >= 4 && args[0] == "--zone-test") { ZoneSelfTest.Run(args[1], args[2], args[3]); return; }   // <maps> <config> <saída>: editor de zonas sem janela
         if (args.Length >= 3 && args[0] == "--quest-preview-shot")   // <png> <pasta element>: janela de quests do jogo com dados de exemplo
         {
@@ -1305,7 +1305,14 @@ internal static class Program
             File.WriteAllText("server-diff.txt", $"{diff.Count} diferentes em {sw.Elapsed.TotalSeconds:0.0} s\n" + string.Join("\n", diff.Select(d => d.Rel)));
             return;
         }
-        if (args.Length >= 4 && args[0] == "--world-shot") { WorldShot(args[1], args[2], args.Skip(3).ToArray()); return; }   // <pasta do mapa> <saída> x,y,z,yaw,pitch[,nome] ...
+        if (args.Length >= 4 && args[0] == "--world-shot")
+        {
+            // termina o processo no fim (antes ficava aberto em segundo plano esperando uma pergunta ou o carregamento)
+            MyAceEditor.UI.WorldView.Headless = true;
+            try { WorldShot(args[1], args[2], args.Skip(3).ToArray()); }
+            catch (Exception ex) { File.AppendAllText(Path.Combine(args[2], "world-shot.txt"), "ERRO: " + ex + Environment.NewLine); Environment.ExitCode = 2; }
+            Environment.Exit(Environment.ExitCode);
+        }   // <pasta do mapa> <saída> x,y,z,yaw,pitch[,nome] ...
         if (args.Length >= 3 && args[0] == "--client-check")   // <pasta element> <saída>: nomes das instâncias, músicas do precinct.clt e leitura do mp3 (sem tocar)
         {
             var sb = new StringBuilder();

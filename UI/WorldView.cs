@@ -235,21 +235,11 @@ internal sealed partial class WorldView : Form
             if (e.Button == MouseButtons.Left && _placing is { } place && Ray(e.Location) is { } ground) { place(ground); return; }   // ferramenta Criar
             if (PathMouseDown(e)) return;   // ferramenta Caminhos: pontos do caminho / desenho
             if (e.Button == MouseButtons.Left && _pickArea is not null && Ray(e.Location) is { } a) { _areaA = _areaB = a; return; }   // marcar área: arrastar no chão
-            // plantio de árvores: esquerdo planta onde o mouse aponta no chão, direito para
-            if (_tool == Tool.Scene && _plantType >= 0)
+            // inserção (plantio ou Ctrl+V): esquerdo põe UM objeto onde o mouse aponta no chão e sai; direito cancela
+            if (_tool == Tool.Scene && Placing)
             {
                 if (e.Button == MouseButtons.Right) { StopPlanting(); return; }
-                if (e.Button == MouseButtons.Left && Ray(e.Location) is { } pg) { PlantAt(new System.Numerics.Vector3(pg.X, pg.Y, pg.Z), _plantType, select: false); return; }
-            }
-            if (_tool == Tool.Scene && _placeSrc is not null)
-            {
-                if (e.Button == MouseButtons.Right) { StopPlanting(); return; }
-                if (e.Button == MouseButtons.Left && Ray(e.Location) is { } cg)
-                {
-                    var g3 = new System.Numerics.Vector3(cg.X, cg.Y, cg.Z);
-                    if (_placeSrc.Kind == ObjKind.Tree) PlantAt(g3, _placeSrc.Type, select: false); else PasteAt(g3);
-                    return;
-                }
+                if (e.Button == MouseButtons.Left && Ray(e.Location) is { } pg) { PlaceClick(new System.Numerics.Vector3(pg.X, pg.Y, pg.Z)); return; }
             }
             // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
             if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
@@ -370,7 +360,7 @@ internal sealed partial class WorldView : Form
             }
             _hover = Ray(e.Location);
             if (Placing) _gl.Invalidate();   // prévia de inserir segue o mouse
-            var near = PickScreen(e.Location);
+            var near = _tool == Tool.Scene ? null : PickScreen(e.Location);   // Objetos do mundo: NPCs não se escolhem; não procura a cada movimento
             if (!_pickShown && _gl.Cursor != GameCursor(near)) _gl.Cursor = GameCursor(near);
             // o jogo mostra ((int)x + 4000) / 10 e ((int)z + 5500) / 10 (CECUIHelper::GetShowPos)
             _status.Text = _hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), h.X, h.Y, h.Z)
@@ -386,10 +376,13 @@ internal sealed partial class WorldView : Form
         _tick.Tick += (_, _) => Step();
         _tick.Start();
         InitSceneEdit();
+        BackupSets.Restored += OnBackupRestored;
         InitToolMenu();    // menu flutuante de ferramentas por último: usa a grama e os outros desenhos já criados
         FormClosed += (_, _) =>
         {
+            BackupSets.Restored -= OnBackupRestored;
             _tick.Dispose(); _load.Dispose(); DraftDispose(); _gl.MakeCurrent();
+            if (_selList != 0) GL.DeleteLists(_selList, 1);
             _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _grass.Dispose(); _sky.Dispose(); _worldMap?.Dispose(); _instMap?.Dispose();
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
@@ -870,7 +863,7 @@ internal sealed partial class WorldView : Form
                     hitDist = dist;
                     hitSel = o.Kind == ObjKind.Tree ? new TreeSel(o.Key) : new ModelSel(o.Key);
                     hitInfo = o.Kind == ObjKind.Tree
-                        ? string.Format(Loc.T("obj.treeInfo", "Árvore: {0} · X {1:0} Z {2:0} altura {3:0} (mexer em árvore chega numa próxima etapa)"), Path.GetFileName(o.Source), o.Now.Pos.X, o.Now.Pos.Z, o.Now.Pos.Y)
+                        ? string.Format(Loc.T("obj.treeInfo2", "Árvore: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(o.Source), o.Now.Pos.X, o.Now.Pos.Z, o.Now.Pos.Y)
                         : string.Format(Loc.T("obj.modelInfo", "Modelo: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(o.Source), o.Now.Pos.X, o.Now.Pos.Z, o.Now.Pos.Y);
                 }
             }

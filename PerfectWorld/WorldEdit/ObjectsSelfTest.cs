@@ -329,13 +329,14 @@ public static class ObjectsSelfTest
             try { anyErr = DraftSaver.Write(fake, tsrc); } catch (Exception ex) { anyErr = new SaveResult(SaveKind.Failed, "escapou: " + ex.GetType().Name); } finally { DraftSaver.FailWith = null; }
             r.Check("falha-qualquer-erro-volta-tudo", anyErr.Kind == SaveKind.RolledBack && targets.Select(Hash).SequenceEqual(before), anyErr.Message);
             BackupSets.FolderOverride = Path.Combine(temp, "conjuntos");
+            int keep0 = BackupStore.Keep; BackupStore.Keep = 50;   // o teste grava várias vezes no mesmo segundo: com 5 a cópia do conjunto saía
             var ok = DraftSaver.Write(fake, tsrc);
             bool inPck; using (var reread = new PckArchive(pck)) inPck = reread.Find(@"litmodels\teste\1\x.bmd") is not null;
             r.Check("grava-tudo", ok.Kind == SaveKind.Both && Hash(ecwT) != before[1] && inPck, ok.Message);
             var set = BackupSets.List().FirstOrDefault(s => s.Map == "teste");
             string? why = set is null ? "conjunto não gravado" : BackupSets.Restore(set);
             r.Check("conjunto-restaura-tudo", why is null && targets.Select(Hash).SequenceEqual(before), (why ?? "") + $" {set?.Files.Count} arquivos no conjunto");
-            BackupSets.FolderOverride = null;
+            BackupSets.FolderOverride = null; BackupStore.Keep = keep0;
         }
         finally { try { Directory.Delete(temp, true); } catch (IOException) { } }
     }

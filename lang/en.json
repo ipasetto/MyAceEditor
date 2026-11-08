@@ -5742,5 +5742,11 @@
   "bak.files": "{0} files",
   "bak.setAsk": "Put these files back as they were before the {0} save ({1:dd/MM/yyyy HH:mm})?",
   "bak.setClose": "Close the 3D World and the game first; the server needs to receive the files again afterwards.",
-  "bak.setDone": "Done: all files went back."
+  "bak.setDone": "Done: all files went back.",
+  "obj.plantingOne": "Planting {0}: click on the ground where the tree will go. Esc or right-click cancels.",
+  "obj.placingOne": "Inserting {0}: the preview follows the mouse; click where it will go. Esc or right-click cancels.",
+  "bak.setReload": "Close the game first. An open 3D World reloads the files by itself (its unsaved changes are lost); the server needs to receive the files again afterwards.",
+  "obj.reloaded": "Backup restored: the 3D World reloaded the files from disk.",
+  "obj.reloadFail": "The backup went back, but the map could not be reloaded; close and open the 3D World.",
+  "obj.treeInfo2": "Tree: {0} · X {1:0} Z {2:0} height {3:0}"
 }
