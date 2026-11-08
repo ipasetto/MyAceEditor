@@ -5825,5 +5825,7 @@
   "grass.typeOff": "Type: {0} (brush off)",
   "grass.noTypeYet": "No type chosen: use Choose type or the Eraser.",
   "grass.off": "Brush off (Esc again closes grass).",
-  "legend.kGrassBrush": "grass and flowers: brush · eraser · size"
+  "legend.kGrassBrush": "grass and flowers: brush · eraser · size",
+  "grass.sizeHint": "Brush size: {0} m (Ctrl + mouse wheel)",
+  "grass.wheelHint": "Ctrl + mouse wheel changes the size"
 }

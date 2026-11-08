@@ -1761,6 +1761,9 @@ internal sealed partial class WorldView : Form
 
     void RightClick(Point p)
     {
+        // com uma ferramenta aberta o menu (copiar coordenada, monstro/NPC novo aqui) não abre: cada ferramenta tem o seu
+        // jeito de inserir e o menu deixava pôr um NPC no meio da edição de objetos, caminhos etc. (usuário 08/11)
+        if (_tool != Tool.None) return;
         var under = PickScreen(p);
         var g = Ray(p) ?? (under is not null ? PosOf(under) : null);
         if (g is not { } at) return;

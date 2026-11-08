@@ -5827,5 +5827,7 @@
   "grass.typeOff": "类型：{0}（画笔关闭）",
   "grass.noTypeYet": "未选择类型：使用“选择类型”或橡皮擦。",
   "grass.off": "画笔已关闭（再按 Esc 关闭草）。",
-  "legend.kGrassBrush": "草和花：画笔 · 橡皮擦 · 大小"
+  "legend.kGrassBrush": "草和花：画笔 · 橡皮擦 · 大小",
+  "grass.sizeHint": "画笔大小：{0} 米（Ctrl + 鼠标滚轮）",
+  "grass.wheelHint": "Ctrl + 鼠标滚轮改变大小"
 }

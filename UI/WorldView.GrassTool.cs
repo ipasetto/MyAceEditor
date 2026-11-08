@@ -21,7 +21,7 @@ internal sealed partial class WorldView
     readonly Label _brushTitle = new() { AutoSize = false, Height = 40, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9f) };
     readonly TrackBar _brushSize = new() { Minimum = 1, Maximum = 30, Value = 4, TickFrequency = 5, Dock = DockStyle.Top, Height = 32, AutoSize = false };
     readonly TrackBar _brushDens = new() { Minimum = 5, Maximum = 100, Value = 50, TickFrequency = 10, Dock = DockStyle.Top, Height = 32, AutoSize = false };
-    readonly Label _brushSizeLbl = new() { Dock = DockStyle.Top, Height = 18, ForeColor = Color.Silver };
+    readonly Label _brushSizeLbl = new() { Dock = DockStyle.Top, Height = 34, ForeColor = Color.Silver };
     readonly Label _brushDensLbl = new() { Dock = DockStyle.Top, Height = 18, ForeColor = Color.Silver };
     Button? _brushPaintBtn, _brushEraseBtn;
     bool _brushActive;   // pincel ou borracha ligado (o painel pode estar aberto com os dois apagados)
@@ -46,9 +46,9 @@ internal sealed partial class WorldView
         _brushDens.ValueChanged += (_, _) => { _brushDensity = _brushDens.Value / 100f; BrushLabels(); };
         NoWheel(_brushSize); NoWheel(_brushDens);
         var modes = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 74, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 4, 0, 8), WrapContents = false };
-        _brushPaintBtn = BigButton("\uE76D", Loc.T("grass.brush", "Pincel"), "B", BrushPaint, 74);
-        _brushEraseBtn = BigButton("\uE75C", Loc.T("grass.eraser", "Borracha"), "E", BrushEraser, 74);
-        var pick = BigButton("\uE790", Loc.T("grass.pickType", "Escolher tipo"), "", ChooseGrassToPaint, 82);
+        _brushPaintBtn = BigButton("\uE76D", Loc.T("grass.brush", "Pincel"), "B", BrushPaint, 76);
+        _brushEraseBtn = BigButton("\uE75C", Loc.T("grass.eraser", "Borracha"), "E", BrushEraser, 76);
+        var pick = BigButton("\uE790", Loc.T("grass.pickType", "Escolher tipo"), "", ChooseGrassToPaint, 76);
         _toolTip.SetToolTip(_brushPaintBtn, Loc.T("grass.brushTip", "Pinta o tipo escolhido arrastando no chão (Ctrl + roda do mouse muda o tamanho)."));
         _toolTip.SetToolTip(_brushEraseBtn, Loc.T("grass.eraserTip", "Apaga a grama e as flores de qualquer tipo arrastando no chão."));
         _toolTip.SetToolTip(pick, Loc.T("grass.pickTip", "Abre a lista de gramas e flores de todos os mapas."));
@@ -95,7 +95,7 @@ internal sealed partial class WorldView
 
     void BrushLabels()
     {
-        _brushSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _brushSize.Value);
+        _brushSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _brushSize.Value) + Environment.NewLine + Loc.T("grass.wheelHint", "Ctrl + roda do mouse muda o tamanho");
         _brushDensLbl.Text = string.Format(Loc.T("grass.density", "Densidade: {0}%"), _brushDens.Value);
         string name = _grass.Scene is { } sc && _brushType >= 0 && _brushType < sc.GrassTypes.Count ? Path.GetFileNameWithoutExtension(sc.GrassTypes[_brushType].Mox) : "";
         _brushTitle.Text = !_brushActive ? (name.Length > 0 ? string.Format(Loc.T("grass.typeOff", "Tipo: {0} (pincel apagado)"), name) : Loc.T("grass.noTypeYet", "Nenhum tipo escolhido: use Escolher tipo ou a Borracha."))
