@@ -95,6 +95,36 @@ public static class DraftSaver
         return list;
     }
 
+    /// <summary>Bloco do .ecwld cuja área contém o ponto (x, z); null = nenhum (o jogo não carregaria nada ali).</summary>
+    internal static EcwldFile.Block? BlockAt(EcwldFile ecw, Vector3 p) =>
+        ecw.Blocks.FirstOrDefault(bl => ObjectFormats.BlockArea(ecw, bl) is var a && p.X >= a.X0 && p.X <= a.X1 && p.Z >= a.Z0 && p.Z <= a.Z1);
+
+    /// <summary>Item da árvore no .ecwld: mesmo tipo e o lugar original exato (a árvore não tem ID).</summary>
+    static (EcwldFile.Block, int)? FindTree(EcwldFile ecw, DraftObject o)
+    {
+        var p = o.Original.Pos;
+        foreach (var bl in ecw.Blocks)
+        {
+            var list = bl.Items[(int)EcwldFile.Kind.Tree];
+            for (int i = 0; i < list.Count; i++)
+            {
+                var it = list[i];
+                if (it.Length < 12 || BitConverter.ToInt32(it, 0) != o.Type) continue;
+                bool hasY = it.Length >= 16;
+                float x = BitConverter.ToSingle(it, 4), z = BitConverter.ToSingle(it, hasY ? 12 : 8);
+                if (x == p.X && z == p.Z && (!hasY || BitConverter.ToSingle(it, 8) == p.Y)) return (bl, i);
+            }
+        }
+        return null;
+    }
+
+    static void WriteTree(byte[] it, Vector3 p)
+    {
+        BitConverter.GetBytes(p.X).CopyTo(it, 4);
+        if (it.Length >= 16) { BitConverter.GetBytes(p.Y).CopyTo(it, 8); BitConverter.GetBytes(p.Z).CopyTo(it, 12); }
+        else BitConverter.GetBytes(p.Z).CopyTo(it, 8);
+    }
+
     /// <summary>Nome livre na pasta do pedaço da origem: litmodel_N.bmd com N acima do maior que existe.</summary>
     static string NewBmdPath(DraftSources src, string srcKey, HashSet<string> used)
     {
@@ -121,7 +151,9 @@ public static class DraftSaver
         var changed = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Changed && o.ReadOnlyWhy is null && o.Kind is ObjKind.Building or ObjKind.Model).ToList();
         var added = d.Pieces.Values.SelectMany(p => p.Added).Where(o => !o.Deleted && o.CopyOf is not null && o.Kind is ObjKind.Building or ObjKind.Model).ToList();
         var plan = new SavePlan(new(StringComparer.OrdinalIgnoreCase), new(StringComparer.OrdinalIgnoreCase), new());
-        if (changed.Count == 0 && added.Count == 0) return plan;
+        var treeEdits = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Tree && o.Changed && o.ReadOnlyWhy is null).ToList();
+        var treeNew = d.Pieces.Values.SelectMany(p => p.Added).Where(o => o.Kind == ObjKind.Tree && !o.Deleted).ToList();
+        if (changed.Count == 0 && added.Count == 0 && treeEdits.Count == 0 && treeNew.Count == 0) return plan;
 
         var ecw = new EcwldFile(ecwldBase ?? File.ReadAllBytes(src.EcwldPath));
         var bsd = (byte[])(ecbsdBase ?? File.ReadAllBytes(src.EcbsdPath)).Clone();
@@ -265,6 +297,30 @@ public static class DraftSaver
         }
         if (newBrushes.Count > 0) bhtDirty = true;
 
+        // ---- árvores: só o .ecwld (16 B: tipo, x, y, z; sem colisão no map.bht no 1.5.5) ----
+        foreach (var o in treeEdits)
+        {
+            var (bl, idx) = FindTree(ecw, o) ?? throw new InvalidDataException(string.Format(Loc.T("obj.treeGone", "Árvore {0} não está mais no .ecwld; reabra o Mundo 3D."), o.Key));
+            var list = bl.Items[(int)EcwldFile.Kind.Tree];
+            if (o.Deleted) { list.RemoveAt(idx); Count(o.Piece, "tdel"); ecwDirty = true; continue; }
+            var item = list[idx];
+            WriteTree(item, o.Now.Pos);
+            var target = BlockAt(ecw, o.Now.Pos) ?? throw new InvalidDataException(Loc.T("obj.noBlock", "Não há bloco do cenário nesse lugar do mapa."));
+            if (target != bl) { list.RemoveAt(idx); target.Items[(int)EcwldFile.Kind.Tree].Add(item); }
+            Count(o.Piece, "tmove"); ecwDirty = true;
+        }
+        foreach (var o in treeNew)
+        {
+            if (o.Type < 0) throw new InvalidDataException(Loc.T("obj.treeNoType", "Árvore nova sem tipo."));
+            var target = BlockAt(ecw, o.Now.Pos) ?? throw new InvalidDataException(Loc.T("obj.noBlock", "Não há bloco do cenário nesse lugar do mapa."));
+            var sample = ecw.Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.Tree]).FirstOrDefault();
+            var item = new byte[sample?.Length ?? 16];
+            BitConverter.GetBytes(o.Type).CopyTo(item, 0);
+            WriteTree(item, o.Now.Pos);
+            target.Items[(int)EcwldFile.Kind.Tree].Add(item);
+            Count(o.Piece, "tnew"); ecwDirty = true;
+        }
+
         if (ecwDirty) { var e = ecw.Write(); _ = new EcwldFile(e); plan.Files[src.EcwldPath] = e; }
         if (bsdDirty) plan.Files[src.EcbsdPath] = bsd;
         if (bhtDirty && bht is not null)
@@ -283,6 +339,9 @@ public static class DraftSaver
             Say("mmove", Loc.T("obj.sumMMove1", "1 modelo mexido"), Loc.T("obj.sumMMoveN", "{0} modelos mexidos"));
             Say("mdel", Loc.T("obj.sumMDel1", "1 modelo apagado"), Loc.T("obj.sumMDelN", "{0} modelos apagados"));
             Say("new", Loc.T("obj.sumNew1", "1 construção nova"), Loc.T("obj.sumNewN", "{0} construções novas"));
+            Say("tmove", Loc.T("obj.sumTMove1", "1 árvore mexida"), Loc.T("obj.sumTMoveN", "{0} árvores mexidas"));
+            Say("tdel", Loc.T("obj.sumTDel1", "1 árvore apagada"), Loc.T("obj.sumTDelN", "{0} árvores apagadas"));
+            Say("tnew", Loc.T("obj.sumTNew1", "1 árvore plantada"), Loc.T("obj.sumTNewN", "{0} árvores plantadas"));
             Say("mnew", Loc.T("obj.sumMNew1", "1 modelo novo"), Loc.T("obj.sumMNewN", "{0} modelos novos"));
             plan.Summary.Add(string.Format(Loc.T("obj.sumPiece", "Pedaço {0}: {1}."), g.Key, string.Join(", ", parts)));
         }
@@ -354,13 +413,20 @@ public static class DraftChecks
     {
         var list = new List<CheckItem>();
         var pts = points.ToList();
-        foreach (var o in d.Pieces.Values.SelectMany(p => p.Objects.Where(o => o.Changed).Concat(p.Added)).Where(o => !o.Deleted && o.Kind is ObjKind.Building or ObjKind.Model))
+        EcwldFile? ecw = null;
+        foreach (var o in d.Pieces.Values.SelectMany(p => p.Objects.Where(o => o.Changed).Concat(p.Added)).Where(o => !o.Deleted && o.Kind is ObjKind.Building or ObjKind.Model or ObjKind.Tree))
         {
             string name = Path.GetFileName(o.Source.Length > 0 ? o.Source : o.Key);
             var t = o.Now;
             int piece = src.PieceAt(t.Pos.X, t.Pos.Z);
             if (piece == 0) { list.Add(new(true, string.Format(Loc.T("obj.chkOut", "{0}: ficou fora do mapa."), name), o.Key)); continue; }
-            if (piece != o.Piece)
+            if (o.Kind == ObjKind.Tree)
+            {
+                try { ecw ??= new EcwldFile(File.ReadAllBytes(src.EcwldPath)); }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { list.Add(new(true, ex.Message, o.Key)); continue; }
+                if (DraftSaver.BlockAt(ecw, t.Pos) is null) { list.Add(new(true, string.Format(Loc.T("obj.chkNoBlock", "{0}: nesse lugar não há bloco de cenário; o jogo não mostraria a árvore."), name), o.Key)); continue; }
+            }
+            else if (piece != o.Piece)
             { list.Add(new(true, string.Format(Loc.T("obj.chkPiece", "{0}: saiu do pedaço de 1 km dela; o jogo só carrega a construção no pedaço onde ela nasceu."), name), o.Key)); continue; }
             var (mn, mx) = WorldBox(o);
             if (groundAt is not null)

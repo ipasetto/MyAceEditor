@@ -26,6 +26,8 @@ public sealed class DraftObject
     public string? ReadOnlyWhy { get; set; }
     /// <summary>Objeto novo (colado): chave do objeto de onde ele foi copiado; null = já existia no arquivo.</summary>
     public string? CopyOf { get; init; }
+    /// <summary>Tipo da árvore (índice na lista de tipos do .ecwld); -1 nos outros objetos.</summary>
+    public int Type { get; init; } = -1;
     public bool Changed => Deleted || Now != Original;
 }
 
@@ -132,6 +134,8 @@ public sealed class WorldDraft(string map)
             case MoveOp m:
                 if (o.Deleted) return Loc.T("obj.isDeleted", "Esse objeto foi apagado; desfaça (Ctrl+Z) para mexer nele.");
                 if (Invalid(m.To) is { } bad) return bad;
+                if (o.Kind == ObjKind.Tree && (m.To.Dir != o.Original.Dir || m.To.Up != o.Original.Up || MathF.Abs(m.To.Scale - o.Original.Scale) > 1e-6f))
+                    return Loc.T("obj.treeNoTurn", "Árvores não giram nem mudam de tamanho nesta versão do jogo; só mudam de lugar.");
                 if (o.Kind == ObjKind.Model && MathF.Abs(m.To.Scale - 1) > 1e-6f) return Loc.T("obj.modelNoScale", "Modelos não mudam de tamanho nesta versão do jogo.");
                 if (m.To == o.Now) return null;
                 o.Now = m.To; break;

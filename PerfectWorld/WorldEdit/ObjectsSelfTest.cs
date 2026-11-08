@@ -33,6 +33,10 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("leitura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Save(r, element, config); }
         catch (Exception ex) { r.Check("salvar-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split('\n').FirstOrDefault()); }
+        try { Save3(r, element, config); }
+        catch (Exception ex) { r.Check("arvores-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { Study3(r, element, config); }
+        catch (Exception ex) { r.Check("estudo3-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Save2(r, element, config); }
         catch (Exception ex) { r.Check("salvar2-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Study2(r, element, config); }
@@ -553,6 +557,112 @@ public static class ObjectsSelfTest
         var models = em.Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.EcModel]).ToList();
         int oldIds = new EcwldFile(File.ReadAllBytes(world.EcwldPath)).Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.EcModel]).Select(EcwldFile.IdOf).Distinct().Count();
         r.Check("plano-modelo-novo", models.Select(EcwldFile.IdOf).Distinct().Count() == oldIds + 1 && models.Any(i => ObjectFormats.ReadEcModel(i) == cm.Now) && pm.PckFiles.Count == 0);
+    }
+
+
+    // ---------------- estudo da etapa 3: árvores ----------------
+    static void Study3(Report r, string element, string? config)
+    {
+        var src = Sources(element, "world", config);
+        var bytes = File.ReadAllBytes(src.EcwldPath);
+        var ecw = new EcwldFile(bytes);
+        var sizes = ecw.Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.Tree]).GroupBy(i => i.Length).ToDictionary(g => g.Key, g => g.Count());
+        var sc = new WorldScene(bytes);
+        r.Check("arvore-itens", sizes.Count > 0, $".ecwld v{ecw.Version}: itens de árvore por tamanho {string.Join(", ", sizes.Select(kv => $"{kv.Key} B x{kv.Value}"))}; {sc.Trees.Count} árvores, {sc.TreeTypes.Count} tipos");
+        if (config is null) return;
+
+        // brushes do map.bht que envolvem o tronco (1 m acima do pé), tirando os das construções do pedaço
+        var bht = new BhtFile(File.ReadAllBytes(src.BhtPath!));
+        var keys = bht.Keys();
+        int piece = 38;
+        var bld = new HashSet<int>();
+        var lit = src.Lit(out _)!;
+        var refs = src.Referenced.Value;
+        foreach (var e in lit.Entries.Where(e => e.Path.StartsWith($@"litmodels\world\{piece}\", StringComparison.OrdinalIgnoreCase) && (refs is null || refs.Contains(e.Path))))
+        {
+            var b = lit.Read(e);
+            if (BmdModel.CdBrushes(b) is { } at) foreach (int o in at) if (keys.TryGetValue(BhtFile.KeyAt(b, o), out var l)) bld.UnionWith(l);
+        }
+        var trees = sc.Trees.Where(t => src.PieceAt(t.X, t.Z) == piece).Take(300).ToList();
+        var boxes = Enumerable.Range(0, bht.Count).Select(i => bht.Box(i)).ToArray();
+        int Hits(float x, float y, float z, out float vol)
+        {
+            int n = 0; vol = 0;
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                if (bld.Contains(i)) continue;
+                var bx = boxes[i];
+                if (x >= bx.X0 && x <= bx.X1 && y >= bx.Y0 && y <= bx.Y1 && z >= bx.Z0 && z <= bx.Z1) { n++; vol = (bx.X1 - bx.X0) * (bx.Y1 - bx.Y0) * (bx.Z1 - bx.Z0); }
+            }
+            return n;
+        }
+        int withHit = 0, baseHit = 0; var vols = new List<float>();
+        foreach (var t in trees)
+        {
+            float y = (t.HasY ? t.Y : src.PieceAt(t.X, t.Z) > 0 ? t.Y : 0) + 1;
+            if (Hits(t.X, y, t.Z, out var v) > 0) { withHit++; vols.Add(v); }
+            if (Hits(t.X + 7, y, t.Z + 7, out _) > 0) baseHit++;
+        }
+        string vol = vols.Count == 0 ? "-" : $"caixa típica {vols.OrderBy(x => x).ElementAt(vols.Count / 2):0.0} m³";
+        r.Check("arvore-colisao-bht", trees.Count > 0, $"pedaço {piece}: {withHit}/{trees.Count} árvores com brush (fora das construções) envolvendo o tronco; 7 m ao lado: {baseHit}; {vol}; árvores com altura no arquivo: {trees.Count(t => t.HasY)}");
+    }
+
+
+    // ---------------- árvores (etapa 3) ----------------
+    static DraftObject NewTree(string key, int type, Vector3 pos, int piece) => new()
+    {
+        Key = key, Kind = ObjKind.Tree, Piece = piece, Type = type, Source = "teste.spt", CopyOf = "planted",
+        Original = new ObjTransform(pos, Vector3.UnitZ, Vector3.UnitY, 1),
+    };
+
+    static void Save3(Report r, string element, string? config)
+    {
+        var world = Sources(element, "world", config);
+        var trees = world.Scene.Value.Objects.Where(o => o.Kind == ObjKind.Tree && o.Piece > 0).ToList();
+        var t1 = trees.First(); var t2 = trees.First(o => o.Key != t1.Key && o.Piece == t1.Piece);
+        var d = DraftOf(world, t1.Piece);
+        r.Check("arvore-editavel", d.Find(t1.Key) is { ReadOnlyWhy: null, Type: >= 0 }, d.Find(t1.Key)?.ReadOnlyWhy ?? "");
+        var oldBytes = File.ReadAllBytes(world.EcwldPath);
+        var oldEcw = new EcwldFile(oldBytes);
+        int oldCount = oldEcw.Blocks.Sum(b => b.Items[(int)EcwldFile.Kind.Tree].Count);
+
+        // mover 3 m, apagar outra, plantar uma nova do tipo da primeira
+        var to = t1.Original with { Pos = t1.Original.Pos + new Vector3(3, 0, -2) };
+        d.Apply(new MoveOp(t1.Key, to));
+        d.Apply(new DeleteOp(t2.Key));
+        var planted = NewTree("new:t", t1.Type, t1.Original.Pos + new Vector3(-4, 0, 4), t1.Piece);
+        d.Apply(new AddOp(planted.Key, planted));
+        var p = DraftSaver.Plan(d, world);
+        var e = new EcwldFile(p.Files[world.EcwldPath]);
+        var items = e.Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.Tree]).ToList();
+        bool At(Vector3 v, int type) => items.Any(i => BitConverter.ToInt32(i, 0) == type && MathF.Abs(BitConverter.ToSingle(i, 4) - v.X) < 1e-3f && MathF.Abs(BitConverter.ToSingle(i, 8) - v.Y) < 1e-3f && MathF.Abs(BitConverter.ToSingle(i, 12) - v.Z) < 1e-3f);
+        bool moved = At(to.Pos, t1.Type) && !At(t1.Original.Pos, t1.Type);
+        bool gone = !At(t2.Original.Pos, t2.Type);
+        bool added = At(planted.Now.Pos, planted.Type);
+        r.Check("arvore-plano", moved && gone && added && items.Count == oldCount && p.PckFiles.Count == 0 && !p.Files.Keys.Any(k => k.EndsWith("map.bht")),
+            $"mexida={moved} apagada={gone} plantada={added} {oldCount}->{items.Count} \"{string.Join(" / ", p.Summary)}\"");
+        // a árvore fica no bloco cuja área contém o lugar dela
+        var blk = e.Blocks.First(b => b.Items[(int)EcwldFile.Kind.Tree].Any(i => BitConverter.ToInt32(i, 0) == planted.Type && MathF.Abs(BitConverter.ToSingle(i, 4) - planted.Now.Pos.X) < 1e-3f && MathF.Abs(BitConverter.ToSingle(i, 12) - planted.Now.Pos.Z) < 1e-3f));
+        var area = ObjectFormats.BlockArea(e, blk);
+        r.Check("arvore-no-bloco-certo", planted.Now.Pos.X >= area.X0 && planted.Now.Pos.X <= area.X1 && planted.Now.Pos.Z >= area.Z0 && planted.Now.Pos.Z <= area.Z1);
+
+        // desfazer tudo: nada para salvar
+        while (d.Undo()) { }
+        r.Check("arvore-desfeito-nada", DraftSaver.Plan(d, world).Empty);
+
+        // fora do mapa bloqueia; lugar sem bloco bloqueia
+        var d2 = DraftOf(world, t1.Piece);
+        d2.Apply(new MoveOp(t1.Key, t1.Original with { Pos = new Vector3(99999, 0, 99999) }));
+        r.Check("arvore-fora-bloqueia", DraftChecks.Run(d2, world, null, []).Any(c => c.Blocks && c.Key == t1.Key));
+        var noBlock = Enumerable.Range(0, 400).Select(k => new Vector3(-world.PieceCount + k * 37 % 8000 - 4000, 0, k * 53 % 10000 - 5000))
+            .FirstOrDefault(v => world.PieceAt(v.X, v.Z) > 0 && !oldEcw.Blocks.Any(b => ObjectFormats.BlockArea(oldEcw, b) is var a && v.X >= a.X0 && v.X <= a.X1 && v.Z >= a.Z0 && v.Z <= a.Z1));
+        if (noBlock != default)
+        {
+            var d3 = DraftOf(world, t1.Piece);
+            d3.Apply(new MoveOp(t1.Key, t1.Original with { Pos = noBlock }));
+            r.Check("arvore-sem-bloco-bloqueia", DraftChecks.Run(d3, world, null, []).Any(c => c.Blocks && c.Key == t1.Key));
+        }
+        else r.Note("world sem lugar no mapa sem bloco de cenário: arvore-sem-bloco-bloqueia não conferido");
     }
 
     // ---------------- estudo dos formatos (Task 1) ----------------

@@ -179,8 +179,7 @@ public static class DraftLoader
                 var tr = sc.Trees[i];
                 var t = new ObjTransform(new Vector3(tr.X, tr.Y, tr.Z), Vector3.UnitZ, Vector3.UnitY, 1);
                 string spt = tr.Type >= 0 && tr.Type < sc.TreeTypes.Count ? sc.TreeTypes[tr.Type].Spt : "";
-                list.Add(new DraftObject { Key = $"tree:{i}", Kind = ObjKind.Tree, Piece = Piece(t.Pos), Source = spt, Original = t,
-                    ReadOnlyWhy = Loc.T("obj.treesLater", "Árvores chegam numa próxima etapa da ferramenta.") });
+                list.Add(new DraftObject { Key = $"tree:{i}", Kind = ObjKind.Tree, Piece = Piece(t.Pos), Source = spt, Original = t, Type = tr.Type });
             }
             return (list, null);
         }
