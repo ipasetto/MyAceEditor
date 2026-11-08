@@ -5947,5 +5947,9 @@
   "is.rename": "Rename (F2)",
   "is.renamePick": "Pick a row before renaming.",
   "bak.setSend": "Some files belong to the server: send them to the server so it uses the restored version (until then it keeps the changed one).",
-  "names.clear": "Remove the name"
+  "names.clear": "Remove the name",
+  "texnames.title": "Rename texture",
+  "texnames.info": "Only changes the name shown in the editor, for this client and this language (the game file does not change). File: {0} · automatic: {1}",
+  "texnames.auto": "Back to automatic",
+  "texnames.saveFail": "Could not save the name (settings folder not accessible?)."
 }

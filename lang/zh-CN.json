@@ -5949,5 +5949,9 @@
   "is.rename": "重命名 (F2)",
   "is.renamePick": "重命名前请先选择一行。",
   "bak.setSend": "部分文件属于服务器：请发送到服务器以使用恢复的版本（在此之前服务器仍使用修改后的版本）。",
-  "names.clear": "去掉名称"
+  "names.clear": "去掉名称",
+  "texnames.title": "重命名纹理",
+  "texnames.info": "只修改编辑器中显示的名称，仅限此客户端和此语言（游戏文件不变）。文件：{0} · 自动：{1}",
+  "texnames.auto": "恢复自动",
+  "texnames.saveFail": "无法保存名称（设置文件夹无法访问？）。"
 }

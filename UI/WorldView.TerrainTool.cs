@@ -81,7 +81,7 @@ internal sealed partial class WorldView
     {
         _texSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _texSize.Value) + Environment.NewLine + Loc.T("grass.wheelHint", "Ctrl + roda do mouse muda o tamanho");
         _texForceLbl.Text = string.Format(Loc.T("terrain.force", "Força: {0}%"), _texForce.Value);
-        string name = _texSel >= 0 && _texSel < _t.TextureNames.Count ? Path.GetFileNameWithoutExtension(_t.TextureNames[_texSel]) : "";
+        string name = _texSel >= 0 && _texSel < _t.TextureNames.Count ? TextureNameGlossary.Display(_t.TextureNames[_texSel], _element) : "";
         string[] sname = { Loc.T("terrain.raise", "Subir"), Loc.T("terrain.lower", "Descer"), Loc.T("terrain.smooth", "Alisar"), Loc.T("terrain.flatten", "Plainar") };
         for (int i = 0; i < 4; i++)
             if (_sculptBtns[i] is { } sb) { bool on = _sculpt == i; sb.BackColor = on ? UiKit.Accent : Color.FromArgb(40, 45, 54); sb.FlatAppearance.BorderColor = on ? UiKit.Accent : Color.FromArgb(62, 70, 84); }
@@ -124,7 +124,9 @@ internal sealed partial class WorldView
     {
         var names = _t.TextureNames;
         if (names.Count == 0) { _status.Text = Loc.T("terrain.noTextures", "Este mapa não tem lista de texturas do chão."); return; }
-        var rows = names.Select((n, i) => (Id: i, Name: Path.GetFileNameWithoutExtension(n), Block: Path.GetFileName(Path.GetDirectoryName(n) ?? "") is { Length: > 0 } f ? f : "-")).ToList();
+        // nome no idioma do MyAce (glossário + renomeados do cliente) com o original junto (a busca acha pelos dois); a pasta também
+        string RowName(int i) { var d = TextureNameGlossary.Display(names[i], _element); var b = TextureNameGlossary.Base(names[i]); return d == b ? b : d + "  (" + b + ")"; }
+        var rows = names.Select((n, i) => (Id: i, Name: RowName(i), Block: Path.GetFileName(Path.GetDirectoryName(n) ?? "") is { Length: > 0 } f ? TextureNameGlossary.Compose(f, AppLang.Current) : "-")).ToList();
         int SigOf(int i) { unchecked { int h = (int)2166136261; foreach (char c in names[i].ToLowerInvariant()) h = (h ^ c) * 16777619; return h & 0x7FFFFFFF; } }
         JavFavorites? fav = null; List<int> recent = [];
         if (_element is not null)
@@ -133,11 +135,43 @@ internal sealed partial class WorldView
             fav = new JavFavorites(() => file.Ids.Select(sig => Enumerable.Range(0, names.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList(), i => file.Has(SigOf(i)), i => file.Toggle(SigOf(i)));
             recent = JavRecents.Read("groundtex", _element).Select(sig => Enumerable.Range(0, names.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList();
         }
-        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recent, model: (row, _) => _terrain.TextureImage(names[row]), fav: fav) { Text = Loc.T("terrain.chooseTitle", "Escolher textura do chão") };
+        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recent, model: (row, _) => _terrain.TextureImage(names[row]), fav: fav,
+            rename: i => _element is not null && TextureNamePrompt(names[i]) ? RowName(i) : null) { Text = Loc.T("terrain.chooseTitle", "Escolher textura do chão") };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
         _texSel = w.Picked; _texErase = false; _texActive = true;
         if (_element is not null) JavRecents.Add("groundtex", _element, SigOf(w.Picked));
         TexLabels(); _gl.Focus(); _gl.Invalidate();
+    }
+
+    /// <summary>
+    /// Renomear textura (F2 na JAV): só o nome que aparece, no glossário deste cliente e no idioma atual; o arquivo não muda.
+    /// true = mudou.
+    /// </summary>
+    bool TextureNamePrompt(string path)
+    {
+        if (_element is null) return false;
+        string b = TextureNameGlossary.Base(path), auto = TextureNameGlossary.Compose(b, AppLang.Current);
+        using var f = new Form { Text = Loc.T("texnames.title", "Renomear textura"), Width = 480, Height = 230, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Font = new Font("Segoe UI", 9.5f) };
+        var info = new Label { Dock = DockStyle.Top, Height = 54, Padding = new Padding(10, 8, 10, 0), ForeColor = Color.Silver,
+            Text = string.Format(Loc.T("texnames.info", "Só muda o nome que aparece no editor, neste cliente e neste idioma (o arquivo do jogo não muda). Arquivo: {0} · automático: {1}"), b, auto) };
+        var box = new TextBox { Dock = DockStyle.Top, Text = TextureNameGlossary.UserName(path, _element) ?? "", PlaceholderText = auto, BackColor = Color.FromArgb(20, 22, 26), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        var wrap = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 6, 10, 6) }; wrap.Controls.Add(box);
+        var row = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 58, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10, 10, 10, 12) };
+        string? why = null; bool changed = false;
+        Button Btn(string key, string pt, Action a, bool main = false)
+        {
+            var bt = new Button { Text = Loc.T(key, pt), AutoSize = true, Height = 32, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(60, 66, 78), Margin = new Padding(6, 0, 0, 0) };
+            bt.FlatAppearance.BorderSize = 0; bt.Click += (_, _) => a(); return bt;
+        }
+        row.Controls.Add(Btn("names.save", "Salvar nome", () => { why = TextureNameGlossary.Rename(path, _element, box.Text); changed = why is null; f.DialogResult = DialogResult.OK; }, main: true));
+        row.Controls.Add(Btn("texnames.auto", "Voltar ao automático", () => { why = TextureNameGlossary.Rename(path, _element, null); changed = why is null; f.DialogResult = DialogResult.OK; }));
+        f.Controls.Add(row); f.Controls.Add(wrap); f.Controls.Add(info);
+        f.AcceptButton = row.Controls[0] as Button;
+        f.ShowDialog(this);
+        if (why is not null) MessageBox.Show(this, why, f.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        if (changed) TexLabels();
+        return changed;
     }
 
     bool TerrainMouseDown(MouseEventArgs e)

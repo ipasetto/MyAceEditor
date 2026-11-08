@@ -1,0 +1,3254 @@
+{
+"12宫": [
+"Doze Palácios",
+"Twelve Palaces",
+"Двенадцать дворцов",
+"p"
+],
+"北陆": [
+"Terras do Norte",
+"Northern Lands",
+"Северные земли",
+"p"
+],
+"单人本": [
+"instância solo",
+"solo instance",
+"одиночное подземелье",
+"p"
+],
+"4号图": [
+"Mapa 4",
+"Map 4",
+"Карта 4",
+"p"
+],
+"5月副本": [
+"instância de maio",
+"May instance",
+"майское подземелье",
+"p"
+],
+"七大柱": [
+"Sete Pilares",
+"Seven Pillars",
+"Семь столпов",
+"p"
+],
+"东路": [
+"Rota Leste",
+"East Route",
+"Восточный путь",
+"p"
+],
+"皇城": [
+"Cidade Imperial",
+"Imperial City",
+"Императорский город",
+"p"
+],
+"主城": [
+"Cidade principal",
+"Main city",
+"Главный город",
+"p"
+],
+"五行大本营": [
+"Base dos Cinco Elementos",
+"Five Elements Base",
+"База пяти стихий",
+"p"
+],
+"京城": [
+"Capital",
+"Capital",
+"Столица",
+"p"
+],
+"人族新手村": [
+"Vila inicial humana",
+"Human starter village",
+"Деревня новичков людей",
+"p"
+],
+"仙族": [
+"Clã imortal",
+"Immortal clan",
+"Клан бессмертных",
+"p"
+],
+"仙界": [
+"Reino Imortal",
+"Immortal Realm",
+"Мир бессмертных",
+"p"
+],
+"伊万大本营": [
+"Base de Ivan",
+"Ivan base",
+"База Ивана",
+"p"
+],
+"光明深林": [
+"Floresta da Luz",
+"Forest of Light",
+"Лес света",
+"p"
+],
+"光荣墓地": [
+"Cemitério da Glória",
+"Glory Cemetery",
+"Кладбище славы",
+"p"
+],
+"兽族": [
+"Clã das feras",
+"Beast clan",
+"Клан зверей",
+"p"
+],
+"冰大陆": [
+"Continente de Gelo",
+"Ice Continent",
+"Ледяной континент",
+"p"
+],
+"出生点": [
+"ponto de nascimento",
+"spawn point",
+"точка рождения",
+"p"
+],
+"副本": [
+"instância",
+"instance",
+"подземелье",
+"p"
+],
+"医家": [
+"Clã Médico",
+"Healer clan",
+"Клан лекарей",
+"p"
+],
+"哈尼博村": [
+"Vila Hanibo",
+"Hanibo village",
+"Деревня Ханибо",
+"p"
+],
+"囚牢": [
+"Prisão",
+"Prison",
+"Тюрьма",
+"p"
+],
+"圣城": [
+"Cidade Santa",
+"Holy City",
+"Святой город",
+"p"
+],
+"3岛": [
+"Ilha 3",
+"Island 3",
+"Остров 3",
+"p"
+],
+"三岛": [
+"Ilha 3",
+"Island 3",
+"Остров 3",
+"p"
+],
+"媚灵": [
+"Meiling",
+"Meiling",
+"Мэйлин",
+"p"
+],
+"祖龙城": [
+"Cidade do Dragão Ancestral",
+"Ancestral Dragon City",
+"Город древнего дракона",
+"p"
+],
+"灵族": [
+"Clã espiritual",
+"Spirit clan",
+"Клан духов",
+"p"
+],
+"登陆界面": [
+"tela de entrada",
+"login screen",
+"экран входа",
+"p"
+],
+"登录界面": [
+"tela de entrada",
+"login screen",
+"экран входа",
+"p"
+],
+"登陆用": [
+"tela de entrada",
+"login screen",
+"экран входа",
+"p"
+],
+"蚁穴": [
+"Formigueiro",
+"Ant nest",
+"Муравейник",
+"p"
+],
+"血鲷鱼人池": [
+"Lago dos homens-peixe",
+"Fishmen pool",
+"Пруд рыболюдей",
+"p"
+],
+"复制者村落": [
+"Vila dos Copiadores",
+"Copiers village",
+"Деревня копировщиков",
+"p"
+],
+"大地图": [
+"Mapa grande",
+"Large map",
+"Большая карта",
+"p"
+],
+"大峡谷": [
+"Grande Desfiladeiro",
+"Grand Canyon",
+"Большой каньон",
+"p"
+],
+"大营": [
+"Acampamento",
+"Camp",
+"Лагерь",
+"p"
+],
+"天空之城": [
+"Cidade do Céu",
+"Sky City",
+"Небесный город",
+"p"
+],
+"天空城": [
+"Cidade do Céu",
+"Sky City",
+"Небесный город",
+"p"
+],
+"夫妻副本": [
+"instância de casais",
+"couples instance",
+"подземелье супругов",
+"p"
+],
+"奇幻森林": [
+"Floresta Fantástica",
+"Fantasy Forest",
+"Волшебный лес",
+"p"
+],
+"妖兽": [
+"Feras demoníacas",
+"Demon beasts",
+"Демонические звери",
+"p"
+],
+"妖族": [
+"Clã demoníaco",
+"Demon clan",
+"Клан демонов",
+"p"
+],
+"选人": [
+"seleção de personagem",
+"character select",
+"выбор персонажа",
+"p"
+],
+"选人界面": [
+"tela de seleção",
+"select screen",
+"экран выбора",
+"p"
+],
+"青帝": [
+"Imperador Verde",
+"Green Emperor",
+"Зелёный император",
+"p"
+],
+"剑阁": [
+"Pavilhão da Espada",
+"Sword Pavilion",
+"Павильон меча",
+"p"
+],
+"新泰山": [
+"Nova Montanha Tai",
+"New Mount Tai",
+"Новая гора Тай",
+"p"
+],
+"泰山": [
+"Montanha Tai",
+"Mount Tai",
+"Гора Тай",
+"p"
+],
+"胡杨林": [
+"Bosque de álamos",
+"Poplar grove",
+"Тополиная роща",
+"p"
+],
+"花妖": [
+"Fada das flores",
+"Flower fairy",
+"Цветочная фея",
+"p"
+],
+"铸剑谷": [
+"Vale da Forja",
+"Forge Valley",
+"Долина ковки",
+"p"
+],
+"巨人遗址": [
+"Ruínas dos Gigantes",
+"Giant Ruins",
+"Руины великанов",
+"p"
+],
+"巨石滩": [
+"Praia dos Rochedos",
+"Boulder Beach",
+"Пляж валунов",
+"p"
+],
+"师徒副本": [
+"instância mestre-aprendiz",
+"master-apprentice instance",
+"подземелье учителя и ученика",
+"p"
+],
+"帮派基地": [
+"base da guilda",
+"guild base",
+"база гильдии",
+"p"
+],
+"幻海": [
+"Mar Ilusório",
+"Illusion Sea",
+"Море иллюзий",
+"p"
+],
+"兼爱岛": [
+"Ilha Jian'ai",
+"Jian'ai Isle",
+"Остров Цзяньай",
+"p"
+],
+"庐山": [
+"Monte Lu",
+"Mount Lu",
+"Гора Лу",
+"p"
+],
+"自识岛": [
+"Ilha Zishi",
+"Zishi Isle",
+"Остров Цзыши",
+"p"
+],
+"酒岛": [
+"Ilha do Vinho",
+"Wine Isle",
+"Винный остров",
+"p"
+],
+"怪老头": [
+"Velho estranho",
+"Strange old man",
+"Странный старик",
+"p"
+],
+"战场": [
+"campo de batalha",
+"battlefield",
+"поле боя",
+"p"
+],
+"捏脸场景": [
+"cena de criar rosto",
+"face creation scene",
+"сцена создания лица",
+"p"
+],
+"新手村": [
+"vila inicial",
+"starter village",
+"деревня новичков",
+"p"
+],
+"新都城": [
+"Nova Capital",
+"New Capital",
+"Новая столица",
+"p"
+],
+"龙城": [
+"Cidade do Dragão",
+"Dragon City",
+"Город дракона",
+"p"
+],
+"暴君城": [
+"Cidade do Tirano",
+"Tyrant City",
+"Город тирана",
+"p"
+],
+"月光森林": [
+"Floresta do Luar",
+"Moonlight Forest",
+"Лунный лес",
+"p"
+],
+"朱仙镇": [
+"Vila Zhuxian",
+"Zhuxian town",
+"Город Чжусянь",
+"p"
+],
+"杜法镇": [
+"Vila Dufa",
+"Dufa town",
+"Город Дуфа",
+"p"
+],
+"梅关": [
+"Passo Mei",
+"Mei Pass",
+"Перевал Мэй",
+"p"
+],
+"新梅关": [
+"Novo Passo Mei",
+"New Mei Pass",
+"Новый перевал Мэй",
+"p"
+],
+"梦想副本": [
+"instância dos sonhos",
+"dream instance",
+"подземелье мечты",
+"p"
+],
+"棋岛": [
+"Ilha do Xadrez",
+"Chess Isle",
+"Шахматный остров",
+"p"
+],
+"仙愁峡": [
+"Desfiladeiro Xianchou",
+"Xianchou Gorge",
+"Ущелье Сяньчоу",
+"p"
+],
+"永安城": [
+"Cidade Yong'an",
+"Yong'an City",
+"Город Юнъань",
+"p"
+],
+"异族部落": [
+"tribo estrangeira",
+"foreign tribe",
+"чужое племя",
+"p"
+],
+"流萤乡": [
+"Vila dos Vagalumes",
+"Firefly village",
+"Деревня светлячков",
+"p"
+],
+"温泉镇": [
+"Vila das Termas",
+"Hot Spring town",
+"Город горячих источников",
+"p"
+],
+"游乐园": [
+"Parque de diversões",
+"Amusement park",
+"Парк развлечений",
+"p"
+],
+"狂狼洞穴": [
+"Caverna dos Lobos Furiosos",
+"Mad Wolf Cave",
+"Пещера бешеных волков",
+"p"
+],
+"琴岛": [
+"Ilha da Cítara",
+"Zither Isle",
+"Остров цитры",
+"p"
+],
+"画岛": [
+"Ilha da Pintura",
+"Painting Isle",
+"Остров живописи",
+"p"
+],
+"白帝城": [
+"Cidade do Imperador Branco",
+"White Emperor City",
+"Город Белого императора",
+"p"
+],
+"白帝": [
+"Imperador Branco",
+"White Emperor",
+"Белый император",
+"p"
+],
+"皇后岛": [
+"Ilha da Rainha",
+"Queen Isle",
+"Остров королевы",
+"p"
+],
+"竞技场": [
+"Arena",
+"Arena",
+"Арена",
+"p"
+],
+"红教皇势力海港": [
+"Porto do Papa Vermelho",
+"Red Pope harbor",
+"Гавань Красного папы",
+"p"
+],
+"群鹰部落": [
+"Tribo das Águias",
+"Eagle tribe",
+"Племя орлов",
+"p"
+],
+"群鹰": [
+"Águias",
+"Eagles",
+"Орлы",
+"p"
+],
+"胧族": [
+"Clã Long",
+"Long clan",
+"Клан Лун",
+"p"
+],
+"荒废神殿": [
+"Templo abandonado",
+"Abandoned temple",
+"Заброшенный храм",
+"p"
+],
+"蜂蜜台": [
+"Mesa do Mel",
+"Honey Terrace",
+"Медовая терраса",
+"p"
+],
+"西伯利亚": [
+"Sibéria",
+"Siberia",
+"Сибирь",
+"p"
+],
+"西路": [
+"Rota Oeste",
+"West Route",
+"Западный путь",
+"p"
+],
+"第二章": [
+"capítulo 2",
+"chapter 2",
+"глава 2",
+"p"
+],
+"诗岛": [
+"Ilha da Poesia",
+"Poetry Isle",
+"Остров поэзии",
+"p"
+],
+"赤地": [
+"Terra Vermelha",
+"Red Land",
+"Красная земля",
+"p"
+],
+"赤帝": [
+"Imperador Vermelho",
+"Red Emperor",
+"Красный император",
+"p"
+],
+"老人山": [
+"Montanha do Velho",
+"Old Man Mountain",
+"Гора старика",
+"p"
+],
+"铁砂荒原": [
+"Ermo da Areia de Ferro",
+"Iron Sand Wastes",
+"Пустошь железного песка",
+"p"
+],
+"阴阳家": [
+"Clã Yin-Yang",
+"Yin-Yang clan",
+"Клан инь-ян",
+"p"
+],
+"随机图": [
+"mapa aleatório",
+"random map",
+"случайная карта",
+"p"
+],
+"雨林": [
+"Floresta tropical",
+"Rainforest",
+"Тропический лес",
+"p"
+],
+"雪城": [
+"Cidade da Neve",
+"Snow City",
+"Снежный город",
+"p"
+],
+"雪域": [
+"Terra Nevada",
+"Snowland",
+"Снежный край",
+"p"
+],
+"雪怪": [
+"Yeti",
+"Yeti",
+"Йети",
+"p"
+],
+"镇妖司方": [
+"Tribunal caça-demônios",
+"Demon-hunting court",
+"Двор охотников на демонов",
+"p"
+],
+"富人区": [
+"Bairro rico",
+"Rich district",
+"Богатый квартал",
+"p"
+],
+"鞑靼草原": [
+"Estepe Tártara",
+"Tatar Steppe",
+"Татарская степь",
+"p"
+],
+"风暴湖": [
+"Lago da Tempestade",
+"Storm Lake",
+"Озеро бурь",
+"p"
+],
+"少林寺": [
+"Templo Shaolin",
+"Shaolin Temple",
+"Храм Шаолинь",
+"p"
+],
+"鬼冥居": [
+"Morada dos Fantasmas",
+"Ghost Abode",
+"Обитель призраков",
+"p"
+],
+"魔境": [
+"Reino Demoníaco",
+"Demon Realm",
+"Демоническое царство",
+"p"
+],
+"魔王之丘": [
+"Colina do Rei Demônio",
+"Demon King Hill",
+"Холм короля демонов",
+"p"
+],
+"山寨": [
+"Forte",
+"Fort",
+"Форт",
+"p"
+],
+"废城": [
+"Cidade abandonada",
+"Abandoned city",
+"Заброшенный город",
+"p"
+],
+"小岛": [
+"Ilhota",
+"Islet",
+"Островок",
+"p"
+],
+"乡村": [
+"Aldeia",
+"Village",
+"Деревня",
+"p"
+],
+"村庄": [
+"Aldeia",
+"Village",
+"Деревня",
+"p"
+],
+"部落": [
+"Tribo",
+"Tribe",
+"Племя",
+"p"
+],
+"野外": [
+"campo aberto",
+"wilds",
+"дикие земли",
+"p"
+],
+"PVP": [
+"PvP",
+"PvP",
+"PvP",
+"p"
+],
+"堂": [
+"",
+"",
+"",
+"x"
+],
+"张": [
+"",
+"",
+"",
+"x"
+],
+"崔": [
+"",
+"",
+"",
+"x"
+],
+"范": [
+"",
+"",
+"",
+"x"
+],
+"董": [
+"",
+"",
+"",
+"x"
+],
+"莫": [
+"",
+"",
+"",
+"x"
+],
+"彦": [
+"",
+"",
+"",
+"x"
+],
+"爽": [
+"",
+"",
+"",
+"x"
+],
+"易": [
+"",
+"",
+"",
+"x"
+],
+"王笑": [
+"",
+"",
+"",
+"x"
+],
+"马": [
+"",
+"",
+"",
+"x"
+],
+"毅": [
+"",
+"",
+"",
+"x"
+],
+"耿": [
+"",
+"",
+"",
+"x"
+],
+"琳琳": [
+"",
+"",
+"",
+"x"
+],
+"完美": [
+"",
+"",
+"",
+"x"
+],
+"贴图": [
+"",
+"",
+"",
+"x"
+],
+"的": [
+"",
+"",
+"",
+"x"
+],
+"用": [
+"",
+"",
+"",
+"x"
+],
+"第": [
+"",
+"",
+"",
+"x"
+],
+"号": [
+"",
+"",
+"",
+"x"
+],
+"_d": [
+"",
+"",
+"",
+"x"
+],
+"侧面山石": [
+"rocha lateral",
+"side rock",
+"боковая скала",
+"w"
+],
+"基础地表": [
+"superfície básica",
+"basic ground",
+"базовая поверхность",
+"w"
+],
+"岩石地面": [
+"chão de rocha",
+"rock ground",
+"каменистая земля",
+"w"
+],
+"裸露石块": [
+"pedras expostas",
+"exposed rocks",
+"обнажённые камни",
+"w"
+],
+"焦土": [
+"terra queimada",
+"scorched earth",
+"выжженная земля",
+"w"
+],
+"地面": [
+"chão",
+"ground",
+"земля",
+"w"
+],
+"山体": [
+"encosta",
+"mountainside",
+"склон горы",
+"w"
+],
+"剑圣草": [
+"grama do Mestre da Espada",
+"Sword Saint grass",
+"трава мастера меча",
+"w"
+],
+"山洞": [
+"caverna",
+"cave",
+"пещера",
+"w"
+],
+"路面": [
+"piso de estrada",
+"road surface",
+"дорожное покрытие",
+"w"
+],
+"山海相交": [
+"encontro de montanha e mar",
+"mountain meets sea",
+"встреча гор и моря",
+"w"
+],
+"山石": [
+"rocha",
+"rock",
+"скала",
+"w"
+],
+"海滩": [
+"praia",
+"beach",
+"пляж",
+"w"
+],
+"石路": [
+"caminho de pedra",
+"stone path",
+"каменная тропа",
+"w"
+],
+"岩浆": [
+"lava",
+"lava",
+"лава",
+"w"
+],
+"丰富": [
+"variado",
+"rich",
+"разнообразный",
+"w"
+],
+"草土": [
+"terra com grama",
+"grassy soil",
+"земля с травой",
+"w"
+],
+"草红": [
+"grama vermelha",
+"red grass",
+"красная трава",
+"w"
+],
+"草地": [
+"gramado",
+"grass field",
+"трава",
+"w"
+],
+"暗": [
+"escuro",
+"dark",
+"тёмный",
+"w"
+],
+"过度": [
+"transição",
+"transition",
+"переход",
+"w"
+],
+"变暗": [
+"escurecido",
+"darkened",
+"затемнённый",
+"w"
+],
+"黄": [
+"amarelo",
+"yellow",
+"жёлтый",
+"w"
+],
+"土路": [
+"estrada de terra",
+"dirt road",
+"грунтовая дорога",
+"w"
+],
+"废墟": [
+"ruínas",
+"ruins",
+"руины",
+"w"
+],
+"地砖": [
+"piso de ladrilhos",
+"floor tiles",
+"плитка",
+"w"
+],
+"石板路": [
+"caminho de lajes",
+"flagstone path",
+"дорожка из плит",
+"w"
+],
+"碎石": [
+"cascalho",
+"gravel",
+"щебень",
+"w"
+],
+"丰富山": [
+"montanha variada",
+"rich mountain",
+"разнообразная гора",
+"w"
+],
+"农田": [
+"plantação",
+"farmland",
+"поле",
+"w"
+],
+"土地": [
+"terra",
+"soil",
+"земля",
+"w"
+],
+"城前土": [
+"terra diante da cidade",
+"soil before the city",
+"земля перед городом",
+"w"
+],
+"山侧": [
+"lado da montanha",
+"mountain side",
+"склон",
+"w"
+],
+"峡谷": [
+"desfiladeiro",
+"canyon",
+"каньон",
+"w"
+],
+"狼窝": [
+"toca dos lobos",
+"wolf den",
+"волчье логово",
+"w"
+],
+"红草": [
+"grama vermelha",
+"red grass",
+"красная трава",
+"w"
+],
+"乱杂碎草": [
+"grama rasteira bagunçada",
+"messy short grass",
+"беспорядочная трава",
+"w"
+],
+"山崖": [
+"penhasco",
+"cliff",
+"утёс",
+"w"
+],
+"吊桥": [
+"ponte suspensa",
+"drawbridge",
+"подвесной мост",
+"w"
+],
+"石头": [
+"pedra",
+"stone",
+"камень",
+"w"
+],
+"仙山": [
+"montanha imortal",
+"immortal mountain",
+"гора бессмертных",
+"w"
+],
+"青色": [
+"verde-azulado",
+"cyan",
+"бирюзовый",
+"w"
+],
+"大叶": [
+"folhas grandes",
+"large leaves",
+"крупные листья",
+"w"
+],
+"新道路": [
+"estrada nova",
+"new road",
+"новая дорога",
+"w"
+],
+"仙草地": [
+"gramado imortal",
+"immortal grass",
+"трава бессмертных",
+"w"
+],
+"侏罗纪草": [
+"grama jurássica",
+"Jurassic grass",
+"юрская трава",
+"w"
+],
+"水底": [
+"fundo d'água",
+"water bed",
+"дно",
+"w"
+],
+"蓝绿": [
+"azul-esverdeado",
+"blue-green",
+"сине-зелёный",
+"w"
+],
+"冬季": [
+"inverno",
+"winter",
+"зимний",
+"w"
+],
+"岩": [
+"rocha",
+"rock",
+"скала",
+"w"
+],
+"浅绿": [
+"verde-claro",
+"light green",
+"светло-зелёный",
+"w"
+],
+"小草": [
+"grama baixa",
+"short grass",
+"низкая трава",
+"w"
+],
+"石块": [
+"blocos de pedra",
+"stone blocks",
+"каменные блоки",
+"w"
+],
+"冰山": [
+"montanha de gelo",
+"ice mountain",
+"ледяная гора",
+"w"
+],
+"冰川": [
+"geleira",
+"glacier",
+"ледник",
+"w"
+],
+"冰雪": [
+"gelo e neve",
+"ice and snow",
+"лёд и снег",
+"w"
+],
+"冰面": [
+"superfície de gelo",
+"ice surface",
+"ледяная поверхность",
+"w"
+],
+"冻土": [
+"terra congelada",
+"frozen soil",
+"мёрзлая земля",
+"w"
+],
+"凌乱脚印": [
+"pegadas bagunçadas",
+"messy footprints",
+"беспорядочные следы",
+"w"
+],
+"雪地": [
+"neve",
+"snow",
+"снег",
+"w"
+],
+"接": [
+"junção",
+"joint",
+"стык",
+"w"
+],
+"沙滩": [
+"praia",
+"beach",
+"пляж",
+"w"
+],
+"地表": [
+"superfície",
+"ground surface",
+"поверхность",
+"w"
+],
+"重": [
+"pesado",
+"heavy",
+"тяжёлый",
+"w"
+],
+"圆石头路": [
+"caminho de seixos",
+"cobble path",
+"мощёная тропа",
+"w"
+],
+"土": [
+"terra",
+"soil",
+"земля",
+"w"
+],
+"干净": [
+"limpa",
+"clean",
+"чистая",
+"w"
+],
+"边": [
+"borda",
+"edge",
+"край",
+"w"
+],
+"土疙瘩": [
+"torrões",
+"clods",
+"комья земли",
+"w"
+],
+"土耳其草": [
+"grama turca",
+"Turkish grass",
+"турецкая трава",
+"w"
+],
+"土路面": [
+"estrada de terra",
+"dirt road",
+"грунтовая дорога",
+"w"
+],
+"地板砖": [
+"piso",
+"floor tiles",
+"напольная плитка",
+"w"
+],
+"拼花": [
+"mosaico",
+"mosaic",
+"мозаика",
+"w"
+],
+"城": [
+"cidade",
+"city",
+"город",
+"w"
+],
+"基础": [
+"básico",
+"basic",
+"базовый",
+"w"
+],
+"高塔": [
+"torre alta",
+"tall tower",
+"высокая башня",
+"w"
+],
+"砖头": [
+"tijolos",
+"bricks",
+"кирпичи",
+"w"
+],
+"大地裂缝": [
+"rachaduras no chão",
+"ground cracks",
+"трещины в земле",
+"w"
+],
+"路": [
+"estrada",
+"road",
+"дорога",
+"w"
+],
+"中转": [
+"transição",
+"transition",
+"переход",
+"w"
+],
+"森林": [
+"floresta",
+"forest",
+"лес",
+"w"
+],
+"最暗": [
+"mais escuro",
+"darkest",
+"самый тёмный",
+"w"
+],
+"转角": [
+"esquina",
+"corner",
+"угол",
+"w"
+],
+"长草": [
+"grama alta",
+"tall grass",
+"высокая трава",
+"w"
+],
+"土石地": [
+"chão de terra e pedra",
+"soil and stone ground",
+"земля с камнями",
+"w"
+],
+"贝壳": [
+"conchas",
+"shells",
+"ракушки",
+"w"
+],
+"深": [
+"escuro",
+"dark",
+"тёмный",
+"w"
+],
+"锈红": [
+"vermelho-ferrugem",
+"rust red",
+"ржаво-красный",
+"w"
+],
+"火山": [
+"vulcão",
+"volcano",
+"вулкан",
+"w"
+],
+"矮丛": [
+"arbustos baixos",
+"low bushes",
+"низкие кусты",
+"w"
+],
+"海沙": [
+"areia do mar",
+"sea sand",
+"морской песок",
+"w"
+],
+"矮葱大片草": [
+"grama baixa em tufos",
+"low tufted grass",
+"низкая кустистая трава",
+"w"
+],
+"能量喷泉": [
+"fonte de energia",
+"energy fountain",
+"источник энергии",
+"w"
+],
+"立面": [
+"parede",
+"wall",
+"стена",
+"w"
+],
+"墙面": [
+"parede",
+"wall",
+"стена",
+"w"
+],
+"大块山石": [
+"grandes rochas",
+"big rocks",
+"большие скалы",
+"w"
+],
+"石壁": [
+"paredão de pedra",
+"stone wall",
+"каменная стена",
+"w"
+],
+"青": [
+"verde-azulado",
+"cyan",
+"бирюзовый",
+"w"
+],
+"桃花": [
+"flor de pessegueiro",
+"peach blossom",
+"цветы персика",
+"w"
+],
+"河水底部": [
+"fundo do rio",
+"riverbed",
+"дно реки",
+"w"
+],
+"蓝色": [
+"azul",
+"blue",
+"синий",
+"w"
+],
+"天青色": [
+"azul-celeste",
+"sky blue",
+"небесно-голубой",
+"w"
+],
+"岩石": [
+"rocha",
+"rock",
+"скала",
+"w"
+],
+"夹杂": [
+"misturado",
+"mixed",
+"смешанный",
+"w"
+],
+"两侧": [
+"laterais",
+"sides",
+"стороны",
+"w"
+],
+"奇": [
+"fantástico",
+"fantastic",
+"волшебный",
+"w"
+],
+"深土": [
+"terra escura",
+"dark soil",
+"тёмная земля",
+"w"
+],
+"小峡谷": [
+"pequeno desfiladeiro",
+"small canyon",
+"малый каньон",
+"w"
+],
+"影子": [
+"sombra",
+"shadow",
+"тень",
+"w"
+],
+"沙子": [
+"areia",
+"sand",
+"песок",
+"w"
+],
+"碎石地砖": [
+"ladrilho com cascalho",
+"gravel tiles",
+"плитка со щебнем",
+"w"
+],
+"挂青苔": [
+"com musgo",
+"mossy",
+"замшелый",
+"w"
+],
+"实验": [
+"experimental",
+"test",
+"тестовый",
+"w"
+],
+"寒带": [
+"zona fria",
+"cold zone",
+"холодная зона",
+"w"
+],
+"地表水草": [
+"algas na superfície",
+"surface waterweed",
+"водоросли на поверхности",
+"w"
+],
+"水草": [
+"alga",
+"waterweed",
+"водоросли",
+"w"
+],
+"小石头": [
+"pedrinhas",
+"pebbles",
+"камешки",
+"w"
+],
+"小绿杂草": [
+"ervas verdes miúdas",
+"small green weeds",
+"мелкие зелёные сорняки",
+"w"
+],
+"棕沙": [
+"areia marrom",
+"brown sand",
+"бурый песок",
+"w"
+],
+"浅淡": [
+"claro",
+"pale",
+"бледный",
+"w"
+],
+"山壁": [
+"parede de montanha",
+"mountain wall",
+"горная стена",
+"w"
+],
+"山洞入口": [
+"entrada de caverna",
+"cave entrance",
+"вход в пещеру",
+"w"
+],
+"岩洞": [
+"caverna",
+"cave",
+"пещера",
+"w"
+],
+"苔藓": [
+"musgo",
+"moss",
+"мох",
+"w"
+],
+"裂土": [
+"terra rachada",
+"cracked soil",
+"потрескавшаяся земля",
+"w"
+],
+"混合草": [
+"grama misturada",
+"mixed grass",
+"смешанная трава",
+"w"
+],
+"混合": [
+"mistura",
+"mix",
+"смесь",
+"w"
+],
+"大叶草地": [
+"gramado de folhas grandes",
+"large-leaf grass",
+"трава с крупными листьями",
+"w"
+],
+"落叶草": [
+"grama com folhas caídas",
+"grass with fallen leaves",
+"трава с опавшими листьями",
+"w"
+],
+"落叶": [
+"folhas caídas",
+"fallen leaves",
+"опавшие листья",
+"w"
+],
+"绿苔地": [
+"chão de musgo verde",
+"green moss ground",
+"земля с зелёным мхом",
+"w"
+],
+"土草混合": [
+"terra e grama",
+"soil and grass",
+"земля и трава",
+"w"
+],
+"山地面": [
+"chão de montanha",
+"mountain ground",
+"горная земля",
+"w"
+],
+"带雪": [
+"com neve",
+"snowy",
+"заснеженный",
+"w"
+],
+"红色": [
+"vermelho",
+"red",
+"красный",
+"w"
+],
+"干裂": [
+"rachado e seco",
+"dry cracked",
+"сухой потрескавшийся",
+"w"
+],
+"蓝草": [
+"grama azul",
+"blue grass",
+"синяя трава",
+"w"
+],
+"溪水": [
+"riacho",
+"stream",
+"ручей",
+"w"
+],
+"废弃城堡": [
+"castelo abandonado",
+"abandoned castle",
+"заброшенный замок",
+"w"
+],
+"交接": [
+"junção",
+"joint",
+"стык",
+"w"
+],
+"花海": [
+"mar de flores",
+"sea of flowers",
+"море цветов",
+"w"
+],
+"沙漠": [
+"deserto",
+"desert",
+"пустыня",
+"w"
+],
+"火熔岩": [
+"lava ardente",
+"burning lava",
+"пылающая лава",
+"w"
+],
+"大花纹": [
+"padrão grande",
+"large pattern",
+"крупный узор",
+"w"
+],
+"零散": [
+"espalhados",
+"scattered",
+"разбросанные",
+"w"
+],
+"新改": [
+"renovado",
+"revised",
+"обновлённый",
+"w"
+],
+"黄土": [
+"terra amarela",
+"loess",
+"лёсс",
+"w"
+],
+"无波纹": [
+"sem ondulação",
+"without ripples",
+"без ряби",
+"w"
+],
+"大石台底": [
+"base da grande plataforma",
+"big platform base",
+"основание большой платформы",
+"w"
+],
+"晶石": [
+"cristal",
+"crystal",
+"кристалл",
+"w"
+],
+"粉": [
+"rosa",
+"pink",
+"розовый",
+"w"
+],
+"暗灰": [
+"cinza-escuro",
+"dark gray",
+"тёмно-серый",
+"w"
+],
+"桃园": [
+"pomar de pessegueiros",
+"peach orchard",
+"персиковый сад",
+"w"
+],
+"绿草": [
+"grama verde",
+"green grass",
+"зелёная трава",
+"w"
+],
+"杂碎石": [
+"cascalho misto",
+"mixed gravel",
+"смешанный щебень",
+"w"
+],
+"沙土": [
+"terra arenosa",
+"sandy soil",
+"песчаная земля",
+"w"
+],
+"黑褐": [
+"marrom-escuro",
+"dark brown",
+"тёмно-коричневый",
+"w"
+],
+"杂草点": [
+"com pontos de ervas",
+"weed-dotted",
+"с пятнами сорняков",
+"w"
+],
+"灰黄": [
+"cinza-amarelado",
+"grayish yellow",
+"серо-жёлтый",
+"w"
+],
+"碎石草": [
+"grama com cascalho",
+"gravel grass",
+"трава со щебнем",
+"w"
+],
+"条石": [
+"lajes",
+"stone slabs",
+"каменные плиты",
+"w"
+],
+"松针掉落": [
+"agulhas de pinheiro caídas",
+"fallen pine needles",
+"опавшая хвоя",
+"w"
+],
+"枯叶": [
+"folhas secas",
+"dry leaves",
+"сухие листья",
+"w"
+],
+"枯萎的向日葵": [
+"girassóis murchos",
+"withered sunflowers",
+"увядшие подсолнухи",
+"w"
+],
+"树下": [
+"sob as árvores",
+"under trees",
+"под деревьями",
+"w"
+],
+"树底草": [
+"grama sob as árvores",
+"grass under trees",
+"трава под деревьями",
+"w"
+],
+"接边": [
+"borda",
+"edge",
+"край",
+"w"
+],
+"石草地": [
+"gramado com pedras",
+"stony grass",
+"трава с камнями",
+"w"
+],
+"草": [
+"grama",
+"grass",
+"трава",
+"w"
+],
+"橄榄绿": [
+"verde-oliva",
+"olive green",
+"оливковый",
+"w"
+],
+"杂草": [
+"ervas",
+"weeds",
+"сорняки",
+"w"
+],
+"正": [
+"reto",
+"straight",
+"прямой",
+"w"
+],
+"水低": [
+"fundo d'água",
+"water bed",
+"дно",
+"w"
+],
+"丘陵": [
+"colinas",
+"hills",
+"холмы",
+"w"
+],
+"亮": [
+"claro",
+"bright",
+"светлый",
+"w"
+],
+"平地": [
+"planície",
+"flatland",
+"равнина",
+"w"
+],
+"平路": [
+"estrada plana",
+"flat road",
+"ровная дорога",
+"w"
+],
+"疙瘩": [
+"torrões",
+"lumps",
+"бугры",
+"w"
+],
+"河床": [
+"leito de rio",
+"riverbed",
+"русло",
+"w"
+],
+"河底": [
+"fundo do rio",
+"river bottom",
+"дно реки",
+"w"
+],
+"沼泽": [
+"pântano",
+"swamp",
+"болото",
+"w"
+],
+"波纹沙": [
+"areia ondulada",
+"rippled sand",
+"рифлёный песок",
+"w"
+],
+"浅嫩绿": [
+"verde-claro tenro",
+"light tender green",
+"нежно-зелёный",
+"w"
+],
+"灰白": [
+"cinza-claro",
+"off-white",
+"серо-белый",
+"w"
+],
+"浅红": [
+"vermelho-claro",
+"light red",
+"светло-красный",
+"w"
+],
+"浅褐": [
+"marrom-claro",
+"light brown",
+"светло-коричневый",
+"w"
+],
+"浅锈红": [
+"vermelho-ferrugem claro",
+"light rust red",
+"светло-ржаво-красный",
+"w"
+],
+"浅青灰": [
+"cinza-azulado claro",
+"light blue-gray",
+"светло-сизый",
+"w"
+],
+"浅灰白": [
+"cinza bem claro",
+"pale gray-white",
+"бледно-серый",
+"w"
+],
+"浅灰黄": [
+"cinza-amarelado claro",
+"pale grayish yellow",
+"бледно-серо-жёлтый",
+"w"
+],
+"海底": [
+"fundo do mar",
+"seabed",
+"морское дно",
+"w"
+],
+"海砂": [
+"areia do mar",
+"sea sand",
+"морской песок",
+"w"
+],
+"海苔": [
+"alga marinha",
+"seaweed",
+"морские водоросли",
+"w"
+],
+"湿地": [
+"área úmida",
+"wetland",
+"влажная земля",
+"w"
+],
+"花": [
+"flores",
+"flowers",
+"цветы",
+"w"
+],
+"棕红": [
+"vermelho-amarronzado",
+"brownish red",
+"буро-красный",
+"w"
+],
+"横纹": [
+"listras horizontais",
+"horizontal stripes",
+"горизонтальные полосы",
+"w"
+],
+"海成岩": [
+"rocha marinha",
+"marine rock",
+"морская порода",
+"w"
+],
+"山岩石": [
+"rocha de montanha",
+"mountain rock",
+"горная порода",
+"w"
+],
+"深灰白": [
+"cinza-escuro claro",
+"dark off-white",
+"тёмно-серо-белый",
+"w"
+],
+"深灰黄": [
+"cinza-amarelado escuro",
+"dark grayish yellow",
+"тёмно-серо-жёлтый",
+"w"
+],
+"深绿": [
+"verde-escuro",
+"dark green",
+"тёмно-зелёный",
+"w"
+],
+"新": [
+"novo",
+"new",
+"новый",
+"w"
+],
+"深翠绿色": [
+"verde-esmeralda escuro",
+"dark emerald",
+"тёмно-изумрудный",
+"w"
+],
+"深草": [
+"grama escura",
+"dark grass",
+"тёмная трава",
+"w"
+],
+"深褐": [
+"marrom-escuro",
+"dark brown",
+"тёмно-коричневый",
+"w"
+],
+"深锈红": [
+"vermelho-ferrugem escuro",
+"dark rust red",
+"тёмно-ржаво-красный",
+"w"
+],
+"深黄": [
+"amarelo-escuro",
+"dark yellow",
+"тёмно-жёлтый",
+"w"
+],
+"黄沙": [
+"areia amarela",
+"yellow sand",
+"жёлтый песок",
+"w"
+],
+"深橄榄绿": [
+"verde-oliva escuro",
+"dark olive",
+"тёмно-оливковый",
+"w"
+],
+"底图": [
+"base",
+"base",
+"основа",
+"w"
+],
+"海石": [
+"pedra marinha",
+"sea stone",
+"морской камень",
+"w"
+],
+"湖面": [
+"superfície do lago",
+"lake surface",
+"поверхность озера",
+"w"
+],
+"湿土": [
+"terra úmida",
+"wet soil",
+"влажная земля",
+"w"
+],
+"潮湿的": [
+"úmida",
+"damp",
+"сырой",
+"w"
+],
+"裂缝": [
+"fissura",
+"crack",
+"трещина",
+"w"
+],
+"灰白沙": [
+"areia cinza-clara",
+"off-white sand",
+"серо-белый песок",
+"w"
+],
+"灰绿": [
+"verde-acinzentado",
+"gray-green",
+"серо-зелёный",
+"w"
+],
+"灰色": [
+"cinza",
+"gray",
+"серый",
+"w"
+],
+"灰褐": [
+"marrom-acinzentado",
+"gray-brown",
+"серо-коричневый",
+"w"
+],
+"嫩杂草": [
+"ervas tenras",
+"tender weeds",
+"молодые сорняки",
+"w"
+],
+"斑黄草": [
+"grama manchada de amarelo",
+"yellow-spotted grass",
+"трава в жёлтых пятнах",
+"w"
+],
+"灰黄叶": [
+"folhas amarelo-acinzentadas",
+"grayish yellow leaves",
+"серо-жёлтые листья",
+"w"
+],
+"干草": [
+"feno",
+"hay",
+"сено",
+"w"
+],
+"第二": [
+"segundo",
+"second",
+"второй",
+"w"
+],
+"岛": [
+"ilha",
+"island",
+"остров",
+"w"
+],
+"树影": [
+"sombra das árvores",
+"tree shadow",
+"тень деревьев",
+"w"
+],
+"烂泥": [
+"lama",
+"mud",
+"грязь",
+"w"
+],
+"熔岩": [
+"lava",
+"lava",
+"лава",
+"w"
+],
+"熔浆": [
+"magma",
+"magma",
+"магма",
+"w"
+],
+"燃烧土": [
+"terra em brasa",
+"burning soil",
+"горящая земля",
+"w"
+],
+"大": [
+"grande",
+"big",
+"большой",
+"w"
+],
+"下": [
+"de baixo",
+"lower",
+"нижний",
+"w"
+],
+"圆": [
+"redonda",
+"round",
+"круглый",
+"w"
+],
+"加": [
+"com",
+"with",
+"с",
+"w"
+],
+"石板": [
+"laje",
+"slab",
+"плита",
+"w"
+],
+"白土": [
+"terra branca",
+"white soil",
+"белая земля",
+"w"
+],
+"广场": [
+"praça",
+"plaza",
+"площадь",
+"w"
+],
+"水池": [
+"tanque d'água",
+"pool",
+"бассейн",
+"w"
+],
+"教堂": [
+"igreja",
+"church",
+"церковь",
+"w"
+],
+"水": [
+"água",
+"water",
+"вода",
+"w"
+],
+"诡异": [
+"estranho",
+"eerie",
+"жуткий",
+"w"
+],
+"白沙": [
+"areia branca",
+"white sand",
+"белый песок",
+"w"
+],
+"白色细石": [
+"pedrinhas brancas",
+"white fine gravel",
+"белая мелкая галька",
+"w"
+],
+"盐石": [
+"pedra de sal",
+"salt stone",
+"соляной камень",
+"w"
+],
+"石化地": [
+"chão petrificado",
+"petrified ground",
+"окаменевшая земля",
+"w"
+],
+"阴影": [
+"sombra",
+"shadow",
+"тень",
+"w"
+],
+"石地面砖": [
+"ladrilho de pedra",
+"stone floor tiles",
+"каменная плитка",
+"w"
+],
+"烂": [
+"desgastado",
+"worn",
+"изношенный",
+"w"
+],
+"石头地": [
+"chão de pedra",
+"stone ground",
+"каменистая земля",
+"w"
+],
+"石头子": [
+"pedregulhos",
+"pebbles",
+"галька",
+"w"
+],
+"石头路": [
+"caminho de pedra",
+"stone path",
+"каменная тропа",
+"w"
+],
+"石摊": [
+"lajedo",
+"stone flat",
+"каменистая площадка",
+"w"
+],
+"破旧": [
+"velho",
+"worn-out",
+"ветхий",
+"w"
+],
+"碎渣地": [
+"chão de entulho",
+"rubble ground",
+"земля с обломками",
+"w"
+],
+"秃草地": [
+"gramado ralo",
+"bare grass",
+"редкая трава",
+"w"
+],
+"秋季": [
+"outono",
+"autumn",
+"осенний",
+"w"
+],
+"竹林": [
+"bambuzal",
+"bamboo grove",
+"бамбуковая роща",
+"w"
+],
+"粗灰沙": [
+"areia grossa cinza",
+"coarse gray sand",
+"крупный серый песок",
+"w"
+],
+"粗糙": [
+"áspero",
+"rough",
+"грубый",
+"w"
+],
+"紫色": [
+"roxo",
+"purple",
+"фиолетовый",
+"w"
+],
+"红地": [
+"chão vermelho",
+"red ground",
+"красная земля",
+"w"
+],
+"红沙": [
+"areia vermelha",
+"red sand",
+"красный песок",
+"w"
+],
+"红碎叶": [
+"folhas vermelhas picadas",
+"red leaf litter",
+"красная листва",
+"w"
+],
+"褐土": [
+"terra marrom",
+"brown soil",
+"бурая земля",
+"w"
+],
+"绿": [
+"verde",
+"green",
+"зелёный",
+"w"
+],
+"围石": [
+"pedras em círculo",
+"circled stones",
+"кольцо камней",
+"w"
+],
+"峭壁山": [
+"montanha de penhascos",
+"cliff mountain",
+"скалистая гора",
+"w"
+],
+"翘起": [
+"levantada",
+"raised",
+"приподнятый",
+"w"
+],
+"针叶": [
+"agulhas de pinheiro",
+"needles",
+"хвоя",
+"w"
+],
+"水面": [
+"superfície da água",
+"water surface",
+"водная гладь",
+"w"
+],
+"腐化地": [
+"chão corrompido",
+"corrupted ground",
+"осквернённая земля",
+"w"
+],
+"雪地路面": [
+"estrada nevada",
+"snowy road",
+"заснеженная дорога",
+"w"
+],
+"草原": [
+"pradaria",
+"grassland",
+"степь",
+"w"
+],
+"最终": [
+"final",
+"final",
+"финальный",
+"w"
+],
+"草叶": [
+"folhas de grama",
+"grass blades",
+"травинки",
+"w"
+],
+"底板": [
+"piso",
+"floor",
+"пол",
+"w"
+],
+"荒芜": [
+"árido",
+"barren",
+"пустынный",
+"w"
+],
+"红叶": [
+"folhas vermelhas",
+"red leaves",
+"красные листья",
+"w"
+],
+"普通": [
+"comum",
+"common",
+"обычный",
+"w"
+],
+"雪山": [
+"montanha nevada",
+"snowy mountain",
+"снежная гора",
+"w"
+],
+"地形": [
+"relevo",
+"terrain",
+"рельеф",
+"w"
+],
+"山道路": [
+"estrada de montanha",
+"mountain road",
+"горная дорога",
+"w"
+],
+"道路": [
+"estrada",
+"road",
+"дорога",
+"w"
+],
+"蓝光": [
+"luz azul",
+"blue light",
+"синий свет",
+"w"
+],
+"中间海": [
+"mar do meio",
+"middle sea",
+"среднее море",
+"w"
+],
+"能量": [
+"energia",
+"energy",
+"энергия",
+"w"
+],
+"藤蔓": [
+"trepadeiras",
+"vines",
+"лианы",
+"w"
+],
+"深雪": [
+"neve funda",
+"deep snow",
+"глубокий снег",
+"w"
+],
+"荒草": [
+"mato seco",
+"wild grass",
+"бурьян",
+"w"
+],
+"沙石": [
+"areia e pedra",
+"sand and stone",
+"песок и камень",
+"w"
+],
+"火焰": [
+"chamas",
+"flames",
+"пламя",
+"w"
+],
+"路边": [
+"beira da estrada",
+"roadside",
+"обочина",
+"w"
+],
+"远": [
+"distante",
+"distant",
+"дальний",
+"w"
+],
+"水边": [
+"beira d'água",
+"waterside",
+"у воды",
+"w"
+],
+"奇幻": [
+"fantástico",
+"fantasy",
+"волшебный",
+"w"
+],
+"大树": [
+"grande árvore",
+"big tree",
+"большое дерево",
+"w"
+],
+"根部": [
+"raízes",
+"roots",
+"корни",
+"w"
+],
+"锈黄": [
+"amarelo-ferrugem",
+"rust yellow",
+"ржаво-жёлтый",
+"w"
+],
+"长草地": [
+"gramado alto",
+"tall grass field",
+"высокая трава",
+"w"
+],
+"青蓝": [
+"azul-esverdeado",
+"teal",
+"сине-зелёный",
+"w"
+],
+"阴暗": [
+"sombrio",
+"gloomy",
+"мрачный",
+"w"
+],
+"参考线": [
+"linhas de referência",
+"guide lines",
+"направляющие",
+"w"
+],
+"通道": [
+"passagem",
+"passage",
+"проход",
+"w"
+],
+"小花": [
+"florzinhas",
+"small flowers",
+"мелкие цветы",
+"w"
+],
+"河畔": [
+"margem do rio",
+"riverside",
+"берег реки",
+"w"
+],
+"藤": [
+"cipós",
+"vines",
+"лианы",
+"w"
+],
+"碎雪块": [
+"neve quebrada",
+"broken snow",
+"колотый снег",
+"w"
+],
+"雪": [
+"neve",
+"snow",
+"снег",
+"w"
+],
+"冰": [
+"gelo",
+"ice",
+"лёд",
+"w"
+],
+"特效": [
+"efeito",
+"effect",
+"эффект",
+"w"
+],
+"山根": [
+"pé da montanha",
+"mountain foot",
+"подножие",
+"w"
+],
+"雪草": [
+"grama nevada",
+"snowy grass",
+"заснеженная трава",
+"w"
+],
+"褶皱的雪": [
+"neve enrugada",
+"wrinkled snow",
+"морщинистый снег",
+"w"
+],
+"枯草": [
+"grama seca",
+"dry grass",
+"сухая трава",
+"w"
+],
+"鹅卵石": [
+"seixos",
+"cobblestones",
+"булыжник",
+"w"
+],
+"青黑": [
+"preto-azulado",
+"blue-black",
+"иссиня-чёрный",
+"w"
+],
+"顶层": [
+"camada superior",
+"top layer",
+"верхний слой",
+"w"
+],
+"颜色": [
+"cor",
+"color",
+"цвет",
+"w"
+],
+"碎石头": [
+"pedras quebradas",
+"broken stones",
+"битые камни",
+"w"
+],
+"高地": [
+"planalto",
+"highland",
+"нагорье",
+"w"
+],
+"高草地": [
+"gramado alto",
+"tall grass field",
+"высокая трава",
+"w"
+],
+"主路": [
+"estrada principal",
+"main road",
+"главная дорога",
+"w"
+],
+"破石板路": [
+"caminho de lajes quebradas",
+"broken flagstone path",
+"разбитая дорожка из плит",
+"w"
+],
+"草藤": [
+"cipó de grama",
+"grass vine",
+"травяная лиана",
+"w"
+],
+"黄土地": [
+"terra amarela",
+"yellow soil",
+"жёлтая земля",
+"w"
+],
+"黄色": [
+"amarelo",
+"yellow",
+"жёлтый",
+"w"
+],
+"竖裂纹": [
+"rachaduras verticais",
+"vertical cracks",
+"вертикальные трещины",
+"w"
+],
+"黑土": [
+"terra preta",
+"black soil",
+"чёрная земля",
+"w"
+],
+"黑暗": [
+"escuro",
+"dark",
+"тёмный",
+"w"
+],
+"花岗": [
+"granito",
+"granite",
+"гранит",
+"w"
+],
+"龙骨": [
+"ossos de dragão",
+"dragon bones",
+"кости дракона",
+"w"
+],
+"山脚": [
+"pé da montanha",
+"mountain foot",
+"подножие",
+"w"
+],
+"登陆": [
+"entrada",
+"login",
+"вход",
+"w"
+],
+"深色": [
+"escuro",
+"dark",
+"тёмный",
+"w"
+],
+"色": [
+"cor",
+"color",
+"цвет",
+"w"
+],
+"蜂蜜": [
+"mel",
+"honey",
+"мёд",
+"w"
+],
+"黄褐": [
+"marrom-amarelado",
+"yellowish brown",
+"желтовато-коричневый",
+"w"
+],
+"褐": [
+"marrom",
+"brown",
+"бурый",
+"w"
+],
+"山": [
+"montanha",
+"mountain",
+"гора",
+"w"
+],
+"沙": [
+"areia",
+"sand",
+"песок",
+"w"
+],
+"石": [
+"pedra",
+"stone",
+"камень",
+"w"
+],
+"地": [
+"chão",
+"ground",
+"земля",
+"w"
+],
+"叶": [
+"folhas",
+"leaves",
+"листья",
+"w"
+],
+"红": [
+"vermelho",
+"red",
+"красный",
+"w"
+],
+"蓝": [
+"azul",
+"blue",
+"синий",
+"w"
+],
+"白": [
+"branco",
+"white",
+"белый",
+"w"
+],
+"黑": [
+"preto",
+"black",
+"чёрный",
+"w"
+],
+"灰": [
+"cinza",
+"gray",
+"серый",
+"w"
+],
+"浅": [
+"claro",
+"light",
+"светлый",
+"w"
+],
+"小": [
+"pequeno",
+"small",
+"малый",
+"w"
+],
+"高": [
+"alto",
+"high",
+"высокий",
+"w"
+],
+"长": [
+"longo",
+"long",
+"длинный",
+"w"
+],
+"砖": [
+"tijolo",
+"brick",
+"кирпич",
+"w"
+],
+"面": [
+"superfície",
+"surface",
+"поверхность",
+"w"
+],
+"底": [
+"fundo",
+"bottom",
+"дно",
+"w"
+],
+"侧": [
+"lateral",
+"side",
+"боковой",
+"w"
+],
+"杂": [
+"misto",
+"mixed",
+"смешанный",
+"w"
+],
+"碎": [
+"picado",
+"crushed",
+"дроблёный",
+"w"
+],
+"干": [
+"seco",
+"dry",
+"сухой",
+"w"
+],
+"湿": [
+"úmido",
+"wet",
+"влажный",
+"w"
+],
+"粗": [
+"grosso",
+"coarse",
+"грубый",
+"w"
+],
+"细": [
+"fino",
+"fine",
+"мелкий",
+"w"
+],
+"野": [
+"selvagem",
+"wild",
+"дикий",
+"w"
+],
+"村": [
+"aldeia",
+"village",
+"деревня",
+"w"
+],
+"镇": [
+"vila",
+"town",
+"городок",
+"w"
+],
+"宫": [
+"palácio",
+"palace",
+"дворец",
+"w"
+],
+"林": [
+"floresta",
+"forest",
+"лес",
+"w"
+],
+"河": [
+"rio",
+"river",
+"река",
+"w"
+],
+"海": [
+"mar",
+"sea",
+"море",
+"w"
+],
+"湖": [
+"lago",
+"lake",
+"озеро",
+"w"
+],
+"池": [
+"tanque",
+"pool",
+"пруд",
+"w"
+],
+"洞": [
+"caverna",
+"cave",
+"пещера",
+"w"
+],
+"谷": [
+"vale",
+"valley",
+"долина",
+"w"
+],
+"峡": [
+"desfiladeiro",
+"gorge",
+"ущелье",
+"w"
+],
+"崖": [
+"penhasco",
+"cliff",
+"утёс",
+"w"
+],
+"壁": [
+"parede",
+"wall",
+"стена",
+"w"
+],
+"台": [
+"plataforma",
+"platform",
+"платформа",
+"w"
+],
+"丘": [
+"colina",
+"hill",
+"холм",
+"w"
+],
+"根": [
+"raiz",
+"root",
+"корень",
+"w"
+],
+"树": [
+"árvore",
+"tree",
+"дерево",
+"w"
+],
+"苔": [
+"musgo",
+"moss",
+"мох",
+"w"
+],
+"泥": [
+"lama",
+"mud",
+"грязь",
+"w"
+],
+"田地": [
+"campo cultivado",
+"field",
+"поле",
+"w"
+],
+"农田01": [
+"plantação",
+"farmland",
+"поле",
+"w"
+],
+"一": [
+"1",
+"1",
+"1",
+"w"
+],
+"二": [
+"2",
+"2",
+"2",
+"w"
+],
+"三": [
+"3",
+"3",
+"3",
+"w"
+],
+"四": [
+"4",
+"4",
+"4",
+"w"
+],
+"五": [
+"5",
+"5",
+"5",
+"w"
+],
+"六": [
+"6",
+"6",
+"6",
+"w"
+],
+"七": [
+"7",
+"7",
+"7",
+"w"
+],
+"八": [
+"8",
+"8",
+"8",
+"w"
+],
+"九": [
+"9",
+"9",
+"9",
+"w"
+],
+"十": [
+"10",
+"10",
+"10",
+"w"
+]
+}

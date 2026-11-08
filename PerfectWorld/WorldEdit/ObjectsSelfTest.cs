@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { TerrainHeights(r, element, config); }
         catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { TextureNames(r, element); }
+        catch (Exception ex) { r.Check("texturas-nomes-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { TerrainWater(r, element, config); }
         catch (Exception ex) { r.Check("agua-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { TerrainPaint(r, element); }
@@ -221,6 +223,26 @@ public static class ObjectsSelfTest
             for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
             r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
         }
+    }
+
+    /// <summary>Nomes das texturas: todas as de todos os mapas saem sem chinês em pt, en e ru; renomear vale no idioma.</summary>
+    static void TextureNames(Report r, string element)
+    {
+        var all = Directory.GetDirectories(Path.Combine(element, "maps")).Select(TerrainFile.Open).Where(t => t is not null).SelectMany(t => t!.TextureNames).Distinct().ToList();
+        string? bad = null; int n = 0;
+        foreach (var p in all)
+            foreach (var lang in new[] { "pt", "en", "ru" })
+            {
+                n++;
+                var s = TextureNameGlossary.Compose(TextureNameGlossary.Base(p), lang);
+                if (TextScript.HasCjk(s)) bad ??= $"{lang}: {p} -> {s}";
+            }
+        r.Check("texturas-nomes-traduzidos", all.Count > 50 && bad is null, $"{all.Count} texturas x 3 idiomas ({n})" + (bad is null ? "" : "; sobrou: " + bad) + "; ex.: " + TextureNameGlossary.Compose("雪城雪草", "pt") + " / " + TextureNameGlossary.Compose("雪城雪草", "en"));
+        var tmpEl = Path.Combine(Path.GetTempPath(), "myace-texnames-" + Environment.ProcessId);
+        var why = TextureNameGlossary.Rename(@"x\雪地.dds", tmpEl, "Minha neve");
+        bool ok = why is null && TextureNameGlossary.Display(@"y\雪地.dds", tmpEl) == "Minha neve";
+        TextureNameGlossary.Rename(@"x\雪地.dds", tmpEl, null);
+        r.Check("texturas-renomear", ok && TextureNameGlossary.Display(@"y\雪地.dds", tmpEl) != "Minha neve", why ?? "");
     }
 
     /// <summary>Água: lê as do world, regrava igual, o .wmap montado do cliente bate com o do servidor, água nova relê.</summary>
