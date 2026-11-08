@@ -201,7 +201,11 @@ internal sealed partial class WorldView
         var size = mx - mn;
         int same = _draft?.Pieces.Values.SelectMany(p => p.Objects).Count(x => !x.Deleted && x.Kind == o.Kind && string.Equals(Path.GetFileName(x.Source), Path.GetFileName(o.Source), StringComparison.OrdinalIgnoreCase)) ?? 1;
         string kind = o.Kind == ObjKind.Building ? Loc.T("world.objBuilding", "Construção") : o.Kind == ObjKind.Tree ? Loc.T("obj.tree", "Árvore") : Loc.T("obj.model", "Modelo");
-        var lines = new List<string> { kind + ": " + Path.GetFileName(o.Source) };
+        // construção: nome (do usuário ou automático pela forma) e o arquivo entre parênteses
+        string title = Path.GetFileName(o.Source);
+        if (o.Kind == ObjKind.Building && _buildings.SigOf(o.CopyOf ?? o.Key) is { } sig)
+            title = BuildingNames.Display(sig, new System.Numerics.Vector3(size.X, size.Y, size.Z), NameMapOf(sig)) + " (" + Path.GetFileName(o.Source) + ")";
+        var lines = new List<string> { kind + ": " + title };
         if (size.LengthSquared() > 0) lines.Add(string.Format(Loc.T("obj.size", "tamanho {0:0.0} × {1:0.0} × {2:0.0} m (largura × altura × profundidade)"), size.X, size.Y, size.Z));
         lines.Add(string.Format(Loc.T("obj.count", "aparece {0} vez(es) nos pedaços abertos"), same));
         lines.Add(string.Format(Loc.T("obj.collision2", "colisão: {0}"), o.Solid ? Loc.T("obj.yes", "sim") : Loc.T("obj.no", "não")) + (o.CopyOf is not null ? " · " + Loc.T("obj.isNew", "nova (cópia)") : ""));
@@ -1430,6 +1434,68 @@ internal sealed partial class WorldView
         return load + $" | dftcat: indice={others} formas de {otherMaps} mapas {note} previa-outro-mapa={farThumb} altura-outro-mapa=[{farGhost}] | {_catalog.Count} formas ({total} construções) 1a={System.IO.Path.GetFileName(_catalog[0].Key)} x{_catalog[0].Count} outro-pedaco={one} (de {src.Piece} para {copy?.Piece}) bloqueou={blocked} blocos-do-lugar-novo={blocksOk} plano=\"{sum}\"";
     }
 
+    /// <summary>Mapa onde a forma mais aparece (índice de todos os mapas), para o nome automático; sem índice = este mapa.</summary>
+    string NameMapOf(int sig)
+    {
+        if (_bindex is { IsCompletedSuccessfully: true, Result: { } idx })
+        {
+            _nameMap ??= idx.ByMap.SelectMany(kv => kv.Value.Select(s => (kv.Key, s.Sig, s.Count))).GroupBy(x => x.Sig).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Count).First().Key);
+            if (_nameMap.TryGetValue(sig, out var m)) return MapLabelPlain(m);
+        }
+        return MapLabelPlain(_t.Name);
+    }
+    Dictionary<int, string>? _nameMap;
+
+    string MapLabelPlain(string map)
+    {
+        try { _mapNames ??= _element is null ? new() : MapTags.LocalMapNames(_element); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("objetos: nomes dos mapas", ex); _mapNames = new(); }
+        return _mapNames.TryGetValue(map, out var n) && n.Length > 0 ? n : map;
+    }
+
+    /// <summary>
+    /// Dar nome à construção escolhida: o nome vale para todas as cópias da mesma forma em qualquer mapa e cliente
+    /// (arquivo único do programa). Voltar ao automático, exportar e importar a lista na mesma janela.
+    /// </summary>
+    void RenameSelected()
+    {
+        if (SelDraft is not { Kind: ObjKind.Building } o || _buildings.SigOf(o.CopyOf ?? o.Key) is not { } sig) return;
+        var (mn, mx) = DraftChecks.WorldBox(o);
+        var auto = BuildingNames.Auto(mx - mn, NameMapOf(sig));
+        using var f = new Form { Text = Loc.T("names.title", "Dar nome à construção"), Width = 460, Height = 230, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Font = new Font("Segoe UI", 9.5f) };
+        var info = new Label { Dock = DockStyle.Top, Height = 44, Padding = new Padding(10, 8, 10, 0), ForeColor = Color.Silver,
+            Text = string.Format(Loc.T("names.info", "Vale para todas as cópias desta forma, em qualquer mapa e cliente. Automático: {0}"), auto) };
+        var box = new TextBox { Dock = DockStyle.Top, Text = BuildingNames.User(sig) ?? auto, Margin = new Padding(10), BackColor = Color.FromArgb(20, 22, 26), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        var boxWrap = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 6, 10, 6) }; boxWrap.Controls.Add(box);
+        var row = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10) };
+        Button Btn(string key, string pt, Action a, bool main = false)
+        {
+            var b = new Button { Text = Loc.T(key, pt), AutoSize = true, Height = 32, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(60, 66, 78), Margin = new Padding(6, 0, 0, 0) };
+            b.FlatAppearance.BorderSize = 0; b.Click += (_, _) => a(); return b;
+        }
+        string? why = null;
+        row.Controls.Add(Btn("names.save", "Salvar nome", () => { why = BuildingNames.Set(sig, box.Text == auto ? null : box.Text); f.DialogResult = DialogResult.OK; }, main: true));
+        row.Controls.Add(Btn("names.auto", "Voltar ao automático", () => { why = BuildingNames.Set(sig, null); f.DialogResult = DialogResult.OK; }));
+        row.Controls.Add(Btn("names.export", "Exportar lista…", () =>
+        {
+            using var sd = new SaveFileDialog { Filter = "JSON|*.json", FileName = "nomes-construcoes.json" };
+            if (sd.ShowDialog(f) == DialogResult.OK) MessageBox.Show(f, BuildingNames.Export(sd.FileName) ?? Loc.T("names.exported", "Lista exportada."), f.Text);
+        }));
+        row.Controls.Add(Btn("names.import", "Importar lista…", () =>
+        {
+            using var od = new OpenFileDialog { Filter = "JSON|*.json" };
+            if (od.ShowDialog(f) != DialogResult.OK) return;
+            var (n, w) = BuildingNames.Import(od.FileName);
+            MessageBox.Show(f, w ?? string.Format(Loc.T("names.imported", "{0} nome(s) importado(s)."), n), f.Text);
+        }));
+        f.Controls.Add(row); f.Controls.Add(boxWrap); f.Controls.Add(info);
+        f.AcceptButton = row.Controls[0] as Button;
+        f.ShowDialog(this);
+        if (why is not null) MessageBox.Show(this, why, f.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        ShowObjPanel(); _gl.Invalidate();
+    }
+
     // ---------- pílula Construções: por perto + todos os mapas e instâncias (índice) ----------
     /// <summary>Linha do catálogo: Near = construção carregada perto (objeto do rascunho); senão vem do índice.</summary>
     sealed record CatRow(string Key, int Sig, System.Numerics.Vector3 Min, System.Numerics.Vector3 Max, bool Solid, int Count, int Maps, string Block, bool Near)
@@ -1536,7 +1602,7 @@ internal sealed partial class WorldView
         _catRows = CatalogRows(out var note);
         if (_catRows.Count == 0) { _status.Text = Loc.T("obj.noBuildingsNear", "Nenhuma construção carregada por perto; chegue mais perto de uma cidade ou ruína.") + (note is null ? "" : " (" + note + ")"); return; }
         string Size(System.Numerics.Vector3 s) => $"{s.X:0.#}×{s.Y:0.#}×{s.Z:0.#} m";
-        var rows = _catRows.Select((c, i) => (Id: i, Name: string.Format(Loc.T("obj.catRow", "{0} · {1} · aparece {2}×"), System.IO.Path.GetFileNameWithoutExtension(c.Key), Size(c.Size), c.Count)
+        var rows = _catRows.Select((c, i) => (Id: i, Name: BuildingNames.Display(c.Sig, c.Size, NameMapOf(c.Sig)) + " · " + string.Format(Loc.T("obj.catRow", "{0} · {1} · aparece {2}×"), System.IO.Path.GetFileNameWithoutExtension(c.Key), Size(c.Size), c.Count)
             + (c.Maps > 1 ? " " + string.Format(Loc.T("obj.catMaps", "em {0} mapas"), c.Maps) : ""), Block: c.Block)).ToList();
         // favoritos pela forma (número estável), não pela linha (a lista muda com o lugar da câmera)
         JavFavorites? fav = null;

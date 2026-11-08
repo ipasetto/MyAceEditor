@@ -62,6 +62,8 @@ Rode o modo do formato que você mexeu antes de abrir o PR, e cole o resultado n
    de sucesso com resumo e, se o servidor precisa receber, botão de enviar agora); **backup por ferramenta**
    (`BackupSets`: um Salvar volta inteiro pelo Restaurar backup); recarrega sozinha depois de um backup restaurado
    (`BackupSets.Restored`); testes de linha de comando não mostram perguntas e encerram o processo.
+   Layout conferido em captura: botões com espaço entre si, nada cortado (nem em en/ru/zh), mesmo tamanho no mesmo
+   grupo e o painel da ferramenta descendo até o fim da janela.
 
 ## 4. Base de conhecimento (KB)
 

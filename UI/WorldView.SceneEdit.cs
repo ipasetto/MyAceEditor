@@ -26,7 +26,7 @@ internal sealed partial class WorldView
     readonly Panel _objPanel = new() { Width = 225, Height = 250, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(4) };
     readonly Label _objTitle = new() { AutoSize = false, Height = 96, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI", 8.5f) };
     readonly NumericUpDown[] _objXYZ = Enumerable.Range(0, 3).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 64, Increment = 0.5m }).ToArray();
-    Button? _objCloneBtn, _objDeleteBtn, _objSeatBtn;
+    Button? _objCloneBtn, _objDeleteBtn, _objSeatBtn, _objNameBtn;
     bool _objBinding;
 
     WorldScene? ObjScene => _objScene ?? _trees.Scene;
@@ -122,11 +122,12 @@ internal sealed partial class WorldView
             grid.Controls.Add(_objXYZ[i], i, 1);
             _objXYZ[i].ValueChanged += (_, _) => ObjMovedByNumbers();
         }
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, BackColor = _objPanel.BackColor, Padding = new Padding(0, 4, 0, 0) };
+        // botões um embaixo do outro, mesma largura e espaço entre eles (na linha única cortavam; regra do layout 08/11)
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = _objPanel.BackColor, Padding = new Padding(0, 6, 0, 2) };
         // tela escura: ícones brancos desenhados (UiKit.Icon), como o painel de quests do 3D
         Button B(string key, string pt, string glyph, Action a, bool main = false)
         {
-            var b = new Button { AutoSize = true, Height = 30, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
+            var b = new Button { Width = 232, Height = 32, Margin = new Padding(0, 0, 0, 6), TextAlign = ContentAlignment.MiddleLeft, ImageAlign = ContentAlignment.MiddleLeft, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(44, 50, 60),
                 Image = UiKit.Icon(glyph, Color.White, 16), TextImageRelation = TextImageRelation.ImageBeforeText, Padding = new Padding(4, 0, 4, 0), Cursor = Cursors.Hand };
             b.FlatAppearance.BorderColor = main ? UiKit.Accent : Color.FromArgb(70, 78, 90);
             b.Text = Loc.T(key, pt); b.Click += (_, _) => { a(); _gl.Focus(); }; return b;
@@ -135,7 +136,8 @@ internal sealed partial class WorldView
         _objDeleteBtn = B("world.objDelete", "Apagar", "", DeleteSceneObject);
         _objSeatBtn = B("obj.seat", "Assentar no chão", "", SeatSelected);
         _toolTip.SetToolTip(_objSeatBtn, Loc.T("obj.seatTip", "Desce (ou sobe) o objeto até a base inteira encostar no chão: nenhuma ponta fica flutuando."));
-        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, _objSeatBtn });
+        _objNameBtn = B("names.button", "Dar nome", "\uE8AC", RenameSelected);
+        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, _objSeatBtn, _objNameBtn });
         var note = new Label { Dock = DockStyle.Top, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
             Text = Loc.T("world.objNote4", "Efeitos, sons e bichos: só no cliente. Construções: Salvar grava o cliente (litmodels.pck) e a colisão do servidor (map.bht).") };
         _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); InitObjectCard(); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(ObjModeRow()); _objPanel.Controls.Add(_objTitle);
@@ -182,6 +184,8 @@ internal sealed partial class WorldView
         _objBinding = true;
         _objTitle.Text = name + (drafted ? "" : _ecw is null ? "\n" + (_ecwWhy ?? "") : _sceneSel is BuildingSel ? "\n" + Loc.T("obj.waitPiece", "carregando os objetos deste pedaço…")
             : critter ? "\n" + Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto") : "");
+        // altura do título acompanha o texto (nome longo ou outro idioma não corta; regra do layout 08/11)
+        _objTitle.Height = Math.Max(40, TextRenderer.MeasureText(_objTitle.Text, _objTitle.Font, new Size(Math.Max(100, _objPanel.Width - _objPanel.Padding.Horizontal - 4), 0), TextFormatFlags.WordBreak).Height + 8);
         _objXYZ[0].Value = (decimal)Math.Clamp(x, -100000, 100000); _objXYZ[1].Value = (decimal)Math.Clamp(y, -100000, 100000); _objXYZ[2].Value = (decimal)Math.Clamp(z, -100000, 100000);
         foreach (var n in _objXYZ) n.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : _sceneSel is not BuildingSel && _ecw is not null && (!critter || _bsd is not null);
         _objYaw.Enabled = SelDraft is { ReadOnlyWhy: null, Deleted: false, Kind: ObjKind.Building or ObjKind.Model };
@@ -190,6 +194,7 @@ internal sealed partial class WorldView
         if (SelDraft is { } sz) _objScale.Value = (decimal)Math.Clamp(MathF.Round(sz.Now.Scale, 2), 0.1f, 10f);
         if (_objCloneBtn is not null) _objCloneBtn.Visible = false;
         if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter && !drafted && _sceneSel is not BuildingSel;
+        if (_objNameBtn is not null) _objNameBtn.Visible = SelDraft is { Kind: ObjKind.Building, Deleted: false };
         if (_objSeatBtn is not null) _objSeatBtn.Visible = SelDraft is { Kind: ObjKind.Building or ObjKind.Model, Deleted: false, ReadOnlyWhy: null };
         if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : !critter && _sceneSel is not BuildingSel;
         _objBinding = false;

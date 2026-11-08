@@ -521,6 +521,9 @@ internal sealed class WorldBuildings : IDisposable
     }
 
     /// <summary>Caixa da construção no espaço dela (prévia do catálogo); null = não carregada.</summary>
+    /// <summary>Assinatura da forma de uma construção carregada (nomes e favoritos); null = não carregada.</summary>
+    internal int? SigOf(string file) => Loaded(file) is { } p ? StableSig(p.Mesh.Pos.Length, p.Mesh.Tri.Length, p.Mesh.Max - p.Mesh.Min) : null;
+
     internal (Vector3 Min, Vector3 Max)? LocalBoxOf(string file) => Loaded(file) is { } p ? (p.Mesh.Min, p.Mesh.Max) : null;
 
     /// <summary>Desenha só esta construção na matriz dada (prévia do catálogo). Falso = não carregada.</summary>
