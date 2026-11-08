@@ -128,6 +128,35 @@ public static class ObjectFormats
         return list;
     }
 
+    /// <summary>
+    /// Construções que o cliente carrega: os .bmd citados pelos ornamentos referenciados nos blocos do .ecwld
+    /// ("litmodels\mapa\pedaço\litmodel_N.bmd"). Um .bmd sem referência (ex.: apagado pelo editor) fica no pacote mas o
+    /// jogo não mostra. null = .ecwld/.ecbsd ilegível (aí vale a pasta inteira, como antes).
+    /// </summary>
+    public static HashSet<string>? ReferencedBmds(string ecwldPath, string map)
+    {
+        try
+        {
+            var ecw = new EcwldFile(File.ReadAllBytes(ecwldPath));
+            var bsd = File.ReadAllBytes(Path.ChangeExtension(ecwldPath, ".ecbsd"));
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var bl in ecw.Blocks)
+                foreach (var it in bl.Items[(int)EcwldFile.Kind.Ornament])
+                {
+                    if (it.Length < 8) continue;
+                    int off = BitConverter.ToInt32(it, 4);
+                    if (off < 0 || off + 44 > bsd.Length) continue;
+                    int len = BitConverter.ToInt32(bsd, off + 40);
+                    if (len <= 0 || len > 512 || off + 44 + len > bsd.Length) continue;
+                    var name = Encoding.ASCII.GetString(bsd, off + 44, len).TrimEnd('\0');
+                    if (name.EndsWith(".lmd", StringComparison.OrdinalIgnoreCase)) name = name[..^4] + ".bmd";
+                    set.Add($@"litmodels\{map}\{name}");
+                }
+            return set;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException) { AppLog.Error("objetos: referências do .ecwld", ex); return null; }
+    }
+
     public static uint? OrnamentIdOf(EcwldFile ecw, byte[] ecbsd, string bmdPath) => OrnamentRefsOf(ecw, ecbsd, bmdPath) is { Count: > 0 } l ? l[0].Id : null;
 
     public static Vector3 OrnamentPos(byte[] ecbsd, int off) => V(ecbsd, off);

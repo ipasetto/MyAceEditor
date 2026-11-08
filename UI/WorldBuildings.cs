@@ -174,6 +174,7 @@ internal sealed class WorldBuildings : IDisposable
     readonly System.Collections.Concurrent.ConcurrentDictionary<string, (float U, float V)> _surfaces = new(StringComparer.OrdinalIgnoreCase);
     readonly WorldLoader _load;
     readonly string _map;
+    readonly string? _elementDir;
     readonly Dictionary<int, List<PckEntry>> _byPiece = new();
     readonly Dictionary<int, List<Placed>> _loaded = new();
     readonly HashSet<int> _wanted = new(), _requested = new();
@@ -189,7 +190,7 @@ internal sealed class WorldBuildings : IDisposable
 
     public WorldBuildings(string? elementDir, string map, WorldLoader load)
     {
-        _map = map.ToLowerInvariant(); _load = load;
+        _map = map.ToLowerInvariant(); _load = load; _elementDir = elementDir;
         try
         {
             if (elementDir is null) return;
@@ -204,10 +205,12 @@ internal sealed class WorldBuildings : IDisposable
     void IndexPieces()
     {
         if (_lit is null) return;
+        var refs = _elementDir is null ? null : MyAceEditor.PerfectWorld.WorldEdit.ObjectFormats.ReferencedBmds(Path.Combine(_elementDir, "maps", _map, _map + ".ecwld"), _map);
         var prefix = $@"litmodels\{_map}\";
         foreach (var e in _lit.Entries)
         {
             if (!e.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || !e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase)) continue;
+            if (refs is not null && !refs.Contains(e.Path)) continue;   // .bmd sem referência no .ecwld: o jogo não mostra
             var rest = e.Path.AsSpan(prefix.Length);
             int slash = rest.IndexOf('\\');
             if (slash > 0 && int.TryParse(rest[..slash], out var piece))

@@ -309,13 +309,13 @@ internal sealed partial class WorldView
     bool CancelClose(DialogResult answer, bool interactive)
     {
         if (answer == DialogResult.Cancel) return true;
-        if (answer == DialogResult.Yes) return !SaveScene(interactive);   // salvar recusado/falhou: fica aberto, nada se perde
+        if (answer == DialogResult.Yes) return !SaveScene(interactive, wait: true);   // salvar recusado/falhou: fica aberto, nada se perde
         return false;
     }
 
-    bool SaveScene(bool interactive = true)
+    bool SaveScene(bool interactive = true, bool wait = false)
     {
-        if (_draft?.Dirty == true) return SaveObjects(interactive);
+        if (_draft?.Dirty == true) return SaveObjects(interactive, wait);
         if (_ecw is null || _ecwPath is null) return false;
         // construções primeiro: gravam litmodels.pck + map.bht e mexem no ornamento do .ecbsd (gravado logo abaixo)
         bool built = false;

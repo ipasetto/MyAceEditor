@@ -158,6 +158,7 @@ internal sealed partial class WorldView
         var sceneSave = SmallButton("\uE74E", Loc.T("world.objSave", "Salvar cenário"), () => SaveScene(), main: true);
         _toolTip.SetToolTip(sceneSave, ".ecwld\n.ecbsd\nlitmodels.pck\nmap.bht");
         _scenePage.Controls.Add(sceneSave);
+        _scenePage.Controls.Add(new Panel { Width = 10, Height = 40, Margin = Padding.Empty });   // espaço livre embaixo (regra do usuário)
 
         // ---- Caminhos e áreas ----
         InitPathPage();
@@ -231,6 +232,7 @@ internal sealed partial class WorldView
     {
         if (_tool == Tool.Zones && !ZoneLeave()) return;
         if (_tool == Tool.Domains && !CloseDomains()) return;
+        if (_tool == Tool.Scene && !AbandonObjects()) return;
         if (_tool == Tool.Create)
         {
             if (_editing > 0 && MessageBox.Show(this, Loc.T("create.stopEditAsk", "Sair sem salvar as mudanças deste NPC?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;

@@ -122,7 +122,8 @@ public static class ObjectsSelfTest
     {
         var src = Sources(element, "world", config);
         using var lit = new PckArchive(Path.Combine(element, "litmodels.pck"));
-        var perFolder = lit.Entries.Where(e => e.Path.StartsWith(@"litmodels\world\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
+        var refsW = ObjectFormats.ReferencedBmds(src.EcwldPath, "world");
+        var perFolder = lit.Entries.Where(e => e.Path.StartsWith(@"litmodels\world\", StringComparison.OrdinalIgnoreCase) && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase) && (refsW is null || refsW.Contains(e.Path)))
             .Select(e => e.Path.Split('\\')).Where(p => p.Length == 4 && int.TryParse(p[2], out _)).GroupBy(p => int.Parse(p[2])).ToDictionary(g => g.Key, g => g.Count());
         var pieces = new List<DraftPiece>();
         int wrong = 0; string? firstWrong = null;
@@ -515,6 +516,23 @@ public static class ObjectsSelfTest
         var nb4 = p4.PckFiles[s4.Key];
         var keys4 = new BhtFile(p4.Files[a05.BhtPath!]).Keys();
         r.Check("escala-chave", ObjectFormats.ReadBmd(nb4).Scale == s4.Original.Scale * 2 && BmdModel.CdBrushes(nb4)!.All(o => keys4.ContainsKey(BhtFile.KeyAt(nb4, o))));
+
+        // .bmd sem referência no .ecwld (órfão, ex.: apagado pelo editor) não aparece, como no jogo
+        var tmpO = Path.Combine(Path.GetTempPath(), "myace-orfao-" + Environment.ProcessId);
+        try
+        {
+            Directory.CreateDirectory(tmpO);
+            var ecwO = new EcwldFile(File.ReadAllBytes(a05.EcwldPath));
+            var bsdO = File.ReadAllBytes(a05.EcbsdPath);
+            uint idO = ObjectFormats.OrnamentIdOf(ecwO, bsdO, solid.Key)!.Value;
+            ecwO.Delete(EcwldFile.Kind.Ornament, idO);
+            File.WriteAllBytes(Path.Combine(tmpO, "a05.ecwld"), ecwO.Write());
+            File.WriteAllBytes(Path.Combine(tmpO, "a05.ecbsd"), bsdO);
+            using var srcO = new DraftSources(element, "a05", config, a05.PieceAt, a05.PieceCount) { EcwldPath = Path.Combine(tmpO, "a05.ecwld") };
+            var pO = DraftLoader.ReadPiece(srcO, solid.Piece);
+            r.Check("orfao-nao-aparece", pO.Objects.All(o => !o.Key.Equals(solid.Key, StringComparison.OrdinalIgnoreCase)) && pO.Objects.Count(o => o.Kind == ObjKind.Building) == buildings.Count(o => o.Piece == solid.Piece) - 1);
+        }
+        finally { try { Directory.Delete(tmpO, true); } catch (IOException) { } }
 
         // cópia fora do pedaço bloqueia
         var d5 = DraftOf(a05, all);

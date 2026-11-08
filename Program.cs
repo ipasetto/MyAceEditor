@@ -1467,7 +1467,8 @@ internal static class Program
                 Application.DoEvents(); Thread.Sleep(30);
                 if (w.Loading) quiet = DateTime.MaxValue; else if (quiet == DateTime.MaxValue) quiet = DateTime.Now; else if ((DateTime.Now - quiet).TotalSeconds > 1.5) break;
             }
-            if (c.Name?.StartsWith("dftpaste") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftPasteTest() + Environment.NewLine);
+            if (c.Name?.StartsWith("dftesc") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftEscTest() + Environment.NewLine);
+            else if (c.Name?.StartsWith("dftpaste") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftPasteTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftpick") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftPickTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftfix") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftFixTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftcard") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCardTest(outDir) + Environment.NewLine);

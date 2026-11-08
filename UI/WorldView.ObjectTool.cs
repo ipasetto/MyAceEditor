@@ -50,7 +50,7 @@ internal sealed partial class WorldView
     /// <summary>Solta os pedaços longe e limpos e pede ao carregador os que faltam (resposta volta na thread da tela).</summary>
     void DraftWant(IReadOnlyCollection<int> pieces)
     {
-        if (_draft is null || _draftSrc is null) return;
+        if (_draft is null || _draftSrc is null || _saving) return;
         _draftWanted = [.. pieces];
         _draft.Retain(pieces);
         var src = _draftSrc;
@@ -279,9 +279,9 @@ internal sealed partial class WorldView
     /// Salvar único (construções, modelos e o cenário do SceneEdit): resumo, conferências, grava tudo ou nada e oferece
     /// enviar ao servidor quando o map.bht mudou. Falso = nada gravado (o rascunho continua).
     /// </summary>
-    bool SaveObjects(bool ask = true)
+    bool SaveObjects(bool ask = true, bool wait = false)
     {
-        if (_draft is null || _draftSrc is null) return false;
+        if (_draft is null || _draftSrc is null || _saving) return false;
         SavePlan plan;
         try
         {
@@ -318,7 +318,28 @@ internal sealed partial class WorldView
                 Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.YesNo, checks.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
             if (answer != DialogResult.Yes) { if (checks.Count > 0) FlyTo(checks[0].Key); return false; }
         }
-        var res = DraftSaver.Write(plan, _draftSrc);
+        if (!wait)
+        {
+            // o pacote do 1.5.5 é dividido e a gravação copia a parte .pkx inteira: em segundo plano, com aviso
+            _saving = true; _gl.Enabled = false; _tools.Enabled = false;
+            _status.Text = Loc.T("obj.saving", "Salvando… o pacote do jogo é grande, pode levar até um minuto.");
+            var srcW = _draftSrc;
+            System.Threading.Tasks.Task.Run(() => DraftSaver.Write(plan, srcW)).ContinueWith(t => BeginInvoke(() =>
+            {
+                _saving = false; _gl.Enabled = true; _tools.Enabled = true;
+                var r2 = t.IsFaulted ? new SaveResult(SaveKind.Failed, t.Exception?.GetBaseException().Message ?? "?") : t.Result;
+                AfterObjectsWrite(r2, plan, ask);
+            }));
+            return true;
+        }
+        return AfterObjectsWrite(DraftSaver.Write(plan, _draftSrc), plan, ask);
+    }
+
+    bool _saving;
+
+    /// <summary>Depois da gravação (na thread da tela): erro em frase simples, ou relê tudo do disco e acende o envio.</summary>
+    bool AfterObjectsWrite(SaveResult res, SavePlan plan, bool ask)
+    {
         if (res.Kind is not (SaveKind.Both or SaveKind.ClientOnly))
         {
             if (ask) MessageBox.Show(this, res.Message, Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -329,8 +350,9 @@ internal sealed partial class WorldView
         if (_ecwPath is not null && plan.Files.TryGetValue(_ecwPath, out var ew)) { _ecw = new EcwldFile(ew); _ecwSaved = ew; _objScene = ScanScene(ew); }
         if (_bsdPath is not null && plan.Files.TryGetValue(_bsdPath, out var bw)) { _bsd = (byte[])bw.Clone(); _bsdSaved = (byte[])bw.Clone(); }
         bool server = plan.Files.Keys.Any(k => k.EndsWith("map.bht", StringComparison.OrdinalIgnoreCase));
-        try { if (_element is not null && plan.PckFiles.Count > 0) _buildings.Reopen(_element); }
+        try { if (_element is not null && (plan.PckFiles.Count > 0 || plan.Files.Count > 0)) { _buildings.Reopen(_element); _piece = -1; } }   // _piece = -1: pede os pedaços de novo já
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("objetos: reabrir litmodels.pck", ex); }
+        if (server) ServerNotice.Notify("map.bht");   // acende o "Salvar e enviar ao servidor"
         ObjectsSaved();
         DraftOpen();
         UpdateSideState();
@@ -423,6 +445,17 @@ internal sealed partial class WorldView
         string sum = "";
         try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (InvalidDataException ex) { sum = ex.Message; }
         return load + $" | dftpaste: {msg} criou={made} clique={System.IO.Path.GetFileName(click)} (cópia {copy.Key}) ctrlz={undo} ctrly={redo} tamanho1,5={scaled} plano=\"{sum}\"";
+    }
+
+    /// <summary>Para a captura ("dftesc"): Esc com seleção tira a seleção e fica; Esc sem seleção e sem mudança sai da ferramenta.</summary>
+    internal string DraftEscTest()
+    {
+        string load = DraftLoadTest();
+        if (_buildings.Nearest(_cam) is not { } nb) return load + " | dftesc: nada carregado";
+        _sceneSel = new BuildingSel(nb.File, Vector3.Zero); ShowObjPanel();
+        bool first = EscapeStep() && _sceneSel is null && _tool == Tool.Scene;
+        bool second = EscapeStep() && _tool == Tool.None;
+        return load + $" | dftesc: 1o Esc tira a seleção e fica={first} 2o Esc sai={second}";
     }
 
     /// <summary>Leva a câmera até o objeto (conferência "levar até ele").</summary>
@@ -756,26 +789,6 @@ internal sealed partial class WorldView
     {
         if (_tool == Tool.None) return;
         var col = ToolColor(_tool);
-        if (_bannerFor != _tool || _bannerTex == 0)
-        {
-            string text = "● " + _toolTitle.Text.Trim();
-            using var font = new Font("Segoe UI Semibold", 11f);
-            var size = TextRenderer.MeasureText(text, font);
-            int w = size.Width + 28, h = size.Height + 10;
-            using var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            using (var g = Graphics.FromImage(bmp))
-            {
-                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                g.Clear(Color.Transparent);
-                using var path = new System.Drawing.Drawing2D.GraphicsPath();
-                int r = h / 2;
-                path.AddArc(0, 0, r * 2, h - 1, 90, 180); path.AddArc(w - r * 2 - 1, 0, r * 2, h - 1, 270, 180); path.CloseFigure();
-                using var fill = new SolidBrush(Color.FromArgb(235, col)); g.FillPath(fill, path);
-                TextRenderer.DrawText(g, text, font, new Rectangle(0, 0, w, h), Color.FromArgb(20, 20, 24), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-            }
-            if (_bannerTex != 0) GL.DeleteTexture(_bannerTex);
-            _bannerTex = UploadBitmap(bmp); _bannerW = w; _bannerH = h; _bannerFor = _tool;
-        }
         GL.MatrixMode(MatrixMode.Projection); GL.PushMatrix(); GL.LoadIdentity(); GL.Ortho(0, _gl.Width, _gl.Height, 0, -1, 1);
         GL.MatrixMode(MatrixMode.Modelview); GL.PushMatrix(); GL.LoadIdentity();
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Fog); GL.Disable(EnableCap.Lighting);
@@ -784,14 +797,21 @@ internal sealed partial class WorldView
         GL.LineWidth(4); GL.Color4(col.R / 255f, col.G / 255f, col.B / 255f, 0.85f);
         GL.Begin(PrimitiveType.LineLoop); GL.Vertex2(2, 2); GL.Vertex2(_gl.Width - 2, 2); GL.Vertex2(_gl.Width - 2, _gl.Height - 2); GL.Vertex2(2, _gl.Height - 2); GL.End();
         GL.LineWidth(1);
-        GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, _bannerTex); GL.Color4(1f, 1f, 1f, 1f);
-        float x = (_gl.Width - _bannerW) / 2f, y = 10;
-        GL.Begin(PrimitiveType.Quads);
-        GL.TexCoord2(0f, 0f); GL.Vertex2(x, y); GL.TexCoord2(1f, 0f); GL.Vertex2(x + _bannerW, y);
-        GL.TexCoord2(1f, 1f); GL.Vertex2(x + _bannerW, y + _bannerH); GL.TexCoord2(0f, 1f); GL.Vertex2(x, y + _bannerH);
-        GL.End();
         GL.Disable(EnableCap.Blend); GL.Enable(EnableCap.DepthTest);
         GL.MatrixMode(MatrixMode.Projection); GL.PopMatrix(); GL.MatrixMode(MatrixMode.Modelview); GL.PopMatrix();
     }
+    /// <summary>Sair da ferramenta com mudança não salva: pergunta; Sim descarta tudo (rascunho e cenário voltam ao disco).</summary>
+    bool AbandonObjects()
+    {
+        if (!SceneDirty) return true;
+        if (MessageBox.Show(this, Loc.T("obj.abandonAsk", "Há mudanças não salvas nos objetos do mundo. Abandonar e perder essas mudanças?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return false;
+        _sceneSel = null; ShowObjPanel();
+        _draftSrc?.Dispose(); _draftSrc = null; _draft = null; _draftAsked.Clear();
+        _ecw = null; _bsd = null; _ecwWhy = null; _sUndo.Clear(); _sRedo.Clear();
+        LoadSceneForEdit();
+        UpdateSideState(); _gl.Invalidate();
+        return true;
+    }
+
     void DraftDispose() { _draftSrc?.Dispose(); _draftSrc = null; }
 }

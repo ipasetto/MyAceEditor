@@ -45,6 +45,9 @@ public sealed class DraftSources(string elementDir, string map, string? serverCo
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("objetos: map.bht", ex); return null; }
     });
     Lazy<Dictionary<string, List<int>>?>? _keys;
+    /// <summary>.bmd que o cliente carrega (citados pelo .ecwld); null = vale a pasta inteira.</summary>
+    internal Lazy<HashSet<string>?> Referenced => _refs ??= new(() => ObjectFormats.ReferencedBmds(EcwldPath, Map));
+    Lazy<HashSet<string>?>? _refs;
 
     public void Dispose() { lock (LitLock) { _lit?.Dispose(); _lit = null; } }
 }
@@ -85,8 +88,10 @@ public static class DraftLoader
         lock (src.LitLock) files = lit.Entries.Where(e => e.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
             && e.Path.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase) && e.Path.IndexOf('\\', prefix.Length) < 0).ToList();
         var keys = src.BhtKeys.Value;
+        var refs = src.Referenced.Value;
         foreach (var e in files)
         {
+            if (refs is not null && !refs.Contains(e.Path)) continue;   // órfão: o jogo não carrega
             byte[] b;
             lock (src.LitLock) b = lit.Read(e);
             try

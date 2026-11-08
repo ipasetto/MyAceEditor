@@ -5709,5 +5709,11 @@
   "obj.scaleLabel": "大小",
   "obj.scaled": "大小 {0:0.##}×（尚未保存）",
   "obj.collision2": "碰撞：{0}",
-  "obj.isNew": "新（副本）"
+  "obj.isNew": "新（副本）",
+  "obj.saving": "正在保存… 游戏包很大，可能需要一分钟。",
+  "obj.abandonAsk": "世界物体有未保存的修改。放弃并丢失这些修改吗？",
+  "bak.catPacks": "客户端包（.pck）",
+  "bak.catData": "游戏数据",
+  "bak.catMaps": "地图和场景",
+  "bak.catOther": "界面、文本和其他"
 }

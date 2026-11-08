@@ -392,6 +392,7 @@ internal sealed partial class WorldView : Form
         if (CancelStep()) return true;
         if (_editor is { IsDisposed: false, Parent: not null } editor) { editor.AskCancel(); return true; }
         if (_tool == Tool.None) return ClearScreen();
+        if (_tool == Tool.Scene && _sceneSel is not null) { _sceneSel = null; ShowObjPanel(); _gl.Invalidate(); return true; }   // 1º Esc: tira a seleção
         LeaveTool();
         return true;
     }

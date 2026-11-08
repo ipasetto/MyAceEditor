@@ -5595,9 +5595,25 @@ public sealed class EditorForm : Form
         // um submenu por tipo de arquivo, cada um com os 5 mais novos (usuário 07/11); cliente e servidor juntos
         var all = BackupStore.Recent(BackupRoots(), 2000).Select(b => (File: b.Original, Path: b.Bak, b.When)).ToList();
         if (all.Count == 0) { menu.DropDownItems.Add(new ToolStripMenuItem(Loc.T("menu.noBackups", "(nenhum backup deste jogo ainda)")) { Enabled = false }); return; }
-        foreach (var group in all.GroupBy(b => Path.GetFileName(b.File), StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        // 1º nível: categoria (dados do jogo, mapas, pacotes, interface e textos); 2º: pasta (mapa / pasta do pacote) quando há muitos
+        static string Cat(string f)
         {
-            var sub = new ToolStripMenuItem(group.Key) { ForeColor = CFg };
+            var n = Path.GetFileName(f).ToLowerInvariant(); var ext = Path.GetExtension(n);
+            if (ext is ".pck" or ".pkx" || n.Contains(".pkx")) return Loc.T("bak.catPacks", "Pacotes do cliente (.pck)");
+            if (n is "elements.data" or "tasks.data" or "aipolicy.data" or "npcgen.data" or "gshop.data" or "gshop1.data" or "gshop2.data" or "gshopsev.data" or "gshopsev1.data" or "gshopsev2.data" or "configs.pck" or "extra_drops.sev" or "domain.sev")
+                return Loc.T("bak.catData", "Dados do jogo");
+            if (ext is ".ecwld" or ".ecbsd" or ".bht" or ".sev" or ".clt" || n == "npcgen.data") return Loc.T("bak.catMaps", "Mapas e cenário");
+            return Loc.T("bak.catOther", "Interface, textos e outros");
+        }
+        foreach (var cat in all.GroupBy(b => Cat(b.File)).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var catMenu = new ToolStripMenuItem($"{cat.Key}  ({cat.Select(b => b.File).Distinct(StringComparer.OrdinalIgnoreCase).Count()})") { ForeColor = CFg };
+            var byName = cat.GroupBy(b => Path.GetFileName(b.File), StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
+            bool folders = byName.Count > 25;   // muitos arquivos: mais um nível pela pasta
+            var parents = new Dictionary<string, ToolStripMenuItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in byName)
+            {
+                var sub = new ToolStripMenuItem(group.Key) { ForeColor = CFg };
             foreach (var (file, bak, when) in group.OrderByDescending(b => b.When).Take(5))
             {
                 var where = Path.GetFileName(Path.GetDirectoryName(file)) is { Length: > 0 } d && d is not ("data" or "config" or "element") ? d + "\\" : "";   // mapa (world\path.sev)
@@ -5605,7 +5621,12 @@ public sealed class EditorForm : Form
                 it.Click += (_, _) => RestoreBackup(bak, file);
                 sub.DropDownItems.Add(it);
             }
-            menu.DropDownItems.Add(sub);
+                if (!folders) { catMenu.DropDownItems.Add(sub); continue; }
+                var dir = Path.GetFileName(Path.GetDirectoryName(group.First().File)) is { Length: > 0 } dd ? dd : "—";
+                if (!parents.TryGetValue(dir, out var pm)) { pm = new ToolStripMenuItem(dir) { ForeColor = CFg }; parents[dir] = pm; catMenu.DropDownItems.Add(pm); }
+                pm.DropDownItems.Add(sub);
+            }
+            menu.DropDownItems.Add(catMenu);
         }
     }
 

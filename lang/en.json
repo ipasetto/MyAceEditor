@@ -5707,5 +5707,11 @@
   "obj.scaleLabel": "size",
   "obj.scaled": "Size {0:0.##}× (not saved yet)",
   "obj.collision2": "collision: {0}",
-  "obj.isNew": "new (copy)"
+  "obj.isNew": "new (copy)",
+  "obj.saving": "Saving… the game package is big, it may take up to a minute.",
+  "obj.abandonAsk": "There are unsaved changes in the world objects. Abandon and lose these changes?",
+  "bak.catPacks": "Client packages (.pck)",
+  "bak.catData": "Game data",
+  "bak.catMaps": "Maps and scenery",
+  "bak.catOther": "Interface, texts and others"
 }
