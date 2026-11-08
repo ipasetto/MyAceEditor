@@ -9,7 +9,7 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed partial class WorldView
 {
-    enum Tool { None, Scene, Paths, Quests, Create, Teleports, Zones, Domains }
+    enum Tool { None, Scene, Paths, Quests, Create, Teleports, Zones, Domains, Terrain }
     /// <summary>Salvar tudo e enviar ao servidor (EditorForm.SaveAndSend).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] internal Action? SaveAndSendAll { get; set; }
     Tool _tool;
@@ -111,7 +111,7 @@ internal sealed partial class WorldView
         _toolBack.FlatAppearance.BorderSize = 0; _toolFold.FlatAppearance.BorderSize = 0;
         _toolBack.Image = UiKit.Icon("", Color.White, 16);
         _toolTip.SetToolTip(_toolBack, Loc.T("tools.back", "Voltar ao menu de ferramentas"));
-        _toolBack.Click += (_, _) => { if (_tool == Tool.Scene && !AbandonObjects()) return; if (_tool == Tool.Zones && !ZoneLeave()) return; if (_tool == Tool.Domains && !CloseDomains()) return; if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
+        _toolBack.Click += (_, _) => { if (_tool == Tool.Scene && !AbandonObjects()) return; if (_tool == Tool.Terrain && !AbandonTerrain()) return; if (_tool == Tool.Zones && !ZoneLeave()) return; if (_tool == Tool.Domains && !CloseDomains()) return; if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
         _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
@@ -119,6 +119,7 @@ internal sealed partial class WorldView
 
         // ---- menu ----
         _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
+        _toolMenu.Controls.Add(ToolButton("\uE81D", Loc.T("tools.terrain", "Terreno"), Loc.T("tools.terrainSub", "Pintar a textura do chão (altura e água nas próximas etapas)."), () => OpenTool(Tool.Terrain)));
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
         _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.npcs", "NPCs e monstros"), Loc.T("tools.npcsSub", "Criar e editar NPC, vendedor, fornalha e monstro."), () => OpenTool(Tool.Create)));
@@ -177,6 +178,8 @@ internal sealed partial class WorldView
         FormClosing += (_, e) => { if (_tool == Tool.Domains && !CloseDomains()) e.Cancel = true; };
         InitTeleportPage();
 
+        InitTerrainPage();
+        _tools.Controls.Add(_terrainPage);
         _tools.Controls.Add(_zonePage); _tools.Controls.Add(_toolMenu); _tools.Controls.Add(_scenePage); _tools.Controls.Add(_pathsPage); _tools.Controls.Add(_questsPage); _tools.Controls.Add(_createPage); _tools.Controls.Add(_tpPage); _tools.Controls.Add(_toolHead);
         _tools.Controls.Add(_zFoot);
         Controls.Add(_tools);
@@ -188,10 +191,10 @@ internal sealed partial class WorldView
     /// <summary>Tamanho e lugar do menu: solto à direita, um pouco abaixo da barra de cima; recolhido = só o cabeçalho.</summary>
     void LayoutTools()
     {
-        var page = _tool switch { Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, Tool.Create => _createPage, Tool.Teleports => _tpPage, Tool.Zones => _zonePage, _ => _toolMenu };
-        int body = _tool switch { Tool.Domains => 0, Tool.Scene => Math.Max(200, _gl.Height - 32 - _toolHead.Height) /* até embaixo (antes 640 e rolava) */, Tool.Zones => _gl.Height - 60, Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Teleports => Math.Min(_tpPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        var page = _tool switch { Tool.Terrain => _terrainPage, Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, Tool.Create => _createPage, Tool.Teleports => _tpPage, Tool.Zones => _zonePage, _ => _toolMenu };
+        int body = _tool switch { Tool.Domains => 0, Tool.Scene or Tool.Terrain => Math.Max(200, _gl.Height - 32 - _toolHead.Height) /* até embaixo (antes 640 e rolava) */, Tool.Zones => _gl.Height - 60, Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Teleports => Math.Min(_tpPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
-        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage, _createPage, _tpPage, _zonePage }) p.Visible = !_toolsFolded && p == page;
+        foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage, _createPage, _tpPage, _zonePage, _terrainPage }) p.Visible = !_toolsFolded && p == page;
         _zFoot.Visible = _tool == Tool.Zones && !_toolsFolded && _zDrawing == ZoneDraw.None;
         _toolFold.Image = UiKit.Icon(_toolsFolded ? "" : "", Color.White, 16);
         _toolTip.SetToolTip(_toolFold, _toolsFolded ? Loc.T("tools.unfold", "Abrir o menu") : Loc.T("tools.fold", "Recolher o menu"));
@@ -222,6 +225,7 @@ internal sealed partial class WorldView
             ShowQuestTool(_questNpc > 0 ? NpcQuests?.Invoke(_questNpc) : null);
         }
         if (t == Tool.Scene) { _toolTitle.Text = "       " + Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
+        if (t == Tool.Terrain) { _toolTitle.Text = "       " + Loc.T("tools.terrain", "Terreno"); _toolTitle.Image = UiKit.Icon("\uE81D", Color.White, 18); TexLabels(); }
         if (t == Tool.Paths) { _toolTitle.Text = "       " + Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
         if (t == Tool.Create)
         {
@@ -241,6 +245,7 @@ internal sealed partial class WorldView
         if (_tool == Tool.Zones && !ZoneLeave()) return;
         if (_tool == Tool.Domains && !CloseDomains()) return;
         if (_tool == Tool.Scene && !AbandonObjects()) return;
+        if (_tool == Tool.Terrain && !AbandonTerrain()) return;
         if (_tool == Tool.Scene) { StopBrush(); StopPlanting(); CloseLightPanel(); }
         if (_tool == Tool.Create)
         {

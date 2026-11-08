@@ -57,6 +57,8 @@ internal sealed partial class WorldView
                 || name.StartsWith("litmodels.p", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("map.bht", StringComparison.OrdinalIgnoreCase) && full.Contains(sep + _t.Name + sep, StringComparison.OrdinalIgnoreCase);
         });
+        if (files.Any(f => f.EndsWith(".t2mk", StringComparison.OrdinalIgnoreCase) && Path.GetFileName(f).StartsWith(_t.Name + "_", StringComparison.OrdinalIgnoreCase)))
+            BeginInvoke(() => { var ps = files.Select(f => Path.GetFileNameWithoutExtension(f)).Select(n => int.TryParse(n[(n.LastIndexOf('_') + 1)..], out int p) ? p : 0).Where(p => p > 0).ToList(); _terrainDraft = null; foreach (var (ar, ac) in _t.ClearGround(ps)) _terrain.RefreshGround(ar, ac); TexLabels(); _gl.Invalidate(); });
         if (!mine) return;
         if (InvokeRequired) { BeginInvoke(ReloadFromDisk); return; }
         ReloadFromDisk();
@@ -146,6 +148,11 @@ internal sealed partial class WorldView
         FormClosing += (_, e) =>
         {
             if (Headless) return;   // captura de teste: fecha sem perguntar (nada foi gravado)
+            if (TerrainDirty)
+            {
+                var tr = MessageBox.Show(this, Loc.T("terrain.askSave", "Há mudanças não salvas no terreno. Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (tr == DialogResult.Cancel || tr == DialogResult.Yes && !SaveTerrain()) { e.Cancel = true; return; }
+            }
             if (_saving) { e.Cancel = true; MessageBox.Show(this, Loc.T("obj.waitSave", "Espere o Salvar terminar antes de fechar."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             if (!SceneDirty) return;
             var r = MessageBox.Show(this, Loc.T("obj.askSave", "Há mudanças não salvas nos objetos do mundo (construções, modelos, efeitos, sons ou bichos). Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);

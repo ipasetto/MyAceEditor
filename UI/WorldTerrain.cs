@@ -66,6 +66,59 @@ internal sealed class WorldTerrain : IDisposable
         foreach (var p in order) { int pp = p; _load.Work(() => { t.Prefetch(pp); return 0; }, _ => { }, urgent: pp == start); }
     }
 
+    /// <summary>
+    /// Pincel de textura: refaz as máscaras da área com as camadas atuais do cache do terreno (na thread da tela; a luz do chão
+    /// fica). Textura nova é lida do textures.pck na hora. Área ainda não carregada: o próximo desenho pede.
+    /// </summary>
+    internal void RefreshGround(int ar, int ac)
+    {
+        if (!_ground.TryGetValue((ar, ac), out var old)) return;
+        TerrainFile.GroundLayer[]? layers;
+        try { layers = _t.Ground(ar, ac); } catch { layers = null; }
+        if (old is null || layers is null)
+        {
+            if (old is not null) { foreach (var l in old.Layers) if (l.Mask != 0) GL.DeleteTexture(l.Mask); if (old.Light != 0) GL.DeleteTexture(old.Light); }
+            _ground.Remove((ar, ac));
+            return;
+        }
+        foreach (var l in layers)
+        {
+            if (_groundTex.ContainsKey(l.Texture) || _texPck is null) continue;
+            lock (_decodedNames) _decodedNames.Add(l.Texture);
+            byte[]? d; lock (_texPck) d = _texPck.Find(l.Texture.ToLowerInvariant()) is { } e ? _texPck.Read(e) : null;
+            (int[] Px, int W, int H)? img = null;
+            try { img = d is null ? null : DdsDecoder.DecodeMax(d, 512); } catch { img = null; }
+            _groundTex[l.Texture] = img is { } i ? UploadTexture(i.Px, i.W, i.H, true, true) : 0;
+        }
+        var gl = layers.Select((l, i) => (l.Texture, l.UScale, l.VScale, i > 0 && l.Mask is not null ? UploadMask(l.Mask, l.MaskSide) : 0)).ToArray();
+        foreach (var l in old.Layers) if (l.Mask != 0) GL.DeleteTexture(l.Mask);
+        _ground[(ar, ac)] = new GroundGpu(gl, old.Light);
+    }
+
+    readonly Dictionary<string, Bitmap?> _texThumbs = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Imagem pequena de uma textura do chão (janela de escolher); null = não achou.</summary>
+    internal Image? TextureImage(string path)
+    {
+        if (_texThumbs.TryGetValue(path, out var b)) return b;
+        b = null;
+        try
+        {
+            byte[]? d = null;
+            if (_texPck is not null) lock (_texPck) d = _texPck.Find(path.ToLowerInvariant()) is { } e ? _texPck.Read(e) : null;
+            if (d is not null && DdsDecoder.DecodeMax(d, 256) is { } img)
+            {
+                b = new Bitmap(img.Item2, img.Item3, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                var data = b.LockBits(new Rectangle(0, 0, img.Item2, img.Item3), System.Drawing.Imaging.ImageLockMode.WriteOnly, b.PixelFormat);
+                var px = img.Item1.Select(p => p | unchecked((int)0xFF000000)).ToArray();
+                System.Runtime.InteropServices.Marshal.Copy(px, 0, data.Scan0, px.Length);
+                b.UnlockBits(data);
+            }
+        }
+        catch (Exception ex) { MyAceEditor.PerfectWorld.AppLog.Error("terreno: imagem da textura " + path, ex); b = null; }
+        return _texThumbs[path] = b;
+    }
+
     /// <summary>Lê um arquivo do surfaces.pck (minimapa, mapa pintado) com segurança entre threads.</summary>
     public byte[]? ReadSurface(string path)
     {

@@ -133,6 +133,24 @@ public sealed class TerrainFile
         }
     }
 
+    /// <summary>Pincel de textura: troca as camadas de uma área no cache (o desenho mostra na hora; o disco só no Salvar).</summary>
+    internal void SetGround(int areaRow, int areaCol, GroundLayer[]? layers) { lock (_areaSync) _areas[(areaRow, areaCol)] = layers; }
+
+    /// <summary>Esquece a textura do chão dos pedaços (relê do disco na próxima vez). Devolve as áreas para redesenhar.</summary>
+    internal List<(int, int)> ClearGround(IEnumerable<int> pieces)
+    {
+        var list = new List<(int, int)>();
+        int per = (int)(CellsPerPiece * Cell / AreaM);
+        lock (_areaSync)
+            foreach (int p in pieces)
+            {
+                _maskFiles.Remove(p);
+                int pr = (p - 1) / Cols, pc = (p - 1) % Cols;
+                for (int r = 0; r < per; r++) for (int c = 0; c < per; c++) { var k = (pr * per + r, pc * per + c); _areas.Remove(k); list.Add(k); }
+            }
+        return list;
+    }
+
     /// <summary>Camadas do chão da área de 256 m (linha/coluna globais a partir do noroeste); null sem dados.</summary>
     public GroundLayer[]? Ground(int areaRow, int areaCol)
     {
