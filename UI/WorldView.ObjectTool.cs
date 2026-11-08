@@ -37,7 +37,7 @@ internal sealed partial class WorldView
         try
         {
             _draftSrc ??= new DraftSources(_element, _t.Name, ServerConfigDir, _t.PieceAt, _t.Rows * _t.Cols);
-            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); }
+            if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); _buildings.Extras = DraftExtras; }
             DraftWant(PiecesAroundCamera());
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -132,7 +132,7 @@ internal sealed partial class WorldView
     {
         if (_draft is null || _tool != Tool.Scene) return;
         foreach (var piece in _draft.Pieces.Values)
-            foreach (var o in piece.Objects)
+            foreach (var o in piece.Objects.Concat(piece.Added))
             {
                 if (o.Kind != ObjKind.Model || o.Deleted || o.Source.Length == 0) continue;
                 var t = o.Now;
@@ -142,6 +142,7 @@ internal sealed partial class WorldView
 
     // ---------------- tela: escolher, cartão, mexer, apagar, salvar (Task 7) ----------------
     sealed record ModelSel(string Key);
+    readonly NumericUpDown _objScale = new() { Minimum = 0.1m, Maximum = 10, DecimalPlaces = 2, Width = 64, Increment = 0.1m };
     readonly NumericUpDown _objYaw = new() { Minimum = -720, Maximum = 720, DecimalPlaces = 0, Width = 64, Increment = 15 };
     readonly CheckBox _stickGround = new() { Text = "", Checked = true, AutoSize = true, ForeColor = Color.White };
     readonly CheckBox _showCollision = new() { Text = "", Checked = false, AutoSize = true, ForeColor = Color.White };
@@ -168,6 +169,15 @@ internal sealed partial class WorldView
         var row = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 30, BackColor = _objPanel.BackColor, Padding = new Padding(0, 2, 0, 0) };
         row.Controls.Add(new Label { Text = Loc.T("obj.turn", "giro (graus)"), ForeColor = Color.Silver, AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
         row.Controls.Add(_objYaw);
+        row.Controls.Add(new Label { Text = Loc.T("obj.scaleLabel", "tamanho"), ForeColor = Color.Silver, AutoSize = true, Padding = new Padding(8, 6, 0, 0) });
+        row.Controls.Add(_objScale);
+        _objScale.ValueChanged += (_, _) =>
+        {
+            if (_objBinding || SelDraft is not { Kind: ObjKind.Building, Deleted: false } o) return;
+            if (DraftApply(new MoveOp(o.Key, o.Now with { Scale = (float)_objScale.Value })) is null)
+                _status.Text = string.Format(Loc.T("obj.scaled", "Tamanho {0:0.##}× (ainda não gravado)"), _objScale.Value);
+            ShowObjPanel(); _gl.Invalidate();
+        };
         var opts = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 28, BackColor = _objPanel.BackColor };
         opts.Controls.Add(_stickGround); opts.Controls.Add(_showCollision);
         _objPanel.Controls.Add(opts); _objPanel.Controls.Add(row);
@@ -183,7 +193,7 @@ internal sealed partial class WorldView
         var lines = new List<string> { kind + ": " + Path.GetFileName(o.Source) };
         if (size.LengthSquared() > 0) lines.Add(string.Format(Loc.T("obj.size", "tamanho {0:0.0} × {1:0.0} × {2:0.0} m (largura × altura × profundidade)"), size.X, size.Y, size.Z));
         lines.Add(string.Format(Loc.T("obj.count", "aparece {0} vez(es) nos pedaços abertos"), same));
-        lines.Add(string.Format(Loc.T("obj.collision", "colisão: {0} · escala {1:0.##} (só leitura nesta etapa)"), o.Solid ? Loc.T("obj.yes", "sim") : Loc.T("obj.no", "não"), o.Now.Scale));
+        lines.Add(string.Format(Loc.T("obj.collision2", "colisão: {0}"), o.Solid ? Loc.T("obj.yes", "sim") : Loc.T("obj.no", "não")) + (o.CopyOf is not null ? " · " + Loc.T("obj.isNew", "nova (cópia)") : ""));
         if (o.ReadOnlyWhy is not null) lines.Add(o.ReadOnlyWhy);
         else if (o.Deleted) lines.Add(Loc.T("obj.deletedLine", "apagado (Ctrl+Z traz de volta)"));
         return string.Join(Environment.NewLine, lines);
@@ -389,6 +399,30 @@ internal sealed partial class WorldView
             _draft.Undo();
         }
         return load + $" | dftfix: {stale} {close}";
+    }
+
+    /// <summary>Para a captura ("dftpaste"): copia a construção mais perto, cola 10 m ao lado, clica na cópia, Ctrl+Z/Ctrl+Y, tamanho 1,5×; não grava.</summary>
+    internal string DraftPasteTest()
+    {
+        string load = DraftLoadTest();
+        if (_buildings.Nearest(_cam) is not { } nb || _draft?.Find(nb.File) is not { } o) return load + " | dftpaste: nada carregado";
+        _sceneSel = new BuildingSel(nb.File, Vector3.Zero); _objClip = _sceneSel;
+        var c = CenterOf(o);
+        string? msg = PasteAt(c + new System.Numerics.Vector3(10, 0, 0));
+        var copy = SelDraft;
+        bool made = copy is { CopyOf: not null } && !copy.Deleted;
+        string click = "-";
+        if (made && Project(V3(CenterOf(copy!))) is { } q) { var r = MouseRay(Point.Round(q)); click = _buildings.RayPick(r.O, r.D)?.File ?? "nada"; }
+        bool undo = ObjectUndo(false) && copy!.Deleted;
+        bool redo = ObjectUndo(true) && !copy!.Deleted;
+        _sceneSel = new BuildingSel(copy!.Key, Vector3.Zero); ShowObjPanel();
+        var (mn0, mx0) = DraftChecks.WorldBox(copy); float s0 = copy.Now.Scale;
+        _objScale.Value = 1.5m;
+        var (mn1, mx1) = DraftChecks.WorldBox(copy);
+        bool scaled = MathF.Abs((mx1.Y - mn1.Y) / MathF.Max(0.01f, mx0.Y - mn0.Y) - 1.5f / s0) < 0.02f && copy.Now.Scale == 1.5f;
+        string sum = "";
+        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (InvalidDataException ex) { sum = ex.Message; }
+        return load + $" | dftpaste: {msg} criou={made} clique={System.IO.Path.GetFileName(click)} (cópia {copy.Key}) ctrlz={undo} ctrly={redo} tamanho1,5={scaled} plano=\"{sum}\"";
     }
 
     /// <summary>Leva a câmera até o objeto (conferência "levar até ele").</summary>
@@ -649,7 +683,12 @@ internal sealed partial class WorldView
     void PasteObject()
     {
         if (_objClip is null) { _status.Text = Loc.T("obj.nothingCopied", "Nada copiado: escolha um objeto e use Ctrl+C."); return; }
-        if (_objClip is BuildingSel or ModelSel or TreeSel) { _status.Text = Loc.T("obj.pasteLater", "Copiar construções, modelos e árvores chega na próxima etapa (inserir no mundo)."); return; }
+        if (_objClip is TreeSel) { _status.Text = Loc.T("obj.pasteTreeLater", "Copiar árvores chega na etapa das árvores."); return; }
+        if (_objClip is BuildingSel or ModelSel)
+        {
+            if ((_hover ?? Ray(_gl.PointToClient(Cursor.Position))) is { } g0) PasteAt(new System.Numerics.Vector3(g0.X, g0.Y, g0.Z));
+            return;
+        }
         if (_objClip is WorldScene.Critter) { _status.Text = Loc.T("world.critterMoveOnly", "bichos: só mover por enquanto"); return; }
         (EcwldFile.Kind Kind, uint Id)? k = _objClip switch { WorldScene.SceneEffect fx => (EcwldFile.Kind.Effect, fx.Id), WorldScene.SceneSound sd => (EcwldFile.Kind.Sound, sd.Id), _ => null };
         if (k is not { } kk || (_hover ?? Ray(_gl.PointToClient(Cursor.Position))) is not { } at) return;
@@ -659,6 +698,41 @@ internal sealed partial class WorldView
             if (nid != 0) f.Move(kk.Kind, nid, at.X, at.Y + (kk.Kind == EcwldFile.Kind.Effect ? 0.5f : 0), at.Z);
             return nid;
         }, Loc.T("obj.pasted", "Cópia colada onde está o mouse"));
+    }
+
+    int _newSeq;
+
+    /// <summary>Cópias coladas (construções) para o desenho e o clique do WorldBuildings.</summary>
+    IEnumerable<(string Key, string Src, Matrix4 World)> DraftExtras()
+    {
+        if (_draft is null) yield break;
+        foreach (var p in _draft.Pieces.Values)
+            foreach (var o in p.Added)
+                if (!o.Deleted && o.Kind == ObjKind.Building && o.CopyOf is { } src) yield return (o.Key, src, WorldBuildings.MatrixOf(o.Now));
+    }
+
+    /// <summary>
+    /// Cola a construção ou o modelo copiado com o centro no ponto do chão (jogo); com "Grudar no chão", a altura segue o
+    /// terreno como a da origem. A cópia já fica escolhida (setas e cartão). Só no mesmo pedaço de 1 km da origem.
+    /// </summary>
+    internal string? PasteAt(System.Numerics.Vector3 ground)
+    {
+        var srcSel = _objClip switch { BuildingSel b => _draft?.Find(b.File), ModelSel m => _draft?.Find(m.Key), _ => null };
+        if (srcSel is null || srcSel.Deleted) return _status.Text = Loc.T("obj.nothingCopied", "Nada copiado: escolha um objeto e use Ctrl+C.");
+        if (_draftSrc is { } ds && ds.PieceAt(ground.X, ground.Z) != srcSel.Piece)
+            return _status.Text = Loc.T("obj.pastePiece", "A cópia tem que ficar no mesmo pedaço de 1 km da original; cole mais perto dela.");
+        var c = CenterOf(srcSel);
+        var pos = srcSel.Now.Pos + new System.Numerics.Vector3(ground.X - c.X, 0, ground.Z - c.Z);
+        if (_stickGround.Checked && _t.HeightAt(pos.X, pos.Z) is { } g && _t.HeightAt(srcSel.Now.Pos.X, srcSel.Now.Pos.Z) is { } g0) pos.Y = g + (srcSel.Now.Pos.Y - g0);
+        var copy = new DraftObject
+        {
+            Key = "new:" + (++_newSeq), Kind = srcSel.Kind, Piece = srcSel.Piece, Source = srcSel.Source, CopyOf = srcSel.CopyOf ?? srcSel.Key,
+            Solid = srcSel.Solid, LocalBox = srcSel.LocalBox, Original = srcSel.Now with { Pos = pos },
+        };
+        if (DraftApply(new AddOp(copy.Key, copy)) is { } why) return why;
+        _sceneSel = copy.Kind == ObjKind.Model ? new ModelSel(copy.Key) : new BuildingSel(copy.Key, Vector3.Zero);
+        ShowObjPanel(); _gl.Invalidate();
+        return _status.Text = string.Format(Loc.T("obj.pastedNew", "Cópia de {0} colada (nova; só grava no Salvar; Ctrl+Z tira)."), System.IO.Path.GetFileName(copy.Source));
     }
 
     /// <summary>Painel do objeto com a altura do que ele mostra (antes era fixo e cortava o fim).</summary>

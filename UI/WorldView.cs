@@ -838,7 +838,7 @@ internal sealed partial class WorldView : Form
             hitInfo = string.Format(Loc.T("world.bldInfo", "Construção: {0} · X {1:0} Z {2:0} altura {3:0}"), Path.GetFileName(bh.File), c.X, c.Z, c.Y);
         }
         if (_draft is not null)
-            foreach (var o in _draft.Pieces.Values.SelectMany(x => x.Objects))
+            foreach (var o in _draft.Pieces.Values.SelectMany(x => x.Objects.Concat(x.Added)))
             {
                 if (o.Deleted || o.Kind is not (ObjKind.Model or ObjKind.Tree)) continue;
                 var bp = Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z);

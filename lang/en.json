@@ -5693,5 +5693,19 @@
   "obj.nothingCopied": "Nothing copied: pick an object and press Ctrl+C.",
   "obj.pasteLater": "Copying buildings, models and trees comes in the next stage (insert in the world).",
   "obj.pasted": "Copy pasted where the mouse is",
-  "obj.shadowNote": "The shadow painted on the ground (terrain light map) stays where it was; it will be redone with the terrain tool."
+  "obj.shadowNote": "The shadow painted on the ground (terrain light map) stays where it was; it will be redone with the terrain tool.",
+  "obj.keyTaken": "There is already an object with this key.",
+  "obj.modelNoScale": "Models cannot change size in this game version.",
+  "obj.noBlock": "There is no scene block at this place of the map.",
+  "obj.sumNew1": "1 new building",
+  "obj.sumNewN": "{0} new buildings",
+  "obj.sumMNew1": "1 new model",
+  "obj.sumMNewN": "{0} new models",
+  "obj.pasteTreeLater": "Copying trees comes in the trees stage.",
+  "obj.pastePiece": "The copy must stay in the same 1 km part of the map as the original; paste closer to it.",
+  "obj.pastedNew": "Copy of {0} pasted (new; only written on Save; Ctrl+Z removes it).",
+  "obj.scaleLabel": "size",
+  "obj.scaled": "Size {0:0.##}× (not saved yet)",
+  "obj.collision2": "collision: {0}",
+  "obj.isNew": "new (copy)"
 }

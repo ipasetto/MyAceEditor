@@ -5695,5 +5695,19 @@
   "obj.nothingCopied": "没有复制：先选一个物体再按 Ctrl+C。",
   "obj.pasteLater": "复制建筑、模型和树木将在下一阶段（放到世界中）提供。",
   "obj.pasted": "副本已粘贴到鼠标位置",
-  "obj.shadowNote": "地面上画好的阴影（地形光照图）留在原处；将由地形工具重新生成。"
+  "obj.shadowNote": "地面上画好的阴影（地形光照图）留在原处；将由地形工具重新生成。",
+  "obj.keyTaken": "已经有相同键的物体。",
+  "obj.modelNoScale": "这个游戏版本的模型不能改变大小。",
+  "obj.noBlock": "地图的这个位置没有场景块。",
+  "obj.sumNew1": "新增 1 个建筑",
+  "obj.sumNewN": "新增 {0} 个建筑",
+  "obj.sumMNew1": "新增 1 个模型",
+  "obj.sumMNewN": "新增 {0} 个模型",
+  "obj.pasteTreeLater": "复制树木将在树木阶段提供。",
+  "obj.pastePiece": "副本必须留在与原件相同的 1 公里地块内；请粘贴得近一些。",
+  "obj.pastedNew": "已粘贴 {0} 的副本（新物体；只在保存时写入；Ctrl+Z 可撤销）。",
+  "obj.scaleLabel": "大小",
+  "obj.scaled": "大小 {0:0.##}×（尚未保存）",
+  "obj.collision2": "碰撞：{0}",
+  "obj.isNew": "新（副本）"
 }

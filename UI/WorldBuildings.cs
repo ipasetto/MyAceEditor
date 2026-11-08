@@ -36,11 +36,28 @@ internal sealed class WorldBuildings : IDisposable
         return new PickMesh(pos, tri, min, max);
     }
 
+    /// <summary>Cópias coladas no rascunho: (chave nova, .bmd de origem, matriz) — desenhadas e clicáveis com a malha da origem.</summary>
+    public Func<IEnumerable<(string Key, string Src, Matrix4 World)>>? Extras { get; set; }
+
+    /// <summary>Tudo o que aparece: construções carregadas (lugar do rascunho; apagada fica de fora) e as cópias.</summary>
+    IEnumerable<(string Key, Placed P, Matrix4 W, Vector3 C)> PickList()
+    {
+        foreach (var list in _loaded.Values)
+            foreach (var p in list) { var n = Now(p); if (!n.Hidden) yield return (p.File, p, n.World, n.Center); }
+        if (Extras?.Invoke() is not { } ex) yield break;
+        foreach (var (key, srcFile, w) in ex)
+        {
+            Placed? sp = null;
+            foreach (var list in _loaded.Values) { sp = list.FirstOrDefault(x => x.File.Equals(srcFile, StringComparison.OrdinalIgnoreCase)); if (sp is not null) break; }
+            if (sp is not null) yield return (key, sp, w, Vector3.TransformPosition(Vector3.TransformPosition(sp.Center, sp.World.Inverted()), w));
+        }
+    }
+
     /// <summary>Malha e matriz de agora de uma construção carregada (para o contorno); null se não carregada ou apagada.</summary>
     internal (float[] Pos, int[] Tri, Matrix4 World)? MeshOf(string file)
     {
-        foreach (var p in _loaded.Values.SelectMany(l => l))
-            if (p.File.Equals(file, StringComparison.OrdinalIgnoreCase)) { var n = Now(p); return n.Hidden ? null : (p.Mesh.Pos, p.Mesh.Tri, n.World); }
+        foreach (var (key, p, w, _) in PickList())
+            if (key.Equals(file, StringComparison.OrdinalIgnoreCase)) return (p.Mesh.Pos, p.Mesh.Tri, w);
         return null;
     }
 
@@ -51,10 +68,9 @@ internal sealed class WorldBuildings : IDisposable
     internal (string File, float Dist)? RayPick(Vector3 o, Vector3 d, float maxDist = 600)
     {
         (string, float)? best = null; float bestD = maxDist;
-        foreach (var p in _loaded.Values.SelectMany(l => l))
+        foreach (var (key, p, w, c) in PickList())
         {
-            var (w, c, hidden) = Now(p);
-            if (hidden || p.Mesh.Tri.Length == 0) continue;
+            if (p.Mesh.Tri.Length == 0) continue;
             var toC = c - o;
             float along = Vector3.Dot(toC, d);
             if (along < -p.Radius || along - p.Radius > bestD || (toC - d * along).LengthSquared > p.Radius * p.Radius * 1.05f) continue;   // esfera
@@ -79,7 +95,7 @@ internal sealed class WorldBuildings : IDisposable
             }
             if (bestT == float.MaxValue) continue;
             float dist = (Vector3.TransformPosition(lo + ld * bestT, w) - o).Length;
-            if (dist < bestD) { bestD = dist; best = (p.File, dist); }
+            if (dist < bestD) { bestD = dist; best = (key, dist); }
         }
         return best;
     }
@@ -402,16 +418,13 @@ internal sealed class WorldBuildings : IDisposable
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8572, 0x1E01);          // ALFA = REPLACE
         GL.TexEnv(TextureEnvTarget.TextureEnv, (TextureEnvParameter)0x8588, 0x1702);          //   da textura
         var late = new List<(Matrix4 World, Part Part)>();
-        foreach (var list in _loaded.Values)
-            foreach (var p in list)
+        foreach (var (_, p, w0, pc) in PickList())   // carregadas (lugar do rascunho) e cópias coladas
             {
-                var (w, pc, hidden) = Now(p);   // movida/apagada no rascunho, ainda não gravada
-                if (hidden) continue;
                 var d = pc - cam;
                 float dist = d.Length;
                 if (dist - p.Radius > 1100 || Vector3.Dot(d, forward) < -p.Radius || p.Radius / Math.Max(dist, 1) < 0.004f) continue;
                 GL.PushMatrix();
-                GL.MultMatrix(ref w);
+                var w = w0; GL.MultMatrix(ref w);
                 foreach (var part in p.Parts)
                 {
                     GL.BindBuffer(BufferTarget.ArrayBuffer, part.Vbo);

@@ -126,6 +126,8 @@ internal sealed partial class WorldView
         foreach (var n in _objXYZ) n.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : _sceneSel is not BuildingSel && _ecw is not null && (!critter || _bsd is not null);
         _objYaw.Enabled = SelDraft is { ReadOnlyWhy: null, Deleted: false };
         if (SelDraft is { } sy) _objYaw.Value = (decimal)Math.Round(YawOf(sy.Now));
+        _objScale.Enabled = SelDraft is { Kind: ObjKind.Building, ReadOnlyWhy: null, Deleted: false };
+        if (SelDraft is { } sz) _objScale.Value = (decimal)Math.Clamp(MathF.Round(sz.Now.Scale, 2), 0.1f, 10f);
         if (_objCloneBtn is not null) _objCloneBtn.Visible = false;
         if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter && !drafted && _sceneSel is not BuildingSel;
         if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : !critter && _sceneSel is not BuildingSel;
