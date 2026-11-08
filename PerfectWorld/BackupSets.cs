@@ -123,6 +123,7 @@ public static class BackupSets
     public static string ToolName(string tool) => tool switch
     {
         "objects" => Loc.T("tools.objects", "Objetos do mundo"),
+        "terrain" => Loc.T("tools.terrain", "Terreno"),
         _ => tool,
     };
 }

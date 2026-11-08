@@ -25,6 +25,8 @@ public static class ObjectsSelfTest
     {
         var lines = new List<string>();
         var r = new Report(lines);
+        try { TerrainPaint(r, element); }
+        catch (Exception ex) { r.Check("terreno-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { GroundMasks(r, element); }
         catch (Exception ex) { r.Check("t2mk-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Lights(r, element); }
@@ -178,6 +180,37 @@ public static class ObjectsSelfTest
 
 
     // ---------------- salvar (Task 6) ----------------
+    /// <summary>Pincel de textura do chão: pinta textura que a área já tem e uma nova, desfaz, remonta o .t2mk e relê.</summary>
+    static void TerrainPaint(Report r, string element)
+    {
+        var t = TerrainFile.Open(Path.Combine(element, "maps", "world"));
+        if (t is null) { r.Check("terreno-pinta", false, "sem terreno"); return; }
+        var d = new TerrainDraft(t);
+        float x = 1100, z = 1030;
+        var a = d.AreaAt(x, z)!.Value;
+        var before = d.Layers(a.Ar, a.Ac);   // ainda não aberto: null
+        d.BeginStroke(); d.Paint(x, z, 0.1f, -1, 0, false); d.EndStroke();   // abre o pedaço sem mudar
+        var l0 = d.Layers(a.Ar, a.Ac)!;
+        string tex1 = l0[^1].Texture;
+        int t1 = t.TextureNames.ToList().FindIndex(n => n == tex1);
+        int px = (int)(x - a.X0), py = (int)(a.Z1 - z);
+        d.BeginStroke(); d.Paint(x, z, 8, t1, 1, false); bool step = d.EndStroke();
+        var l1 = d.Layers(a.Ar, a.Ac)!;
+        bool up = l1[^1].Mask![py * 256 + px] > 200;
+        // textura que a área não tem: entra como camada nova em cima
+        int t2 = Enumerable.Range(0, t.TextureNames.Count).First(i => !l1.Any(l => l.Texture == t.TextureNames[i]));
+        d.BeginStroke(); d.Paint(x + 3, z, 6, t2, 1, false); d.EndStroke();
+        var l2 = d.Layers(a.Ar, a.Ac)!;
+        bool added = l2.Length == l1.Length + 1 && l2[^1].Texture == t.TextureNames[t2];
+        d.Undo(false); bool undone = d.Layers(a.Ar, a.Ac)!.Length == l1.Length;
+        d.Undo(true); bool redone = d.Layers(a.Ar, a.Ac)!.Length == l2.Length;
+        var files = d.Files();
+        var back = files.Count == 1 ? GroundMaskFile.Read(files.Values.First()) : null;
+        bool reread = back is not null && back.Mask(a.Local, back.Areas[a.Local].Count - 1)!.AsSpan().SequenceEqual(l2[^1].Mask);
+        r.Check("terreno-pinta-textura", step && up && added && undone && redone && reread,
+            $"área {a.Ar},{a.Ac} camadas {l1.Length}->{l2.Length} recusa={d.LastRefusal}: subiu={up} nova-camada={added} ({t.TextureNames[t2]}) ctrlz={undone} ctrly={redone} relida={reread} arquivos={files.Count}");
+    }
+
     /// <summary>Terreno (textura do chão): todo .t2mk do cliente remonta idêntico; máscara trocada relê igual.</summary>
     static void GroundMasks(Report r, string element)
     {

@@ -121,6 +121,7 @@ public sealed class TerrainFile
             if (!File.Exists(trn)) return _texNames;
             var d = File.ReadAllBytes(trn);
             int o = BitConverter.ToInt32(d, 0x48), end = BitConverter.ToInt32(d, 0x50);
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);   // GBK fora da janela também (testes)
             var gbk = System.Text.Encoding.GetEncoding(936);
             while (o + 4 <= Math.Min(end, d.Length))
             {
