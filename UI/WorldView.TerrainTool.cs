@@ -178,9 +178,13 @@ internal sealed partial class WorldView
         {
             if (_sculpt >= 0)
             {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 var areas = d.Sculpt(at.X, at.Z, _texR, (TerrainDraft.SculptMode)_sculpt, _texStrength, _flatTarget);
+                PerfSculpt += sw.Elapsed.TotalMilliseconds; sw.Restart();
                 _terrain.RefreshHeights(areas);
+                PerfMesh += sw.Elapsed.TotalMilliseconds; sw.Restart();
                 if (_grass.Scene is { } gs) _grass.Invalidate(gs.Grass, false, at.X, at.Z, _texR + 2);   // grama acompanha o chão
+                PerfGrass += sw.Elapsed.TotalMilliseconds;
                 if (d.WaterChanged) RefreshWaterView();   // cavou abaixo do nível: a água aparece
             }
             else
@@ -208,6 +212,7 @@ internal sealed partial class WorldView
     }
 
     readonly HashSet<(int, int)> _groundPending = new();
+    internal double PerfSculpt, PerfMesh, PerfGrass;   // diagnóstico da captura (tempo por parte da pincelada de altura)
 
     /// <summary>No desenho (contexto do OpenGL ativo): manda as máscaras pintadas desde o último quadro.</summary>
     void FlushGround()
@@ -341,7 +346,13 @@ internal sealed partial class WorldView
         _texR = 49;
         var fb = new List<int>();
         d.BeginStroke(); _texDown = true;
-        for (int k = 0; k < 6; k++) { TexDab(at + new System.Numerics.Vector3(k, 0, 0)); CaptureFrame()?.Dispose(); fb.Add(_terrain.Fallbacks); }
+        var sw = System.Diagnostics.Stopwatch.StartNew(); double dabMs = 0, frameMs = 0;
+        for (int k = 0; k < 6; k++)
+        {
+            sw.Restart(); TexDab(at + new System.Numerics.Vector3(k * 4, 0, 0)); dabMs += sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); CaptureFrame()?.Dispose(); frameMs += sw.Elapsed.TotalMilliseconds; fb.Add(_terrain.Fallbacks);
+        }
+        string perfT = $"pintar: pincelada {dabMs / 6:0.0} ms, quadro {frameMs / 6:0.0} ms";
         TerrainMouseUp();
         string flickT = string.Join(",", fb);
         int after = (_t.Ground(a.Value.Ar, a.Value.Ac) ?? []).Length;
@@ -350,7 +361,28 @@ internal sealed partial class WorldView
         // altura: sobe 2 toques no ponto, Ctrl+Z volta
         float h0 = _t.HeightAt(at.X, at.Z) ?? 0;
         _sculpt = 0; d.BeginStroke(); _texDown = true; _texStrength = 1; fb.Clear();
-        for (int k = 0; k < 6; k++) { TexDab(at); _texLast = null; CaptureFrame()?.Dispose(); fb.Add(_terrain.Fallbacks); }
+        dabMs = frameMs = 0;
+        for (int k = 0; k < 6; k++)
+        {
+            sw.Restart(); TexDab(at); dabMs += sw.Elapsed.TotalMilliseconds; _texLast = null;
+            sw.Restart(); CaptureFrame()?.Dispose(); frameMs += sw.Elapsed.TotalMilliseconds; fb.Add(_terrain.Fallbacks);
+        }
+        string perfH = $"esculpir: pincelada {dabMs / 6:0.0} ms (altura {PerfSculpt / 6:0.0}, malha {PerfMesh / 6:0.0}, grama {PerfGrass / 6:0.0}), quadro {frameMs / 6:0.0} ms";
+        sw.Restart(); for (int k = 0; k < 6; k++) CaptureFrame()?.Dispose();
+        perfH += $"; quadro parado {sw.Elapsed.TotalMilliseconds / 6:0.0} ms";
+        // câmera andando com o pincel de textura ligado x desligado (pior quadro)
+        string CamRun(bool brush)
+        {
+            _sculpt = -1; _texActive = brush; var c0 = _cam; double worst = 0, sum = 0;
+            for (int k = 0; k < 20; k++)
+            {
+                _cam = c0 + new Vector3(k * 3f, 0, 0); _hover = Ray(new Point(_gl.Width / 2, _gl.Height / 2));
+                sw.Restart(); TerrainMouseMove(); CaptureFrame()?.Dispose(); double ms = sw.Elapsed.TotalMilliseconds; sum += ms; worst = Math.Max(worst, ms);
+            }
+            _cam = c0;
+            return $"{sum / 20:0.0}/{worst:0}";
+        }
+        perfH += $"; câmera andando (média/pior ms) desligado {CamRun(false)} ligado {CamRun(true)} desligado {CamRun(false)} ligado {CamRun(true)}";
         TerrainMouseUp();
         string flickH = string.Join(",", fb);
         float h1 = _t.HeightAt(at.X, at.Z) ?? 0;
@@ -360,7 +392,7 @@ internal sealed partial class WorldView
         float h2 = _t.HeightAt(at.X, at.Z) ?? 0;
         var keys = d.Files(ServerConfigDir is { } sdir ? Path.Combine(sdir, _t.Name) : null).Keys.Select(Path.GetFileName).ToList();
         int files = keys.Count;
-        _heightTxt = $"pisca textura={flickT} altura={flickH} | altura {h0:0.00}->{h1:0.00} ctrlz={hUndo} plainar->{h2:0.00} arquivos=[{string.Join(", ", keys)}]";
+        _heightTxt = $"{perfT}; {perfH} | pisca textura={flickT} altura={flickH} | altura {h0:0.00}->{h1:0.00} ctrlz={hUndo} plainar->{h2:0.00} arquivos=[{string.Join(", ", keys)}]";
         _sculpt = -1;
         _heightTxt += " | " + DraftWaterTest(at + new System.Numerics.Vector3(60, 0, 0));
         for (int k = 0; k < 20; k++) CaptureFrame()?.Dispose();

@@ -5714,8 +5714,20 @@ public sealed class EditorForm : Form
             + Loc.T("bak.setReload", "Feche o jogo antes. O Mundo 3D aberto relê os arquivos sozinho (mudanças não salvas nele se perdem); o servidor precisa receber os arquivos de novo depois.");
         if (MessageBox.Show(this, ask, Loc.T("menu.restore", "&Restaurar backup").Replace("&", ""), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         var why = BackupSets.Restore(set);
-        MessageBox.Show(this, why ?? Loc.T("bak.setDone", "Pronto: todos os arquivos voltaram."), Loc.T("menu.restore", "&Restaurar backup").Replace("&", ""), MessageBoxButtons.OK, why is null ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
-        if (why is null && set.Files.Any(f => f.Original.EndsWith("map.bht", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify("map.bht");
+        // arquivos do servidor que voltaram (fora da pasta do cliente): o servidor ainda roda com os mexidos; acende o
+        // "enviar" e oferece mandar agora (usuário 08/11: o terreno voltou no Mundo 3D, mas os monstros andavam no relevo mexido)
+        string? client = _dataPath is not null ? Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(_dataPath))) : null;
+        var server = why is null ? set.Files.Select(f => f.Original).Where(f => client is null || !Path.GetFullPath(f).StartsWith(Path.GetFullPath(client) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)).ToList() : [];
+        foreach (var f in server)
+        {
+            int at = f.Replace('/', '\\').LastIndexOf(@"\config\", StringComparison.OrdinalIgnoreCase);
+            ServerNotice.Notify(at >= 0 ? f.Replace('/', '\\')[(at + 8)..] : Path.GetFileName(f));
+        }
+        string done = why ?? Loc.T("bak.setDone", "Pronto: todos os arquivos voltaram.");
+        if (why is null && server.Count > 0)
+            SavedDialog.Show(this, done + Environment.NewLine + Loc.T("bak.setSend", "Alguns arquivos são do servidor: envie ao servidor para ele usar a versão restaurada (até lá ele continua com a mexida)."), SaveAndSend);
+        else
+            MessageBox.Show(this, done, Loc.T("menu.restore", "&Restaurar backup").Replace("&", ""), MessageBoxButtons.OK, why is null ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
     }
 
     void OpenBackup()

@@ -204,7 +204,7 @@ internal sealed partial class WorldView
         // construção: nome (do usuário ou automático pela forma) e o arquivo entre parênteses
         string title = Path.GetFileName(o.Source);
         if (o.Kind == ObjKind.Building && _buildings.SigOf(o.CopyOf ?? o.Key) is { } sig)
-            title = BuildingNames.Display(sig, new System.Numerics.Vector3(size.X, size.Y, size.Z), NameMapOf(sig)) + " (" + Path.GetFileName(o.Source) + ")";
+            title = BuildingNames.User(sig) is { } un ? un + " (" + Path.GetFileName(o.Source) + ")" : Path.GetFileName(o.Source);
         var lines = new List<string> { kind + ": " + title };
         if (size.LengthSquared() > 0) lines.Add(string.Format(Loc.T("obj.size", "tamanho {0:0.0} × {1:0.0} × {2:0.0} m (largura × altura × profundidade)"), size.X, size.Y, size.Z));
         lines.Add(string.Format(Loc.T("obj.count", "aparece {0} vez(es) nos pedaços abertos"), same));
@@ -1455,30 +1455,36 @@ internal sealed partial class WorldView
         return _mapNames.TryGetValue(map, out var n) && n.Length > 0 ? n : map;
     }
 
-    /// <summary>
-    /// Dar nome à construção escolhida: o nome vale para todas as cópias da mesma forma em qualquer mapa e cliente
-    /// (arquivo único do programa). Voltar ao automático, exportar e importar a lista na mesma janela.
-    /// </summary>
+    /// <summary>Dar nome à construção escolhida (botão "Dar nome" do cartão): a mesma janela do Renomear da JAV.</summary>
     void RenameSelected()
     {
         if (SelDraft is not { Kind: ObjKind.Building } o || _buildings.SigOf(o.CopyOf ?? o.Key) is not { } sig) return;
-        var (mn, mx) = DraftChecks.WorldBox(o);
-        var auto = BuildingNames.Auto(mx - mn, NameMapOf(sig));
-        using var f = new Form { Text = Loc.T("names.title", "Dar nome à construção"), Width = 460, Height = 230, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+        NameDialog(sig, Path.GetFileNameWithoutExtension(o.Source));
+        ShowObjPanel(); _gl.Invalidate();
+    }
+
+    /// <summary>
+    /// Janela de nome de uma forma de construção: o nome é só o que aparece no editor (JAV e cartão), não mexe no jogo; vale
+    /// para todas as cópias da mesma forma em qualquer mapa e cliente (lista do programa). Tirar o nome volta ao do arquivo.
+    /// Exportar/importar a lista na mesma janela. true = o nome mudou.
+    /// </summary>
+    bool NameDialog(int sig, string fileName)
+    {
+        using var f = new Form { Text = Loc.T("names.title2", "Renomear construção"), Width = 480, Height = 236, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Font = new Font("Segoe UI", 9.5f) };
-        var info = new Label { Dock = DockStyle.Top, Height = 44, Padding = new Padding(10, 8, 10, 0), ForeColor = Color.Silver,
-            Text = string.Format(Loc.T("names.info", "Vale para todas as cópias desta forma, em qualquer mapa e cliente. Automático: {0}"), auto) };
-        var box = new TextBox { Dock = DockStyle.Top, Text = BuildingNames.User(sig) ?? auto, Margin = new Padding(10), BackColor = Color.FromArgb(20, 22, 26), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        var info = new Label { Dock = DockStyle.Top, Height = 50, Padding = new Padding(10, 8, 10, 0), ForeColor = Color.Silver,
+            Text = string.Format(Loc.T("names.info2", "Só muda o nome que aparece no editor (o jogo não muda). Vale para todas as cópias desta forma, em qualquer mapa e cliente. Arquivo: {0}"), fileName) };
+        var box = new TextBox { Dock = DockStyle.Top, Text = BuildingNames.User(sig) ?? "", PlaceholderText = fileName, BackColor = Color.FromArgb(20, 22, 26), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         var boxWrap = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 6, 10, 6) }; boxWrap.Controls.Add(box);
-        var row = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10) };
+        var row = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 58, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10, 10, 10, 12) };
         Button Btn(string key, string pt, Action a, bool main = false)
         {
             var b = new Button { Text = Loc.T(key, pt), AutoSize = true, Height = 32, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = main ? UiKit.Accent : Color.FromArgb(60, 66, 78), Margin = new Padding(6, 0, 0, 0) };
             b.FlatAppearance.BorderSize = 0; b.Click += (_, _) => a(); return b;
         }
-        string? why = null;
-        row.Controls.Add(Btn("names.save", "Salvar nome", () => { why = BuildingNames.Set(sig, box.Text == auto ? null : box.Text); f.DialogResult = DialogResult.OK; }, main: true));
-        row.Controls.Add(Btn("names.auto", "Voltar ao automático", () => { why = BuildingNames.Set(sig, null); f.DialogResult = DialogResult.OK; }));
+        string? why = null; bool changed = false;
+        row.Controls.Add(Btn("names.save", "Salvar nome", () => { var t = box.Text.Trim(); why = BuildingNames.Set(sig, t.Length == 0 ? null : t); changed = why is null; f.DialogResult = DialogResult.OK; }, main: true));
+        row.Controls.Add(Btn("names.clear", "Tirar o nome", () => { why = BuildingNames.Set(sig, null); changed = why is null; f.DialogResult = DialogResult.OK; }));
         row.Controls.Add(Btn("names.export", "Exportar lista…", () =>
         {
             using var sd = new SaveFileDialog { Filter = "JSON|*.json", FileName = "nomes-construcoes.json" };
@@ -1490,12 +1496,13 @@ internal sealed partial class WorldView
             if (od.ShowDialog(f) != DialogResult.OK) return;
             var (n, w) = BuildingNames.Import(od.FileName);
             MessageBox.Show(f, w ?? string.Format(Loc.T("names.imported", "{0} nome(s) importado(s)."), n), f.Text);
+            changed |= w is null && n > 0;
         }));
         f.Controls.Add(row); f.Controls.Add(boxWrap); f.Controls.Add(info);
         f.AcceptButton = row.Controls[0] as Button;
         f.ShowDialog(this);
         if (why is not null) MessageBox.Show(this, why, f.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        ShowObjPanel(); _gl.Invalidate();
+        return changed;
     }
 
     // ---------- pílula Construções: por perto + todos os mapas e instâncias (índice) ----------
@@ -1604,8 +1611,10 @@ internal sealed partial class WorldView
         _catRows = CatalogRows(out var note);
         if (_catRows.Count == 0) { _status.Text = Loc.T("obj.noBuildingsNear", "Nenhuma construção carregada por perto; chegue mais perto de uma cidade ou ruína.") + (note is null ? "" : " (" + note + ")"); return; }
         string Size(System.Numerics.Vector3 s) => $"{s.X:0.#}×{s.Y:0.#}×{s.Z:0.#} m";
-        var rows = _catRows.Select((c, i) => (Id: i, Name: BuildingNames.Display(c.Sig, c.Size, NameMapOf(c.Sig)) + " · " + string.Format(Loc.T("obj.catRow", "{0} · {1} · aparece {2}×"), System.IO.Path.GetFileNameWithoutExtension(c.Key), Size(c.Size), c.Count)
-            + (c.Maps > 1 ? " " + string.Format(Loc.T("obj.catMaps", "em {0} mapas"), c.Maps) : ""), Block: c.Block)).ToList();
+        // nome dado pelo usuário (se houver) + arquivo, tamanho e quantas vezes aparece
+        string RowName(CatRow c) => (BuildingNames.User(c.Sig) is { } un ? un + " · " : "") + string.Format(Loc.T("obj.catRow", "{0} · {1} · aparece {2}×"), System.IO.Path.GetFileNameWithoutExtension(c.Key), Size(c.Size), c.Count)
+            + (c.Maps > 1 ? " " + string.Format(Loc.T("obj.catMaps", "em {0} mapas"), c.Maps) : "");
+        var rows = _catRows.Select((c, i) => (Id: i, Name: RowName(c), Block: c.Block)).ToList();
         // favoritos pela forma (número estável), não pela linha (a lista muda com o lugar da câmera)
         JavFavorites? fav = null;
         if (_element is not null)
@@ -1615,7 +1624,9 @@ internal sealed partial class WorldView
             fav = new JavFavorites(() => file.Ids.Select(sig => cat.FindIndex(c => c.Sig == sig)).Where(i => i >= 0).ToList(), i => i >= 0 && i < cat.Count && file.Has(cat[i].Sig), i => file.Toggle(cat[i].Sig));
         }
         var recentB = _element is null ? [] : JavRecents.Read("building", _element).Select(sig => _catRows.FindIndex(c => c.Sig == sig)).Where(i => i >= 0).ToList();
-        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recentB, model: BuildingThumb, fav: fav, keepBlockOrder: true)
+        var catR = _catRows;
+        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recentB, model: BuildingThumb, fav: fav, keepBlockOrder: true,
+            rename: id => id >= 0 && id < catR.Count && NameDialog(catR[id].Sig, System.IO.Path.GetFileNameWithoutExtension(catR[id].Key)) ? RowName(catR[id]) : null)
             { Text = Loc.T("obj.chooseBuilding", "Escolher construção para pôr no mundo") + (note is null ? "" : " — " + note) };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0 || w.Picked >= _catRows.Count) return;
         if (CatalogSource(_catRows[w.Picked]) is not { } src) return;

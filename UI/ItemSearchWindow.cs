@@ -10,7 +10,8 @@ internal sealed class ItemSearchWindow : Form
 {
     static readonly Color Bg = Color.FromArgb(21, 24, 29), Side = Color.FromArgb(28, 32, 38), Field = Color.FromArgb(13, 15, 18), Fg = Color.Gainsboro;
 
-    readonly IReadOnlyList<(int Id, string Name, string Block)> _all;
+    readonly List<(int Id, string Name, string Block)> _all;
+    readonly Func<int, string?>? _rename;   // renomear a linha (só o nome que aparece; devolve o nome novo ou null)
     readonly Func<int, Image?> _icon;
     readonly Dictionary<int, Image?> _icons = [];
     readonly ListBox _blocks = new() { Dock = DockStyle.Fill, IntegralHeight = false, BackColor = Side, ForeColor = Fg, BorderStyle = BorderStyle.None, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 28 };
@@ -43,10 +44,10 @@ internal sealed class ItemSearchWindow : Form
     IReadOnlyList<int> _favorites => _fav is null ? _favList : _fav.Ids.Where(_known.Contains).ToList();
     const int AllRow = 0, FavRow = 1, RecentRow = 2, FirstBlockRow = 3;
 
-    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null, JavFavorites? fav = null, bool keepBlockOrder = false)
+    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null, JavFavorites? fav = null, bool keepBlockOrder = false, Func<int, string?>? rename = null)
     {
-        _fav = fav;
-        _all = items; _icon = icon ?? (_ => null); _hasIcon = icon is not null; _model = model;
+        _fav = fav; _rename = rename;
+        _all = [.. items]; _icon = icon ?? (_ => null); _hasIcon = icon is not null; _model = model;
         // sem piscar: a lista redesenha num quadro fora da tela (o ListView não liga isso sozinho)
         typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(_list, true);
         if (tip is not null) _tip = new ItemTipHost(this, tip);
@@ -105,6 +106,13 @@ internal sealed class ItemSearchWindow : Form
         close.FlatAppearance.BorderSize = 0;
         close.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
         foot.Controls.Add(close);
+        if (_rename is not null)
+        {
+            var ren = new Button { Text = Loc.T("is.rename", "Renomear (F2)"), AutoSize = true, Height = 32, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(60, 66, 78), Margin = new Padding(12, 0, 0, 0) };
+            ren.FlatAppearance.BorderSize = 0;
+            ren.Click += (_, _) => RenameSelected();
+            foot.Controls.Add(ren);
+        }
         if (askQuantity)
         {
             foot.Controls.Add(_qty);
@@ -138,6 +146,7 @@ internal sealed class ItemSearchWindow : Form
         KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Enter) { Accept(); e.Handled = e.SuppressKeyPress = true; }
+            else if (e.KeyCode == Keys.F2 && _rename is not null) { RenameSelected(); e.Handled = true; }
             else if (e.KeyCode == Keys.Escape) Close();
             else if (e.KeyCode == Keys.Down && _search.Focused && _rows.Count > 0) { _list.Focus(); _list.SelectedIndices.Clear(); _list.SelectedIndices.Add(0); e.Handled = true; }
         };
@@ -273,6 +282,19 @@ internal sealed class ItemSearchWindow : Form
             ? string.Format(Loc.T("is.count", "{0:N0} itens"), _rows.Count)
             : row == FavRow ? (_fav is not null ? Loc.T("is.noFavStar", "Sem favoritos: escolha uma linha e clique na estrela \u2606") : Loc.T("is.noFav", "Sem favoritos: marque no editor de elements (botão direito > Favoritar)"))
             : Loc.T("is.noRecent", "Os itens que você abrir ou escolher aparecem aqui");
+    }
+
+    /// <summary>Renomear a linha escolhida (só o nome que aparece); a lista se refaz e a linha continua escolhida.</summary>
+    void RenameSelected()
+    {
+        if (_rename is null) return;
+        if (SelectedId is not { } id) { MessageBox.Show(this, Loc.T("is.renamePick", "Escolha uma linha antes de renomear."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        if (_rename(id) is not { } name) return;
+        for (int k = 0; k < _all.Count; k++) if (_all[k].Id == id) _all[k] = (id, name, _all[k].Block);
+        Fill();
+        int at = _rows.FindIndex(r => r.Id == id);
+        if (at >= 0) { _list.SelectedIndices.Add(at); _list.EnsureVisible(at); }
+        _list.Focus();
     }
 
     void Accept()

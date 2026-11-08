@@ -5940,5 +5940,12 @@
   "water.savedServer": "The server water (watermap) also changed: send it to the server. The passage of water monsters was not rebuilt.",
   "terrain.note3": "Texture: client only. Height and water: client and server (send afterwards). NPC passage and light and shadow come in the next steps.",
   "water.loadFail": "Could not open this map's water; see the log.",
-  "light.note2": "In the game the light paints characters, NPCs and monsters passing nearby (the glow on the ground here is only a preview of the color and range; with \"night only\" it turns on at night). The ground and buildings already come with their light baked in. Saved by Save scene."
+  "light.note2": "In the game the light paints characters, NPCs and monsters passing nearby (the glow on the ground here is only a preview of the color and range; with \"night only\" it turns on at night). The ground and buildings already come with their light baked in. Saved by Save scene.",
+  "light.dayHint": "Only lights at night: press L to see it at night.",
+  "names.title2": "Rename building",
+  "names.info2": "Only changes the name shown in the editor (the game does not change). Applies to every copy of this shape, on any map and client. File: {0}",
+  "is.rename": "Rename (F2)",
+  "is.renamePick": "Pick a row before renaming.",
+  "bak.setSend": "Some files belong to the server: send them to the server so it uses the restored version (until then it keeps the changed one).",
+  "names.clear": "Remove the name"
 }

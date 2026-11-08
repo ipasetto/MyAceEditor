@@ -76,8 +76,10 @@ internal sealed class WorldGrass : IDisposable
         if (_scene is null) return;
         // áreas novas entram no fim e o Ctrl+Z tira do fim: só refaz as mexidas e solta as que saíram da lista
         // (antes apagava toda a grama por perto e ela demorava a voltar)
-        var idx = areas.Select(a => _scene.Grass.IndexOf(a)).Where(i => i >= 0).ToHashSet();
         int n = _scene.Grass.Count;
+        // a lista inteira (pincel de altura, Ctrl+Z do terreno): todos os índices direto; procurar cada área na lista
+        // (IndexOf) com 2.400 áreas custava ~70 ms por pincelada e a edição ficava "agarrada" (medido 08/11)
+        HashSet<int> idx = ReferenceEquals(areas, _scene.Grass) ? [.. Enumerable.Range(0, n)] : areas.Select(a => _scene.Grass.IndexOf(a)).Where(i => i >= 0).ToHashSet();
         // com o círculo do pincel: só os pedaços de 32×32 células que ele pega (antes refazia a área inteira e a câmera travava)
         bool Near((int A, int X, int Y) k)
         {

@@ -121,7 +121,7 @@ internal sealed partial class WorldView
     {
         if (_lights is null) return;
         _lightTitle.Text = _lightSel >= 0 && _lightSel < _lights.Count
-            ? string.Format(Loc.T("light.sel", "Luz {0} de {1}"), _lightSel + 1, _lights.Count)
+            ? string.Format(Loc.T("light.sel", "Luz {0} de {1}"), _lightSel + 1, _lights.Count) + (_lights[_lightSel].Night && !_nightOn ? Environment.NewLine + Loc.T("light.dayHint", "Só acende à noite: aperte L para ver de noite.") : "")
             : string.Format(Loc.T("light.count", "{0} luz(es) neste mapa"), _lights.Count);
         if (_lightSel >= 0 && _lightSel < _lights.Count)
         {
@@ -191,7 +191,7 @@ internal sealed partial class WorldView
         return true;
     }
 
-    static SceneLight NewLight(System.Numerics.Vector3 at) => new(at, 20, System.Numerics.Vector3.Zero, new(1f, 0.75f, 0.45f, 1.5f), new(0.2f, 0.15f, 0.1f, 0.3f), SceneLight.NightOnly);
+    static SceneLight NewLight(System.Numerics.Vector3 at) => new(at, 20, System.Numerics.Vector3.Zero, new(1f, 0.75f, 0.45f, 2f), new(0.2f, 0.15f, 0.1f, 0.3f), SceneLight.NightOnly);
 
     void StartLightPlacing()
     {
@@ -233,6 +233,7 @@ internal sealed partial class WorldView
             var nl = (_lightPlaceSrc ?? NewLight(at)) with { Pos = at, Raw = null };
             LightStep(() => { _lights!.Add(nl); _lightSel = _lights.Count - 1; });
             _lightPlacing = false; _lightPlaceSrc = null;   // uma por clique
+            _lightPicked = true;   // a nova fica escolhida (o soltar do clique não tira; usuário 08/11)
             _status.Text = Loc.T("light.added", "Luz posta (ainda não gravada; Ctrl+Z tira).");
             return true;
         }
@@ -355,20 +356,32 @@ internal sealed partial class WorldView
         {
             var l = _lights[i]; var p = i == _lightSel && _lightDrag is { } dd ? dd : l.Pos;
             if ((Gl(p.X, p.Y, p.Z) - _cam).LengthSquared > 400 * 400 || l.Range <= 0) continue;
+            // "só à noite": como o jogo (cor × fator dia/noite), de dia não brilha; L liga a noite do Mundo 3D
+            float dn = l.Night ? _nf : 1;
+            if (dn <= 0.01f) continue;
             var c = ToColor(l.Diffuse);
-            float r = MathF.Min(l.Range, 120);
-            const int Seg = 32, Ring = 6;
+            float r = MathF.Min(l.Range, 150);
+            // como o jogo (EC_SceneLights.cpp GetSceneLight): atenuação fixa (0; 0,4; 0) = força ÷ (0,4 × distância em 3D),
+            // só dentro do alcance; a luz mais alta chega melhor no morro e menos no vale
+            float Glow(float x, float y, float z)
+            {
+                float dx = x - p.X, dy = y - p.Y, dz = z - p.Z, d3 = MathF.Sqrt(dx * dx + dy * dy + dz * dz);
+                if (d3 >= l.Range) return 0;
+                float q = d3 / l.Range, edge = 1 - q * q * q * q;
+                return Math.Clamp(0.35f * l.Diffuse.W / (0.4f * MathF.Max(d3, 1.5f)), 0, 0.75f) * edge * dn;
+            }
+            const int Seg = 40, Ring = 12;
             for (int k = 0; k < Ring; k++)
             {
                 float r0 = r * k / Ring, r1 = r * (k + 1) / Ring;
-                float a0 = 0.45f * (1 - (float)k / Ring), a1 = 0.45f * (1 - (float)(k + 1) / Ring);
                 GL.Begin(PrimitiveType.QuadStrip);
                 for (int s = 0; s <= Seg; s++)
                 {
                     float t = s / (float)Seg * MathF.Tau, sx = MathF.Sin(t), cz = MathF.Cos(t);
                     float x1 = p.X + sx * r1, z1 = p.Z + cz * r1, x0 = p.X + sx * r0, z0 = p.Z + cz * r0;
-                    GL.Color4(c.R / 255f, c.G / 255f, c.B / 255f, a1); GL.Vertex3(Gl(x1, (_t.HeightAt(x1, z1) ?? p.Y) + 0.1f, z1));
-                    GL.Color4(c.R / 255f, c.G / 255f, c.B / 255f, a0); GL.Vertex3(Gl(x0, (_t.HeightAt(x0, z0) ?? p.Y) + 0.1f, z0));
+                    float y1 = _t.HeightAt(x1, z1) ?? p.Y, y0 = _t.HeightAt(x0, z0) ?? p.Y;
+                    GL.Color4(c.R / 255f, c.G / 255f, c.B / 255f, Glow(x1, y1, z1)); GL.Vertex3(Gl(x1, y1 + 0.1f, z1));
+                    GL.Color4(c.R / 255f, c.G / 255f, c.B / 255f, Glow(x0, y0, z0)); GL.Vertex3(Gl(x0, y0 + 0.1f, z0));
                 }
                 GL.End();
             }

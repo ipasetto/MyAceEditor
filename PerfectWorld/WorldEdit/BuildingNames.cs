@@ -57,24 +57,8 @@ public static class BuildingNames
         }
     }
 
-    /// <summary>Palpite pela forma (largura, altura, profundidade em metros), no idioma do programa.</summary>
-    public static string Guess(Vector3 size)
-    {
-        float h = size.Y, w = MathF.Max(size.X, size.Z), d = MathF.Min(size.X, size.Z);
-        if (MathF.Max(w, h) < 3) return Loc.T("names.small", "Objeto pequeno");
-        if (h > 2.5f * w) return h > 12 ? Loc.T("names.tower", "Torre") : Loc.T("names.pole", "Poste ou coluna");
-        if (w > 4 * MathF.Max(d, 0.1f) && h < 0.6f * w) return h < 4 ? Loc.T("names.fence", "Cerca ou muro baixo") : Loc.T("names.wall", "Muro");
-        if (h < 0.25f * w) return Loc.T("names.floor", "Piso ou plataforma");
-        if (w > 30 || h > 25) return Loc.T("names.big", "Construção grande");
-        return Loc.T("names.building", "Construção");
-    }
-
-    /// <summary>Nome automático: palpite + tamanho + mapa (ex.: "Muro 12×3 m · Cidade do Dragão").</summary>
-    public static string Auto(Vector3 size, string? mapLabel)
-        => $"{Guess(size)} {MathF.Max(size.X, size.Z):0.#}×{size.Y:0.#} m" + (string.IsNullOrEmpty(mapLabel) ? "" : " · " + mapLabel);
-
-    /// <summary>Nome que aparece: o do usuário ou o automático.</summary>
-    public static string Display(int sig, Vector3 size, string? mapLabel) => User(sig) ?? Auto(size, mapLabel);
+    /// <summary>Nome que aparece: o que o usuário deu à forma, senão o do arquivo (o palpite automático saiu: usuário 08/11).</summary>
+    public static string Display(int sig, string fallback) => User(sig) ?? fallback;
 
     /// <summary>Exporta os nomes do usuário (JSON). null = deu certo.</summary>
     public static string? Export(string path)
