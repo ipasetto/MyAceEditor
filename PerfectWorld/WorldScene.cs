@@ -157,7 +157,8 @@ public sealed class WorldScene
     /// Área de grama (ECBSDFILEGRASS7 no .ecbsd + mapa de bits no bsdata do sub-terreno): 1 bit por célula, linha de
     /// Cols/8 bytes, bit 7 = coluna mais à esquerda; a origem é o canto (centro − meia área) e as linhas crescem para −Z.
     /// </summary>
-    public sealed record GrassArea(int Type, float X, float Y, float Z, float Cell, int Cols, int Rows, byte[] Bits)
+    /// <param name="Off">posição do ECBSDFILEGRASS7 no .ecbsd (−1 = área nova do editor); Sub/Idx = sub-terreno e entrada no bsdata; Id = ID da referência.</param>
+    public sealed record GrassArea(int Type, float X, float Y, float Z, float Cell, int Cols, int Rows, byte[] Bits, int Off = -1, int Sub = -1, int Idx = -1, uint Id = 0)
     {
         public bool On(int col, int row) => (Bits[row * (Cols >> 3) + (col >> 3)] & (1 << (7 - (col & 7)))) != 0;
     }
@@ -284,7 +285,7 @@ public sealed class WorldScene
         if (d.Length < 12 || BitConverter.ToInt32(d, 8) < 7) return;
         var dir = Path.Combine(Path.GetDirectoryName(ecbsdPath)!, "bsdata");
         var files = new Dictionary<int, byte[]?>();
-        foreach (var (_, off) in GrassRefs.DistinctBy(g => g.Id))
+        foreach (var (gid, off) in GrassRefs.DistinctBy(g => g.Id))
         {
             int p = (int)off;
             if (p <= 0 || p + 36 > d.Length) continue;
@@ -294,7 +295,7 @@ public sealed class WorldScene
             GrassDebug ??= FormattableString.Invariant($"1a ref: off {p} tipo {type} centro {F(4):0},{F(8):0},{F(12):0} célula {F(16)} {cols}x{rows} sub {sub} idx {idx}");
             if (cols <= 0 || rows <= 0 || cols % 8 != 0 || cols * rows > 1 << 24) continue;
             if (BitsOf(dir, files, sub, idx, cols * rows / 8) is { } bits)
-                Grass.Add(new GrassArea(type, F(4), F(8), F(12), F(16), cols, rows, bits));
+                Grass.Add(new GrassArea(type, F(4), F(8), F(12), F(16), cols, rows, bits, p, sub, idx, gid));
             else { _grassFail++; GrassFailInfo ??= $"sub {sub} idx {idx} {cols}x{rows}"; }
         }
     }

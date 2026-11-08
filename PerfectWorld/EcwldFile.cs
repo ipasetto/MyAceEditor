@@ -28,6 +28,41 @@ public sealed class EcwldFile
     public float BlockSize => BitConverter.ToSingle(_head, 16);
     public List<Block> Blocks { get; } = new();
 
+    /// <summary>Quantos tipos de grama o mapa tem (cabeçalho +48).</summary>
+    public int GrassTypeCount => BitConverter.ToInt32(_head, 48);
+
+    /// <summary>
+    /// Acrescenta tipos de grama (ECWDFILEGRASSTYPE 24 B + .mox do grasses.pck) como a lista de árvores: a lista inteira vai
+    /// para o fim do arquivo e o cabeçalho (+40 offset, +48 quantidade) aponta para ela.
+    /// </summary>
+    public void AddGrassTypes(IReadOnlyList<(byte[] Props24, string Mox)> types)
+    {
+        if (types.Count == 0) return;
+        int count = GrassTypeCount;
+        var table = new List<byte>();
+        if (count > 0)
+        {
+            int p = (int)BitConverter.ToUInt32(_head, 40) - _tailStart;
+            if (p < 0 || p > _tail.Length) throw new InvalidDataException(".ecwld: lista de tipos de grama fora do lugar esperado");
+            int start = p;
+            for (int i = 0; i < count; i++) { p += 24; int l = BitConverter.ToInt32(_tail, p); if (l < 0 || p + 4 + l > _tail.Length) throw new InvalidDataException(".ecwld: tipo de grama ilegível"); p += 4 + l; }
+            table.AddRange(_tail[start..p]);
+        }
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        var gbk = System.Text.Encoding.GetEncoding(936);
+        foreach (var (props, mox) in types)
+        {
+            if (props.Length != 24) throw new InvalidDataException("tipo de grama: 24 B esperados");
+            table.AddRange(props);
+            var b = gbk.GetBytes(mox);
+            table.AddRange(BitConverter.GetBytes(b.Length)); table.AddRange(b);
+        }
+        uint newOff = (uint)(_tailStart + _tail.Length);
+        _tail = [.. _tail, .. table];
+        BitConverter.GetBytes(newOff).CopyTo(_head, 40);
+        BitConverter.GetBytes(count + types.Count).CopyTo(_head, 48);
+    }
+
     /// <summary>Quantos tipos de árvore o mapa tem (cabeçalho +44).</summary>
     public int TreeTypeCount => BitConverter.ToInt32(_head, 44);
 

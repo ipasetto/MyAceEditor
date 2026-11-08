@@ -25,6 +25,8 @@ public static class ObjectsSelfTest
     {
         var lines = new List<string>();
         var r = new Report(lines);
+        try { Grass(r, element); }
+        catch (Exception ex) { r.Check("grama-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Index(r, element); }
         catch (Exception ex) { r.Check("indice-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Draft(r); }
@@ -172,6 +174,65 @@ public static class ObjectsSelfTest
 
 
     // ---------------- salvar (Task 6) ----------------
+    /// <summary>Grama: pinta, apaga, desfaz, área nova, tipo de outro mapa; salva numa cópia temporária e relê.</summary>
+    static void Grass(Report r, string element)
+    {
+        var world = new DraftSources(element, "world", null, (x, z) => 0, 1);
+        var ecwB = File.ReadAllBytes(world.EcwldPath);
+        var ecw = new EcwldFile(ecwB);
+        var scene = new WorldScene(ecwB); scene.LoadGrass(world.EcbsdPath);
+        var terrain = TerrainFile.Open(Path.Combine(element, "maps", "world"));
+        Func<float, float, int> pieceAt = (x, z) => terrain?.PieceAt(x, z) ?? 0;
+        int subOk = scene.Grass.Count(g => pieceAt(g.X, g.Z) - 1 == g.Sub);
+        r.Check("grama-subterreno-e-o-pedaco", scene.Grass.Count > 0 && subOk == scene.Grass.Count, $"{subOk} de {scene.Grass.Count} áreas: sub = pedaço − 1");
+        var blocks = ecw.Blocks.Select(bl => ObjectFormats.BlockArea(ecw, bl)).Select(a => (a.X0, a.X1, a.Z0, a.Z1)).ToList();
+        var gd = new GrassDraft(scene, blocks, pieceAt, (x, z) => terrain?.HeightAt(x, z));
+        // pintar numa área que existe
+        var g0 = scene.Grass.First(g => g.Bits.Any(b => b != 0xFF));
+        float cx = g0.X, cz = g0.Z;
+        int before = gd.Tufts([g0]);
+        gd.BeginStroke(); gd.Paint(cx, cz, 6, g0.Type, 1, 1); bool step = gd.EndStroke();
+        int painted = gd.Tufts([g0]);
+        gd.Undo(); int undone = gd.Tufts([g0]);
+        gd.Redo(); int redone = gd.Tufts([g0]);
+        r.Check("grama-pinta-desfaz", step && painted > before && undone == before && redone == painted, $"tufos {before} -> {painted}, Ctrl+Z {undone}, Ctrl+Y {redone}");
+        // área nova: tipo de OUTRO mapa num bloco sem área dele
+        var kinds = GrassKind.All(element);
+        var foreign = kinds.FirstOrDefault(k => !scene.GrassTypes.Any(t => t.Mox.Equals(k.Mox, StringComparison.OrdinalIgnoreCase)));
+        string res = "sem tipo de fora";
+        bool okNew = false;
+        if (foreign is not null)
+        {
+            int t = gd.TypeFor(foreign);
+            int areas0 = scene.Grass.Count;
+            gd.BeginStroke(); gd.Paint(cx + 40, cz + 40, 5, t, 0.6f, 7); gd.EndStroke();
+            int newA = scene.Grass.Count - areas0;
+            var plan = new SavePlan(new(StringComparer.OrdinalIgnoreCase), new(StringComparer.OrdinalIgnoreCase), new());
+            GrassSaver.Apply(plan, gd, world);
+            // relê numa cópia temporária do mapa (só os arquivos do plano + os bsdata que eles citam)
+            var tmp = Path.Combine(Path.GetTempPath(), "myace-grass-" + Environment.ProcessId);
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(tmp, "bsdata"));
+                string te = Path.Combine(tmp, "world.ecwld"), tb = Path.Combine(tmp, "world.ecbsd");
+                File.WriteAllBytes(te, plan.Files[world.EcwldPath]);
+                File.WriteAllBytes(tb, plan.Files.TryGetValue(world.EcbsdPath, out var nb) ? nb : File.ReadAllBytes(world.EcbsdPath));
+                foreach (var f in Directory.GetFiles(Path.Combine(Path.GetDirectoryName(world.EcwldPath)!, "bsdata"))) File.Copy(f, Path.Combine(tmp, "bsdata", Path.GetFileName(f)), true);
+                foreach (var (k, v) in plan.Files.Where(kv => string.Equals(Path.GetFileName(Path.GetDirectoryName(kv.Key)), "bsdata", StringComparison.OrdinalIgnoreCase))) File.WriteAllBytes(Path.Combine(tmp, "bsdata", Path.GetFileName(k)), v);
+                var back = new WorldScene(plan.Files[world.EcwldPath]); back.LoadGrass(tb);
+                bool typeOk = back.GrassTypes.Count == scene.GrassTypes.Count && back.GrassTypes[^1].Mox == foreign.Mox;
+                var mine = gd.NewAreas.Where(a => a.Bits.Any(b => b != 0)).ToList();
+                bool areasOk = mine.All(a => back.Grass.Any(b => MathF.Abs(b.X - a.X) < 0.01f && MathF.Abs(b.Z - a.Z) < 0.01f && b.Type == back.GrassTypes.Count - 1 && b.Bits.AsSpan().SequenceEqual(a.Bits)));
+                bool changedOk = back.Grass.Any(b => b.Off == g0.Off && b.Bits.AsSpan().SequenceEqual(g0.Bits));
+                bool same = new EcwldFile(plan.Files[world.EcwldPath]).Write().AsSpan().SequenceEqual(plan.Files[world.EcwldPath]);
+                okNew = newA > 0 && typeOk && areasOk && changedOk && same;
+                res = $"[relidas {back.Grass.Count} de {scene.Grass.Count}; {back.GrassStats}; 1a nova {mine.FirstOrDefault()?.X:0},{mine.FirstOrDefault()?.Z:0} sub {mine.FirstOrDefault()?.Sub}] {foreign.Mox} de {foreign.Maps[0]}: {newA} área(s) nova(s), tipo={typeOk} áreas-relidas={areasOk} mudada-relida={changedOk} regrava={same}; {string.Join(" / ", plan.Summary)}; arquivos: {string.Join(", ", plan.Files.Keys.Select(Path.GetFileName))}";
+            }
+            finally { try { Directory.Delete(tmp, true); } catch (IOException) { } }
+        }
+        r.Check("grama-area-nova-e-tipo-de-fora", okNew, res);
+    }
+
     /// <summary>Índice de construções de todos os mapas: monta (1ª vez lê tudo; 2ª usa o cache) e confere o conteúdo.</summary>
     static void Index(Report r, string element)
     {
