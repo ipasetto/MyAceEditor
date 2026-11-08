@@ -294,6 +294,36 @@ public static class ObjectsSelfTest
         bool allCover = inBlocks.Count > 0 && inBlocks.All(a => far.X >= a.X0 - 20 && far.X <= a.X1 + 20 && far.Z >= a.Z0 - 20 && far.Z <= a.Z1 + 20);
         r.Check("modelo-outro-pedaco-vai-para-os-blocos", !farBlocked == (DraftSaver.BlockAt(efar ?? new EcwldFile(File.ReadAllBytes(world.EcwldPath)), far) is not null) && (efar is null ? farBlocked : allCover),
             $"bloqueou={farBlocked} blocos={inBlocks.Count} cobrem={allCover}");
+        // construção levada para outro pedaço: .bmd novo na pasta do pedaço novo, ornamento novo no fim do .ecbsd, referências
+        // (mesmo ID) no offset novo e nos blocos do lugar novo; o .bmd velho não é regravado (fica sem referência)
+        {
+            var db = DraftOf(world, mo.Piece);
+            var ob = db.Pieces.Values.SelectMany(p => p.Objects).FirstOrDefault(o => o.Kind == ObjKind.Building && o.ReadOnlyWhy is null && DraftSaver.TwinsOf(world, o.Key).Count == 1);
+            string res = "sem construção";
+            bool okB = false;
+            if (ob is not null)
+            {
+                var cb = (DraftChecks.WorldBox(ob).Min + DraftChecks.WorldBox(ob).Max) / 2;
+                var tgt = new[] { new Vector3(1100, 0, 0), new Vector3(-1100, 0, 0), new Vector3(0, 0, 1100), new Vector3(0, 0, -1100) }
+                    .Select(v => ob.Original.Pos + v).FirstOrDefault(v => world.PieceAt(v.X, v.Z) is > 0 and var pc && pc != ob.Piece);
+                if (tgt != default)
+                {
+                    db.Apply(new MoveOp(ob.Key, ob.Original with { Pos = tgt }));
+                    var pb = DraftSaver.Plan(db, world);
+                    int tp = world.PieceAt(tgt.X, tgt.Z);
+                    string? newPath = pb.PckFiles.Keys.FirstOrDefault(k => k.Contains("\\" + tp + "\\"));
+                    var eb = pb.Files.TryGetValue(world.EcwldPath, out var ebw) ? new EcwldFile(ebw) : null;
+                    var bb = pb.Files.GetValueOrDefault(world.EcbsdPath);
+                    bool grew = bb is not null && bb.Length > new FileInfo(world.EcbsdPath).Length;
+                    var refsNew = eb is null || bb is null || newPath is null ? [] : ObjectFormats.OrnamentRefsOf(eb, bb, newPath);
+                    bool oldUntouched = !pb.PckFiles.ContainsKey(ob.Key);
+                    okB = newPath is not null && grew && refsNew.Count > 0 && oldUntouched;
+                    res = $"{Path.GetFileName(ob.Key)} pedaço {ob.Piece}->{tp}: novo={newPath} ecbsd-cresceu={grew} referencias-no-novo={refsNew.Count} velho-intacto={oldUntouched}";
+                }
+                else res = "sem pedaço vizinho";
+            }
+            r.Check("construcao-outro-pedaco-pasta-nova", okB, res);
+        }
         r.Check("plano-modelo", hit is not null && ObjectFormats.ReadEcModel(hit) == tom && wNew!.Length == new FileInfo(world.EcwldPath).Length && pm.PckFiles.Count == 0);
 
         // conferências

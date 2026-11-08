@@ -3865,12 +3865,16 @@ public sealed class EditorForm : Form
         CreatureItem(id) is { } c && c.Item.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value is { } fm && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase)
             ? ModelPreviewer()?.Render(fm, 240, yaw) : null;
 
-    /// <summary>Favoritos de itens para a JAV: os mesmos do editor de elements (marcar num lugar aparece no outro).</summary>
+    /// <summary>Favoritos da JAV de itens e de criaturas: os mesmos do editor de elements (marcar num lugar aparece no outro).</summary>
     internal JavFavorites? ItemFavorites() => _favFile is null || _store.Current is null ? null
         : new JavFavorites(FavoriteIds, id => FavoriteIds().Contains(id), ToggleFavoriteId);
 
-    /// <summary>Favoritos de criaturas (monstros e NPCs) do cliente aberto, separados dos itens.</summary>
-    internal JavFavorites? CreatureFavorites() => _dataPath is { } dp && Path.GetDirectoryName(Path.GetDirectoryName(dp)) is { } el ? JavFavorites.ForFile("creature", el) : null;
+    /// <summary>
+    /// Favoritos de criaturas (monstros e NPCs): os MESMOS do editor de elements (usuário 08/11). A JAV de criaturas só mostra
+    /// os favoritos que são criatura e a de itens só os que são item (cada uma filtra pelas linhas dela); a estrela grava no
+    /// favoritos do elements.
+    /// </summary>
+    internal JavFavorites? CreatureFavorites() => ItemFavorites();
 
     /// <summary>Estrela da JAV num item: marca/desmarca nos favoritos do elements. null = deu certo.</summary>
     private string? ToggleFavoriteId(int id)

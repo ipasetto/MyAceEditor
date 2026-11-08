@@ -149,10 +149,19 @@ public static class DraftSaver
         else BitConverter.GetBytes(p.Z).CopyTo(it, 8);
     }
 
-    /// <summary>Nome livre na pasta do pedaço da origem: litmodel_N.bmd com N acima do maior que existe.</summary>
-    static string NewBmdPath(DraftSources src, string srcKey, HashSet<string> used)
+    /// <summary>Pedaço pela pasta do .bmd (litmodels\mapa\N\...); 0 = não deu.</summary>
+    static int FolderPiece(string key) { var parts = key.Split('\\'); return parts.Length >= 2 && int.TryParse(parts[^2], out int n) ? n : 0; }
+
+    /// <summary>Pasta do pedaço no litmodels.pck, no formato da chave de origem (litmodels\mapa\N\).</summary>
+    static string FolderFor(string srcKey, int piece) { var parts = srcKey.Split('\\'); parts[^2] = piece.ToString(); return string.Join('\\', parts[..^1]) + "\\"; }
+
+    /// <summary>
+    /// Nome livre na pasta do pedaço onde o objeto FICA (piece; 0 = pasta da origem): litmodel_N.bmd com N acima do maior
+    /// que existe. O editor acha a construção pela pasta; o jogo pela referência (qualquer pasta serve para ele).
+    /// </summary>
+    static string NewBmdPath(DraftSources src, string srcKey, HashSet<string> used, int piece = 0)
     {
-        string folder = srcKey[..(srcKey.LastIndexOf('\\') + 1)];
+        string folder = piece > 0 && FolderPiece(srcKey) > 0 ? FolderFor(srcKey, piece) : srcKey[..(srcKey.LastIndexOf('\\') + 1)];
         var lit = src.Lit(out var why) ?? throw new InvalidDataException(why);
         int max = 0;
         lock (src.LitLock)
@@ -175,6 +184,7 @@ public static class DraftSaver
         var changed = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Changed && o.ReadOnlyWhy is null && o.Kind is ObjKind.Building or ObjKind.Model).ToList();
         var added = d.Pieces.Values.SelectMany(p => p.Added).Where(o => !o.Deleted && o.CopyOf is not null && o.Kind is ObjKind.Building or ObjKind.Model).ToList();
         var plan = new SavePlan(new(StringComparer.OrdinalIgnoreCase), new(StringComparer.OrdinalIgnoreCase), new());
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // nomes novos de .bmd deste salvar
         var treeEdits = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Tree && o.Changed && o.ReadOnlyWhy is null).ToList();
         var treeNew = d.Pieces.Values.SelectMany(p => p.Added).Where(o => o.Kind == ObjKind.Tree && !o.Deleted).ToList();
         if (changed.Count == 0 && added.Count == 0 && treeEdits.Count == 0 && treeNew.Count == 0) return plan;
@@ -236,12 +246,32 @@ public static class DraftSaver
                 var at = BmdModel.CdBrushes(nb)!;
                 foreach (int a in at) TransformBrush(nb, a, r, k, p0, p1);
                 if (BmdModel.Read(nb) is null || BmdModel.CdBrushes(nb)?.Count != at.Count) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
-                plan.PckFiles[f] = nb;
                 var frefs = ObjectFormats.OrnamentRefsOf(ecw, bsd, f);
-                foreach (int off in frefs.Select(x => x.Offset).Distinct())
+                int toPiece = src.PieceAt(o.Now.Pos.X, o.Now.Pos.Z);
+                if (group.Count == 1 && toPiece > 0 && FolderPiece(f) > 0 && toPiece != FolderPiece(f) && frefs.Count > 0)
                 {
-                    ObjectFormats.MoveOrnament(bsd, off, Map, Turn);
-                    bsdDirty = true;
+                    // foi para outro pedaço de 1 km: o editor acha a construção pela pasta, então ela ganha um .bmd na pasta
+                    // nova e um ornamento novo no fim do .ecbsd; as referências (mesmo ID) apontam para ele. O .bmd e o
+                    // ornamento velhos ficam sem referência (o jogo não mostra, como uma construção apagada).
+                    string np = NewBmdPath(src, f, usedNames, toPiece);
+                    plan.PckFiles[np] = nb;
+                    int srcOff = frefs[0].Offset;
+                    var ot = new ObjTransform(Map(ObjectFormats.OrnamentPos(bsd, srcOff)), Turn(ObjectFormats.OrnamentDir(bsd, srcOff)), Turn(ObjectFormats.OrnamentUp(bsd, srcOff)), 1);
+                    var np2 = np.Split('\\');
+                    (bsd, int newOff) = ObjectFormats.NewOrnament(bsd, srcOff, np2[^2] + "\\" + np2[^1], ot);
+                    foreach (uint rid in frefs.Select(x => x.Id).Distinct())
+                        foreach (var (bl, i) in ecw.Find(EcwldFile.Kind.Ornament, rid).ToList())
+                            BitConverter.GetBytes(newOff).CopyTo(bl.Items[(int)EcwldFile.Kind.Ornament][i], 4);
+                    bsdDirty = true; ecwDirty = true;
+                }
+                else
+                {
+                    plan.PckFiles[f] = nb;
+                    foreach (int off in frefs.Select(x => x.Offset).Distinct())
+                    {
+                        ObjectFormats.MoveOrnament(bsd, off, Map, Turn);
+                        bsdDirty = true;
+                    }
                 }
                 // referências nos blocos do lugar novo (gêmeas têm a mesma caixa)
                 var (bmn, bmx) = DraftChecks.WorldBox(o);
@@ -276,7 +306,6 @@ public static class DraftSaver
 
         // ---- objetos novos (colados): construção = .bmd novo + ornamento no fim do .ecbsd + referência nos blocos + brushes; modelo = item novo ----
         var newBrushes = new List<byte[]>();
-        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         uint nextId = ecw.MaxId() + 1;
         foreach (var o in added)
         {
@@ -304,7 +333,7 @@ public static class DraftSaver
             var at = BmdModel.CdBrushes(nb)!;
             foreach (int a in at) TransformBrush(nb, a, r, k, p0, p1);
             if (BmdModel.Read(nb) is null || BmdModel.CdBrushes(nb)?.Count != cd0.Count) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
-            string path = NewBmdPath(src, o.CopyOf!, usedNames);
+            string path = NewBmdPath(src, o.CopyOf!, usedNames, src.PieceAt(o.Now.Pos.X, o.Now.Pos.Z));   // pasta do pedaço onde a cópia fica
             plan.PckFiles[path] = nb;
             var refs = ObjectFormats.OrnamentRefsOf(ecw, bsd, o.CopyOf!);
             if (refs.Count == 0) throw new InvalidDataException(string.Format(Loc.T("obj.noRef", "{0}: não achei a referência dela no .ecwld; não dá para apagar com segurança."), Path.GetFileName(o.CopyOf)));
