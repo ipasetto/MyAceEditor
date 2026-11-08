@@ -78,18 +78,50 @@ public static class DraftSaver
 
     static bool IsIdentity(Quaternion q) => MathF.Abs(q.W) > 1 - 1e-7f;
 
-    static void TransformBrush(byte[] d, int at, Quaternion r, Vector3 p0, Vector3 p1)
+    static void TransformBrush(byte[] d, int at, Quaternion r, float k, Vector3 p0, Vector3 p1)
     {
+        if (MathF.Abs(k - 1) > 1e-6f) ObjectFormats.ScaleBrush(d, at, k, p0);
         if (!IsIdentity(r)) ObjectFormats.RotateBrush(d, at, r, p0);
         var t = p1 - p0;
         BhtFile.MoveAt(d, at, t.X, t.Y, t.Z);
     }
 
+    /// <summary>Blocos do .ecwld cuja área cobre a caixa (x, z); nenhum = os da origem.</summary>
+    static IEnumerable<EcwldFile.Block> BlocksFor(EcwldFile ecw, Vector3 mn, Vector3 mx, IEnumerable<EcwldFile.Block> fallback)
+    {
+        var list = ecw.Blocks.Where(bl => ObjectFormats.BlockArea(ecw, bl) is var a && mx.X >= a.X0 && mn.X <= a.X1 && mx.Z >= a.Z0 && mn.Z <= a.Z1).ToList();
+        if (list.Count == 0) list = fallback.Distinct().ToList();
+        if (list.Count == 0) throw new InvalidDataException(Loc.T("obj.noBlock", "Não há bloco do cenário nesse lugar do mapa."));
+        return list;
+    }
+
+    /// <summary>Nome livre na pasta do pedaço da origem: litmodel_N.bmd com N acima do maior que existe.</summary>
+    static string NewBmdPath(DraftSources src, string srcKey, HashSet<string> used)
+    {
+        string folder = srcKey[..(srcKey.LastIndexOf('\\') + 1)];
+        var lit = src.Lit(out var why) ?? throw new InvalidDataException(why);
+        int max = 0;
+        lock (src.LitLock)
+            foreach (var e in lit.Entries)
+                if (e.Path.StartsWith(folder, StringComparison.OrdinalIgnoreCase) && e.Path.IndexOf('\\', folder.Length) < 0)
+                {
+                    var n = Path.GetFileNameWithoutExtension(e.Path);
+                    int u = n.LastIndexOf('_');
+                    if (u >= 0 && int.TryParse(n[(u + 1)..], out var v)) max = Math.Max(max, v);
+                }
+        for (int i = max + 1; ; i++)
+        {
+            string p = folder + "litmodel_" + i + ".bmd";
+            if (used.Add(p)) return p;
+        }
+    }
+
     public static SavePlan Plan(WorldDraft d, DraftSources src, byte[]? ecwldBase = null, byte[]? ecbsdBase = null)
     {
         var changed = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Changed && o.ReadOnlyWhy is null && o.Kind is ObjKind.Building or ObjKind.Model).ToList();
+        var added = d.Pieces.Values.SelectMany(p => p.Added).Where(o => !o.Deleted && o.CopyOf is not null && o.Kind is ObjKind.Building or ObjKind.Model).ToList();
         var plan = new SavePlan(new(StringComparer.OrdinalIgnoreCase), new(StringComparer.OrdinalIgnoreCase), new());
-        if (changed.Count == 0) return plan;
+        if (changed.Count == 0 && added.Count == 0) return plan;
 
         var ecw = new EcwldFile(ecwldBase ?? File.ReadAllBytes(src.EcwldPath));
         var bsd = (byte[])(ecbsdBase ?? File.ReadAllBytes(src.EcbsdPath)).Clone();
@@ -130,9 +162,9 @@ public static class DraftSaver
                 continue;
             }
 
-            if (MathF.Abs(o.Now.Scale - o.Original.Scale) > 1e-6f) throw new InvalidDataException(Loc.T("obj.scaleLater", "Mudar o tamanho chega na próxima etapa da ferramenta."));
             var (r, p0, p1) = Rigid(o.Original, o.Now);
-            Vector3 Map(Vector3 p) => (IsIdentity(r) ? p - p0 : Vector3.Transform(p - p0, r)) + p1;
+            float k = o.Original.Scale > 0 ? o.Now.Scale / o.Original.Scale : 1;
+            Vector3 Map(Vector3 p) => (IsIdentity(r) ? (p - p0) * k : Vector3.Transform((p - p0) * k, r)) + p1;
             Vector3 Turn(Vector3 v) => IsIdentity(r) ? v : Vector3.Transform(v, r);
             foreach (var f in group)
             {
@@ -144,9 +176,9 @@ public static class DraftSaver
                 }
                 var bf = f == o.Key ? b0 : ReadBmd(src, f);
                 var t = ObjectFormats.ReadBmd(bf);
-                var nb = ObjectFormats.WithBmdTransform(bf, f == o.Key ? o.Now : t with { Pos = Map(t.Pos), Dir = Turn(t.Dir), Up = Turn(t.Up) });
+                var nb = ObjectFormats.WithBmdTransform(bf, f == o.Key ? o.Now : t with { Pos = Map(t.Pos), Dir = Turn(t.Dir), Up = Turn(t.Up), Scale = t.Scale * k });
                 var at = BmdModel.CdBrushes(nb)!;
-                foreach (int a in at) TransformBrush(nb, a, r, p0, p1);
+                foreach (int a in at) TransformBrush(nb, a, r, k, p0, p1);
                 if (BmdModel.Read(nb) is null || BmdModel.CdBrushes(nb)?.Count != at.Count) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
                 plan.PckFiles[f] = nb;
                 foreach (int off in ObjectFormats.OrnamentRefsOf(ecw, bsd, f).Select(x => x.Offset).Distinct())
@@ -158,6 +190,7 @@ public static class DraftSaver
             }
             if (sel.Count > 0)
             {
+                if (MathF.Abs(k - 1) > 1e-6f) bht!.Scale(sel, k, p0);
                 if (!IsIdentity(r)) bht!.Rotate(sel, r, p0);
                 var mv = p1 - p0;
                 bht!.Move(sel, mv.X, mv.Y, mv.Z);
@@ -176,11 +209,68 @@ public static class DraftSaver
             ecwDirty = true;
         }
 
+        // ---- objetos novos (colados): construção = .bmd novo + ornamento no fim do .ecbsd + referência nos blocos + brushes; modelo = item novo ----
+        var newBrushes = new List<byte[]>();
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        uint nextId = ecw.MaxId() + 1;
+        foreach (var o in added)
+        {
+            var (mn, mx) = DraftChecks.WorldBox(o);
+            if (o.Kind == ObjKind.Model)
+            {
+                uint srcId = uint.Parse(o.CopyOf![(o.CopyOf.LastIndexOf(':') + 1)..]);
+                var hits = ecw.Find(EcwldFile.Kind.EcModel, srcId).ToList();
+                if (hits.Count == 0) throw new InvalidDataException(string.Format(Loc.T("obj.modelGone", "Modelo {0} não está mais no .ecwld."), srcId));
+                var item = (byte[])hits[0].Block.Items[(int)EcwldFile.Kind.EcModel][hits[0].Index].Clone();
+                BitConverter.GetBytes(nextId++).CopyTo(item, 0);
+                ObjectFormats.WriteEcModel(item, o.Now);
+                foreach (var bl in BlocksFor(ecw, o.Now.Pos, o.Now.Pos, hits.Select(h => h.Block))) bl.Items[(int)EcwldFile.Kind.EcModel].Add((byte[])item.Clone());
+                ecwDirty = true; Count(o.Piece, "mnew");
+                continue;
+            }
+            var b0 = ReadBmd(src, o.CopyOf!);
+            var t0 = ObjectFormats.ReadBmd(b0);
+            var cd0 = BmdModel.CdBrushes(b0) ?? throw new InvalidDataException(string.Format(Loc.T("obj.noBrushSave", "{0}: não consegui ler a colisão; nada foi salvo."), Path.GetFileName(o.CopyOf)));
+            var (r, p0, p1) = Rigid(t0, o.Now);
+            float k = t0.Scale > 0 ? o.Now.Scale / t0.Scale : 1;
+            Vector3 Map(Vector3 p) => (IsIdentity(r) ? (p - p0) * k : Vector3.Transform((p - p0) * k, r)) + p1;
+            Vector3 Turn(Vector3 v) => IsIdentity(r) ? v : Vector3.Transform(v, r);
+            var nb = ObjectFormats.WithBmdTransform(b0, o.Now);
+            var at = BmdModel.CdBrushes(nb)!;
+            foreach (int a in at) TransformBrush(nb, a, r, k, p0, p1);
+            if (BmdModel.Read(nb) is null || BmdModel.CdBrushes(nb)?.Count != cd0.Count) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
+            string path = NewBmdPath(src, o.CopyOf!, usedNames);
+            plan.PckFiles[path] = nb;
+            var refs = ObjectFormats.OrnamentRefsOf(ecw, bsd, o.CopyOf!);
+            if (refs.Count == 0) throw new InvalidDataException(string.Format(Loc.T("obj.noRef", "{0}: não achei a referência dela no .ecwld; não dá para apagar com segurança."), Path.GetFileName(o.CopyOf)));
+            int srcOff = refs[0].Offset;
+            var ot = new ObjTransform(Map(ObjectFormats.OrnamentPos(bsd, srcOff)), Turn(ObjectFormats.OrnamentDir(bsd, srcOff)), Turn(ObjectFormats.OrnamentUp(bsd, srcOff)), 1);
+            var parts = path.Split('\\');
+            (bsd, int newOff) = ObjectFormats.NewOrnament(bsd, srcOff, parts[^2] + "\\" + parts[^1], ot);
+            bsdDirty = true;
+            var hit0 = ecw.Find(EcwldFile.Kind.Ornament, refs[0].Id).First();
+            var refItem = (byte[])hit0.Block.Items[(int)EcwldFile.Kind.Ornament][hit0.Index].Clone();
+            BitConverter.GetBytes(nextId++).CopyTo(refItem, 0);
+            BitConverter.GetBytes(newOff).CopyTo(refItem, 4);
+            foreach (var bl in BlocksFor(ecw, mn, mx, ecw.Find(EcwldFile.Kind.Ornament, refs[0].Id).Select(h => h.Block))) bl.Items[(int)EcwldFile.Kind.Ornament].Add((byte[])refItem.Clone());
+            ecwDirty = true;
+            var mine0 = cd0.Select(a => BhtFile.KeyAt(b0, a)).ToList();
+            if (mine0.Count > 0)
+            {
+                if (bht is null && src.BhtPath is { } bp) { bht = new BhtFile(File.ReadAllBytes(bp)); keys = bht.Keys(); }
+                if (keys is not null && mine0.Any(keys.ContainsKey))
+                    foreach (int a in at) newBrushes.Add(nb[a..(a + 56 + 17 * BitConverter.ToInt32(nb, a + 52))]);
+            }
+            Count(o.Piece, "new");
+        }
+        if (newBrushes.Count > 0) bhtDirty = true;
+
         if (ecwDirty) { var e = ecw.Write(); _ = new EcwldFile(e); plan.Files[src.EcwldPath] = e; }
         if (bsdDirty) plan.Files[src.EcbsdPath] = bsd;
         if (bhtDirty && bht is not null)
         {
             var bb = drop.Count > 0 ? bht.Without(drop) : bht.Write();
+            if (newBrushes.Count > 0) bb = new BhtFile(bb).With(newBrushes);
             _ = new BhtFile(bb);   // relê: formato inteiro ainda certo
             plan.Files[src.BhtPath!] = bb;
         }
@@ -192,6 +282,8 @@ public static class DraftSaver
             Say("del", Loc.T("obj.sumDel1", "1 construção apagada"), Loc.T("obj.sumDelN", "{0} construções apagadas"));
             Say("mmove", Loc.T("obj.sumMMove1", "1 modelo mexido"), Loc.T("obj.sumMMoveN", "{0} modelos mexidos"));
             Say("mdel", Loc.T("obj.sumMDel1", "1 modelo apagado"), Loc.T("obj.sumMDelN", "{0} modelos apagados"));
+            Say("new", Loc.T("obj.sumNew1", "1 construção nova"), Loc.T("obj.sumNewN", "{0} construções novas"));
+            Say("mnew", Loc.T("obj.sumMNew1", "1 modelo novo"), Loc.T("obj.sumMNewN", "{0} modelos novos"));
             plan.Summary.Add(string.Format(Loc.T("obj.sumPiece", "Pedaço {0}: {1}."), g.Key, string.Join(", ", parts)));
         }
         return plan;
@@ -262,7 +354,7 @@ public static class DraftChecks
     {
         var list = new List<CheckItem>();
         var pts = points.ToList();
-        foreach (var o in d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Changed && !o.Deleted && o.Kind is ObjKind.Building or ObjKind.Model))
+        foreach (var o in d.Pieces.Values.SelectMany(p => p.Objects.Where(o => o.Changed).Concat(p.Added)).Where(o => !o.Deleted && o.Kind is ObjKind.Building or ObjKind.Model))
         {
             string name = Path.GetFileName(o.Source.Length > 0 ? o.Source : o.Key);
             var t = o.Now;

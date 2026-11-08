@@ -104,6 +104,12 @@ public sealed class BhtFile
         foreach (int i in brushes) MoveAt(_data, _at[i], dx, dy, dz);
     }
 
+    /// <summary>Escala os brushes em volta de <paramref name="center"/> (ObjectFormats.ScaleBrush).</summary>
+    public void Scale(IEnumerable<int> brushes, float k, System.Numerics.Vector3 center)
+    {
+        foreach (int i in brushes) WorldEdit.ObjectFormats.ScaleBrush(_data, _at[i], k, center);
+    }
+
     /// <summary>Gira os brushes em torno de <paramref name="center"/> (planos e caixa; ObjectFormats.RotateBrush).</summary>
     public void Rotate(IEnumerable<int> brushes, System.Numerics.Quaternion rot, System.Numerics.Vector3 center)
     {

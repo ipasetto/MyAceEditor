@@ -33,6 +33,8 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("leitura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Save(r, element, config); }
         catch (Exception ex) { r.Check("salvar-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split('\n').FirstOrDefault()); }
+        try { Save2(r, element, config); }
+        catch (Exception ex) { r.Check("salvar2-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Study2(r, element, config); }
         catch (Exception ex) { r.Check("estudo2-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Study(r, element, config); }
@@ -445,6 +447,94 @@ public static class ObjectsSelfTest
         r.Check("draft-escala-modelo-recusa", dm.Apply(new MoveOp(m.Key, m.Original with { Scale = 2 })) is not null && m.Now.Scale == 1);
         var db = OneObject(out var b);
         r.Check("draft-escala-construcao", db.Apply(new MoveOp(b.Key, b.Original with { Scale = 1.5f })) is null && b.Now.Scale == 1.5f);
+    }
+
+
+    // ---------------- salvar novos e escala (etapa 2a) ----------------
+    static DraftObject CopyOfObj(DraftObject src, string key, Vector3 move) => new()
+    {
+        Key = key, Kind = src.Kind, Piece = src.Piece, Source = src.Source, CopyOf = src.Key, Solid = src.Solid, LocalBox = src.LocalBox,
+        Original = src.Now with { Pos = src.Now.Pos + move },
+    };
+
+    static void Save2(Report r, string element, string? config)
+    {
+        if (config is null) { r.Note("sem servidor: salvar 2a não conferido"); return; }
+        var a05 = Sources(element, "a05", config);
+        var all = Enumerable.Range(1, a05.PieceCount).ToArray();
+        var d = DraftOf(a05, all);
+        var buildings = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Building && o.ReadOnlyWhy is null).ToList();
+        var solid = buildings.First(o => o.Solid);
+        var loose = buildings.FirstOrDefault(o => !o.Solid);
+        var bhtOld = new BhtFile(File.ReadAllBytes(a05.BhtPath!));
+        int srcBrushes = BmdModel.CdBrushes(DraftSaver.ReadBmd(a05, solid.Key))!.Count;
+
+        // cópia de uma construção com colisão
+        var c1 = CopyOfObj(solid, "new:1", new Vector3(6, 0, 0));
+        d.Apply(new AddOp(c1.Key, c1));
+        var p1 = DraftSaver.Plan(d, a05);
+        var newPaths = p1.PckFiles.Keys.Where(k => !k.Equals(solid.Key, StringComparison.OrdinalIgnoreCase)).ToList();
+        bool one = newPaths.Count == 1 && ObjectFormats.ReadBmd(p1.PckFiles[newPaths[0]]) == c1.Now;
+        var ecwNew = p1.Files.GetValueOrDefault(a05.EcwldPath); var bsdNew = p1.Files.GetValueOrDefault(a05.EcbsdPath);
+        bool refOk = one && ecwNew is not null && bsdNew is not null && ObjectFormats.OrnamentRefsOf(new EcwldFile(ecwNew), bsdNew, newPaths[0]).Count >= 1;
+        var bhtNew = p1.Files.TryGetValue(a05.BhtPath!, out var bb) ? new BhtFile(bb) : null;
+        bool bhtOk = bhtNew is not null && bhtNew.Count == bhtOld.Count + srcBrushes
+            && BmdModel.CdBrushes(p1.PckFiles[newPaths[0]])!.All(o => bhtNew.Keys().ContainsKey(BhtFile.KeyAt(p1.PckFiles[newPaths[0]], o)));
+        r.Check("plano-novo-relido", one && refOk && bhtOk && p1.Summary.Any(s => s.Contains('1')), $"{string.Join(",", newPaths)} ref={refOk} bht={bhtOk} ({bhtOld.Count}->{bhtNew?.Count}) \"{string.Join(" / ", p1.Summary)}\"");
+
+        // colar e desfazer: nada novo
+        d.Undo();
+        r.Check("colar-e-apagar-nada", DraftSaver.Plan(d, a05).Empty);
+
+        // duas cópias: nomes e IDs diferentes
+        var d2 = DraftOf(a05, all);
+        var s2 = d2.Find(solid.Key)!;
+        d2.Apply(new AddOp("new:a", CopyOfObj(s2, "new:a", new Vector3(5, 0, 0))));
+        d2.Apply(new AddOp("new:b", CopyOfObj(s2, "new:b", new Vector3(-5, 0, 0))));
+        var p2 = DraftSaver.Plan(d2, a05);
+        var paths2 = p2.PckFiles.Keys.ToList();
+        var e2 = new EcwldFile(p2.Files[a05.EcwldPath]);
+        var ids = paths2.SelectMany(pp => ObjectFormats.OrnamentRefsOf(e2, p2.Files[a05.EcbsdPath], pp).Select(x => x.Id)).Distinct().ToList();
+        r.Check("duas-copias-nomes-diferentes", paths2.Count == 2 && paths2.Distinct(StringComparer.OrdinalIgnoreCase).Count() == 2 && ids.Count == 2, $"{string.Join(", ", paths2.Select(Path.GetFileName))}; IDs {string.Join(",", ids)}");
+
+        // origem sem colisão: cópia sem brushes no map.bht
+        if (loose is not null)
+        {
+            var d3 = DraftOf(a05, all);
+            d3.Apply(new AddOp("new:c", CopyOfObj(d3.Find(loose.Key)!, "new:c", new Vector3(3, 0, 0))));
+            var p3 = DraftSaver.Plan(d3, a05);
+            r.Check("copia-sem-colisao", p3.PckFiles.Count == 1 && (!p3.Files.TryGetValue(a05.BhtPath!, out var b3) || new BhtFile(b3).Count == bhtOld.Count));
+        }
+        else r.Note("a05 sem construção sem colisão: copia-sem-colisao não conferido");
+
+        // escala 2× de uma construção existente: chaves do .bmd e do map.bht juntas
+        var d4 = DraftOf(a05, all);
+        var s4 = d4.Find(solid.Key)!;
+        d4.Apply(new MoveOp(s4.Key, s4.Original with { Scale = s4.Original.Scale * 2 }));
+        var p4 = DraftSaver.Plan(d4, a05);
+        var nb4 = p4.PckFiles[s4.Key];
+        var keys4 = new BhtFile(p4.Files[a05.BhtPath!]).Keys();
+        r.Check("escala-chave", ObjectFormats.ReadBmd(nb4).Scale == s4.Original.Scale * 2 && BmdModel.CdBrushes(nb4)!.All(o => keys4.ContainsKey(BhtFile.KeyAt(nb4, o))));
+
+        // cópia fora do pedaço bloqueia
+        var d5 = DraftOf(a05, all);
+        var s5 = d5.Find(solid.Key)!;
+        var far = CopyOfObj(s5, "new:far", Vector3.Zero) is var f0 ? f0 : null;
+        var farObj = new DraftObject { Key = "new:far", Kind = ObjKind.Building, Piece = s5.Piece, Source = s5.Source, CopyOf = s5.Key, Solid = s5.Solid, LocalBox = s5.LocalBox, Original = s5.Now with { Pos = new Vector3(99999, 0, 99999) } };
+        d5.Apply(new AddOp(farObj.Key, farObj));
+        r.Check("copia-fora-do-pedaco-bloqueia", DraftChecks.Run(d5, a05, null, []).Any(c => c.Blocks && c.Key == farObj.Key));
+
+        // modelo novo (world)
+        var world = Sources(element, "world", config);
+        var mo = world.Scene.Value.Objects.First(o => o.Kind == ObjKind.Model && o.Piece > 0);
+        var dm = DraftOf(world, mo.Piece);
+        var cm = CopyOfObj(dm.Find(mo.Key)!, "new:m", new Vector3(2, 0, 2));
+        dm.Apply(new AddOp(cm.Key, cm));
+        var pm = DraftSaver.Plan(dm, world);
+        var em = new EcwldFile(pm.Files[world.EcwldPath]);
+        var models = em.Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.EcModel]).ToList();
+        int oldIds = new EcwldFile(File.ReadAllBytes(world.EcwldPath)).Blocks.SelectMany(b => b.Items[(int)EcwldFile.Kind.EcModel]).Select(EcwldFile.IdOf).Distinct().Count();
+        r.Check("plano-modelo-novo", models.Select(EcwldFile.IdOf).Distinct().Count() == oldIds + 1 && models.Any(i => ObjectFormats.ReadEcModel(i) == cm.Now) && pm.PckFiles.Count == 0);
     }
 
     // ---------------- estudo dos formatos (Task 1) ----------------

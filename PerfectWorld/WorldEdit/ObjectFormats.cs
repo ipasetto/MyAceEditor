@@ -130,6 +130,10 @@ public static class ObjectFormats
 
     public static uint? OrnamentIdOf(EcwldFile ecw, byte[] ecbsd, string bmdPath) => OrnamentRefsOf(ecw, ecbsd, bmdPath) is { Count: > 0 } l ? l[0].Id : null;
 
+    public static Vector3 OrnamentPos(byte[] ecbsd, int off) => V(ecbsd, off);
+    public static Vector3 OrnamentDir(byte[] ecbsd, int off) => V(ecbsd, off + 12);
+    public static Vector3 OrnamentUp(byte[] ecbsd, int off) => V(ecbsd, off + 24);
+
     /// <summary>Muda pos (+0), frente (+12) e cima (+24) do ornamento no .ecbsd (o cliente desenha pelo .bmd; fica igual a ele).</summary>
     public static void MoveOrnament(byte[] ecbsd, int off, Func<Vector3, Vector3> map, Func<Vector3, Vector3> turn)
     {
