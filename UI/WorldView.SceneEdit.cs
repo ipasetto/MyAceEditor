@@ -78,6 +78,7 @@ internal sealed partial class WorldView
             if (_element is not null) { _buildings.Reopen(_element); _piece = -1; }
             _trees.Reload();
             ObjectsSaved();
+            _bindex = null;
             if (_tool == Tool.Scene) DraftOpen();
             UpdateSideState();
             _status.Text = Loc.T("obj.reloaded", "Backup restaurado: o Mundo 3D releu os arquivos do disco.");

@@ -5766,5 +5766,12 @@
   "obj.catRow": "{0} · {1} · 出现 {2} 次",
   "obj.chooseBuilding": "选择要放到世界中的建筑",
   "obj.catGone": "该建筑已不再加载；请重新打开列表。",
-  "obj.pillBuildingsTip": "从附近的建筑中选一个，然后点击地面放一个副本。"
+  "obj.pillBuildingsTip": "从附近的建筑中选一个，然后点击地面放一个副本。",
+  "obj.catThisMap": "本地图：{0}",
+  "obj.catNear": "附近",
+  "obj.catIndexFail": "无法读取其他地图（见日志）",
+  "obj.catIndexing": "正在读取其他地图… {0}%",
+  "obj.catNoPack": "无法打开 litmodels.pck。",
+  "obj.catMaps": "分布于 {0} 张地图",
+  "obj.fromMapGone": "{0}：客户端中没有来源地图（{1}）的场景；没有保存任何内容。"
 }

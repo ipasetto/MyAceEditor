@@ -39,6 +39,7 @@ internal sealed partial class WorldView
             _draftSrc ??= new DraftSources(_element, _t.Name, ServerConfigDir, _t.PieceAt, _t.Rows * _t.Cols);
             if (_draft is null) { _draft = new WorldDraft(_t.Name); _draft.Changed += () => { DraftTreesCache(); if (!IsDisposed) _gl.Invalidate(); }; _buildings.DraftOf = k => _draft?.Find(k); _buildings.Extras = DraftExtras; _trees.Overridden = _treeMoved.Contains; _trees.Extras = DraftTreeExtras; }
             DraftWant(PiecesAroundCamera());
+            StartBuildingIndex();   // catálogo de todos os mapas já vai ficando pronto (cache: segundos)
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -366,6 +367,7 @@ internal sealed partial class WorldView
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("objetos: reabrir litmodels.pck", ex); }
         if (server) ServerNotice.Notify("map.bht");   // acende o "Salvar e enviar ao servidor"
         ObjectsSaved();
+        if (plan.PckFiles.Count > 0) _bindex = null;   // construções novas: o índice relê só os arquivos novos na próxima vez
         if (plan.Files.Keys.Any(k => k.EndsWith(".ecwld", StringComparison.OrdinalIgnoreCase)) && !_trees.Reload())
             _status.Text = Loc.T("obj.treesReloadFail", "Salvo, mas não deu para reler as árvores; feche e abra o Mundo 3D para vê-las.");
         DraftOpen();
@@ -974,8 +976,12 @@ internal sealed partial class WorldView
     {
         string load = DraftLoadTest();
         if (_draft is null || _draftSrc is null) return load + " | dftcat: sem rascunho";
-        _catalog = _buildings.Catalog().Where(c => _draft.Find(c.Key) is { Deleted: false, ReadOnlyWhy: null }).ToList();
+        StartBuildingIndex();
+        try { _bindex?.Wait(TimeSpan.FromMinutes(8)); } catch (AggregateException) { }
+        _catRows = CatalogRows(out var note);
+        var _catalog = _catRows.Where(c => c.Near).ToList();
         int total = _catalog.Sum(c => c.Count);
+        int others = _catRows.Count(c => !c.Near), otherMaps = _catRows.Where(c => !c.Near).Select(c => c.Block).Distinct().Count();
         if (_catalog.Count == 0) return load + " | dftcat: catálogo vazio";
         using (var th = BuildingThumb(0, 30) as Bitmap) th?.Save(System.IO.Path.Combine(_shotDir ?? System.IO.Path.GetTempPath(), "dftcat-thumb.png"));
         // janela de escolher como o usuário vê (prévia + estrela), sem favoritos de verdade
@@ -990,6 +996,10 @@ internal sealed partial class WorldView
         }
         // a menor construção (cabe em qualquer lugar), posta num pedaço vizinho carregado
         int pick = Enumerable.Range(0, _catalog.Count).OrderBy(i => _catalog[i].Size.X * _catalog[i].Size.Z).First();
+        // prévia de uma construção de OUTRO mapa (carregada na hora)
+        int far = _catRows.FindIndex(c => !c.Near && !c.Block.StartsWith(Loc.T("obj.catThisMap", "Este mapa: {0}")[..4]));
+        string farThumb = "-";
+        if (far >= 0) using (var ft = BuildingThumb(far, 30) as Bitmap) { farThumb = ft is null ? "falhou" : "ok " + System.IO.Path.GetFileName(_catRows[far].Key); ft?.Save(System.IO.Path.Combine(_shotDir ?? System.IO.Path.GetTempPath(), "dftcat-thumb-outro-mapa.png")); }
         var src = _draft.Find(_catalog[pick].Key)!;
         var c0 = CenterOf(src);
         System.Numerics.Vector3? target = null;
@@ -1020,44 +1030,125 @@ internal sealed partial class WorldView
         }
         catch (InvalidDataException ex) { sum = ex.Message; }
         ObjectUndo(false);
-        return load + $" | dftcat: {_catalog.Count} formas ({total} construções) 1a={System.IO.Path.GetFileName(_catalog[0].Key)} x{_catalog[0].Count} outro-pedaco={one} (de {src.Piece} para {copy?.Piece}) bloqueou={blocked} blocos-do-lugar-novo={blocksOk} plano=\"{sum}\"";
+        return load + $" | dftcat: indice={others} formas de {otherMaps} mapas {note} previa-outro-mapa={farThumb} | {_catalog.Count} formas ({total} construções) 1a={System.IO.Path.GetFileName(_catalog[0].Key)} x{_catalog[0].Count} outro-pedaco={one} (de {src.Piece} para {copy?.Piece}) bloqueou={blocked} blocos-do-lugar-novo={blocksOk} plano=\"{sum}\"";
     }
 
-    // ---------- pílula Construções: catálogo das construções por perto ----------
-    List<(string Key, int Sig, Vector3 Size, int Count)> _catalog = [];
+    // ---------- pílula Construções: por perto + todos os mapas e instâncias (índice) ----------
+    /// <summary>Linha do catálogo: Near = construção carregada perto (objeto do rascunho); senão vem do índice.</summary>
+    sealed record CatRow(string Key, int Sig, System.Numerics.Vector3 Min, System.Numerics.Vector3 Max, bool Solid, int Count, int Maps, string Block, bool Near)
+    {
+        public System.Numerics.Vector3 Size => Max - Min;
+    }
+    List<CatRow> _catRows = [];
+    Task<BuildingIndex?>? _bindex;      // índice de todos os mapas (segundo plano, uma vez por janela)
+    int _bxDone, _bxTotal;
+    Dictionary<string, string>? _mapNames;
+
+    /// <summary>Começa o índice de construções de todos os mapas em segundo plano (cache: depois da 1ª vez leva segundos).</summary>
+    void StartBuildingIndex()
+    {
+        if (_element is null || _bindex is { IsFaulted: false, IsCanceled: false }) return;
+        string el = _element;
+        _bindex = Task.Run(() => BuildingIndex.Build(el, (d, t) => { Volatile.Write(ref _bxDone, d); Volatile.Write(ref _bxTotal, t); }));
+    }
+
+    string MapLabel(string map)
+    {
+        try { _mapNames ??= _element is null ? new() : MapTags.LocalMapNames(_element); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("objetos: nomes dos mapas", ex); _mapNames = new(); }
+        string name = _mapNames.TryGetValue(map, out var n) && n.Length > 0 ? $"{n} ({map})" : map;
+        return map.Equals(_t.Name, StringComparison.OrdinalIgnoreCase) ? string.Format(Loc.T("obj.catThisMap", "Este mapa: {0}"), name) : name;
+    }
+
+    /// <summary>
+    /// Linhas do catálogo: "Por perto" (carregadas) e, com o índice pronto, cada forma de todos os mapas uma vez, no mapa
+    /// onde mais aparece ("aparece N× em M mapas"). note = andamento do índice enquanto ele não fica pronto.
+    /// </summary>
+    List<CatRow> CatalogRows(out string? note)
+    {
+        var rows = new List<CatRow>();
+        string near = Loc.T("obj.catNear", "Por perto");
+        var seen = new HashSet<int>();
+        foreach (var c in _buildings.Catalog())
+            if (_draft?.Find(c.Key) is { Deleted: false, ReadOnlyWhy: null } d) { rows.Add(new CatRow(c.Key, c.Sig, d.LocalBox.Min, d.LocalBox.Max, d.Solid, c.Count, 1, near, true)); seen.Add(c.Sig); }
+        note = null;
+        if (_bindex is { IsCompletedSuccessfully: true, Result: { } idx })
+        {
+            var best = new Dictionary<int, (string Map, BuildingShape S, int Total, int Maps)>();
+            foreach (var (map, list) in idx.ByMap)
+                foreach (var s in list)
+                    best[s.Sig] = best.TryGetValue(s.Sig, out var b)
+                        ? (s.Count > b.S.Count ? map : b.Map, s.Count > b.S.Count ? s : b.S, b.Total + s.Count, b.Maps + 1)
+                        : (map, s, s.Count, 1);
+            foreach (var (sig, b) in best.OrderBy(kv => kv.Value.Map.Equals(_t.Name, StringComparison.OrdinalIgnoreCase) ? 0 : 1).ThenBy(kv => kv.Value.Map, StringComparer.OrdinalIgnoreCase).ThenByDescending(kv => kv.Value.Total))
+                rows.Add(new CatRow(b.S.Sample, sig, b.S.Min, b.S.Max, b.S.Solid, b.Total, b.Maps, MapLabel(b.Map), false));
+        }
+        else if (_bindex is { IsCompleted: true }) note = Loc.T("obj.catIndexFail", "não deu para ler os outros mapas (veja o log)");
+        else note = string.Format(Loc.T("obj.catIndexing", "lendo os outros mapas… {0}%"), Volatile.Read(ref _bxTotal) > 0 ? 100 * Volatile.Read(ref _bxDone) / Volatile.Read(ref _bxTotal) : 0);
+        return rows;
+    }
 
     /// <summary>Prévia de uma linha do catálogo: a construção no espaço dela (sem giro do mundo), enquadrada pela caixa.</summary>
     Image? BuildingThumb(int row, float yaw)
     {
-        if (row < 0 || row >= _catalog.Count || _buildings.LocalBoxOf(_catalog[row].Key) is not { } lb) return null;
+        if (row < 0 || row >= _catRows.Count) return null;
+        var r = _catRows[row];
+        if (!_buildings.EnsureLoaded(r.Key) || _buildings.LocalBoxOf(r.Key) is not { } lb) return null;   // de outro mapa: lê agora
         var m = WorldBuildings.MatrixOf(new ObjTransform(System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitZ, System.Numerics.Vector3.UnitY, 1));   // Z espelhado como no mundo
         var mn = new Vector3(lb.Min.X, lb.Min.Y, -lb.Max.Z); var mx = new Vector3(lb.Max.X, lb.Max.Y, -lb.Min.Z);
-        return OffscreenThumb(mn, mx, yaw, (_, _) => _buildings.DrawThumb(_catalog[row].Key, m));
+        return OffscreenThumb(mn, mx, yaw, (_, _) => _buildings.DrawThumb(r.Key, m));
     }
 
     /// <summary>
-    /// Pílula Construções: janela de escolher com as construções dos pedaços em volta da câmera (iguais numa linha só, com
-    /// tamanho e quantas aparecem), prévia 3D e estrela de favoritos; depois a escolhida segue o mouse e um clique a põe.
+    /// Objeto de origem da inserção: a construção carregada (rascunho) ou, vinda do índice, um objeto só de origem com o lugar
+    /// e a caixa do .bmd (de outro mapa ou de longe). null = não deu (motivo no status).
+    /// </summary>
+    DraftObject? CatalogSource(CatRow r)
+    {
+        if (r.Near) return _draft?.Find(r.Key) is { Deleted: false } d ? d : null;
+        if (_draft?.Find(r.Key) is { Deleted: false } loaded) return loaded;   // do índice, mas carregada agora
+        try
+        {
+            if (_draftSrc?.Lit(out var why) is not { } lit) { _status.Text = Loc.T("obj.catNoPack", "Não deu para abrir o litmodels.pck."); return null; }
+            byte[] bytes;
+            lock (_draftSrc.LitLock) bytes = lit.Find(r.Key.ToLowerInvariant()) is { } e ? lit.Read(e) : [];
+            if (bytes.Length == 0) { _status.Text = Loc.T("obj.catGone", "Essa construção não está mais carregada; abra a lista de novo."); return null; }
+            if (!_buildings.EnsureLoaded(r.Key)) { _status.Text = Loc.T("obj.catGone", "Essa construção não está mais carregada; abra a lista de novo."); return null; }
+            return new DraftObject { Key = r.Key, Kind = ObjKind.Building, Piece = 0, Source = r.Key, Original = ObjectFormats.ReadBmd(bytes), Solid = r.Solid, LocalBox = (r.Min, r.Max) };
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            AppLog.Error("objetos: construção do catálogo", ex);
+            _status.Text = Loc.T("obj.catGone", "Essa construção não está mais carregada; abra a lista de novo.");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Pílula Construções: janela de escolher com as construções por perto e as de todos os mapas e instâncias (cada forma
+    /// uma vez, com tamanho e quantas aparecem), prévia 3D e estrela; a escolhida segue o mouse e um clique a põe.
     /// </summary>
     void ChooseBuildingToPlace()
     {
         if (_draft is null) { _status.Text = Loc.T("obj.noDraft", "Abra a ferramenta Objetos do mundo para mexer nos objetos."); return; }
-        _catalog = _buildings.Catalog().Where(c => _draft.Find(c.Key) is { Deleted: false, ReadOnlyWhy: null }).ToList();
-        if (_catalog.Count == 0) { _status.Text = Loc.T("obj.noBuildingsNear", "Nenhuma construção carregada por perto; chegue mais perto de uma cidade ou ruína."); return; }
-        string Size(Vector3 s) => $"{s.X:0.#}×{s.Y:0.#}×{s.Z:0.#} m";
-        string Group(Vector3 s) { float big = MathF.Max(s.X, MathF.Max(s.Y, s.Z)); return big < 10 ? Loc.T("obj.catSmall", "Pequenas (até 10 m)") : big < 30 ? Loc.T("obj.catMedium", "Médias (10 a 30 m)") : Loc.T("obj.catBig", "Grandes (mais de 30 m)"); }
-        var rows = _catalog.Select((c, i) => (Id: i, Name: string.Format(Loc.T("obj.catRow", "{0} · {1} · aparece {2}×"), System.IO.Path.GetFileNameWithoutExtension(c.Key), Size(c.Size), c.Count), Block: Group(c.Size))).ToList();
+        StartBuildingIndex();
+        _catRows = CatalogRows(out var note);
+        if (_catRows.Count == 0) { _status.Text = Loc.T("obj.noBuildingsNear", "Nenhuma construção carregada por perto; chegue mais perto de uma cidade ou ruína.") + (note is null ? "" : " (" + note + ")"); return; }
+        string Size(System.Numerics.Vector3 s) => $"{s.X:0.#}×{s.Y:0.#}×{s.Z:0.#} m";
+        var rows = _catRows.Select((c, i) => (Id: i, Name: string.Format(Loc.T("obj.catRow", "{0} · {1} · aparece {2}×"), System.IO.Path.GetFileNameWithoutExtension(c.Key), Size(c.Size), c.Count)
+            + (c.Maps > 1 ? " " + string.Format(Loc.T("obj.catMaps", "em {0} mapas"), c.Maps) : ""), Block: c.Block)).ToList();
         // favoritos pela forma (número estável), não pela linha (a lista muda com o lugar da câmera)
         JavFavorites? fav = null;
         if (_element is not null)
         {
             var file = JavFavorites.ForFile("building", _element);
-            var cat = _catalog;
+            var cat = _catRows;
             fav = new JavFavorites(() => file.Ids.Select(sig => cat.FindIndex(c => c.Sig == sig)).Where(i => i >= 0).ToList(), i => i >= 0 && i < cat.Count && file.Has(cat[i].Sig), i => file.Toggle(cat[i].Sig));
         }
-        using var w = new ItemSearchWindow(rows, askQuantity: false, model: BuildingThumb, fav: fav) { Text = Loc.T("obj.chooseBuilding", "Escolher construção para pôr no mundo") };
-        if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0 || w.Picked >= _catalog.Count) return;
-        if (_draft?.Find(_catalog[w.Picked].Key) is not { Deleted: false } src) { _status.Text = Loc.T("obj.catGone", "Essa construção não está mais carregada; abra a lista de novo."); return; }
+        using var w = new ItemSearchWindow(rows, askQuantity: false, model: BuildingThumb, fav: fav)
+            { Text = Loc.T("obj.chooseBuilding", "Escolher construção para pôr no mundo") + (note is null ? "" : " — " + note) };
+        if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0 || w.Picked >= _catRows.Count) return;
+        if (CatalogSource(_catRows[w.Picked]) is not { } src) return;
         StartPlacing(src);
         _gl.Focus();
     }

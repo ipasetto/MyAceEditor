@@ -186,16 +186,18 @@ public static class ObjectFormats
     /// novo e o nome novo (i32 tamanho + texto, com o \0 final se a origem tinha). O cliente lê pelo offset
     /// (CECScene::LoadOrnament faz Seek), então acrescentar no fim não mexe em nada que já existe.
     /// </summary>
-    public static (byte[] Ecbsd, int Offset) NewOrnament(byte[] ecbsd, int srcOff, string newName, ObjTransform t)
+    /// <param name="from">.ecbsd de onde vem o ornamento de origem (outro mapa); null = o mesmo.</param>
+    public static (byte[] Ecbsd, int Offset) NewOrnament(byte[] ecbsd, int srcOff, string newName, ObjTransform t, byte[]? from = null)
     {
-        if (srcOff < 0 || srcOff + 44 > ecbsd.Length) throw new InvalidDataException("ornamento de origem fora do .ecbsd");
-        int srcLen = BitConverter.ToInt32(ecbsd, srcOff + 40);
-        bool nul = srcLen > 0 && srcOff + 44 + srcLen <= ecbsd.Length && ecbsd[srcOff + 44 + srcLen - 1] == 0;
+        var tpl = from ?? ecbsd;
+        if (srcOff < 0 || srcOff + 44 > tpl.Length) throw new InvalidDataException("ornamento de origem fora do .ecbsd");
+        int srcLen = BitConverter.ToInt32(tpl, srcOff + 40);
+        bool nul = srcLen > 0 && srcOff + 44 + srcLen <= tpl.Length && tpl[srcOff + 44 + srcLen - 1] == 0;
         var name = Encoding.ASCII.GetBytes(newName + (nul ? "\0" : ""));
         var o = new byte[ecbsd.Length + 44 + name.Length];
         ecbsd.CopyTo(o, 0);
         int off = ecbsd.Length;
-        Array.Copy(ecbsd, srcOff, o, off, 40);
+        Array.Copy(tpl, srcOff, o, off, 40);
         W(o, off, t.Pos); W(o, off + 12, t.Dir); W(o, off + 24, t.Up);
         BinaryPrimitives.WriteInt32LittleEndian(o.AsSpan(off + 40), name.Length);
         name.CopyTo(o, off + 44);

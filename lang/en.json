@@ -5764,5 +5764,12 @@
   "obj.catRow": "{0} · {1} · appears {2}×",
   "obj.chooseBuilding": "Choose a building to place in the world",
   "obj.catGone": "That building is no longer loaded; open the list again.",
-  "obj.pillBuildingsTip": "Choose one of the buildings nearby and click on the ground to place a copy."
+  "obj.pillBuildingsTip": "Choose one of the buildings nearby and click on the ground to place a copy.",
+  "obj.catThisMap": "This map: {0}",
+  "obj.catNear": "Nearby",
+  "obj.catIndexFail": "could not read the other maps (see the log)",
+  "obj.catIndexing": "reading the other maps… {0}%",
+  "obj.catNoPack": "Could not open litmodels.pck.",
+  "obj.catMaps": "in {0} maps",
+  "obj.fromMapGone": "{0}: the scenery of the source map ({1}) is not in the client; nothing was saved."
 }

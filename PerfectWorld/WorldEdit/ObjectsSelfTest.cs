@@ -25,6 +25,8 @@ public static class ObjectsSelfTest
     {
         var lines = new List<string>();
         var r = new Report(lines);
+        try { Index(r, element); }
+        catch (Exception ex) { r.Check("indice-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Draft(r); }
         catch (Exception ex) { r.Check("rascunho-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Draft2(r); }
@@ -170,6 +172,20 @@ public static class ObjectsSelfTest
 
 
     // ---------------- salvar (Task 6) ----------------
+    /// <summary>Índice de construções de todos os mapas: monta (1ª vez lê tudo; 2ª usa o cache) e confere o conteúdo.</summary>
+    static void Index(Report r, string element)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var idx = BuildingIndex.Build(element);
+        long first = sw.ElapsedMilliseconds; sw.Restart();
+        var again = BuildingIndex.Build(element);
+        long second = sw.ElapsedMilliseconds;
+        int shapes = idx?.ByMap.Values.Sum(l => l.Count) ?? 0, uniq = idx?.ByMap.Values.SelectMany(l => l).Select(s => s.Sig).Distinct().Count() ?? 0;
+        bool same = idx is not null && again is not null && idx.ByMap.Count == again.ByMap.Count && idx.ByMap.All(kv => again.ByMap.TryGetValue(kv.Key, out var l) && l.Count == kv.Value.Count);
+        r.Check("indice-todos-os-mapas", idx is { ByMap.Count: > 1 } && same && idx.ByMap.ContainsKey("world"),
+            $"{idx?.ByMap.Count} mapas, {idx?.Files} arquivos ({idx?.Failed} com erro), {shapes} formas por mapa, {uniq} formas diferentes; 1a vez {first} ms, com cache {second} ms");
+    }
+
     static WorldDraft DraftOf(DraftSources src, params int[] pieces)
     {
         var d = new WorldDraft(src.Map);
@@ -323,6 +339,29 @@ public static class ObjectsSelfTest
                 else res = "sem pedaço vizinho";
             }
             r.Check("construcao-outro-pedaco-pasta-nova", okB, res);
+        }
+        // construção de OUTRO mapa (instância a05 -> world): .bmd novo na pasta do world, ornamento novo (molde do .ecbsd da a05),
+        // referência nova nos blocos do lugar, brushes no map.bht do world se a original tinha colisão na a05
+        {
+            var a05b = true ? DraftOf(a05, all).Pieces.Values.SelectMany(p => p.Objects).FirstOrDefault(o => o.Kind == ObjKind.Building && o.ReadOnlyWhy is null && o.Solid) : null;
+            string res = "sem construção na a05"; bool okX = false;
+            if (a05b is not null)
+            {
+                var dx = DraftOf(world, mo.Piece);
+                var at = dx.Pieces.Values.SelectMany(p => p.Objects).First(o => o.Kind == ObjKind.Building).Original.Pos + new Vector3(20, 0, 20);
+                var cp = new DraftObject { Key = "new:x1", Kind = ObjKind.Building, Piece = mo.Piece, Source = a05b.Key, CopyOf = a05b.Key, Solid = a05b.Solid, LocalBox = a05b.LocalBox, Original = a05b.Original with { Pos = at } };
+                string? addWhy = dx.Apply(new AddOp(cp.Key, cp));
+                var px = DraftSaver.Plan(dx, world);
+                string? np = px.PckFiles.Keys.FirstOrDefault(k => k.StartsWith(@"litmodels\world\", StringComparison.OrdinalIgnoreCase));
+                var ex2 = px.Files.TryGetValue(world.EcwldPath, out var exw) ? new EcwldFile(exw) : null;
+                var bx2 = px.Files.GetValueOrDefault(world.EcbsdPath);
+                var rx = ex2 is null || bx2 is null || np is null ? [] : ObjectFormats.OrnamentRefsOf(ex2, bx2, np);
+                bool bhtGrew = world.BhtPath is null || (px.Files.TryGetValue(world.BhtPath, out var bw2) && bw2.Length > new FileInfo(world.BhtPath).Length);
+                bool reread = np is not null && BmdModel.Read(px.PckFiles[np]) is not null && ObjectFormats.ReadBmd(px.PckFiles[np]).Pos == at;
+                okX = addWhy is null && np is not null && rx.Count > 0 && bhtGrew && reread;
+                res = $"{a05b.Key} -> {np}: referencias={rx.Count} bht-cresceu={bhtGrew} relida={reread} {addWhy}";
+            }
+            r.Check("construcao-de-outro-mapa", okX, res);
         }
         r.Check("plano-modelo", hit is not null && ObjectFormats.ReadEcModel(hit) == tom && wNew!.Length == new FileInfo(world.EcwldPath).Length && pm.PckFiles.Count == 0);
 

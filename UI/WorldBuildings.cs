@@ -47,8 +47,7 @@ internal sealed class WorldBuildings : IDisposable
         if (Extras?.Invoke() is not { } ex) yield break;
         foreach (var (key, srcFile, w) in ex)
         {
-            Placed? sp = null;
-            foreach (var list in _loaded.Values) { sp = list.FirstOrDefault(x => x.File.Equals(srcFile, StringComparison.OrdinalIgnoreCase)); if (sp is not null) break; }
+            var sp = Loaded(srcFile);   // pedaço carregado ou construção de fora (catálogo de todos os mapas)
             if (sp is not null) yield return (key, sp, w, Vector3.TransformPosition(Vector3.TransformPosition(sp.Center, sp.World.Inverted()), w));
         }
     }
@@ -231,6 +230,7 @@ internal sealed class WorldBuildings : IDisposable
         var old = _lit;
         if (old is not null) lock (old) { _lit = fresh; old.Dispose(); } else _lit = fresh;
         _byPiece.Clear(); IndexPieces();
+        foreach (var k in _extra.Keys.ToList()) FreeExtra(k);
         foreach (var p in _loaded.Keys.ToList()) Unload(p);
         _requested.Clear(); Offsets.Clear();
     }
@@ -301,15 +301,24 @@ internal sealed class WorldBuildings : IDisposable
 
     void Arrive(int piece, int gen, (List<Cpu> Models, Dictionary<string, (int[] Px, int W, int H)?> Textures) r)
     {
-        foreach (var (name, img) in r.Textures)
+        UploadTextures(r.Textures);
+        if (!_wanted.Contains(piece) || _gen.GetValueOrDefault(piece) != gen || !_loaded.TryGetValue(piece, out var list)) return;   // a câmera já saiu de lá
+        foreach (var c in r.Models) list.Add(MakePlaced(c));
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+    }
+
+    void UploadTextures(Dictionary<string, (int[] Px, int W, int H)?> textures)
+    {
+        foreach (var (name, img) in textures)
         {
             int id = img is { } i ? UploadTexture(i) : 0;
             _textures[name] = id;
             if (id != 0 && DdsDecoder.IsCutout(img!.Value.Px)) _cutout.Add(id);
         }
-        if (!_wanted.Contains(piece) || _gen.GetValueOrDefault(piece) != gen || !_loaded.TryGetValue(piece, out var list)) return;   // a câmera já saiu de lá
-        foreach (var c in r.Models)
-        {
+    }
+
+    Placed MakePlaced(Cpu c)
+    {
             var parts = new List<Part>();
             foreach (var mesh in c.Meshes)
             {
@@ -327,9 +336,36 @@ internal sealed class WorldBuildings : IDisposable
                 }
                 parts.Add(new Part(vbo, ibo, mesh.Indices.Length, mesh.Texture, nvbo));
             }
-            list.Add(new Placed(c.World, parts, c.Center, c.Radius, c.File, c.Mesh));
-        }
+            return new Placed(c.World, parts, c.Center, c.Radius, c.File, c.Mesh);
+    }
+
+    // construções de fora dos pedaços carregados (catálogo de todos os mapas): prévia, objeto seguindo o mouse e cópias
+    readonly Dictionary<string, Placed> _extra = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Garante a construção na placa (lê o .bmd e as texturas agora, na thread da tela: um arquivo leva milissegundos).
+    /// Falso = não está no pacote ou não é desenhável.
+    /// </summary>
+    internal bool EnsureLoaded(string file)
+    {
+        if (Loaded(file) is not null) return true;
+        if (_lit is null) return false;
+        PckEntry? e; lock (_lit) e = _lit.Find(file.ToLowerInvariant()) ?? _lit.Find(file);
+        if (e is null) return false;
+        var r = Parse([e]);
+        UploadTextures(r.Textures);
+        if (r.Models.Count == 0) return false;
+        if (_extra.Count >= 120)   // não acumula sem fim: solta as mais antigas
+            foreach (var k in _extra.Keys.Take(40).ToList()) FreeExtra(k);
+        _extra[file] = MakePlaced(r.Models[0]);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+        return true;
+    }
+
+    void FreeExtra(string k)
+    {
+        if (!_extra.Remove(k, out var p)) return;
+        foreach (var part in p.Parts) { GL.DeleteBuffer(part.Vbo); GL.DeleteBuffer(part.Ibo); if (part.NightVbo != 0) GL.DeleteBuffer(part.NightVbo); }
     }
 
     /// <summary>
@@ -395,7 +431,7 @@ internal sealed class WorldBuildings : IDisposable
         // texturas que nenhuma peça carregada usa saem da placa (andar pelo mapa acumulava todas)
         if (_textures.Count > 400)
         {
-            var used = new HashSet<string>(_loaded.Values.SelectMany(l => l).SelectMany(p => p.Parts).Select(x => x.Tex));
+            var used = new HashSet<string>(_loaded.Values.SelectMany(l => l).Concat(_extra.Values).SelectMany(p => p.Parts).Select(x => x.Tex));
             foreach (var name in _textures.Keys.Where(k => !used.Contains(k)).ToList())
             {
                 int id = _textures[name];
@@ -481,7 +517,7 @@ internal sealed class WorldBuildings : IDisposable
     Placed? Loaded(string file)
     {
         foreach (var list in _loaded.Values) foreach (var p in list) if (p.File.Equals(file, StringComparison.OrdinalIgnoreCase)) return p;
-        return null;
+        return _extra.GetValueOrDefault(file);
     }
 
     /// <summary>Caixa da construção no espaço dela (prévia do catálogo); null = não carregada.</summary>
@@ -516,16 +552,8 @@ internal sealed class WorldBuildings : IDisposable
         return groups.Select(kv => (Key: kv.Value.Key, Sig: kv.Key, kv.Value.Size, kv.Value.Count)).OrderByDescending(x => x.Count).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    /// <summary>Número da forma que não muda entre sessões (string.GetHashCode muda a cada execução).</summary>
-    static int StableSig(int verts, int tris, Vector3 size)
-    {
-        unchecked
-        {
-            int h = (int)2166136261;
-            foreach (int v in new[] { verts, tris, (int)MathF.Round(size.X * 10), (int)MathF.Round(size.Y * 10), (int)MathF.Round(size.Z * 10) }) h = (h ^ v) * 16777619;
-            return h & 0x7FFFFFFF;
-        }
-    }
+    /// <summary>Número da forma (o mesmo do índice de todos os mapas, BuildingIndex.Sig).</summary>
+    static int StableSig(int verts, int tris, Vector3 size) => MyAceEditor.PerfectWorld.WorldEdit.BuildingIndex.Sig(verts, tris, size.X, size.Y, size.Z);
 
     /// <summary>Superfícies .sdr depois do que é sólido: a cor é só a textura (SELECTARG1), com o alfa dela e a rolagem no tempo.</summary>
     void DrawSurfaces(List<(Matrix4 World, Part Part)> parts)
@@ -557,6 +585,7 @@ internal sealed class WorldBuildings : IDisposable
     public void Dispose()
     {
         foreach (var p in _loaded.Keys.ToList()) Unload(p);
+        foreach (var k in _extra.Keys.ToList()) FreeExtra(k);
         foreach (var t in _textures.Values) if (t != 0) GL.DeleteTexture(t);
         _lit?.Dispose(); _tex?.Dispose(); _shaders?.Dispose();
     }

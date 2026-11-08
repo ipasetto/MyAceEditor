@@ -153,7 +153,7 @@ public static class DraftSaver
     static int FolderPiece(string key) { var parts = key.Split('\\'); return parts.Length >= 2 && int.TryParse(parts[^2], out int n) ? n : 0; }
 
     /// <summary>Pasta do pedaço no litmodels.pck, no formato da chave de origem (litmodels\mapa\N\).</summary>
-    static string FolderFor(string srcKey, int piece) { var parts = srcKey.Split('\\'); parts[^2] = piece.ToString(); return string.Join('\\', parts[..^1]) + "\\"; }
+    static string FolderFor(string srcKey, int piece, string? map = null) { var parts = srcKey.Split('\\'); parts[^2] = piece.ToString(); if (map is not null && parts.Length >= 4) parts[1] = map; return string.Join('\\', parts[..^1]) + "\\"; }
 
     /// <summary>
     /// Nome livre na pasta do pedaço onde o objeto FICA (piece; 0 = pasta da origem): litmodel_N.bmd com N acima do maior
@@ -161,7 +161,7 @@ public static class DraftSaver
     /// </summary>
     static string NewBmdPath(DraftSources src, string srcKey, HashSet<string> used, int piece = 0)
     {
-        string folder = piece > 0 && FolderPiece(srcKey) > 0 ? FolderFor(srcKey, piece) : srcKey[..(srcKey.LastIndexOf('\\') + 1)];
+        string folder = piece > 0 && FolderPiece(srcKey) > 0 ? FolderFor(srcKey, piece, src.Map) : srcKey[..(srcKey.LastIndexOf('\\') + 1)];
         var lit = src.Lit(out var why) ?? throw new InvalidDataException(why);
         int max = 0;
         lock (src.LitLock)
@@ -335,24 +335,46 @@ public static class DraftSaver
             if (BmdModel.Read(nb) is null || BmdModel.CdBrushes(nb)?.Count != cd0.Count) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
             string path = NewBmdPath(src, o.CopyOf!, usedNames, src.PieceAt(o.Now.Pos.X, o.Now.Pos.Z));   // pasta do pedaço onde a cópia fica
             plan.PckFiles[path] = nb;
-            var refs = ObjectFormats.OrnamentRefsOf(ecw, bsd, o.CopyOf!);
+            // de onde vem: este mapa ou OUTRO mapa/instância (catálogo de todos os mapas; litmodels\<mapa>\<pedaço>\...)
+            var cparts = o.CopyOf!.Split('\\');
+            string fromMap = cparts.Length >= 4 ? cparts[1] : src.Map;
+            bool otherMap = !fromMap.Equals(src.Map, StringComparison.OrdinalIgnoreCase);
+            EcwldFile refEcw = ecw; byte[] refBsd = bsd;
+            if (otherMap)
+            {
+                string fe = Path.Combine(src.ElementDir, "maps", fromMap, fromMap + ".ecwld");
+                if (!File.Exists(fe) || !File.Exists(Path.ChangeExtension(fe, ".ecbsd")))
+                    throw new InvalidDataException(string.Format(Loc.T("obj.fromMapGone", "{0}: o cenário do mapa de origem ({1}) não está no cliente; nada foi salvo."), Path.GetFileName(o.CopyOf), fromMap));
+                refEcw = new EcwldFile(File.ReadAllBytes(fe)); refBsd = File.ReadAllBytes(Path.ChangeExtension(fe, ".ecbsd"));
+            }
+            var refs = ObjectFormats.OrnamentRefsOf(refEcw, refBsd, o.CopyOf!);
             if (refs.Count == 0) throw new InvalidDataException(string.Format(Loc.T("obj.noRef", "{0}: não achei a referência dela no .ecwld; não dá para apagar com segurança."), Path.GetFileName(o.CopyOf)));
             int srcOff = refs[0].Offset;
-            var ot = new ObjTransform(Map(ObjectFormats.OrnamentPos(bsd, srcOff)), Turn(ObjectFormats.OrnamentDir(bsd, srcOff)), Turn(ObjectFormats.OrnamentUp(bsd, srcOff)), 1);
+            var ot = new ObjTransform(Map(ObjectFormats.OrnamentPos(refBsd, srcOff)), Turn(ObjectFormats.OrnamentDir(refBsd, srcOff)), Turn(ObjectFormats.OrnamentUp(refBsd, srcOff)), 1);
             var parts = path.Split('\\');
-            (bsd, int newOff) = ObjectFormats.NewOrnament(bsd, srcOff, parts[^2] + "\\" + parts[^1], ot);
+            (bsd, int newOff) = ObjectFormats.NewOrnament(bsd, srcOff, parts[^2] + "\\" + parts[^1], ot, otherMap ? refBsd : null);
             bsdDirty = true;
-            var hit0 = ecw.Find(EcwldFile.Kind.Ornament, refs[0].Id).First();
-            var refItem = (byte[])hit0.Block.Items[(int)EcwldFile.Kind.Ornament][hit0.Index].Clone();
+            // referência nova (8 B: ID, offset) nos blocos que a caixa cobre; molde = uma referência deste mapa, se houver
+            byte[] refItem;
+            if (!otherMap) { var hit0 = ecw.Find(EcwldFile.Kind.Ornament, refs[0].Id).First(); refItem = (byte[])hit0.Block.Items[(int)EcwldFile.Kind.Ornament][hit0.Index].Clone(); }
+            else refItem = ecw.Blocks.SelectMany(bl => bl.Items[(int)EcwldFile.Kind.Ornament]).FirstOrDefault(it => it.Length >= 8) is { } any ? (byte[])any.Clone() : new byte[8];
             BitConverter.GetBytes(nextId++).CopyTo(refItem, 0);
             BitConverter.GetBytes(newOff).CopyTo(refItem, 4);
-            foreach (var bl in BlocksFor(ecw, mn, mx, ecw.Find(EcwldFile.Kind.Ornament, refs[0].Id).Select(h => h.Block))) bl.Items[(int)EcwldFile.Kind.Ornament].Add((byte[])refItem.Clone());
+            var fallback = otherMap ? [] : ecw.Find(EcwldFile.Kind.Ornament, refs[0].Id).Select(h => h.Block).ToList();
+            foreach (var bl in BlocksFor(ecw, mn, mx, fallback)) bl.Items[(int)EcwldFile.Kind.Ornament].Add((byte[])refItem.Clone());
             ecwDirty = true;
+            // colisão: a original tem brushes no map.bht do mapa DELA? então a cópia leva os dela para o map.bht deste mapa
             var mine0 = cd0.Select(a => BhtFile.KeyAt(b0, a)).ToList();
             if (mine0.Count > 0)
             {
                 if (bht is null && src.BhtPath is { } bp) { bht = new BhtFile(File.ReadAllBytes(bp)); keys = bht.Keys(); }
-                if (keys is not null && mine0.Any(keys.ContainsKey))
+                var srcKeys = keys;
+                if (otherMap)
+                {
+                    string? fb = src.ServerConfigDir is { } sd && File.Exists(Path.Combine(sd, fromMap, "map.bht")) ? Path.Combine(sd, fromMap, "map.bht") : null;
+                    srcKeys = fb is null ? null : new BhtFile(File.ReadAllBytes(fb)).Keys();
+                }
+                if (bht is not null && (srcKeys is null ? otherMap : mine0.Any(srcKeys.ContainsKey)))   // sem o map.bht de origem: leva (tem brushes)
                     foreach (int a in at) newBrushes.Add(nb[a..(a + 56 + 17 * BitConverter.ToInt32(nb, a + 52))]);
             }
             Count(o.Piece, "new");
