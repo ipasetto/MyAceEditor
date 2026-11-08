@@ -474,6 +474,12 @@ internal sealed partial class WorldView : Form
                     bool ok = e.KeyCode == Keys.Z ? UndoAny() : RedoAny();
                     _status.Text = ok ? "" : e.KeyCode == Keys.Z ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer");
                     RefreshMarkers(); break;
+                case Keys.C when _tool == Tool.Terrain:
+                    WaterCopy();
+                    break;
+                case Keys.V when _tool == Tool.Terrain:
+                    WaterPaste();
+                    break;
                 case Keys.C when _tool == Tool.Scene && _lightPanel.Visible:
                     LightCopy();
                     break;

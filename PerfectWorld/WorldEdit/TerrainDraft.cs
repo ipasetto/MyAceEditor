@@ -24,13 +24,36 @@ public sealed class TerrainDraft(TerrainFile t)
     {
         public readonly Dictionary<int, Snap> Before = new(); public Dictionary<int, Snap> After = new();
         public readonly Dictionary<(int Br, int Bc), float[]> HBefore = new(); public Dictionary<(int Br, int Bc), float[]> HAfter = new();
+        public List<WaterArea>? WBefore, WAfter;   // águas (foto inteira; são poucas)
+    }
+    /// <summary>Águas do mapa (null = mapa sem .ecwld/.ecbsd). Mexer nelas passa por WaterEdit para entrar no Ctrl+Z.</summary>
+    public WaterDraft? Water { get; set; }
+    /// <summary>Alguma água mudou desde a última leitura (o desenho refaz e zera).</summary>
+    public bool WaterChanged { get; set; }
+
+    /// <summary>Tira a foto das águas no passo atual (uma vez por passo), antes de mexer nelas.</summary>
+    void TouchWater()
+    {
+        if (_cur is not null && _cur.WBefore is null && Water is not null) _cur.WBefore = Water.Snapshot();
+    }
+
+    /// <summary>Uma ação nas águas como um passo de Ctrl+Z (criar, apagar, nível, cor, tamanho, colar).</summary>
+    public bool WaterEdit(Action<WaterDraft> act)
+    {
+        if (Water is null) return false;
+        bool own = _cur is null;
+        if (own) BeginStroke();
+        TouchWater();
+        act(Water);
+        WaterChanged = true;
+        return !own || EndStroke();
     }
     readonly HashSet<(int Br, int Bc)> _hDirty = new();   // blocos de altura mexidos
     public enum SculptMode { Raise, Lower, Smooth, Flatten }
     readonly List<Stroke> _undo = new(), _redo = new();
     Stroke? _cur;
 
-    public bool Dirty => (_dirty.Count > 0 || _hDirty.Count > 0) && _undo.Count > 0;
+    public bool Dirty => (_dirty.Count > 0 || _hDirty.Count > 0) && _undo.Count > 0 || Water?.Dirty == true;
     public bool HeightsDirty => _hDirty.Count > 0 && _undo.Count > 0;
     public int UndoCount => _undo.Count;
     public IReadOnlyCollection<int> DirtyPieces => _dirty;
@@ -92,8 +115,9 @@ public sealed class TerrainDraft(TerrainFile t)
     {
         if (_cur is null) return false;
         var s = _cur; _cur = null;
-        if (s.Before.Count == 0 && s.HBefore.Count == 0) return false;
+        if (s.Before.Count == 0 && s.HBefore.Count == 0 && s.WBefore is null) return false;
         s.After = s.Before.Keys.ToDictionary(p => p, Take);
+        if (s.WBefore is not null) s.WAfter = Water!.Snapshot();
         s.HAfter = s.HBefore.Keys.ToDictionary(k => k, k => (float[])Terrain.BlockHeights(k.Br, k.Bc)!.Clone());
         _undo.Add(s); _redo.Clear();
         return true;
@@ -107,6 +131,7 @@ public sealed class TerrainDraft(TerrainFile t)
         var s = from[^1]; from.RemoveAt(from.Count - 1); to.Add(s);
         foreach (var (p, snap) in redo ? s.After : s.Before) Restore(p, snap);
         foreach (var (k, h) in redo ? s.HAfter : s.HBefore) if (Terrain.BlockHeights(k.Br, k.Bc) is { } live) Array.Copy(h, live, h.Length);   // mesmo vetor do cache
+        if ((redo ? s.WAfter : s.WBefore) is { } ws && Water is not null) { Water.Restore(ws); WaterChanged = true; }
         return s.Before.Keys.SelectMany(AreasOf).Concat(s.HBefore.Keys.Select(AreaOfBlock)).Distinct().ToList();
     }
 
@@ -220,6 +245,12 @@ public sealed class TerrainDraft(TerrainFile t)
                 if (MathF.Abs(nh - h) > 1e-5f) next.Add((u, v, nh));
             }
         foreach (var (u, v, nh) in next) Set(u, v, nh, areas);
+        // a água aparece (ou some) onde o chão passou do nível
+        if (next.Count > 0 && Water is not null && Water.Areas.Any(a => a.Right >= cx - radius && a.Left <= cx + radius && a.Top >= cz - radius && a.Bottom <= cz + radius))
+        {
+            TouchWater();
+            if (Water.RefreshIn(cx - radius - Terrain.Cell, cz - radius - Terrain.Cell, cx + radius + Terrain.Cell, cz + radius + Terrain.Cell).Count > 0) WaterChanged = true;
+        }
         return [.. areas];
     }
 
@@ -271,9 +302,10 @@ public sealed class TerrainDraft(TerrainFile t)
     /// Arquivos a gravar: .t2mk dos pedaços pintados; .t2bk (só a parte das alturas dos blocos mexidos) e, com a pasta do
     /// servidor, o map\N.hmap refeito das alturas (o mesmo cálculo que bate com o do servidor). serverMapDir = config\&lt;mapa&gt;.
     /// </summary>
-    public Dictionary<string, byte[]> Files(string? serverMapDir = null)
+    public Dictionary<string, byte[]> Files(string? serverMapDir = null, List<string>? summary = null)
     {
         var d = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        if (Water is { Dirty: true } w) foreach (var (k, v) in w.Files(serverMapDir, summary ?? new List<string>())) d[k] = v;
         int bpp = Terrain.BlocksPerPiece;
         foreach (var piece in _hDirty.Select(k => k.Br / bpp * Terrain.Cols + k.Bc / bpp + 1).Distinct())
         {
@@ -322,8 +354,10 @@ public static class TerrainSaver
             return new SaveResult(SaveKind.RolledBack, Loc.T("obj.rolledBack", "Não deu para salvar; tudo voltou como estava. As mudanças continuam no editor para tentar de novo."));
         }
         BackupSets.Save(new BackupSet("terrain", map, DateTime.Now, baks.Where(kv => kv.Value is not null).Select(kv => new BackupSetEntry(kv.Key, kv.Value!)).ToList()));
-        bool server = files.Keys.Any(k => k.EndsWith(".hmap", StringComparison.OrdinalIgnoreCase));
-        return new SaveResult(server ? SaveKind.Both : SaveKind.ClientOnly, string.Format(Loc.T("terrain.saved2", "Terreno salvo: {0} arquivo(s)."), files.Count)
-            + (server ? " " + Loc.T("terrain.savedServer", "A altura do servidor (map\\N.hmap) também mudou: envie ao servidor. A passagem dos NPCs não foi refeita; onde o chão mudou muito os monstros podem andar no relevo antigo.") : ""));
+        bool hmap = files.Keys.Any(k => k.EndsWith(".hmap", StringComparison.OrdinalIgnoreCase));
+        bool wmap = files.Keys.Any(k => k.EndsWith(".wmap", StringComparison.OrdinalIgnoreCase));
+        return new SaveResult(hmap || wmap ? SaveKind.Both : SaveKind.ClientOnly, string.Format(Loc.T("terrain.saved2", "Terreno salvo: {0} arquivo(s)."), files.Count)
+            + (wmap ? " " + Loc.T("water.savedServer", "A água do servidor (watermap) também mudou: envie ao servidor. A passagem dos monstros de água não foi refeita.") : "")
+            + (hmap ?" " + Loc.T("terrain.savedServer", "A altura do servidor (map\\N.hmap) também mudou: envie ao servidor. A passagem dos NPCs não foi refeita; onde o chão mudou muito os monstros podem andar no relevo antigo.") : ""));
     }
 }
