@@ -75,6 +75,8 @@ internal interface IQuestHost
     PerfectWorld.RecipeDraft? ReadRecipe(int id) => null;
     /// <summary>Favoritos e recentes do editor de elements, para a janela de busca.</summary>
     IReadOnlyList<int> FavoriteIds() => [];
+    /// <summary>Favoritos de itens ligados aos do elements (estrela da janela de busca marca nos dois); null = sem estrela.</summary>
+    JavFavorites? ItemFavorites() => null;
     IReadOnlyList<int> RecentIds() => [];
     /// <summary>Item escolhido na janela de busca: entra nos recentes.</summary>
     void ItemPicked(int id) { }

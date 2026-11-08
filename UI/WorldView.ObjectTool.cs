@@ -283,7 +283,7 @@ internal sealed partial class WorldView
         if (_showCollision.Checked)
             foreach (var o in _draft.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Solid && !o.Deleted))
                 if ((Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z) - _cam).LengthSquared < 150 * 150) Box(o, Color.FromArgb(255, 90, 90), 1);
-        if (SelDraft is { Deleted: false } sel && sel.Kind != ObjKind.Building) Box(sel, Color.Gold, 2.5f);
+        if (SelDraft is { Deleted: false } sel) Box(sel, Color.Gold, 2.5f);   // caixa para todos (usuário 08/11: a malha amarela da construção virou caixa, como a da árvore)
         GL.LineWidth(1); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
     }
 
@@ -513,6 +513,25 @@ internal sealed partial class WorldView
         bool ghost = Placing && DraftTreeExtras().Any(x => MathF.Abs(x.Pos.X - _hover.Value.X) < 0.01f);
         _draft.Apply(new MoveOp(t.Key, t.Now));   // passo vazio não entra; o Ctrl+Z abaixo desfaz o plantio anterior
         bool undoStops = ObjectUndo(false) && !Placing;
+        // estrela de favoritos na janela de escolher (lista própria por tipo e cliente; aqui um cliente falso de teste)
+        string starOk = "-";
+        string fakeEl = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "myace-startest");
+        string favPath = JavFavorites.PathFor("tree", fakeEl);
+        try
+        {
+            var trows = (_trees.Scene?.TreeTypes ?? []).Select((tt, i) => (Id: i, Name: System.IO.Path.GetFileNameWithoutExtension(tt.Spt), Block: "t")).ToList();
+            using var jw = new ItemSearchWindow(trows, askQuantity: false, model: TreeThumb, fav: JavFavorites.ForFile("tree", fakeEl))
+                { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false };
+            jw.Show(); Application.DoEvents();
+            jw.StarTest(0); Application.DoEvents();
+            string full = jw.StarText;
+            bool saved = System.IO.File.Exists(favPath) && System.IO.File.ReadAllText(favPath).Trim() == trows[0].Id.ToString();
+            using (var jb = new Bitmap(jw.Width, jw.Height)) { jw.DrawToBitmap(jb, new Rectangle(0, 0, jw.Width, jw.Height)); jb.Save(System.IO.Path.Combine(_shotDir ?? System.IO.Path.GetTempPath(), "dfttree-jav-star.png")); }
+            jw.StarTest(0);
+            starOk = $"cheia={full == "\u2605"} gravou={saved} contorno-depois={jw.StarText == "\u2606"}";
+        }
+        catch (Exception ex) { starOk = "erro " + ex.Message; }
+        finally { try { System.IO.File.Delete(favPath); } catch (System.IO.IOException) { } }
         // um por vez: o clique de inserir põe um objeto, sai da inserção e deixa o novo escolhido (plantio e Ctrl+V)
         _placeSrc = null; _plantType = t.Type;
         PlaceClick(t.Now.Pos + new System.Numerics.Vector3(4, 0, -4));
@@ -530,7 +549,7 @@ internal sealed partial class WorldView
         OnBackupRestored([System.IO.Path.Combine(_element!, "maps", _t.Name, _t.Name + ".ecwld")]);
         int addedAfter = _draft?.Pieces.Values.Sum(p => p.Added.Count(a => !a.Deleted)) ?? 0;
         bool reloaded = addedBefore > 0 && addedAfter == 0 && _sceneSel is null && _status.Text.Length > 0;
-        return load + $" | dfttree: previa-jav={thumbOk} copa={canopy} (raio {sz:0.0}) ctrlv-previa={ghost} ctrlz-encerra={undoStops} um-por-vez plantio={onePlant} ctrlv={onePaste} caixa={boxTxt} backup-recarrega={reloaded} ({addedBefore}->{addedAfter}) | {System.IO.Path.GetFileName(t.Source)} seta-x={moved} giro-recusado={turnRefused} apagou={del} ctrlz={undo} colou={copyOk} plantou={planted?.Length > 0} esc-para-plantio={escStops} plano=\"{sum}\"";
+        return load + $" | dfttree: previa-jav={thumbOk} copa={canopy} (raio {sz:0.0}) ctrlv-previa={ghost} ctrlz-encerra={undoStops} um-por-vez plantio={onePlant} ctrlv={onePaste} caixa={boxTxt} backup-recarrega={reloaded} ({addedBefore}->{addedAfter}) estrela: {starOk} | {System.IO.Path.GetFileName(t.Source)} seta-x={moved} giro-recusado={turnRefused} apagou={del} ctrlz={undo} colou={copyOk} plantou={planted?.Length > 0} esc-para-plantio={escStops} plano=\"{sum}\"";
     }
 
     /// <summary>Leva a câmera até o objeto (conferência "levar até ele").</summary>
@@ -766,35 +785,6 @@ internal sealed partial class WorldView
         GL.LineWidth(1); GL.Enable(EnableCap.DepthTest);
     }
 
-    /// <summary>Contorno amarelo da malha da construção escolhida (linhas dos triângulos), como nos programas de modelagem.</summary>
-    int _selList; float[]? _selListPos;   // contorno da construção escolhida numa lista do OpenGL, feita uma vez por malha
-
-    void DrawSelectedMesh()
-    {
-        if (_tool != Tool.Scene || SelDraft is not { Kind: ObjKind.Building, Deleted: false } o || _buildings.MeshOf(o.Key) is not { } m) return;
-        // antes mandava todos os triângulos (dezenas de milhares) a cada quadro: a câmera travava com construção escolhida
-        if (!ReferenceEquals(_selListPos, m.Pos))
-        {
-            if (_selList != 0) GL.DeleteLists(_selList, 1);
-            _selList = GL.GenLists(1); _selListPos = m.Pos;
-            GL.NewList(_selList, ListMode.Compile);
-            GL.Begin(PrimitiveType.Triangles);
-            for (int i = 0; i + 2 < m.Tri.Length; i++) { int v = m.Tri[i] * 3; if (v + 2 < m.Pos.Length) GL.Vertex3(m.Pos[v], m.Pos[v + 1], m.Pos[v + 2]); else GL.Vertex3(0f, 0f, 0f); }
-            GL.End();
-            GL.EndList();
-        }
-        GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.DepthTest);
-        GL.Enable(EnableCap.Blend); GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-        GL.Color4(1f, 0.85f, 0.1f, 0.55f);
-        GL.PushMatrix();
-        var w = m.World; GL.MultMatrix(ref w);
-        GL.CallList(_selList);
-        GL.PopMatrix();
-        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-        GL.Disable(EnableCap.Blend); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
-    }
-
     // ---------- copiar e colar, painel na medida, moldura da ferramenta ----------
     object? _objClip;
 
@@ -900,7 +890,7 @@ internal sealed partial class WorldView
         var types = _trees.Scene?.TreeTypes;
         if (types is null || types.Count == 0) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
         var rows = types.Select((t, i) => (Id: i, Name: System.IO.Path.GetFileNameWithoutExtension(t.Spt), Block: Loc.T("obj.pillTrees", "Árvores"))).ToList();
-        using var w = new ItemSearchWindow(rows, askQuantity: false, model: TreeThumb) { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
+        using var w = new ItemSearchWindow(rows, askQuantity: false, model: TreeThumb, fav: _element is null ? null : JavFavorites.ForFile("tree", _element)) { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
         _placeSrc = null; _plantType = w.Picked;
         _status.Text = string.Format(Loc.T("obj.plantingOne", "Plantando {0}: clique no chão onde a árvore vai ficar. Esc ou botão direito cancela."), rows[_plantType].Name);

@@ -33,15 +33,22 @@ internal sealed class ItemSearchWindow : Form
     public int Picked { get; private set; }
     public int Quantity => (int)_qty.Value;
 
-    readonly IReadOnlyList<int> _favorites, _recent;
+    readonly IReadOnlyList<int> _favList, _recent;
+    readonly HashSet<int> _known;
+    readonly JavFavorites? _fav;
+    // estrela no canto de cima à direita da prévia (sem prévia: ao lado da busca): contorno = não é favorito, cheia = é
+    readonly Label _star = new() { AutoSize = false, Size = new Size(34, 34), TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI Symbol", 17f), ForeColor = Color.Gold, Cursor = Cursors.Hand, Visible = false };
+    readonly ToolTip _starTip = new();
+    IReadOnlyList<int> _favorites => _fav is null ? _favList : _fav.Ids.Where(_known.Contains).ToList();
     const int AllRow = 0, FavRow = 1, RecentRow = 2, FirstBlockRow = 3;
 
-    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null)
+    public ItemSearchWindow(IReadOnlyList<(int Id, string Name, string Block)> items, Func<int, Image?>? icon = null, bool askQuantity = true, Func<int, Bitmap?>? tip = null, IReadOnlyList<int>? favorites = null, IReadOnlyList<int>? recent = null, Func<int, float, Image?>? model = null, JavFavorites? fav = null)
     {
+        _fav = fav;
         _all = items; _icon = icon ?? (_ => null); _model = model;
         if (tip is not null) _tip = new ItemTipHost(this, tip);
-        var known = items.Select(i => i.Id).ToHashSet();
-        _favorites = (favorites ?? []).Where(known.Contains).ToList();
+        var known = _known = items.Select(i => i.Id).ToHashSet();
+        _favList = (favorites ?? []).Where(known.Contains).ToList();
         _recent = (recent ?? []).Where(known.Contains).Distinct().ToList();
         Text = Loc.T("is.title", "Escolher item");
         Width = 900; Height = 640; StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; MinimizeBox = false;
@@ -77,8 +84,9 @@ internal sealed class ItemSearchWindow : Form
             _tip?.Hover(id);
         };
         _list.MouseLeave += (_, _) => _tip?.Hide();
-        _list.SelectedIndexChanged += (_, _) => { if (_list.SelectedIndices.Count > 0 && _list.SelectedIndices[0] < _rows.Count) ShowModelLater(_rows[_list.SelectedIndices[0]].Id); };
-        FormClosed += (_, _) => { _tip?.Dispose(); _later.Dispose(); _modelWait.Dispose(); };
+        _list.SelectedIndexChanged += (_, _) => { if (_list.SelectedIndices.Count > 0 && _list.SelectedIndices[0] < _rows.Count) ShowModelLater(_rows[_list.SelectedIndices[0]].Id); UpdateStar(); };
+        _star.Click += (_, _) => ToggleStar();
+        FormClosed += (_, _) => { _starTip.Dispose(); _tip?.Dispose(); _later.Dispose(); _modelWait.Dispose(); };
         // miniatura de monstro e NPC é feita em segundo plano: pede de novo as que ainda não chegaram
         _later.Tick += (_, _) => { if (!_missing) return; _missing = false; _list.Invalidate(); };
         _later.Start();
@@ -108,6 +116,8 @@ internal sealed class ItemSearchWindow : Form
             Width += 250;
             var right = new Panel { Dock = DockStyle.Right, Width = 250, BackColor = Side };
             right.Controls.Add(_picName); right.Controls.Add(_pic);
+            _star.BackColor = _pic.BackColor; _star.Location = new Point(_pic.Width - _star.Width - 4, 4); _star.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _pic.Controls.Add(_star);
             Controls.Add(right);
             int from = -1;
             _pic.MouseDown += (_, e) => from = e.X;
@@ -115,6 +125,11 @@ internal sealed class ItemSearchWindow : Form
             _pic.MouseMove += (_, e) => { if (from < 0 || Math.Abs(e.X - from) < 6) return; _yaw += (e.X - from) * 1.2f; from = e.X; DrawModel(); };
         }
         Controls.Add(foot);
+        if (_model is null)   // sem prévia: a estrela fica no fim da barra de busca
+        {
+            _star.BackColor = Bg; _star.Dock = DockStyle.Right;
+            top.Controls.Add(_star);
+        }
 
         KeyDown += (_, e) =>
         {
@@ -124,6 +139,31 @@ internal sealed class ItemSearchWindow : Form
         };
         Shown += (_, _) => _search.Focus();
         Fill();
+    }
+
+    int? SelectedId => _list.SelectedIndices.Count > 0 && _list.SelectedIndices[0] < _rows.Count ? _rows[_list.SelectedIndices[0]].Id : null;   // árvore tem tipo 0
+
+    /// <summary>Estrela da linha escolhida: ☆ não é favorito, ★ é favorito (só aparece com a lista de favoritos ligada).</summary>
+    void UpdateStar()
+    {
+        _star.Visible = _fav is not null && SelectedId is not null;
+        if (_fav is null || SelectedId is not { } id) return;
+        bool on = _fav.Has(id);
+        _star.Text = on ? "\u2605" : "\u2606";
+        _starTip.SetToolTip(_star, on ? Loc.T("is.unstar", "Tirar dos favoritos") : Loc.T("is.star", "Pôr nos favoritos"));
+    }
+
+    /// <summary>Teste: escolhe a linha e clica na estrela.</summary>
+    internal void StarTest(int row) { _list.SelectedIndices.Clear(); _list.SelectedIndices.Add(row); UpdateStar(); ToggleStar(); }
+    internal string StarText => _star.Visible ? _star.Text : "";
+
+    void ToggleStar()
+    {
+        if (_fav is null || SelectedId is not { } id) return;
+        if (_fav.Toggle(id) is { } why) { MessageBox.Show(this, why, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        _blocks.Items[FavRow] = string.Format(Loc.T("is.favorites", "Favoritos ({0})"), _favorites.Count);
+        if (_blocks.SelectedIndex == FavRow) Fill();   // na lista de favoritos: some ou aparece na hora
+        UpdateStar();
     }
 
     /// <summary>Diagnóstico: desenha o modelo sem esperar o mouse.</summary>
@@ -203,9 +243,10 @@ internal sealed class ItemSearchWindow : Form
         else _rows = _all.Where(r => (block is null || r.Block == block) && Match(r)).ToList();
         _list.VirtualListSize = _rows.Count;
         _list.Invalidate();
+        UpdateStar();
         _count.Text = _rows.Count > 0 || q.Length > 0 || row is not (FavRow or RecentRow)
             ? string.Format(Loc.T("is.count", "{0:N0} itens"), _rows.Count)
-            : row == FavRow ? Loc.T("is.noFav", "Sem favoritos: marque no editor de elements (botão direito > Favoritar)")
+            : row == FavRow ? (_fav is not null ? Loc.T("is.noFavStar", "Sem favoritos: escolha uma linha e clique na estrela \u2606") : Loc.T("is.noFav", "Sem favoritos: marque no editor de elements (botão direito > Favoritar)"))
             : Loc.T("is.noRecent", "Os itens que você abrir ou escolher aparecem aqui");
     }
 

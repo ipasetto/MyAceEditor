@@ -3236,7 +3236,7 @@ public sealed class EditorForm : Form
         public Bitmap? TipImage(int id) => f.TipImage(id);
         public (int Id, int Quantity)? PickItemId(IWin32Window owner, bool quantity)
         {
-            using var w = new ItemSearchWindow(AllItems(), ItemIcon, quantity, f.TipImage, f.FavoriteIds(), f.RecentIds());
+            using var w = new ItemSearchWindow(AllItems(), ItemIcon, quantity, f.TipImage, f.FavoriteIds(), f.RecentIds(), fav: f.ItemFavorites());
             if (w.ShowDialog(owner) != DialogResult.OK) return null;
             f.NotePicked(w.Picked);
             return (w.Picked, w.Quantity);
@@ -3278,6 +3278,7 @@ public sealed class EditorForm : Form
         public RecipeDraft? ReadRecipe(int id) => f._store.Current is { } m ? NpcBuilder.ReadRecipe(m, id) : null;
         public Image? ItemIcon(int id) => f._refs?.Resolve(FieldKind.ItemRef, id.ToString()) is { } h ? f.IconFor(h.Item) : null;
         public IReadOnlyList<int> FavoriteIds() => f.FavoriteIds();
+        public JavFavorites? ItemFavorites() => f.ItemFavorites();
         public IReadOnlyList<int> RecentIds() => f.RecentIds();
         public void ItemPicked(int id) => f.NotePicked(id);
         public IReadOnlyList<(int Id, string Name, string Block)> AllItems()
@@ -3832,7 +3833,7 @@ public sealed class EditorForm : Form
     private int? PickShopItem(IWin32Window owner, int current)
     {
         IQuestHost host = new QuestHostImpl(this);
-        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds());
+        using var w = new ItemSearchWindow(host.AllItems(), host.ItemIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds(), fav: ItemFavorites());
         if (w.ShowDialog(owner) != DialogResult.OK) return null;
         NotePicked(w.Picked);
         return w.Picked;
@@ -3849,6 +3850,31 @@ public sealed class EditorForm : Form
     private Image? CreatureModel(int id, float yaw) =>
         CreatureItem(id) is { } c && c.Item.Fields.FirstOrDefault(x => x.Key.Contains("file_model")).Value?.Value is { } fm && fm.EndsWith(".ecm", StringComparison.OrdinalIgnoreCase)
             ? ModelPreviewer()?.Render(fm, 240, yaw) : null;
+
+    /// <summary>Favoritos de itens para a JAV: os mesmos do editor de elements (marcar num lugar aparece no outro).</summary>
+    internal JavFavorites? ItemFavorites() => _favFile is null || _store.Current is null ? null
+        : new JavFavorites(FavoriteIds, id => FavoriteIds().Contains(id), ToggleFavoriteId);
+
+    /// <summary>Favoritos de criaturas (monstros e NPCs) do cliente aberto, separados dos itens.</summary>
+    internal JavFavorites? CreatureFavorites() => _dataPath is { } dp && Path.GetDirectoryName(Path.GetDirectoryName(dp)) is { } el ? JavFavorites.ForFile("creature", el) : null;
+
+    /// <summary>Estrela da JAV num item: marca/desmarca nos favoritos do elements. null = deu certo.</summary>
+    private string? ToggleFavoriteId(int id)
+    {
+        if (_store.Current is not { } m) return Loc.T("is.favNoData", "Abra um elements.data primeiro.");
+        string sid = id.ToString();
+        foreach (var l in m.Lists)
+            if (l.FindById(sid) is { } it)
+            {
+                var key = FavKey(l, it);
+                if (!_favorites.Remove(key)) _favorites.Add(key);
+                SaveFavorites();
+                if (_favModeBtn is not null) _favModeBtn.Text = FavModeText();
+                if (_favMode) RefreshView();
+                return null;
+            }
+        return Loc.T("is.favNoItem", "Esse item não está neste elements.data.");
+    }
 
     private List<int> FavoriteIds() => _favorites.Select(k => k[(k.LastIndexOf('|') + 1)..]).Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToList();
     private List<int> RecentIds() => _recentKeys.Select(k => int.TryParse(k.Id, out var n) ? n : 0).Where(n => n > 0).ToList();
@@ -3959,7 +3985,7 @@ public sealed class EditorForm : Form
         var mob = m.FindListByName("MONSTER_ESSENCE")?.Items.FirstOrDefault(i => i.Name.Length > 0);
         if (mob is not null) TipImage(int.Parse(mob.Id))?.Save(Path.Combine(dir, "tip-monster.png"));
         var rows = (m.FindListByName("MONSTER_ESSENCE")?.Items ?? []).Take(40).Select(i => (int.Parse(i.Id), TasksFile.SplitColor(i.Name).Text, Pretty("MONSTER_ESSENCE"))).ToList();
-        using (var w = new ItemSearchWindow(rows, CreatureIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds(), model: CreatureModel) { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
+        using (var w = new ItemSearchWindow(rows, CreatureIcon, askQuantity: false, tip: TipImage, recent: RecentIds(), model: CreatureModel, fav: CreatureFavorites()) { StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), ShowInTaskbar = false })
         {
             w.Show();
             var stop = DateTime.Now.AddSeconds(35);
@@ -4261,7 +4287,7 @@ public sealed class EditorForm : Form
             if (_store.Current?.FindListByName(name) is { } l)
                 foreach (var it in l.Items)
                     if (int.TryParse(it.Id, out var id)) rows.Add((id, TasksFile.SplitColor(it.Name).Text, Pretty(l.Name)));
-        using var w = new ItemSearchWindow(rows, CreatureIcon, askQuantity: false, tip: TipImage, favorites: FavoriteIds(), recent: RecentIds(), model: CreatureModel) { Text = Loc.T("is.titleCreature", "Escolher criatura") };
+        using var w = new ItemSearchWindow(rows, CreatureIcon, askQuantity: false, tip: TipImage, recent: RecentIds(), model: CreatureModel, fav: CreatureFavorites()) { Text = Loc.T("is.titleCreature", "Escolher criatura") };
         return w.ShowDialog(owner) == DialogResult.OK ? w.Picked : null;
     }
 

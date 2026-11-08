@@ -382,7 +382,6 @@ internal sealed partial class WorldView : Form
         {
             BackupSets.Restored -= OnBackupRestored;
             _tick.Dispose(); _load.Dispose(); DraftDispose(); _gl.MakeCurrent();
-            if (_selList != 0) GL.DeleteLists(_selList, 1);
             _terrain.Dispose(); _models.Dispose(); _buildings.Dispose(); _trees.Dispose(); _grass.Dispose(); _sky.Dispose(); _worldMap?.Dispose(); _instMap?.Dispose();
             foreach (var l in _labels.Values) GL.DeleteTexture(l.Tex);
             if (_legendTex != 0) GL.DeleteTexture(_legendTex);
@@ -641,7 +640,6 @@ internal sealed partial class WorldView : Form
         if (_showBuildings) _buildings.Draw(_cam, Forward);
         DrawDraftModels();
         DrawObjectBoxes();
-        DrawSelectedMesh();
         _trees.Draw(_cam, Forward);
         _grass.Draw(_cam);   // grama do .ecwld/.ecbsd perto da câmera   // árvores do .ecwld (nossa versão do SpeedTree)
         DrawWater();

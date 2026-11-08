@@ -5748,5 +5748,11 @@
   "bak.setReload": "Close the game first. An open 3D World reloads the files by itself (its unsaved changes are lost); the server needs to receive the files again afterwards.",
   "obj.reloaded": "Backup restored: the 3D World reloaded the files from disk.",
   "obj.reloadFail": "The backup went back, but the map could not be reloaded; close and open the 3D World.",
-  "obj.treeInfo2": "Tree: {0} · X {1:0} Z {2:0} height {3:0}"
+  "obj.treeInfo2": "Tree: {0} · X {1:0} Z {2:0} height {3:0}",
+  "is.unstar": "Remove from favorites",
+  "is.star": "Add to favorites",
+  "is.noFavStar": "No favorites: pick a row and click the star ☆",
+  "is.favSaveFail": "Could not save the favorite (settings folder without access?).",
+  "is.favNoData": "Open an elements.data first.",
+  "is.favNoItem": "That item is not in this elements.data."
 }

@@ -5750,5 +5750,11 @@
   "bak.setReload": "请先关闭游戏。打开的 3D 世界会自动重新读取文件（其中未保存的更改会丢失）；之后服务器需要重新接收这些文件。",
   "obj.reloaded": "备份已恢复：3D 世界已从磁盘重新读取文件。",
   "obj.reloadFail": "备份已恢复，但无法重新读取地图；请关闭并重新打开 3D 世界。",
-  "obj.treeInfo2": "树：{0} · X {1:0} Z {2:0} 高度 {3:0}"
+  "obj.treeInfo2": "树：{0} · X {1:0} Z {2:0} 高度 {3:0}",
+  "is.unstar": "取消收藏",
+  "is.star": "加入收藏",
+  "is.noFavStar": "没有收藏：选一行并点击星标 ☆",
+  "is.favSaveFail": "无法保存收藏（设置文件夹无法访问？）。",
+  "is.favNoData": "请先打开 elements.data。",
+  "is.favNoItem": "这个物品不在此 elements.data 中。"
 }
