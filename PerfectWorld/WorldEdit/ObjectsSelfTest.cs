@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { TerrainHeights(r, element, config); }
         catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { TerrainWater(r, element, config); }
+        catch (Exception ex) { r.Check("agua-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { TerrainPaint(r, element); }
         catch (Exception ex) { r.Check("terreno-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { GroundMasks(r, element); }
@@ -219,6 +221,64 @@ public static class ObjectsSelfTest
             for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
             r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
         }
+    }
+
+    /// <summary>Água: lê as do world, regrava igual, o .wmap montado do cliente bate com o do servidor, água nova relê.</summary>
+    static void TerrainWater(Report r, string element, string? config)
+    {
+        var t = TerrainFile.Open(Path.Combine(element, "maps", "world"))!;
+        var w = WaterDraft.Load(t);
+        r.Check("agua-le", w.Areas.Count > 50 && !w.Dirty, $"{w.Areas.Count} águas no world");
+        int same = w.Areas.Count(a => a.Encode().AsSpan().SequenceEqual(a.Raw));
+        var c0 = w.Areas[0].Copy(); c0.Touched = true;
+        var enc = c0.Encode();
+        bool prefix = enc.AsSpan(0, enc.Length - 4).SequenceEqual(c0.Raw.AsSpan(0, enc.Length - 4));
+        r.Check("agua-regrava-igual", same == w.Areas.Count && prefix, $"{same} de {w.Areas.Count}; mexida sem mudança mantém os campos: {prefix}");
+        if (config is not null && Directory.Exists(Path.Combine(config, "world", "watermap")))
+        {
+            int pieces = 0, match = 0; string bad = "";
+            for (int piece = 1; piece <= t.Rows * t.Cols; piece++)
+            {
+                var path = Path.Combine(config, "world", "watermap", $"{piece}.wmap");
+                var sv = File.Exists(path) ? File.ReadAllBytes(path) : null;
+                var (cx, cz) = w.PieceCenter(piece);
+                var mine = WaterDraft.Wmap(sv is null ? null : sv[..16].Take(12).Concat(BitConverter.GetBytes(0)).ToArray(), [], [.. w.Areas.Where(a => a.Sub + 1 == piece).Select(a => a.ServerRect(cx, cz))], w.PieceM);
+                if (sv is null && mine.Length <= 16) continue;
+                pieces++;
+                var key = (byte[] b) => Enumerable.Range(0, (b.Length - 16) / 20).Select(i => string.Join(",", Enumerable.Range(0, 5).Select(k => (MathF.Round(BitConverter.ToSingle(b, 16 + 20 * i + 4 * k), 1) + 0f)))).Order().ToList();
+                if (sv is not null && key(sv).SequenceEqual(key(mine))) match++;
+                else if (bad.Length < 600) bad += $" [{piece}: cli {string.Join(";", key(mine))} srv {(sv is null ? "-" : string.Join(";", key(sv)))}]";
+            }
+            r.Check("wmap-bate-com-o-servidor", pieces > 0 && match * 10 >= pieces * 9, $"{match} de {pieces} pedaços iguais (os outros foram mexidos só de um lado)" + bad);
+        }
+        // água nova num lugar seco: relê do .ecwld/.ecbsd/bsdata gerados (só na memória)
+        var a = w.Create(1100, 1030, (t.HeightAt(1100, 1030) ?? 0) + 3, 4, 4)!;
+        var lvl = w.Areas[1]; w.SetLevel(lvl, lvl.Height + 0.5f);
+        var sum = new List<string>();
+        var files = w.Files(config is null ? null : Path.Combine(config, "world"), sum);
+        var ecw = new EcwldFile(files[w.EcwldPath]);
+        uint nid = ecw.MaxId();
+        var refs = ecw.Find(EcwldFile.Kind.Water, nid).ToList();
+        bool ok = false;
+        if (refs.Count > 0 && files.TryGetValue(w.EcbsdPath, out var bsd))
+        {
+            int off = BitConverter.ToInt32(refs[0].Block.Items[(int)EcwldFile.Kind.Water][refs[0].Index], 4);
+            int sub = BitConverter.ToInt32(bsd, off), idx = BitConverter.ToInt32(bsd, off + 4);
+            var dat = files[w.DatPath(sub)];
+            int n = BitConverter.ToInt32(dat, dat.Length - 4), table = dat.Length - 4 - 4 * n;
+            int o = BitConverter.ToInt32(dat, table + 4 * idx);
+            var back = WaterArea.Parse(dat, o, table);
+            ok = back is not null && back.Cols == 4 && back.Rows == 4 && MathF.Abs(back.X - a.X) < 0.01f && back.Flags.SequenceEqual(a.Flags) && sub + 1 == t.PieceAt(a.X, a.Z);
+        }
+        r.Check("agua-nova-rele", ok && a.Wet > 0, $"refs {refs.Count}, molhadas {a.Wet}; {string.Join(" | ", sum)}");
+        // nível mexido: mesma entrada aponta para os bytes novos
+        var datL = files[w.DatPath(lvl.Sub)];
+        int nL = BitConverter.ToInt32(datL, datL.Length - 4), tabL = datL.Length - 4 - 4 * nL;
+        var backL = WaterArea.Parse(datL, BitConverter.ToInt32(datL, tabL + 4 * lvl.Idx), tabL);
+        r.Check("agua-nivel-rele", backL is not null && MathF.Abs(backL.Height - lvl.Height) < 1e-4f, $"nível {backL?.Height} / {lvl.Height}");
+        w.Delete(a); w.Delete(lvl);
+        var f2 = w.Files(null, sum);
+        r.Check("agua-apagada-sai", !new EcwldFile(f2[w.EcwldPath]).Find(EcwldFile.Kind.Water, lvl.ExportId).Any(), "");
     }
 
     /// <summary>Pincel de textura do chão: pinta textura que a área já tem e uma nova, desfaz, remonta o .t2mk e relê.</summary>
