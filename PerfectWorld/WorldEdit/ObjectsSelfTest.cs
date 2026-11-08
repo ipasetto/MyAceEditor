@@ -25,6 +25,8 @@ public static class ObjectsSelfTest
     {
         var lines = new List<string>();
         var r = new Report(lines);
+        try { GroundMasks(r, element); }
+        catch (Exception ex) { r.Check("t2mk-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Lights(r, element); }
         catch (Exception ex) { r.Check("luzes-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Grass(r, element); }
@@ -176,6 +178,29 @@ public static class ObjectsSelfTest
 
 
     // ---------------- salvar (Task 6) ----------------
+    /// <summary>Terreno (textura do chão): todo .t2mk do cliente remonta idêntico; máscara trocada relê igual.</summary>
+    static void GroundMasks(Report r, string element)
+    {
+        int files = 0, same = 0; string? bad = null;
+        foreach (var f in Directory.GetFiles(Path.Combine(element, "maps"), "*.t2mk", SearchOption.AllDirectories))
+        {
+            var b = File.ReadAllBytes(f); files++;
+            try { if (GroundMaskFile.Read(b).Write().AsSpan().SequenceEqual(b)) same++; else bad ??= Path.GetFileName(f); }
+            catch (InvalidDataException ex) { bad ??= Path.GetFileName(f) + ": " + ex.Message; }
+        }
+        r.Check("t2mk-remonta-igual", files > 0 && same == files, $"{same} de {files} arquivos" + (bad is null ? "" : "; diferente: " + bad));
+        var w38 = Path.Combine(element, "maps", "world", "world_38.t2mk");
+        if (File.Exists(w38))
+        {
+            var g = GroundMaskFile.Read(File.ReadAllBytes(w38));
+            int e = g.Areas[0].FindIndex(x => x.Zlib is not null);
+            var m = g.Mask(0, e)!; m[1000] = (byte)(m[1000] ^ 0xFF);
+            g.SetMask(0, e, m);
+            var back = GroundMaskFile.Read(g.Write());
+            r.Check("t2mk-mascara-trocada", back.Mask(0, e)!.AsSpan().SequenceEqual(m) && back.Areas.Count == g.Areas.Count, "área 0 entrada " + e);
+        }
+    }
+
     /// <summary>Luzes da cena: todo scenelights.dat do cliente lê e regrava idêntico; luz mexida grava a caixa = posição ± alcance.</summary>
     static void Lights(Report r, string element)
     {

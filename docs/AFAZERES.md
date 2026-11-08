@@ -18,7 +18,7 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] 2b catalogo das construcoes por perto com previa, estrela e outro pedaco (08/11) | [x] arvores e construcoes de todos os mapas e instancias (08/11) | [x] 4 luzes da cena e nome das construcoes (08/11; falta testar no jogo) | [x] 5 pincel de grama e flores (08/11; falta testar no jogo)
        Sombra no chao = pintada no mapa de luz do terreno (.t2lm): refazer junto com a ferramenta de terreno
        [ ] terreno: pincel de altura (puxar, empurrar, alisar)
-       [ ] textura do chao: pincel por camadas
+       [~] textura do chao: pincel por camadas (08/11: .t2mk le e regrava identico; falta a tela)
        [ ] grama: pincel de grama e flores
        [ ] arvores: plantar, mover, apagar (+ colisao da arvore no map.bht)
        [ ] construcoes e objetos: girar, colocar novos, apagar (mover ja existe)
