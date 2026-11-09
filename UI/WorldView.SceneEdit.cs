@@ -177,7 +177,7 @@ internal sealed partial class WorldView
         // objeto do rascunho que não existe mais (desfeito, relido): nada escolhido, o cartão some
         if (_sceneSel is BuildingSel or ModelSel or TreeSel && SelDraft is null && _sceneSel is not BuildingSel) _sceneSel = null;
         UpdateModeButtons();
-        if (_sceneSel is null) { _objPanel.Visible = false; FitObjPanel(); return; }
+        if (_sceneSel is null) { _objPanel.Visible = false; FitObjPanel(); UpdateInfoCard(); return; }
         if (_brushPanel.Visible) { if (_brushDown) EndDab(); _brushActive = false; _brushPanel.Visible = false; }
         var (name, x, y, z) = _sceneSel switch
         {
@@ -210,6 +210,7 @@ internal sealed partial class WorldView
         FitObjPanel();
         _objPanel.Visible = true;
         UpdateSideState();
+        UpdateInfoCard();
     }
 
     /// <summary>
@@ -412,16 +413,20 @@ internal sealed partial class WorldView
                 if (check.Critters.Count != (_objScene?.Critters.Count ?? check.Critters.Count)) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
             }
             // par .ecwld + .ecbsd tudo ou nada: o .ecwld aponta para posições do .ecbsd; se o 2º falhar, o 1º volta da cópia
-            string? ecwBak = null; var ecwPrev = _ecwSaved;
+            string? ecwBak = null, bsdBak = null; var ecwPrev = _ecwSaved;
             if (ecwChanged) { ecwBak = AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
             if (bsdChanged && _bsdPath is not null)
-                try { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
+                try { bsdBak = AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
                 catch (Exception) when (ecwChanged)
                 {
                     try { if (ecwBak is not null) AtomicFileSave.Write(_ecwPath, BackupStore.Read(ecwBak)); _ecwSaved = ecwPrev; }
                     catch (Exception rex) when (rex is IOException or UnauthorizedAccessException or InvalidDataException) { AppLog.Error("cenário: voltar o .ecwld", rex); }
                     throw;
                 }
+            var setFiles = new List<BackupSetEntry>();
+            if (ecwBak is not null) setFiles.Add(new(_ecwPath, ecwBak));
+            if (bsdBak is not null && _bsdPath is not null) setFiles.Add(new(_bsdPath, bsdBak));
+            if (setFiles.Count > 0) BackupSets.Save(new BackupSet("scene", _t.Name, DateTime.Now, setFiles));
             UpdateSideState();
             FlashSaveProgress(Loc.T("world.savedBar", "Salvo"), true);   // barra azul cheia por um instante (todo salvar do Mundo 3D)
             string savedMsg = Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.");

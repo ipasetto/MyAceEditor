@@ -12,7 +12,8 @@ namespace MyAceEditor.PerfectWorld.WorldEdit;
 /// </summary>
 public static class TreePassage
 {
-    public const float DefaultRadius = 1.5f;   // tipo sem árvore original no mapa (veio de outro mapa)
+    public const float DefaultRadius = 2f;     // tipo sem árvore original no mapa (veio de outro mapa)
+    public const float Margin = 0.5f;          // folga (usuário 09/11: os monstros ainda raspavam do lado do tronco)
     static readonly float[] Rings = { 0f, 0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f };
 
     /// <summary>
@@ -37,7 +38,7 @@ public static class TreePassage
         if (top < 0.35) return 0;
         float best = 0;
         foreach (var r in Rings) if (Frac(r) - base8 >= top / 2) best = r;
-        return Math.Clamp(best, 0.5f, 4f);
+        return Math.Clamp(best + Margin, 0.5f, 4.5f);
     }
 
     /// <summary>

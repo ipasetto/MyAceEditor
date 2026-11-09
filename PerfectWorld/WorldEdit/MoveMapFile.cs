@@ -198,6 +198,10 @@ public static class MoveMapFile
         var dimg = dhmap is { Length: >= 36 } ? new DeltaImage(dhmap) : null;
         var rect = new HashSet<int>(); var changedCol = new HashSet<int>();
         System.Numerics.Vector3 P(int u, int v, float y) => new(x0 + (u + 0.5f) * px, y, zSouth + (v + 0.5f) * px);
+        // corpo do monstro (usuário 09/11: atravessavam peças finas das construções coladas): centro do metro + 4 pontos a
+        // 0,45 m (o editor oficial anda com esfera de 0,3 m; a folga cobre o canto entre metros)
+        var body = new[] { System.Numerics.Vector3.Zero, new(0.45f, 0, 0), new(-0.45f, 0, 0), new(0, 0, 0.45f), new(0, 0, -0.45f) };
+        bool AnyHit(BrushSet set, System.Numerics.Vector3 a, System.Numerics.Vector3 b) { foreach (var o in body) if (set.Hit(a + o, b + o)) return true; return false; }
         foreach (var (rx0, rz0, rx1, rz1) in rects)
         {
             int u0 = Math.Max(0, (int)MathF.Floor((rx0 - x0) / px)), u1 = Math.Min(iw - 1, (int)MathF.Ceiling((rx1 - x0) / px));
@@ -207,7 +211,7 @@ public static class MoveMapFile
                     int id = v * iw + u; if (!rect.Add(id)) continue;
                     var c = P(u, v, 0); if (h(c.X, c.Z) is not float g) continue;
                     var lo = c with { Y = g - 1 }; var hi = c with { Y = g + 80 };
-                    if (oldB.Hit(lo, hi) != newB.Hit(lo, hi) || oldB.Hit(hi, lo) != newB.Hit(hi, lo)) changedCol.Add(id);
+                    if (AnyHit(oldB, lo, hi) != AnyHit(newB, lo, hi) || AnyHit(oldB, hi, lo) != AnyHit(newB, hi, lo)) changedCol.Add(id);
                 }
         }
         if (changedCol.Count == 0) return (rmap, null, 0);
@@ -239,7 +243,7 @@ public static class MoveMapFile
                 var a = c with { Y = top }; var b = c with { Y = g - 0.05f };
                 float floor = newB.FirstHit(a, b) is float t ? MathF.Max(g, top + (g - 0.05f - top) * t) : g;
                 if (floor > y + MaxStep + 0.01f) continue;   // degrau alto demais
-                if (newB.Hit(c with { Y = floor + 0.5f }, c with { Y = floor + 1.8f })) continue;   // parede na altura de um personagem
+                if (AnyHit(newB, c with { Y = floor + 0.5f }, c with { Y = floor + 1.8f })) continue;   // parede na altura de um personagem (com o corpo)
                 if (floor <= g + 0.02f)
                 {   // no chão: a inclinação vale (degrau de 1 m para os vizinhos)
                     float s = 0;

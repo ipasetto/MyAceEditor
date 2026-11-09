@@ -240,6 +240,7 @@ internal sealed partial class WorldView
         if (t == Tool.Zones) { _toolTitle.Text = "       " + Loc.T("tools.zones", "Zonas"); OpenZones(); }
         if (t == Tool.Domains) { _toolTitle.Text = "       " + Loc.T("tools.domains", "Territórios"); if (!OpenDomains()) { CloseTool(); return; } }
         LayoutTools();
+        UpdateInfoCard();
     }
 
     /// <summary>Sai da ferramenta para a navegação do Mundo 3D. Quem tem trabalho em andamento pergunta antes; falso na resposta, fica.</summary>
@@ -327,6 +328,7 @@ internal sealed partial class WorldView
         _toolTitle.Text = "       " + Loc.T("tools.title", "Ferramentas");
         _toolTitle.Image = UiKit.Icon("", Color.White, 18);   // chave inglesa antes do texto
         LayoutTools();
+        UpdateInfoCard();
     }
 
     /// <summary>Liga/desliga a visão de edição do cenário (pontos de efeitos, sons e bichos; clique escolhe).</summary>

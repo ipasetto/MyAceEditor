@@ -9,7 +9,7 @@ public sealed record BackupSetEntry(string Original, string Backup);
 /// Um Salvar inteiro de uma ferramenta (ex.: Objetos do mundo grava .ecwld, .ecbsd, map.bht e o litmodels.pck): a cópia de
 /// cada arquivo antes de gravar e, no pacote dividido, os 4 bytes antigos do cabeçalho do .pck (u32 em +4).
 /// </summary>
-public sealed record BackupSet(string Tool, string Map, DateTime When, List<BackupSetEntry> Files, string? PckMain = null, string? PckHeader = null);
+public sealed record BackupSet(string Tool, string Map, DateTime When, List<BackupSetEntry> Files, string? PckMain = null, string? PckHeader = null, DateTime? Started = null);
 
 /// <summary>
 /// Conjuntos de backup por ferramenta (pedido do usuário 08/11: restaurar arquivo por arquivo é ruim). Ficam em
@@ -33,9 +33,18 @@ public static class BackupSets
     const int Keep = 40;
     static readonly JsonSerializerOptions Opt = new() { WriteIndented = true };
 
+    /// <summary>
+    /// Sessão do Mundo 3D aberta (usuário 09/11: "consolidar o backup do Mundo 3D em um só"): enquanto a janela está aberta,
+    /// todo Salvar dela (objetos, grama, terreno, água, cenário) cai num conjunto só por mapa, com a cópia de cada arquivo de
+    /// ANTES da sessão (a 1ª cópia de cada um fica; as seguintes não entram). Restaurar = o mapa como era ao abrir.
+    /// </summary>
+    public static DateTime? Session { get; set; }
+    static readonly HashSet<string> SessionTools = new(StringComparer.Ordinal) { "objects", "terrain", "scene" };
+
     /// <summary>Grava o conjunto; null = não deu (o Salvar já foi feito, só não haverá o item único no menu).</summary>
     public static string? Save(BackupSet set)
     {
+        if (Session is { } started && SessionTools.Contains(set.Tool)) return SaveInSession(set, started);
         try
         {
             Directory.CreateDirectory(Folder);
@@ -50,6 +59,31 @@ public static class BackupSets
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             AppLog.Error("backup: gravar o conjunto", ex);
+            return null;
+        }
+    }
+
+    static string? SaveInSession(BackupSet set, DateTime started)
+    {
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            var path = Path.Combine(Folder, $"{started:yyyyMMdd-HHmmss}-mundo3d-{set.Map}.json");
+            BackupSet merged = set with { Tool = "world", Started = started };
+            if (File.Exists(path) && JsonSerializer.Deserialize<BackupSet>(File.ReadAllText(path)) is { } old)
+            {
+                var have = new HashSet<string>(old.Files.Select(f => f.Original), StringComparer.OrdinalIgnoreCase);
+                var files = old.Files.Concat(set.Files.Where(f => have.Add(f.Original))).ToList();   // arquivo já guardado: fica a cópia de antes da sessão
+                merged = old with { When = set.When, Files = files, PckMain = old.PckMain ?? set.PckMain, PckHeader = old.PckHeader ?? set.PckHeader };
+            }
+            var tmp = path + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(merged, Opt));
+            File.Move(tmp, path, overwrite: true);
+            return path;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or JsonException)
+        {
+            AppLog.Error("backup: gravar o conjunto da sessão do Mundo 3D", ex);
             return null;
         }
     }
@@ -155,6 +189,7 @@ public static class BackupSets
         "objects" => Loc.T("tools.objects", "Objetos do mundo"),
         "terrain" => Loc.T("tools.terrain", "Terreno"),
         "restore" => Loc.T("tools.restore", "Antes de restaurar"),
+        "world" => Loc.T("tools.world3d", "Mundo 3D"),
         _ => tool,
     };
 }

@@ -92,7 +92,7 @@ internal sealed partial class WorldView
     {
         _texSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _texSize.Value) + Environment.NewLine + Loc.T("grass.wheelHint", "Ctrl + roda do mouse muda o tamanho");
         _texForceLbl.Text = string.Format(Loc.T("terrain.force", "Força: {0}%"), _texForce.Value);
-        DropButtons();
+        DropButtons(); UpdateInfoCard();
         string name = _texSel >= 0 && _texSel < _t.TextureNames.Count ? TextureNameGlossary.Display(_t.TextureNames[_texSel], _element) : "";
         string[] sname = { Loc.T("terrain.raise", "Subir"), Loc.T("terrain.lower", "Descer"), Loc.T("terrain.smooth", "Alisar"), Loc.T("terrain.flatten", "Plainar") };
         for (int i = 0; i < 4; i++)
@@ -270,7 +270,15 @@ internal sealed partial class WorldView
         _gl.Invalidate();
         if (!_texDown || _hover is not { } h) return;
         var p = new System.Numerics.Vector3(h.X, h.Y, h.Z);
-        if (_texLast is { } last && System.Numerics.Vector3.Distance(last, p) < MathF.Max(0.5f, _texR * 0.3f)) return;
+        float step = MathF.Max(0.5f, _texR * 0.3f);
+        if (_texLast is { } last)
+        {
+            float dist = System.Numerics.Vector3.Distance(last, p);
+            if (dist < step) return;
+            // o mouse é lido uma vez por quadro: um pulo grande vira toques ao longo do caminho (sem buraco na pincelada)
+            int n = Math.Min(64, (int)(dist / step));
+            for (int i = 1; i < n; i++) TexDab(System.Numerics.Vector3.Lerp(last, p, i / (float)n));
+        }
         TexDab(p);
     }
 

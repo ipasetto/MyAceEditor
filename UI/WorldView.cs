@@ -362,25 +362,15 @@ internal sealed partial class WorldView : Form
             if (_objAxis > 0) { ObjGizmoDrag(e.Location); return; }
             if (_gizmoAxis > 0) { GizmoDrag(e.Location); return; }
             if (PathMouseMove(e.Location)) return;
-            if (!_dragging && GizmoHit(e.Location) is var gh && gh != _gizmoHover) { _gizmoHover = gh; _gl.Invalidate(); }
-            if (!_dragging && ObjGizmoHit(e.Location) is var oh && oh != _objHover) { _objHover = oh; _gl.Invalidate(); }
             if (_dragging) { _yaw += (e.X - _drag.X) * 0.25f; _pitch = Math.Clamp(_pitch - (e.Y - _drag.Y) * 0.25f, -89, 89); _drag = e.Location; _gl.Invalidate(); return; }
             if (_movingTag is not null)
             {
                 if (_tool != Tool.Paths && (Math.Abs(e.X - _down.X) > 4 || Math.Abs(e.Y - _down.Y) > 4)) { if (Ray(e.Location) is { } mp) _movePos = mp; }
                 _gl.Invalidate(); return;
             }
-            _hover = Ray(e.Location);
-            if (Placing) _gl.Invalidate();   // prévia de inserir segue o mouse
-            BrushMouseMove();               // círculo do pincel segue o mouse; arrastando, pinta
-            TerrainMouseMove();             // pincel de textura do chão
-            var near = _tool == Tool.Scene ? null : PickScreen(e.Location);   // Objetos do mundo: NPCs não se escolhem; não procura a cada movimento
-            if (!_pickShown && _gl.Cursor != GameCursor(near)) _gl.Cursor = GameCursor(near);
-            // o jogo mostra ((int)x + 4000) / 10 e ((int)z + 5500) / 10 (CECUIHelper::GetShowPos)
-            _status.Text = (DropperOn ? DropperHint + "   ·   " : "") + (_hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), h.X, h.Y, h.Z)
-                + string.Format(Loc.T("world.gamePos", "   (no jogo: {0} {1})"), ((int)h.X + 4000) / 10, ((int)h.Z + 5500) / 10)
-                + (near is null ? "" : "   ·   " + near.Name) : "");
-            if (DropperOn) _gl.Invalidate();   // círculo roxo segue o mouse
+            // o resto (ponto no chão, setas, pincel, barra de baixo) uma vez por quadro em Step: o mouse manda centenas de
+            // movimentos por segundo e cada um fazia o raio até o chão (usuário 09/11: travadas ao andar com a ferramenta ligada)
+            _mousePend = e.Location; _mouseDirty = true;
         };
         // roda: aproxima/afasta a câmera para onde ela olha (Shift = 4×)
         _gl.MouseWheel += (_, e) => { if (GrassWheel(e) || TerrainWheel(e)) return; _cam += Forward * (e.Delta / 120f) * 12f * ((ModifierKeys & Keys.Shift) != 0 ? 4 : 1); ClampCamera(); _gl.Invalidate(); };
@@ -392,7 +382,11 @@ internal sealed partial class WorldView : Form
         _tick.Start();
         InitSceneEdit();
         BackupSets.Restored += OnBackupRestored;
+        InitInfoCard();
         InitToolMenu();    // menu flutuante de ferramentas por último: usa a grama e os outros desenhos já criados
+        // backup do Mundo 3D: um conjunto por vez que a janela abre (BackupSets.Session)
+        if (!Headless) BackupSets.Session = DateTime.Now;
+        FormClosed += (_, _) => { if (!Headless) BackupSets.Session = null; };
         FormClosed += (_, _) =>
         {
             BackupSets.Restored -= OnBackupRestored;
@@ -611,6 +605,10 @@ internal sealed partial class WorldView : Form
         // Windows se ainda está apertada — senão a câmera subia sem parar até trocar de mapa
         if (_keys.Count > 0) _keys.RemoveWhere(k => (GetAsyncKeyState((int)k) & 0x8000) == 0);
         bool moving = _keys.Count > 0;
+        // mouse: no máximo uma vez por quadro; andando com um pincel/conta-gotas/inserção ligado, o ponto embaixo do mouse
+        // acompanha a câmera
+        if (_mouseDirty) { _mouseDirty = false; HoverUpdate(_mousePend); }
+        else if (moving && (TexOn || BrushOn || DropperOn || Placing) && _gl.ClientRectangle.Contains(_gl.PointToClient(Cursor.Position))) HoverUpdate(_gl.PointToClient(Cursor.Position));
         if (moving)
         {
             float s = Speed * dt * (_keys.Contains(Keys.ShiftKey) ? 4 : 1);
@@ -624,6 +622,32 @@ internal sealed partial class WorldView : Form
             ClampCamera();
         }
         if (moving || _busy || _marksDirty) _gl.Invalidate();
+    }
+
+    Point _mousePend; bool _mouseDirty; double _statusAt;
+
+    /// <summary>Tudo o que segue o mouse parado na cena: realce das setas, ponto no chão, pincéis, cursor e a barra de baixo.</summary>
+    void HoverUpdate(Point p)
+    {
+        if (_dragging) return;
+        if (GizmoHit(p) is var gh && gh != _gizmoHover) { _gizmoHover = gh; _gl.Invalidate(); }
+        if (ObjGizmoHit(p) is var oh && oh != _objHover) { _objHover = oh; _gl.Invalidate(); }
+        _hover = Ray(p);
+        if (Placing) _gl.Invalidate();   // prévia de inserir segue o mouse
+        BrushMouseMove();               // círculo do pincel segue o mouse; arrastando, pinta
+        TerrainMouseMove();             // pincel de textura do chão
+        var near = _tool == Tool.Scene ? null : PickScreen(p);   // Objetos do mundo: NPCs não se escolhem
+        if (!_pickShown && _gl.Cursor != GameCursor(near)) _gl.Cursor = GameCursor(near);
+        if (DropperOn) _gl.Invalidate();   // círculo roxo segue o mouse
+        // barra de baixo até 10 vezes por segundo (cada troca redesenha a barra)
+        double now = _clock.Elapsed.TotalSeconds;
+        if (now - _statusAt < 0.1) return;
+        _statusAt = now;
+        // o jogo mostra ((int)x + 4000) / 10 e ((int)z + 5500) / 10 (CECUIHelper::GetShowPos)
+        string text = (DropperOn ? DropperHint + "   ·   " : "") + (_hover is { } h ? string.Format(Loc.T("world.coord", "X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), h.X, h.Y, h.Z)
+            + string.Format(Loc.T("world.gamePos", "   (no jogo: {0} {1})"), ((int)h.X + 4000) / 10, ((int)h.Z + 5500) / 10)
+            + (near is null ? "" : "   ·   " + near.Name) : "");
+        if (_status.Text != text) _status.Text = text;
     }
 
     // o mundo do PW usa Z para o norte; aqui -Z do OpenGL vira +Z do jogo (espelha Z)
@@ -1331,7 +1355,7 @@ internal sealed partial class WorldView : Form
     }
 
     // ---------- legenda e atalhos (canto superior esquerdo; H ou clique abre/fecha) ----------
-    Rectangle LegendRect() => new(10, 10, _legendW, _legendH);
+    Rectangle LegendRect() => new(10, Math.Max(10, _gl.Height - _legendH - 12), _legendW, _legendH);   // embaixo à esquerda (em cima fica o cartão do escolhido; usuário 09/11)
 
     // linha da legenda: cor (amostra de cor do ponto), teclas (desenhadas como teclas), texto; Header = título de grupo
     readonly record struct LegendRow(string Text, Color Swatch = default, string[]? Keys = null, bool Header = false);
@@ -1458,8 +1482,9 @@ internal sealed partial class WorldView : Form
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Fog);
         GL.BindTexture(TextureTarget.Texture2D, _legendTex); GL.Color4(1f, 1f, 1f, 1f);
         GL.Begin(PrimitiveType.Quads);
-        GL.TexCoord2(0f, 0f); GL.Vertex2(10, 10); GL.TexCoord2(1f, 0f); GL.Vertex2(10 + _legendW, 10);
-        GL.TexCoord2(1f, 1f); GL.Vertex2(10 + _legendW, 10 + _legendH); GL.TexCoord2(0f, 1f); GL.Vertex2(10, 10 + _legendH);
+        var lr = LegendRect();
+        GL.TexCoord2(0f, 0f); GL.Vertex2(lr.Left, lr.Top); GL.TexCoord2(1f, 0f); GL.Vertex2(lr.Right, lr.Top);
+        GL.TexCoord2(1f, 1f); GL.Vertex2(lr.Right, lr.Bottom); GL.TexCoord2(0f, 1f); GL.Vertex2(lr.Left, lr.Bottom);
         GL.End();
         GL.Enable(EnableCap.DepthTest);
         GL.MatrixMode(MatrixMode.Projection); GL.PopMatrix(); GL.MatrixMode(MatrixMode.Modelview); GL.PopMatrix();

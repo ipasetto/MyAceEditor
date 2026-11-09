@@ -6008,5 +6008,21 @@
   "grass.section": "草和花",
   "grass.openBtn": "绘制草和花",
   "terrain.hint2": "绘制地面纹理：选择纹理，打开画笔并在地面上拖动。橡皮擦恢复下层纹理。点击“保存世界”前不会保存。",
-  "world.dirtyLine": "● 有未保存的改动——请使用“保存世界”。"
+  "world.dirtyLine": "● 有未保存的改动——请使用“保存世界”。",
+  "info.id": "ID",
+  "info.type": "类型",
+  "info.new": "新的（保存时获得 ID）",
+  "info.building": "建筑 (.bmd)",
+  "info.model": "场景模型 (.ecm)",
+  "info.treeType": "地图中第 {0} 种树（共 {1} 种）",
+  "info.tree": "树",
+  "info.effect": "特效 (.gfx)",
+  "info.sound": "场景声音",
+  "info.critter": "动物组 {0}，{1} 只",
+  "info.grass": "画笔的草/花",
+  "info.grassType": "地图中第 {0} 种（共 {1} 种）",
+  "info.texture": "画笔纹理",
+  "info.texType": "地图中第 {0} 个纹理（共 {1} 个）",
+  "tools.world3d": "3D 世界",
+  "bak.setAskWorld": "将地图 {0} 恢复到 {1:dd/MM/yyyy HH:mm} 打开 3D 世界时的状态（撤销那次保存的所有内容，直到 {2:HH:mm}）？"
 }

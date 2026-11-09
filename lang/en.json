@@ -6006,5 +6006,21 @@
   "grass.section": "Grass and flowers",
   "grass.openBtn": "Paint grass and flowers",
   "terrain.hint2": "Paint the ground texture: choose the texture, turn on the Brush and drag on the ground. The Eraser goes back to the texture below. Nothing is saved until Save world.",
-  "world.dirtyLine": "● Unsaved changes — use Save world."
+  "world.dirtyLine": "● Unsaved changes — use Save world.",
+  "info.id": "ID",
+  "info.type": "Type",
+  "info.new": "new (gets an ID when saved)",
+  "info.building": "building (.bmd)",
+  "info.model": "scene model (.ecm)",
+  "info.treeType": "tree no. {0} of {1} in the map",
+  "info.tree": "tree",
+  "info.effect": "effect (.gfx)",
+  "info.sound": "scene sound",
+  "info.critter": "critter group no. {0}, {1} critter(s)",
+  "info.grass": "Brush grass / flower",
+  "info.grassType": "type no. {0} of {1} in the map",
+  "info.texture": "Brush texture",
+  "info.texType": "texture no. {0} of {1} in the map",
+  "tools.world3d": "3D World",
+  "bak.setAskWorld": "Put map {0} back as it was when the 3D World was opened at {1:dd/MM/yyyy HH:mm} (undoes everything saved that time, until {2:HH:mm})?"
 }

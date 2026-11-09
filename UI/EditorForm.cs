@@ -5672,7 +5672,8 @@ public sealed class EditorForm : Form
             var tools = new ToolStripMenuItem(Loc.T("bak.catTools", "Ferramentas (um salvar inteiro)")) { ForeColor = CFg };
             foreach (var set in sets)
             {
-                var it = new ToolStripMenuItem($"{BackupSets.ToolName(set.Tool)} · {set.Map} · {set.When:dd/MM/yyyy HH:mm:ss} · " + string.Format(Loc.T("bak.files", "{0} arquivos"), set.Files.Count))
+                string when = set.Started is { } st ? $"{st:dd/MM/yyyy HH:mm}–{set.When:HH:mm}" : $"{set.When:dd/MM/yyyy HH:mm:ss}";
+                var it = new ToolStripMenuItem($"{BackupSets.ToolName(set.Tool)} · {set.Map} · {when} · " + string.Format(Loc.T("bak.files", "{0} arquivos"), set.Files.Count))
                     { ForeColor = CFg, ToolTipText = string.Join("\n", set.Files.Select(f => f.Original)) };
                 it.Click += (_, _) => RestoreSet(set);
                 tools.DropDownItems.Add(it);
@@ -5712,6 +5713,8 @@ public sealed class EditorForm : Form
         string list = string.Join(Environment.NewLine, set.Files.Select(f => "• " + f.Original));
         var ask = (set.Tool == "restore"
                 ? string.Format(Loc.T("bak.setAskUndo", "Desfazer a restauração de {0:dd/MM/yyyy HH:mm} (voltar estes arquivos como estavam antes dela)?"), set.When)
+                : set.Tool == "world" && set.Started is { } started
+                ? string.Format(Loc.T("bak.setAskWorld", "Voltar o mapa {0} como estava ao abrir o Mundo 3D em {1:dd/MM/yyyy HH:mm} (desfaz tudo o que foi salvo nessa vez, até {2:HH:mm})?"), set.Map, started, set.When)
                 : string.Format(Loc.T("bak.setAsk", "Voltar estes arquivos como estavam antes do Salvar de {0} ({1:dd/MM/yyyy HH:mm})?"), BackupSets.ToolName(set.Tool), set.When))
             + Environment.NewLine + Environment.NewLine + list + Environment.NewLine + Environment.NewLine
             + Loc.T("bak.setReload", "Feche o jogo antes. O Mundo 3D aberto relê os arquivos sozinho (mudanças não salvas nele se perdem); o servidor precisa receber os arquivos de novo depois.");

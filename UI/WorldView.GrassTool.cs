@@ -125,7 +125,7 @@ internal sealed partial class WorldView
             : _brushErase ? Loc.T("grass.erasing", "Borracha: arraste para apagar a grama") : string.Format(Loc.T("grass.painting", "Pintando: {0}"), name);
         bool paintOn = _brushActive && !_brushErase, eraseOn = _brushActive && _brushErase;
         if (_brushPaintBtn is not null) { _brushPaintBtn.BackColor = paintOn ? UiKit.Accent : Color.FromArgb(40, 45, 54); _brushPaintBtn.FlatAppearance.BorderColor = paintOn ? UiKit.Accent : Color.FromArgb(62, 70, 84); }
-        DropButtons();
+        DropButtons(); UpdateInfoCard();
         if (_brushEraseBtn is not null) { _brushEraseBtn.BackColor = eraseOn ? Color.FromArgb(150, 50, 50) : Color.FromArgb(40, 45, 54); _brushEraseBtn.FlatAppearance.BorderColor = eraseOn ? Color.FromArgb(150, 50, 50) : Color.FromArgb(62, 70, 84); }
     }
 
@@ -265,7 +265,14 @@ internal sealed partial class WorldView
         _gl.Invalidate();
         if (!_brushDown || _hover is not { } h) return;
         var p = new System.Numerics.Vector3(h.X, h.Y, h.Z);
-        if (_lastDab is { } last && System.Numerics.Vector3.Distance(last, p) < MathF.Max(0.4f, _brushR * 0.35f)) return;
+        float step = MathF.Max(0.4f, _brushR * 0.35f);
+        if (_lastDab is { } last)
+        {
+            float dist = System.Numerics.Vector3.Distance(last, p);
+            if (dist < step) return;
+            int n = Math.Min(64, (int)(dist / step));   // um pulo grande entre quadros vira toques ao longo do caminho
+            for (int i = 1; i < n; i++) Dab(System.Numerics.Vector3.Lerp(last, p, i / (float)n));
+        }
         Dab(p);
     }
 

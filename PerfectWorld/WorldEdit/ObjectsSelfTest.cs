@@ -53,6 +53,8 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("indice-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Draft(r); }
         catch (Exception ex) { r.Check("rascunho-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
+        try { BackupSession(r); }
+        catch (Exception ex) { r.Check("backup-sessao-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Draft2(r); }
         catch (Exception ex) { r.Check("rascunho2-sem-excecao", false, ex.GetType().Name + ": " + ex.Message); }
         try { Load(r, element, config); }
@@ -233,6 +235,39 @@ public static class ObjectsSelfTest
             for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
             r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
         }
+    }
+
+    /// <summary>
+    /// Backup por sessão do Mundo 3D (só em pasta temporária): dois salvares na mesma sessão viram UM conjunto, com a cópia
+    /// de antes da sessão de cada arquivo (a do 2º salvar do mesmo arquivo não entra); restaurar volta os dois arquivos.
+    /// Pasta e cópias fora do armazém de verdade.
+    /// </summary>
+    static void BackupSession(Report r)
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "myace-bksess-" + Environment.ProcessId);
+        Directory.CreateDirectory(temp);
+        var setsDir = Path.Combine(temp, "conjuntos");
+        try
+        {
+            BackupSets.FolderOverride = setsDir; BackupSets.Session = new DateTime(2026, 11, 9, 10, 0, 0);
+            string a = Path.Combine(temp, "a.dat"), b = Path.Combine(temp, "b.dat");
+            string Copy(string f, string tag) { var c = Path.Combine(temp, Path.GetFileName(f) + "." + tag + ".bak"); File.Copy(f, c, true); return c; }
+            File.WriteAllText(a, "a-original"); File.WriteAllText(b, "b-original");
+            var a1 = Copy(a, "1"); File.WriteAllText(a, "a-salvo-1");
+            BackupSets.Save(new BackupSet("objects", "world", DateTime.Now, [new(a, a1)]));
+            var a2 = Copy(a, "2"); var b2 = Copy(b, "2"); File.WriteAllText(a, "a-salvo-2"); File.WriteAllText(b, "b-salvo-2");
+            BackupSets.Save(new BackupSet("terrain", "world", DateTime.Now, [new(a, a2), new(b, b2)]));
+            var files = Directory.GetFiles(setsDir, "*.json");
+            var list = BackupSets.List();
+            var set = list.FirstOrDefault();
+            bool one = files.Length == 1 && list.Count == 1 && set is { Tool: "world", Started: not null } && set.Files.Count == 2;
+            bool firstKept = set?.Files.FirstOrDefault(f => f.Original == a)?.Backup == a1;
+            string? err = set is null ? "sem conjunto" : BackupSets.Restore(set);
+            bool back = File.ReadAllText(a) == "a-original" && File.ReadAllText(b) == "b-original";
+            BackupSets.Session = null;
+            r.Check("backup-sessao", one && firstKept && err is null && back, $"conjuntos {files.Length}, ferramenta {set?.Tool}, arquivos {set?.Files.Count}, 1ª cópia ficou={firstKept}, restaurou={err ?? "ok"} voltou ao original={back}");
+        }
+        finally { BackupSets.FolderOverride = null; BackupSets.Session = null; try { Directory.Delete(temp, true); } catch (IOException) { } }
     }
 
     /// <summary>Voo: todo .octr do world regrava idêntico; mudar um cubo vale só para ele (divide no fim do arquivo).</summary>
@@ -1213,6 +1248,29 @@ public static class ObjectsSelfTest
         }
         string vol = vols.Count == 0 ? "-" : $"caixa típica {vols.OrderBy(x => x).ElementAt(vols.Count / 2):0.0} m³";
         r.Check("arvore-colisao-bht", trees.Count > 0, $"pedaço {piece}: {withHit}/{trees.Count} árvores com brush (fora das construções) envolvendo o tronco; 7 m ao lado: {baseHit}; {vol}; árvores com altura no arquivo: {trees.Count(t => t.HasY)}");
+        // estudo 09/11 (usuário: monstros atravessam alguns objetos colocados): construção sem brush no .bmd tem brush no map.bht?
+        {
+            int noCd = 0, noCdWithBht = 0, withCd = 0, models = 0; var ex = new List<string>();
+            foreach (var e in lit.Entries.Where(e => e.Path.StartsWith($@"litmodels\world\{piece}\", StringComparison.OrdinalIgnoreCase) && (refs is null || refs.Contains(e.Path))).Take(400))
+            {
+                var b = lit.Read(e);
+                if (BmdModel.CdBrushes(b) is { Count: > 0 }) { withCd++; continue; }
+                if (BmdModel.Read(b) is not { Meshes.Count: > 0 } m) continue;
+                noCd++;
+                var vs = BmdModel.WorldVertices(m);
+                float mx0 = vs.Min(v => v[0]), my0 = vs.Min(v => v[1]), mz0 = vs.Min(v => v[2]), mx1 = vs.Max(v => v[0]), my1 = vs.Max(v => v[1]), mz1 = vs.Max(v => v[2]);
+                int inside = 0;
+                for (int i = 0; i < boxes.Length; i++)
+                {
+                    if (bld.Contains(i)) continue;
+                    var bx = boxes[i];
+                    if (bx.X0 >= mx0 - 0.5f && bx.X1 <= mx1 + 0.5f && bx.Y0 >= my0 - 0.5f && bx.Y1 <= my1 + 0.5f && bx.Z0 >= mz0 - 0.5f && bx.Z1 <= mz1 + 0.5f) inside++;
+                }
+                if (inside > 0) { noCdWithBht++; if (ex.Count < 4) ex.Add($"{Path.GetFileName(e.Path)}:{inside}"); }
+            }
+            models = sc.Trees.Count;
+            r.Check("construcao-sem-brush-estudo", true, $"pedaço {piece}: construções com brush no .bmd {withCd}; sem brush {noCd}, dessas com brush só no map.bht dentro da caixa {noCdWithBht} ({string.Join(", ", ex)})");
+        }
         // estudo 09/11 (usuário: monstros desviam das árvores originais, não das copiadas): a passagem (.rmap) tem as árvores?
         // pixel do tronco vs anéis a 1, 2, 3, 5 e 8 m (4 pontos cada)
         var rmPath = Path.Combine(config, "world", "movemap", $"{piece}.rmap");
