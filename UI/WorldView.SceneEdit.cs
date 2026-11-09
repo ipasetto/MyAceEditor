@@ -207,8 +207,8 @@ internal sealed partial class WorldView
         if (_objSeatBtn is not null) _objSeatBtn.Visible = SelDraft is { Kind: ObjKind.Building or ObjKind.Model, Deleted: false, ReadOnlyWhy: null };
         if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : !critter && _sceneSel is not BuildingSel;
         _objBinding = false;
+        _objPanel.Visible = true;   // antes de medir: escondido, os filhos dizem Visible = false e o cartão saía só com o título na 1ª escolha
         FitObjPanel();
-        _objPanel.Visible = true;
         UpdateSideState();
         UpdateInfoCard();
     }

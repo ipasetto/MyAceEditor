@@ -5708,6 +5708,9 @@ public sealed class EditorForm : Form
     /// <summary>Pastas do jogo e do servidor abertos (para mostrar só os conjuntos deles).</summary>
     IEnumerable<string> RestorableRoots() => BackupRoots().Where(r => !string.IsNullOrEmpty(r)).Select(r => Path.GetFullPath(r));
 
+    /// <summary>Fotos da página (--readme-shots): abre o Mundo 3D com os pontos do NPCGen e devolve a janela. null = não abriu.</summary>
+    internal WorldView? OpenWorldForShots() => _npcgen?.OpenWorldOverviewHere() == true ? _npcgen.World : null;
+
     void RestoreSet(BackupSet set)
     {
         string list = string.Join(Environment.NewLine, set.Files.Select(f => "• " + f.Original));

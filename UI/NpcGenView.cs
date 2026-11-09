@@ -1034,6 +1034,8 @@ internal sealed class NpcGenView : UserControl
     }
 
     WorldView? _world;
+    /// <summary>Mundo 3D aberto por esta aba (fotos da página: --readme-shots).</summary>
+    internal WorldView? World => _world;
 
     /// <summary>Assistente do editor: cria um monstro/NPC novo no elements e devolve o ID (null = cancelado).</summary>
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]

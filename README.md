@@ -1,103 +1,243 @@
 # MyAceEditor
 
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
-[![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078d4.svg)](#install)
+[![Platform: Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078d4.svg)](#install)
+[![Built for PW 1.5.5](https://img.shields.io/badge/built%20and%20tested%20for-Perfect%20World%201.5.5-e67e22.svg)](#game-version)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4.svg)](https://dotnet.microsoft.com/)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**An open-source editor for Perfect World (Angelica engine) — client and server data in one native Windows app.**
+**A map editor and game-data editor for Perfect World (Angelica engine), in one native Windows app.**
+Walk the real game world in 3D, move buildings, plant trees, paint the ground, dig lakes, paint shadows, place
+monsters and write quests — then save, and the client *and* the server files are rewritten together, checked and
+backed up.
 
-MyAceEditor reads and writes the game files (`elements.data`, `tasks.data`, `gshop`, `aipolicy.data`, `npcgen.data`,
-`.pck` packages and the interface), shows them the way the game shows them, checks that client and server still match,
-and can run a local test server so you see your changes in game. Everything is saved with a backup and verified
-byte by byte before it touches your files.
+**[⬇ Releases](https://github.com/ipasetto/MyAceEditor/releases)** (the first stable version, v1.0, is coming;
+the current builds are test builds) · [3D World](#-the-3d-world-editor) · [Game data](#-game-data) ·
+[Interface](#-interface) · [Translation](#-translation) · [Server & GM](#-server--gm) · [Safety](#-safety) ·
+[Install](#install) · [Developer docs](docs/dev/README.md)
 
-**[⬇ Download the latest release (Windows x64)](https://github.com/ipasetto/MyAceEditor/releases)** · [Install](#install) · [Features](#features) · [Screenshots](#screenshots) · [Contributing](#contributing)
-
-![Elements editor](docs/img/en/editor.png)
+![The 3D World editor](docs/img/en/world-hero.jpg)
 
 ---
 
-## Features
+## What is inside
 
-### Game data
-- **`elements.data`** — opens any version from v6 to v623 (170 layouts), saves byte-identical, real game icons and
-  3D thumbnails, game-like tooltips, links ("uses" / "used by"), bulk edit, undo/redo, find errors, advanced search,
-  convert between versions, Save-all (Ctrl+S) and auto-save.
+| | Area | What you do there |
+|---|---|---|
+| 🟩 | ![3D World](https://img.shields.io/badge/3D_World-2ea44f?style=flat-square) | Edit the map itself: objects, terrain, water, grass, shadow and light, monsters, quests, zones, teleports, territories |
+| 🟦 | ![Game data](https://img.shields.io/badge/Game_data-1f6feb?style=flat-square) | `elements.data`, quests, the shop, AI policies, spawn points |
+| 🟪 | ![Interface](https://img.shields.io/badge/Interface-8250df?style=flat-square) | Game windows, loading screens, swapping interfaces between clients |
+| 🟧 | ![Translation](https://img.shields.io/badge/Translation-e67e22?style=flat-square) | Translate a client from another client, any version |
+| 🟥 | ![Server & GM](https://img.shields.io/badge/Server_%26_GM-cf222e?style=flat-square) | Version checks, a local test server, admin and GM panels |
+| ⬜ | ![Safety](https://img.shields.io/badge/Safety-6e7781?style=flat-square) | Backups, atomic writes, game rules checked before every save |
+
+<a id="game-version"></a>
+> **Game version.** MyAceEditor is built and tested on **Perfect World 1.5.5** (client PWI 1.6.2 = v1.5.5 and the
+> 1.5.5 server). We chose to follow one version that the community knows well, because it saves a lot of time and
+> keeps the code simple. Other versions often open too — the `elements.data` reader knows 170 layouts, v6 to v623 —
+> but they are **not guaranteed to work 100%**. If you use another version, work on a copy of your files and please
+> report what you find.
+
+---
+
+## 🟩 The 3D World editor
+
+![3D World](https://img.shields.io/badge/3D_World-2ea44f?style=for-the-badge)
+
+Open **3D World** from the toolbar and you are standing in the real map: terrain, water, buildings, trees, grass,
+monsters, NPCs, sky, fog and day/night, read straight from the client and the server. Fly with **W A S D**, look
+with the mouse, **Shift** to go faster. The tools live in a floating menu on the right; each one opens in its place
+with a back arrow, and **Esc** always takes you back (asking first if something is not saved).
+
+Things every tool does the same way:
+
+- **Ctrl+Z / Ctrl+Y** on every action. In World editing the order is kept across tabs: the last thing you did is the
+  first thing undone, whether it was a building, a brush stroke or a water edit.
+- **Nothing is written until you click Save.** Then you get a summary of what will be written and a window that
+  confirms what was saved.
+- **The same keys for the same jobs:** **B** brush, **E** eraser, **I** eyedropper, in every tool that has them.
+- **One backup per session:** everything you save while the 3D World is open goes into one item of *Restore backup*,
+  which puts the map back exactly as it was when you opened it.
+
+### World editing — Objects
+
+![World editing, Objects tab: a building selected](docs/img/en/world-objects.jpg)
+
+Click anything you see: a building, a model, a tree, an effect, a sound or a group of critters.
+
+- **Move (V), Rotate (R), Size (F)** with arrows in the world or by typing numbers; *Stick to ground* and
+  *Rest on ground* keep things on the terrain.
+- **Copy and paste** (Ctrl+C / Ctrl+V) — a ghost follows the mouse, one object per click. **Delete** removes.
+- **Insert buildings** from a catalogue of every map and instance of your client, with a 3D preview, favourites
+  and recent items; **plant trees** of any type from any map.
+- The **info card** (top left) shows what is selected: name, ID, type and file.
+- **Give buildings a name** — names are shown in the catalogue and kept for you.
+
+When you save, the server is updated too: the building collision (`map.bht`), the paths monsters can walk
+(`.rmap`, including bridges and floors in `.dhmap`), the flight space of flying monsters (`.octr`) and the circle
+monsters keep around every tree. Copied objects behave like the originals in game.
+
+### World editing — Terrain
+
+![World editing, Terrain tab: ground texture brush](docs/img/en/world-terrain.jpg)
+
+| Section | Keys | What it does |
+|---|---|---|
+| Ground texture | **B** brush · **E** eraser · **I** eyedropper | Paint any texture of the map — or take one from another map; the eraser goes back to the texture underneath |
+| Ground height | **1** raise · **2** lower · **3** smooth · **4** flatten | Sculpt the terrain; the server height map and the monster paths are rebuilt when you save |
+| Shadow and light | **7** shadow · **8** light · **I** pick light · **E** eraser | Paint the light map of the ground, day and night together (see below) |
+| Water | **5** pick · **6** new water | Lakes and rivers: level, size, colour, copy/paste, delete; client and server water written together |
+| Grass and flowers | **B** brush · **E** eraser · **I** eyedropper | Paint grass and flowers of any type from any map, with size and density |
+
+**Ctrl + mouse wheel** changes the brush size. Brush size and strength are remembered between sessions.
+
+![Grass and flowers brush](docs/img/en/world-grass.jpg)
+
+**Shadow and light.** In Perfect World the colour of the ground is *texture × light map*, so painting a texture never
+removes a shadow. The shadow brush paints the light map itself; *Pick light* copies the light of one spot so a
+shadow can be matched to the ground around it. Only the 4 × 4 m blocks you touched are rewritten — the rest of the
+file stays byte-for-byte the same.
+
+![Shadow and light brush](docs/img/en/world-light.jpg)
+
+### Paths and areas
+
+![Paths and areas](docs/img/en/world-paths.jpg)
+
+How every monster or NPC moves: a wandering area or a patrol path. Patrol points are circles with X/Y/Z arrows;
+**Space** marks a new point and links it to the last one.
+
+### Quests
+
+![Quests in the 3D World](docs/img/en/world-quests.jpg)
+
+Click an NPC to see the quests it gives and receives, and create, give, edit or delete them right there. Simple
+quests — talk, go to a place, kill, obtain, deliver, wait — are made in a few steps; rewards and requirements are
+chosen from the item list, and the quest rules from the server code are checked before saving.
+
+### NPCs and monsters
+
+![NPCs and monsters](docs/img/en/world-npcs.jpg)
+
+Create and edit NPCs, sellers, forges and monsters, place them in the world and set their drops.
+
+### Teleports
+
+![Teleports](docs/img/en/world-teleports.jpg)
+
+The places of the travel map and the NPC that serves each one: add a destination, set the price, place the NPC.
+
+### Zones
+
+![Zones](docs/img/en/world-zones.jpg)
+
+Name, music, ambient sound and rules of every place of the map (`precinct.clt`), drawn on the map.
+
+### Territories
+
+![Territories](docs/img/en/world-territories.jpg)
+
+The clan war map (`domain.data` and `domain.sev`): draw, create and delete territories.
+
+### Save and send to server
+
+Writes everything that changed and restarts the local test server with it, so you can log in and see your work.
+
+---
+
+## 🟦 Game data
+
+![Game data](https://img.shields.io/badge/Game_data-1f6feb?style=for-the-badge)
+
+![Elements editor](docs/img/en/app-elements.jpg)
+
+- **`elements.data`** — every field of every item, monster, NPC and skill-related record; real game icons and 3D
+  thumbnails, game-like tooltips, links (*uses* / *used by*), bulk edit, advanced search, find errors, convert between
+  versions, undo/redo and Save-all (**Ctrl+S**). Saves byte-identical.
 - **Item rules from the server code** run before saving (unique IDs, shop limits, subtypes, fixed-ID configs), so an
-  edited item does not crash the server or disappear in game ([game rules](docs/REGRAS-DO-JOGO.md)).
-- **Quests (`tasks.data`)** — every version tested (v93, v128, v129, v187, v198): fields, texts, dialogs, rewards,
-  clone/delete, and simple quests created right inside the 3D World.
-- **GShop** — client `gshop.data` and server `gshopsev.data` edited together, on a copy of the in-game shop screen.
-- **AI Policy** — triggers, conditions and operations with plain-language explanations, monster speech translation.
-- **NPCGen** — where monsters, NPCs and resources spawn: quantity, respawn, radius, monster, new monster/NPC wizard.
+  edited item does not crash the server or vanish in game ([game rules](docs/REGRAS-DO-JOGO.md)).
 
-### Interface (everything UI)
-- **Interface editor** — game windows (`interfaces.pck`) drawn with the client's own fonts and textures. Move, resize,
-  edit text and hints, hide controls safely, list every control, search text across all windows, and see which `.dcf`
-  loads each window. Writes straight into the `.pck`.
-- **Export / import** — export a package to a folder, edit it with any tool, import it back. Every file is checked first:
-  UTF-8 is converted to the UTF-16 the game reads, broken XML is refused, a window that loses a control the game looks up
-  is refused, image format must match its extension.
-- **Swap interface with another client** — take the whole interface, or only some windows, from another client; the
-  images those windows need come along, and anything that would crash the game is blocked.
-- **Loading screens and login background** — replace or add loading screens for both families
-  (`载入1024/1280/16-9-N.jpg` on 1.4.4–1.5.5, `1600-N.jpg` plus per-map screens on 1.7.x); any image format and size is
-  fitted automatically.
+| Quests (`tasks.data`) | GShop |
+|---|---|
+| ![Quests](docs/img/en/app-quests.jpg) | ![GShop](docs/img/en/app-gshop.jpg) |
+| Every field, text and dialog; clone and delete; quests created in the 3D World appear here | Client `gshop.data` and server `gshopsev.data` edited together, on a copy of the in-game shop |
 
-### Translation
-- **Translate from another client** — quest texts, NPC speech, item texts, interface tables, window texts and hints,
-  matched by ID or by window and control name, in any version. Only what your client has is touched, and text with
-  different `%d`/`%s` markers is skipped.
-- **Translate with another `elements.data`**, with a review window before saving.
-- The app itself speaks **English, Português, Русский and 简体中文**.
+| AI Policy | NPCGen |
+|---|---|
+| ![AI Policy](docs/img/en/app-aipolicy.jpg) | ![NPCGen](docs/img/en/app-npcgen.jpg) |
+| Triggers, conditions and operations explained in plain words; monster speech translation | Where monsters, NPCs and resources spawn: quantity, respawn, radius, wizard for new ones |
 
-### Server and checks
-- **Verification** — the versions that `elementclient.exe` and `gs` expect, the client × server pair, and the
-  `interfaces.pck` windows that crash the client, with one-click fixes.
-- **Local test server** (WSL) — install, start, and *Save and send to server* to see changes in game.
-- **Admin panel** — accounts, characters, who is online, broadcast, double EXP/drop, give cash, every map and instance.
-- **3D World** — terrain, buildings, trees, grass, water and models of the real map; move, copy and create spawn points.
-- **`.pck` extractor and writer** — native, no external tools; every write keeps a backup and is swapped in atomically.
+---
 
-## Screenshots
+## 🟪 Interface
+
+![Interface](https://img.shields.io/badge/Interface-8250df?style=for-the-badge)
 
 | | |
 |---|---|
-| ![3D World](docs/img/en/world3d.jpg) **3D World** — the real map: terrain, water, buildings and trees | ![GShop](docs/img/en/gshop.png) **GShop** — the in-game shop screen, client and server together |
-| ![Interface editor](docs/img/en/interface.png) **Interface editor** — game windows drawn with the client's fonts and textures | ![Interface editor, shop window](docs/img/en/interface-shop.png) **Every control listed**, with text, hint and hide |
-| ![Loading screens](docs/img/en/loading-screens.png) **Loading screens** — replace or add, any image size | ![Swap interface](docs/img/en/swap-interface.png) **Swap / import** — every file checked before writing |
-| ![Quests](docs/img/en/quests.png) **Quests** — every field, text and dialog | ![NPCGen](docs/img/en/npcgen.png) **NPCGen** — spawn points with names and quantities |
-| ![Local server](docs/img/en/server.png) **Local test server** — install, start, send your files | |
+| ![Interface editor](docs/img/en/interface.png) | ![Every control listed](docs/img/en/interface-shop.png) |
+| **Interface editor** — game windows (`interfaces.pck`) drawn with the client's own fonts and textures: move, resize, edit text and hints, hide controls safely | **Every control listed**, with text search across all windows and which `.dcf` loads each window |
+| ![Loading screens](docs/img/en/loading-screens.png) | ![Swap interface](docs/img/en/swap-interface.png) |
+| **Loading screens and login background** — replace or add, any image format and size | **Swap or import** whole interfaces or single windows from another client; anything that would crash the game is refused |
 
-## Tested versions
+Export a package to a folder, edit it with any tool and import it back: UTF-8 is converted to the UTF-16 the game
+reads, broken XML is refused, and a window that loses a control the game looks for is refused.
 
-| Client | Notes |
-|---|---|
-| Perfect World 1.4.4 (BR "144", `elements.data` v60, `tasks.data` v93) | reference version, local server included |
-| Perfect World 1.5.5 (BR "155", PWI 1.6.2 = v1.5.5) | |
-| Perfect World 1.7.x (Maori "172", BR "180") | `.pck` v3, new loading screens and login scene |
+---
 
-Other versions open through the multi-version reader; if something does not look right, please open an issue.
+## 🟧 Translation
 
-## Safety
+![Translation](https://img.shields.io/badge/Translation-e67e22?style=for-the-badge)
 
-- **Byte-identical round trip**: a format is only editable after reading and writing it back produces the same bytes.
-- **Backups** of every file and package before it changes (kept in `%LOCALAPPDATA%\MyAceEditor\backups`, last 5 of each).
-- **Atomic writes**: the new file is written beside the old one, verified, then swapped in.
-- **Game rules** checked on save; the game must be closed while packages are written.
+- **Translate from another client** — quest texts, NPC speech, item texts, interface tables, window texts and hints,
+  matched by ID or by window and control name. Only what your client has is touched; text with different
+  `%d` / `%s` markers is skipped.
+- **Translate with another `elements.data`**, with a review window before saving.
+- The app itself speaks **English, Português, Русский and 简体中文**, and every screen is checked so no text is cut
+  in any of them.
+
+---
+
+## 🟥 Server & GM
+
+![Server & GM](https://img.shields.io/badge/Server_%26_GM-cf222e?style=for-the-badge)
+
+- **Verification** — the versions `elementclient.exe` and `gs` expect, the client × server pair, and interface
+  windows that crash the client, with one-click fixes.
+- **Local test server** (WSL) — install, start and *Save and send to server*.
+- **Admin panel** — accounts, characters, who is online, broadcast, double EXP/drop, every map and instance.
+- **GM panel** — a separate window beside the game for game masters.
+- **Plugins** — event programs that run on the server, made from templates.
+- **`.pck` extractor and writer** — native, no external tools.
+
+---
+
+## ⬜ Safety
+
+![Safety](https://img.shields.io/badge/Safety-6e7781?style=for-the-badge)
+
+- **Byte-identical round trip:** a format becomes editable only after reading and writing it back gives the same bytes.
+- **Backups** of every file before it changes, in `%LOCALAPPDATA%\MyAceEditor\backups`. The first copy of each file and
+  every copy still used by a backup item are never deleted. A restore can itself be undone ("Before restoring").
+- **Atomic writes:** the new file is written beside the old one, checked, then swapped in. Saves that touch several
+  files are all-or-nothing: if one fails, the others go back.
+- **Game rules** from the server code are checked before saving; errors are explained in plain words.
 - Still: work on a **copy of your game folder** until you get used to the tool.
+
+---
 
 ## Install
 
-Windows 10 or 11, 64-bit. Nothing else to install.
+Windows x64. Nothing else to install — .NET is inside the program.
 
 1. Download `MyAceEditor-...-win-x64.zip` from **[Releases](https://github.com/ipasetto/MyAceEditor/releases)**.
-2. Right-click the `.zip` → **Extract All…** (do not run it from inside the zip: it needs the `lang`, `PerfectWorld` and `Server` folders).
-3. Run **`MyAceEditor.exe`**. If *"Windows protected your PC"* appears: **More info → Run anyway** (the app is not signed yet; the code is all here).
+2. Right-click the `.zip` → **Extract All…** (do not run it from inside the zip: it needs the `lang`, `PerfectWorld`
+   and `Server` folders next to it).
+3. Run **`MyAceEditor.exe`**. If *"Windows protected your PC"* appears: **More info → Run anyway** (the app is not
+   signed yet; all the code is here).
 4. **File → Open Perfect World folder…** and pick the folder that contains `element`. Next time it opens by itself.
 
-**Local test server (optional):** in the **Server** tab pick a 1.4.4 server package and click **Install / complete**.
+**Local test server (optional):** in the **Server** tab pick a server package and click **Install / complete**.
 If WSL is missing, run `wsl --install --no-distribution` as administrator and restart once.
 
 ## Build from source
@@ -108,38 +248,21 @@ Requires Windows and the .NET 10 SDK.
 dotnet run
 ```
 
+Distribution build (one compressed `MyAceEditor.exe` with .NET inside, in `dist\`):
+
 ```bash
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PublishReadyToRun=true -o dist
+dotnet publish -c Release -p:PublishProfile=Release-win-x64
 ```
 
-`dist\` gets `MyAceEditor.exe` plus the `lang\`, `PerfectWorld\` and `Server\` folders and `glfw3.dll` (3D World); ship the whole folder.
-
-## Status
-
-| Area | Status |
-|---|---|
-| `elements.data` read / write | ✅ v6–v623; read to the last byte and rewritten byte-identical (checked on 1.4.4 v60 and 1.5.5 v156) |
-| Quests | ✅ all fields and texts, plus quest creation in the 3D World |
-| GShop, NPCGen, AI Policy | ✅ |
-| Interface: editor, import/export, swap, loading screens | ✅ |
-| `.pck` | ✅ read and write v2/v3, including split `.pck` + `.pkx` |
-| Verification, local server, admin panel, GM panel, 3D World | ✅ (GM panel: send item by mail 🔜) |
-| Map editor in the 3D World (terrain, ground textures, grass, trees, buildings) | 🔜 see the [roadmap](docs/ROADMAP.md) |
+Ship the whole `dist\` folder (`lang\`, `PerfectWorld\`, `Server\`, `glfw3.dll` are needed). The developer guide
+starts at **[docs/dev/README.md](docs/dev/README.md)**.
 
 ## Contributing
 
 Contributions are welcome — code, translations, tests on other game versions, bug reports with screenshots.
-Read the **[contribution guide](CONTRIBUTING.md)** and pick a task from the **[roadmap](docs/ROADMAP.md)** or the
-**[issues](https://github.com/ipasetto/MyAceEditor/issues)**. Internal docs are mostly in Portuguese; issues and pull
-requests in English are fine.
-
-| Document | What for |
-|---|---|
-| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | how the engine and the game fit together (diagrams) |
-| [docs/kb/PW-KB.md](docs/kb/PW-KB.md) | game knowledge base: formats, protocol, versions, interface |
-| [docs/kb/ENGINE-KB.md](docs/kb/ENGINE-KB.md) | what is implemented and where |
-| [docs/REGRAS-DO-JOGO.md](docs/REGRAS-DO-JOGO.md) | server/client rules the editor enforces |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | upcoming work |
+Start with the **[developer docs](docs/dev/README.md)** and the **[contribution guide](CONTRIBUTING.md)**, then pick
+something from the **[issues](https://github.com/ipasetto/MyAceEditor/issues)**. The internal knowledge bases are
+mostly in Portuguese; issues and pull requests in English are welcome.
 
 ## License
 

@@ -168,7 +168,7 @@ dotnet run
 ```
 
 ```bash
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist
+dotnet publish -c Release -p:PublishProfile=Release-win-x64   (perfil em Properties/PublishProfiles: um .exe com o .NET dentro, comprimido, sem ReadyToRun; sai em dist/)
 ```
 
 Modos de linha de comando (diagnóstico):

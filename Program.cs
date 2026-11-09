@@ -1308,6 +1308,7 @@ internal static class Program
             File.WriteAllText("server-diff.txt", $"{diff.Count} diferentes em {sw.Elapsed.TotalSeconds:0.0} s\n" + string.Join("\n", diff.Select(d => d.Rel)));
             return;
         }
+        if (args.Length >= 2 && args[0] == "--readme-shots") { ReadmeShots(args[1]); Environment.Exit(Environment.ExitCode); }   // <saída>: fotos da página do GitHub (abas + Mundo 3D), nada é gravado
         if (args.Length >= 4 && args[0] == "--world-shot")
         {
             // termina o processo no fim (antes ficava aberto em segundo plano esperando uma pergunta ou o carregamento)
@@ -1539,6 +1540,62 @@ internal static class Program
         var miss = MyAceEditor.UI.WorldBuildings.MissingTextures.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (miss.Count > 0) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), $"texturas de construção não achadas ({miss.Count}):\n" + string.Join("\n", miss.Take(40)) + "\n");
         w.Close();
+    }
+
+    /// <summary>
+    /// Fotos da página do GitHub: o editor com a última pasta (fora da tela) tira uma foto de cada aba; depois abre o Mundo 3D
+    /// pelo NPCGen (com NPCs, monstros e quests) e monta as cenas de cada ferramenta (WorldView.ShotScene). Só olha: nada é
+    /// gravado. A janela do 3D fica na tela durante as fotos (o OpenGL não desenha fora dela).
+    /// </summary>
+    private static void ReadmeShots(string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        var log = new StringBuilder();
+        MyAceEditor.UI.WorldView.Headless = true; MyAceEditor.UI.SavedDialog.Quiet = true; MyAceEditor.UI.ReadProgressDialog.Offscreen = true;
+        void Pump(double s) { var u = DateTime.Now.AddSeconds(s); while (DateTime.Now < u) { Application.DoEvents(); Thread.Sleep(30); } }
+        try
+        {
+            using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), Size = new System.Drawing.Size(1600, 900), ShowInTaskbar = false };
+            f.Show();
+            Pump(14);
+            var tc = f.Controls.OfType<TabControl>().FirstOrDefault();
+            foreach (var (tab, png) in new[] { ("Elements", "app-elements.png"), ("Quests", "app-quests.png"), ("GShop", "app-gshop.png"), ("AI Policy", "app-aipolicy.png"), ("NPCGen", "app-npcgen.png"),
+                ("Interface", "app-interface.png"), ("Verification", "app-verify.png"), ("Server", "app-server.png"), ("PCK", "app-pck.png"), ("Plugins", "app-plugins.png") })
+            {
+                var tp = tc?.TabPages.Cast<TabPage>().FirstOrDefault(p => p.Text.StartsWith(tab, StringComparison.OrdinalIgnoreCase));
+                if (tc is null || tp is null) { log.AppendLine("sem aba " + tab); continue; }
+                tc.SelectedTab = tp; Pump(4);
+                using var b = new System.Drawing.Bitmap(f.Width, f.Height);
+                f.DrawToBitmap(b, new System.Drawing.Rectangle(0, 0, f.Width, f.Height));
+                b.Save(Path.Combine(outDir, png), System.Drawing.Imaging.ImageFormat.Png);
+                log.AppendLine("ok " + png);
+            }
+            if (tc?.TabPages.Cast<TabPage>().FirstOrDefault(p => p.Text.StartsWith("Elements", StringComparison.OrdinalIgnoreCase)) is { } el) tc.SelectedTab = el;
+            var w = f.OpenWorldForShots();
+            if (w is null) { log.AppendLine("ERRO: o Mundo 3D não abriu (pasta do servidor escolhida?)"); return; }
+            w.StartPosition = FormStartPosition.Manual; w.Location = new System.Drawing.Point(0, 0); w.Size = new System.Drawing.Size(1600, 900); w.ShowInTaskbar = false;
+            Pump(3);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            foreach (var (name, cam) in new[] { ("hero", "960,300,1040,0,-14"), ("objects", "1150,330,1040,0,-18"), ("terrain", "1000,420,900,25,-25"), ("grass", "960,250,1040,0,-25"),
+                ("light", "1000,420,900,25,-25"), ("paths", "960,300,1040,0,-14"), ("quests", "1150,330,1040,0,-18"), ("npcs", "1150,330,1040,0,-18"), ("teleports", "1150,330,1040,0,-18"),
+                ("zones", "960,300,1040,0,-14"), ("territories", "960,300,1040,0,-14") })
+            {
+                try
+                {
+                    var p = cam.Split(',');
+                    w.SetCamera(new OpenTK.Mathematics.Vector3(float.Parse(p[0], inv), float.Parse(p[1], inv), float.Parse(p[2], inv)), float.Parse(p[3], inv), float.Parse(p[4], inv));
+                    w.ShotWait();
+                    log.AppendLine(name + ": " + w.ShotScene(name));
+                    w.ShotWait(1.0); Pump(1);
+                    using var shot = w.ComposeShot();
+                    shot.Save(Path.Combine(outDir, "world-" + name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+                }
+                catch (Exception ex) { log.AppendLine($"ERRO {name}: {ex.GetType().Name}: {ex.Message}"); }
+            }
+            w.Close(); f.Close();
+        }
+        catch (Exception ex) { log.AppendLine("ERRO: " + ex); Environment.ExitCode = 2; }
+        finally { File.WriteAllText(Path.Combine(outDir, "readme-shots.txt"), log.ToString()); }
     }
 
     private static void Snapshot(string outPng, string? tab, (string Block, string Id)? item, string? group = null)

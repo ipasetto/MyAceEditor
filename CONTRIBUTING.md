@@ -1,5 +1,7 @@
 # Como contribuir com o MyAceEditor
 
+> **English developer guide:** [docs/dev/README.md](docs/dev/README.md) — architecture, game files, the 3D World inside, saving and backups, testing, rules and a recipe for a new tool.
+
 > **English summary:** MyAceEditor is a native C#/WinForms (.NET 10) editor/engine for Perfect World
 > (Angelica engine) game data, licensed under **GPL-3.0**. Contributions are welcome. Docs and code
 > comments are in Portuguese (pt-BR), but issues and PRs in English are fine. Before coding, read
