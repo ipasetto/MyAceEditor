@@ -32,6 +32,12 @@ internal sealed class WorldTerrain : IDisposable
 
     public bool Visible { get; set; } = true;
 
+    /// <summary>
+    /// Luz do chão ainda não gravada (pincel de sombra e luz): ao recarregar uma área (troca dia/noite, área que volta à
+    /// vista) usa estes pontos no lugar do arquivo. null = área sem pintura (usuário 09/11: a sombra sumia ao trocar dia/noite).
+    /// </summary>
+    public Func<int, int, bool, (int[] Px, int Side)?>? LightOverride { get; set; }
+
     bool _night;
     /// <summary>Luz de noite (.t2lm1). Trocar recarrega a luz do chão dos pedaços já carregados.</summary>
     public bool Night
@@ -382,7 +388,9 @@ internal sealed class WorldTerrain : IDisposable
             foreach (var (name, img) in cpu.Textures) _groundTex[name] = img is { } i ? UploadTexture(i.Px, i.W, i.H, true, true) : 0;
             var layers = cpu.Layers.Select((l, i) => (l.Texture, l.UScale, l.VScale,
                 i > 0 && l.Mask is not null ? UploadMask(l.Mask, l.MaskSide) : 0)).ToArray();
-            int light = cpu.Light is { } li ? UploadTexture(li.Px, li.W, li.H, false, false) : 0;
+            (int[] Px, int Side)? ov = null;
+            try { ov = LightOverride?.Invoke(ar, ac, night); } catch (Exception ex) { MyAceEditor.PerfectWorld.AppLog.Error("luz do chão: pintura ao recarregar", ex); }
+            int light = ov is { } o ? UploadTexture(o.Px, o.Side, o.Side, false, false) : cpu.Light is { } li ? UploadTexture(li.Px, li.W, li.H, false, false) : 0;
             _ground[(ar, ac)] = new GroundGpu(layers, light);
         }, true);
     }

@@ -184,6 +184,47 @@ public sealed class BmdModel
         return null;
     }
 
+    /// <summary>
+    /// Arestas dos brushes de colisão (para desenhar "Ver colisão"): cada brush é a interseção dos semiespaços n·x &lt;= dist
+    /// dos lados; os cantos são os pontos onde 3 lados se cruzam dentro de todos, e uma aresta liga dois cantos que dividem 2
+    /// lados. Coordenadas do mundo do arquivo. Brush estranho (muitos lados ou sem cantos) fica de fora.
+    /// </summary>
+    public static List<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> BrushEdges(byte[] d)
+    {
+        var r = new List<(System.Numerics.Vector3, System.Numerics.Vector3)>();
+        if (CdBrushes(d) is not { } all) return r;
+        foreach (int at in all)
+        {
+            int n = BitConverter.ToInt32(d, at + 52);
+            if (n > 64) continue;
+            var pl = new (System.Numerics.Vector3 N, float D)[n];
+            for (int k = 0; k < n; k++)
+            {
+                int p = at + 56 + 17 * k;
+                pl[k] = (new(BitConverter.ToSingle(d, p), BitConverter.ToSingle(d, p + 4), BitConverter.ToSingle(d, p + 8)), BitConverter.ToSingle(d, p + 12));
+            }
+            var corners = new List<(System.Numerics.Vector3 P, List<int> Planes)>();
+            for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) for (int k = j + 1; k < n; k++)
+                    {
+                        var (a, b, c) = (pl[i].N, pl[j].N, pl[k].N);
+                        var bc = System.Numerics.Vector3.Cross(b, c);
+                        float det = System.Numerics.Vector3.Dot(a, bc);
+                        if (MathF.Abs(det) < 1e-6f) continue;
+                        var x = (pl[i].D * bc + pl[j].D * System.Numerics.Vector3.Cross(c, a) + pl[k].D * System.Numerics.Vector3.Cross(a, b)) / det;
+                        bool inside = true;
+                        for (int m = 0; m < n && inside; m++) if (System.Numerics.Vector3.Dot(pl[m].N, x) - pl[m].D > 0.01f) inside = false;
+                        if (!inside || float.IsNaN(x.X)) continue;
+                        if (corners.FirstOrDefault(q => System.Numerics.Vector3.DistanceSquared(q.P, x) < 1e-4f) is { Planes: not null } same)
+                        { foreach (int q in new[] { i, j, k }) if (!same.Planes.Contains(q)) same.Planes.Add(q); }
+                        else corners.Add((x, new List<int> { i, j, k }));
+                    }
+            for (int i = 0; i < corners.Count; i++)
+                for (int j = i + 1; j < corners.Count; j++)
+                    if (corners[i].Planes.Count(corners[j].Planes.Contains) >= 2) r.Add((corners[i].P, corners[j].P));
+        }
+        return r;
+    }
+
     static List<int>? TryBrushes(byte[] d, int o, int n)
     {
         int p = o + 4;

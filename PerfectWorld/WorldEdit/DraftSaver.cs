@@ -577,9 +577,19 @@ public static class DraftChecks
                 else if (mx.Y < g - 0.5f) list.Add(new(false, string.Format(Loc.T("obj.chkBuried", "{0}: parece enterrado."), name), o.Key));
             }
             if (o.Solid)
-                foreach (var (pos, what) in pts)
-                    if (pos.X >= mn.X - 0.5f && pos.X <= mx.X + 0.5f && pos.Y >= mn.Y - 0.5f && pos.Y <= mx.Y + 0.5f && pos.Z >= mn.Z - 0.5f && pos.Z <= mx.Z + 0.5f)
-                        list.Add(new(false, string.Format(Loc.T("obj.chkOnTop", "{0}: está em cima de {1}."), name, what), o.Key));
+            {
+                // uma linha por objeto, agrupada pelo nome (usuário 09/11: uma pedra em cima de um acampamento dava 70 linhas
+                // iguais e a janela passava da tela, sem os botões)
+                var hits = pts.Where(p => p.Pos.X >= mn.X - 0.5f && p.Pos.X <= mx.X + 0.5f && p.Pos.Y >= mn.Y - 0.5f && p.Pos.Y <= mx.Y + 0.5f && p.Pos.Z >= mn.Z - 0.5f && p.Pos.Z <= mx.Z + 0.5f)
+                    .GroupBy(p => p.What).OrderByDescending(g => g.Count()).ToList();
+                if (hits.Count == 1 && hits[0].Count() == 1)
+                    list.Add(new(false, string.Format(Loc.T("obj.chkOnTop", "{0}: está em cima de {1}."), name, hits[0].Key), o.Key));
+                else if (hits.Count > 0)
+                {
+                    string names = string.Join(", ", hits.Take(4).Select(g => g.Count() > 1 ? g.Key + " ×" + g.Count() : g.Key)) + (hits.Count > 4 ? ", …" : "");
+                    list.Add(new(false, string.Format(Loc.T("obj.chkOnTopN", "{0}: está em cima de {1} criatura(s) ({2})."), name, hits.Sum(g => g.Count()), names), o.Key));
+                }
+            }
         }
         return list;
     }
@@ -628,34 +638,39 @@ public static class DraftChecks
         var radius = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         float R(string spt) => radius.TryGetValue(spt, out var r) ? r : radius[spt] = TreePassage.Radius(byType.TryGetValue(spt, out var l) ? l : [], Open);
 
-        var gone = new List<(float X, float Z, float R)>(); var come = new List<(float X, float Z, float R)>();
+        // pegada do tronco e das raízes de cada tipo (só das árvores mexidas; as que ficam usam o círculo, como estão no .rmap)
+        // tipo que as árvores originais deixam passar (raio 0: bambu) continua sem pegada
+        IReadOnlyList<(float Dx, float Dz)>? Foot(string spt) => R(spt) > 0 ? MeshFootprint.Tree(src.ElementDir, spt) : null;
+        var gone = new List<(float X, float Z, float R, IReadOnlyList<(float Dx, float Dz)>? Foot)>(); var come = new List<(float X, float Z, float R, IReadOnlyList<(float Dx, float Dz)>? Foot)>();
         var editedKeys = new HashSet<string>(edits.Select(o => o.Key));
         foreach (var o in edits)
         {
             float r = R(o.Source);
             bool moved = (o.Original.Pos - o.Now.Pos).LengthSquared() > 1e-4f;
-            if (o.Deleted || moved) gone.Add((o.Original.Pos.X, o.Original.Pos.Z, r));
-            if (!o.Deleted && moved) come.Add((o.Now.Pos.X, o.Now.Pos.Z, r));
+            if (o.Deleted || moved) gone.Add((o.Original.Pos.X, o.Original.Pos.Z, r, Foot(o.Source)));
+            if (!o.Deleted && moved) come.Add((o.Now.Pos.X, o.Now.Pos.Z, r, Foot(o.Source)));
         }
-        foreach (var o in news) come.Add((o.Now.Pos.X, o.Now.Pos.Z, R(o.Source)));
+        foreach (var o in news) come.Add((o.Now.Pos.X, o.Now.Pos.Z, R(o.Source), Foot(o.Source)));
         if (gone.Count == 0 && come.Count == 0) return;
         // árvores que ficam perto (o círculo delas não reabre)
         var all = gone.Concat(come).ToList();
-        float bx0 = all.Min(c => c.X) - 10, bx1 = all.Max(c => c.X) + 10, bz0 = all.Min(c => c.Z) - 10, bz1 = all.Max(c => c.Z) + 10;
-        var stay = new List<(float X, float Z, float R)>();
+        static float Reach(float r, IReadOnlyList<(float Dx, float Dz)>? foot) => foot is { Count: > 0 } ? MathF.Max(r, foot.Max(f => MathF.Max(MathF.Abs(f.Dx), MathF.Abs(f.Dz)))) : r;
+        float far = all.Max(c => Reach(c.R, c.Foot));
+        float bx0 = all.Min(c => c.X) - 10 - far, bx1 = all.Max(c => c.X) + 10 + far, bz0 = all.Min(c => c.Z) - 10 - far, bz1 = all.Max(c => c.Z) + 10 + far;
+        var stay = new List<(float X, float Z, float R, IReadOnlyList<(float Dx, float Dz)>? Foot)>();
         for (int i = 0; i < sc.Trees.Count; i++)
         {
             var tr = sc.Trees[i];
             if (tr.X < bx0 || tr.X > bx1 || tr.Z < bz0 || tr.Z > bz1 || editedKeys.Contains($"tree:{i}") || tr.Type < 0 || tr.Type >= sc.TreeTypes.Count) continue;
-            stay.Add((tr.X, tr.Z, R(sc.TreeTypes[tr.Type].Spt)));
+            stay.Add((tr.X, tr.Z, R(sc.TreeTypes[tr.Type].Spt), null));
         }
         // paredes das construções (só para reabrir): o map.bht já aberto pelo salvar, ou lido agora
         BrushSet? walls = null;
         if (gone.Count > 0 && (bht ?? (src.BhtPath is { } bp && File.Exists(bp) ? new BhtFile(File.ReadAllBytes(bp)) : null)) is { } bf)
             walls = BrushSet.Near(bf, bx0, bz0, bx1, bz1);
         var pieces = new HashSet<int>();
-        foreach (var (x, z, r) in all)
-            foreach (var (dx, dz) in new[] { (-r - 1, -r - 1), (r + 1, -r - 1), (-r - 1, r + 1), (r + 1, r + 1) })
+        foreach (var (x, z, r0, foot) in all)
+            foreach (var (dx, dz) in Reach(r0, foot) is var r ? new[] { (-r - 1, -r - 1), (r + 1, -r - 1), (-r - 1, r + 1), (r + 1, r + 1) } : [])
                 if (t.PieceAt(x + dx, z + dz) is > 0 and var p) pieces.Add(p);
         int total = 0;
         foreach (int piece in pieces)
@@ -693,6 +708,21 @@ public static class DraftChecks
                     if (t.PieceAt(MathF.Min(x, r.X1), MathF.Min(z, r.Z1)) is > 0 and var p) set.Add(p);
             return set;
         }
+        // malha das construções mexidas: lugar antigo (as que já existiam) e lugar novo (as que ficam); ver MeshObstacles
+        var oldM = new MeshObstacles(); var newM = new MeshObstacles();
+        foreach (var o in objs.Where(o => o.Kind == ObjKind.Building))
+        {
+            try
+            {
+                var bytes = DraftSaver.ReadBmd(src, o.CopyOf ?? o.Key);
+                if (o.CopyOf is null && !o.Key.StartsWith("new:", StringComparison.Ordinal)) oldM.AddBuilding(bytes, o.Original);
+                if (!o.Deleted) newM.AddBuilding(bytes, o.Now);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or IndexOutOfRangeException)
+            {
+                AppLog.Error("passagem: malha de " + (o.CopyOf ?? o.Key), ex);   // fica só com os brushes, como antes
+            }
+        }
         // passagem (servidor)
         int moved = 0, floors = 0;
         if (src.ServerConfigDir is { } sd)
@@ -707,7 +737,7 @@ public static class DraftChecks
                 // passagem com pisos (pontes, escadas, andares da construção): .rmap + .dhmap juntos
                 var dp = Path.ChangeExtension(rp, ".dhmap");
                 byte[]? dhOld = File.Exists(dp) && new FileInfo(dp).Length >= 36 ? File.ReadAllBytes(dp) : null;
-                var (data, dhNew, n) = MoveMapFile.UpdateWithFloors(File.ReadAllBytes(rp), dhOld, px0, pzS, rects, t.HeightAt, ob, nb);
+                var (data, dhNew, n) = MoveMapFile.UpdateWithFloors(File.ReadAllBytes(rp), dhOld, px0, pzS, rects, t.HeightAt, ob, nb, oldM, newM);
                 if (n > 0) { plan.Files[rp] = data; moved += n; }
                 if (dhNew is not null) { plan.Files[dp] = dhNew; floors++; }
             }

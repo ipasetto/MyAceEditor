@@ -110,6 +110,16 @@ internal sealed partial class WorldView
         var r = new List<string>();
         _sceneSel = null; ShowObjPanel(); r.Add($"nada escolhido: visível={_info.Visible}");
         if (_buildings.Nearest(_cam) is { } near) { _sceneSel = new BuildingSel(near.File, near.Center); ShowObjPanel(); r.Add($"construção: visível={_info.Visible} \"{_info.Text}\""); }
+        // Ver colisão: só da escolhida, com as arestas das peças sólidas (construção sólida mais perto)
+        if (_draft?.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Building && o.Solid && !o.Deleted)
+                .OrderBy(o => (new OpenTK.Mathematics.Vector3(o.Now.Pos.X, o.Now.Pos.Y, -o.Now.Pos.Z) - _cam).LengthSquared).FirstOrDefault() is { } solid)
+        {
+            _sceneSel = new BuildingSel(solid.Key, new OpenTK.Mathematics.Vector3(solid.Now.Pos.X, solid.Now.Pos.Y, -solid.Now.Pos.Z));
+            _showCollision.Checked = true; ShowObjPanel();
+            int segs = SelDraft is { } sd ? SelCollision(sd).Count : -1;
+            r.Add($"ver colisão: {Path.GetFileName(solid.Key)} {segs} arestas, barra \"{_status.Text}\"");
+            _showCollision.Checked = false;
+        }
         _sceneSel = null; ShowObjPanel(); r.Add($"tirou a escolha: visível={_info.Visible}");
         SwitchWorldPill(Tool.Terrain);
         if (_t.TextureNames.Count > 0) { _texSel = 0; TexLabels(); r.Add($"textura: visível={_info.Visible} \"{_info.Text}\""); }

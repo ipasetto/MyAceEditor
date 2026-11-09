@@ -73,9 +73,13 @@ Click anything you see: a building, a model, a tree, an effect, a sound or a gro
 - The **info card** (top left) shows what is selected: name, ID, type and file.
 - **Give buildings a name** — names are shown in the catalogue and kept for you.
 
+- **Show collision** draws, in red, the solid parts of the selected building (where the player bumps).
+
 When you save, the server is updated too: the building collision (`map.bht`), the paths monsters can walk
-(`.rmap`, including bridges and floors in `.dhmap`), the flight space of flying monsters (`.octr`) and the circle
-monsters keep around every tree. Copied objects behave like the originals in game.
+(`.rmap`, including bridges and floors in `.dhmap`), the flight space of flying monsters (`.octr`) and the ground
+around every tree. Monster paths follow the **mesh** of the objects you place: walls and rails block them, bridge
+decks become floors they walk on, and a tree blocks its trunk and roots. Copied objects behave like the originals
+in game.
 
 ### World editing — Terrain
 
@@ -85,7 +89,7 @@ monsters keep around every tree. Copied objects behave like the originals in gam
 |---|---|---|
 | Ground texture | **B** brush · **E** eraser · **I** eyedropper | Paint any texture of the map — or take one from another map; the eraser goes back to the texture underneath |
 | Ground height | **1** raise · **2** lower · **3** smooth · **4** flatten | Sculpt the terrain; the server height map and the monster paths are rebuilt when you save |
-| Shadow and light | **7** shadow · **8** light · **I** pick light · **E** eraser | Paint the light map of the ground, day and night together (see below) |
+| Shadow and light | **7** shadow · **8** light · **I** pick tone · **E** eraser | Paint the light map of the ground, day and night together; the eyedropper picks a shadow or a lit tone (see below) |
 | Water | **5** pick · **6** new water | Lakes and rivers: level, size, colour, copy/paste, delete; client and server water written together |
 | Grass and flowers | **B** brush · **E** eraser · **I** eyedropper | Paint grass and flowers of any type from any map, with size and density |
 

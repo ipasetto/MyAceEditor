@@ -33,9 +33,9 @@ The name runs a scenario before the picture:
 | Name starts with | Scenario |
 |---|---|
 | `dftworld` | World editing: stroke on Terrain, switch to Objects, move a building, undo order, abandon |
-| `dftlight` | Shadow and light brush: darker day and night, undo/redo, eraser, keys, only touched blocks in the save plan |
+| `dftlight` | Shadow and light brush: darker day and night, undo/redo, eraser, keys, only touched blocks in the save plan, eyedropper picks a shadow, painting kept after a day/night switch |
 | `dftdrop` | Eyedroppers of grass and texture |
-| `dftinfo` | Info card appears with a selection and disappears without |
+| `dftinfo` | Info card appears with a selection and disappears without; Show collision of the selected building |
 | `dftlayout` | Cut-text check of every control (run with `MYACE_LANG`) |
 | `dfttex`, `dftgrass`, `dftcard`, `dftpaste`, `dftmove`, `dftcat`, `dfttree` | Terrain, grass, object card, paste, move, catalogue, trees |
 
@@ -46,6 +46,7 @@ It also saves `window-*.png` pictures of each tool panel and runs the Esc checks
 | Command | Picture |
 |---|---|
 | `--snapshot <out.png> [tab] [block id]` | The main window, off screen, with the last folder |
+| `--click-test <out folder>` | Not a picture: opens the 3D World from the editor (with creatures) and clicks a creature with no tool, in Paths and in NPCs and monsters; `click-test.txt` says what got selected |
 | `--readme-shots <out folder>` | All README pictures: every tab and every 3D World tool with something selected (the 3D window is on screen while it runs) |
 | `--gm-shot`, `--prefs-shot`, `--wq-shot` | GM panel, preferences, quest panel |
 

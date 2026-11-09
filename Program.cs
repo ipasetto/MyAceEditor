@@ -1309,6 +1309,7 @@ internal static class Program
             return;
         }
         if (args.Length >= 2 && args[0] == "--readme-shots") { ReadmeShots(args[1]); Environment.Exit(Environment.ExitCode); }   // <saída>: fotos da página do GitHub (abas + Mundo 3D), nada é gravado
+        if (args.Length >= 2 && args[0] == "--click-test") { ClickTest(args[1]); Environment.Exit(Environment.ExitCode); }   // <saída>: clique nas criaturas do Mundo 3D (última pasta aberta)
         if (args.Length >= 4 && args[0] == "--world-shot")
         {
             // termina o processo no fim (antes ficava aberto em segundo plano esperando uma pergunta ou o carregamento)
@@ -1547,6 +1548,31 @@ internal static class Program
     /// pelo NPCGen (com NPCs, monstros e quests) e monta as cenas de cada ferramenta (WorldView.ShotScene). Só olha: nada é
     /// gravado. A janela do 3D fica na tela durante as fotos (o OpenGL não desenha fora dela).
     /// </summary>
+    /// <summary>Abre o Mundo 3D pelo editor (com criaturas) e roda WorldView.ClickTest; grava click-test.txt.</summary>
+    private static void ClickTest(string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        var log = new StringBuilder();
+        MyAceEditor.UI.WorldView.Headless = true; MyAceEditor.UI.SavedDialog.Quiet = true; MyAceEditor.UI.ReadProgressDialog.Offscreen = true;
+        void Pump(double s) { var u = DateTime.Now.AddSeconds(s); while (DateTime.Now < u) { Application.DoEvents(); Thread.Sleep(30); } }
+        try
+        {
+            using var f = new EditorForm { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000), Size = new System.Drawing.Size(1600, 900), ShowInTaskbar = false };
+            f.Show();
+            Pump(14);
+            var w = f.OpenWorldForShots();
+            if (w is null) { log.AppendLine("ERRO: o Mundo 3D não abriu"); return; }
+            w.StartPosition = FormStartPosition.Manual; w.Location = new System.Drawing.Point(0, 0); w.Size = new System.Drawing.Size(1600, 900); w.ShowInTaskbar = false;
+            Pump(3);
+            w.SetCamera(new OpenTK.Mathematics.Vector3(1050, 232, 1066), 0, -12);
+            w.ShotWait();
+            log.AppendLine(w.ClickTest());
+            w.Close(); f.Close();
+        }
+        catch (Exception ex) { log.AppendLine("ERRO: " + ex); Environment.ExitCode = 2; }
+        finally { File.WriteAllText(Path.Combine(outDir, "click-test.txt"), log.ToString()); }
+    }
+
     private static void ReadmeShots(string outDir)
     {
         Directory.CreateDirectory(outDir);

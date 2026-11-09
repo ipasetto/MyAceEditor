@@ -191,7 +191,8 @@ public static class MoveMapFile
     /// Grava .rmap (pode andar) e .dhmap (piso − chão). Metros cuja colisão não mudou ficam como estavam.
     /// </summary>
     public static (byte[] Rmap, byte[]? Dhmap, int Changed) UpdateWithFloors(byte[] rmap, byte[]? dhmap, float x0, float zSouth,
-        IEnumerable<(float X0, float Z0, float X1, float Z1)> rects, Func<float, float, float?> h, BrushSet oldB, BrushSet newB)
+        IEnumerable<(float X0, float Z0, float X1, float Z1)> rects, Func<float, float, float?> h, BrushSet oldB, BrushSet newB,
+        MeshObstacles? oldM = null, MeshObstacles? newM = null)
     {
         var (w, _, iw, ih, px) = Header(rmap);
         var d = (byte[])rmap.Clone();
@@ -202,6 +203,9 @@ public static class MoveMapFile
         // 0,45 m (o editor oficial anda com esfera de 0,3 m; a folga cobre o canto entre metros)
         var body = new[] { System.Numerics.Vector3.Zero, new(0.45f, 0, 0), new(-0.45f, 0, 0), new(0, 0, 0.45f), new(0, 0, -0.45f) };
         bool AnyHit(BrushSet set, System.Numerics.Vector3 a, System.Numerics.Vector3 b) { foreach (var o in body) if (set.Hit(a + o, b + o)) return true; return false; }
+        // malha das construções mexidas (MeshObstacles): coluna do metro e corpo do monstro como caixas
+        static bool MeshCol(MeshObstacles? m, System.Numerics.Vector3 c, float y0, float y1, float half) =>
+            m is { Count: > 0 } && m.Overlaps(new(c.X - half, y0, c.Z - half), new(c.X + half, y1, c.Z + half));
         foreach (var (rx0, rz0, rx1, rz1) in rects)
         {
             int u0 = Math.Max(0, (int)MathF.Floor((rx0 - x0) / px)), u1 = Math.Min(iw - 1, (int)MathF.Ceiling((rx1 - x0) / px));
@@ -211,7 +215,9 @@ public static class MoveMapFile
                     int id = v * iw + u; if (!rect.Add(id)) continue;
                     var c = P(u, v, 0); if (h(c.X, c.Z) is not float g) continue;
                     var lo = c with { Y = g - 1 }; var hi = c with { Y = g + 80 };
-                    if (AnyHit(oldB, lo, hi) != AnyHit(newB, lo, hi) || AnyHit(oldB, hi, lo) != AnyHit(newB, hi, lo)) changedCol.Add(id);
+                    if (AnyHit(oldB, lo, hi) != AnyHit(newB, lo, hi) || AnyHit(oldB, hi, lo) != AnyHit(newB, hi, lo)
+                        || MeshCol(oldM, c, g - 1, g + 80, 0.5f) != MeshCol(newM, c, g - 1, g + 80, 0.5f)
+                        || MeshCol(newM, c, g - 1, g + 80, 0.5f) && MeshCol(oldM, c, g - 1, g + 80, 0.5f)) changedCol.Add(id);
                 }
         }
         if (changedCol.Count == 0) return (rmap, null, 0);
@@ -242,8 +248,10 @@ public static class MoveMapFile
                 float top = MathF.Max(y, g) + MaxStep + 0.3f;
                 var a = c with { Y = top }; var b = c with { Y = g - 0.05f };
                 float floor = newB.FirstHit(a, b) is float t ? MathF.Max(g, top + (g - 0.05f - top) * t) : g;
+                if (newM?.FloorBelow(c.X, c.Z, top, g - 0.05f) is float mf) floor = MathF.Max(floor, mf);   // piso da malha (ponte)
                 if (floor > y + MaxStep + 0.01f) continue;   // degrau alto demais
                 if (AnyHit(newB, c with { Y = floor + 0.5f }, c with { Y = floor + 1.8f })) continue;   // parede na altura de um personagem (com o corpo)
+                if (MeshCol(newM, c, floor + 0.5f, floor + 1.8f, 0.5f)) continue;   // parede da malha (lado da ponte, peça sem brush)
                 if (floor <= g + 0.02f)
                 {   // no chão: a inclinação vale (degrau de 1 m para os vizinhos)
                     float s = 0;

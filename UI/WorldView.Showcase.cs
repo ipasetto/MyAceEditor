@@ -96,4 +96,37 @@ internal sealed partial class WorldView
         }
         return "cena desconhecida";
     }
+
+    /// <summary>
+    /// Teste do clique nas criaturas (usuário 09/11: não dava para escolher criatura/NPC para o caminho nem mover): em cada
+    /// ferramenta, acha a criatura mais perto à vista, simula apertar e soltar o botão em cima dela e diz o que aconteceu.
+    /// </summary>
+    internal string ClickTest()
+    {
+        var r = new List<string>();
+        void Raise(string ev, MouseEventArgs e) => typeof(Control).GetMethod(ev, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(_gl, [e]);
+        foreach (var tool in new[] { Tool.None, Tool.Paths, Tool.Create })
+        {
+            if (tool == Tool.None) { if (_tool != Tool.None) LeaveTool(); } else OpenTool(tool);
+            ShotWait(0.5);
+            Marker? target = null; PointF at = default;
+            foreach (var m in _nearMarks.OrderBy(Dist2))
+            {
+                if (Dist2(m) > 80 * 80) break;
+                var top = m.Model is not null && _models.Top(m.Model) is { } tt ? Math.Max(tt, 1) : 2;
+                if (Project(PosOf(m) + new OpenTK.Mathematics.Vector3(0, top / 2, 0)) is { } p && p.X > 40 && p.Y > 40 && p.X < _gl.Width - 300 && p.Y < _gl.Height - 60) { target = m; at = p; break; }
+            }
+            if (target is null) { r.Add($"{tool}: nenhuma criatura à vista (marcas perto {_nearMarks.Count})"); continue; }
+            var pt = new Point((int)at.X, (int)at.Y);
+            var pick = PickScreen(pt);
+            _status.Text = "";
+            Raise("OnMouseDown", new MouseEventArgs(MouseButtons.Left, 1, pt.X, pt.Y, 0));
+            object? moving = _movingTag; bool drag = _dragging; int oax = _objAxis, gax = _gizmoAxis;
+            Raise("OnMouseUp", new MouseEventArgs(MouseButtons.Left, 1, pt.X, pt.Y, 0));
+            var sel = SelectedMark();
+            r.Add($"{tool}: alvo \"{target.Name}\" em {pt.X},{pt.Y}; PickScreen={(pick is null ? "nada" : pick.Name)}; apertou: movendo={(moving is null ? "nada" : "sim")} girando-câmera={drag} setaObj={oax} seta={gax}; escolhido depois={(sel is null ? "nada" : sel.Name)} (igual={ReferenceEquals(sel?.Tag, target.Tag) || Equals(sel?.Tag, target.Tag)}); barra=\"{_status.Text}\"" + (tool == Tool.Paths ? $"; painel do caminho=\"{_pathName.Text}\" criatura do caminho={PathSpawn is not null}" : ""));
+        }
+        if (_tool != Tool.None) LeaveTool();
+        return string.Join(" | ", r);
+    }
 }

@@ -68,11 +68,16 @@ When buildings move, appear or disappear, `DraftChecks.BuildingEffects` rebuilds
 
 - `map.bht` — the collision brushes of the building (taken from the `.bmd`, moved/rotated);
 - `movemap\N.rmap` + `N.dhmap` — where monsters walk, with floors on bridges (`MoveMapFile.UpdateWithFloors`:
-  flood fill from walkable neighbours, 1 m step, a vertical ray finds the floor, a body of 0.45 m checks walls);
+  flood fill from walkable neighbours, 1 m step, a vertical ray finds the floor, a body of 0.45 m checks walls).
+  Besides the brushes, the **mesh** of the edited buildings counts (`MeshObstacles`): a triangle in the body band
+  (floor + 0.5 to + 1.8 m) is a wall, a lying triangle is a floor — so a bridge without brushes is still walked on and
+  its rails still block;
 - `airmap\N.octr` — flight space (`OctreeFile.Refresh`: a 4 m cube touching a brush becomes a border cube).
 
 Trees have no collision brushes in 1.5.5, but the original `.rmap` has a closed circle around each trunk; copied or
-moved trees get the same circle (`TreePassage`, radius learned per tree type from the original trees).
+moved trees get the same circle (`TreePassage`, radius learned per tree type from the original trees) plus the
+footprint of the trunk and its roots from the ground to half the tree height, grown by 0.5 m (`MeshFootprint.Tree`);
+branches do not block. Bamboo-like types (radius 0 in the original map) stay passable.
 
 ## Undo across pills
 

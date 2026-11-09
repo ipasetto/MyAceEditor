@@ -484,6 +484,8 @@ public sealed class SptMesh
     public readonly List<Vector3> Pos = new(), Normal = new();
     public readonly List<Vector2> Uv = new();
     public readonly List<int> Index = new();
+    /// <summary>Triângulos só do tronco (galho de nível 0, com as raízes salientes dos flares), para a pegada no chão.</summary>
+    public readonly List<int> TrunkIndex = new();
     public readonly List<(Vector3 Pos, Vector3 Dir)> Leaves = new();
     /// <summary>Textura (índice em SptFile.LeafMaps) de cada folha, sorteada na geração como no runtime.</summary>
     public readonly List<int> LeafMap = new();
@@ -641,7 +643,7 @@ public static class SptGrower
             float area = 0;
             for (int i = 0; i < segs; i++)
                 area += (radii[i] + radii[i + 1]) * _unit * FastSqrt(((pts[i + 1] - pts[i]) * _unit).LengthSquared);
-            _branches!.Add(new Branch(centers, tms, radii, ts, sides, tileU, tileV, MakeFlares(L, _flareRand!), area));
+            _branches!.Add(new Branch(centers, tms, radii, ts, sides, tileU, tileV, MakeFlares(L, _flareRand!), area, level));
         }
 
         // filhos do próximo nível (ou pontos de folha, se o próximo é o último)
@@ -705,7 +707,7 @@ public static class SptGrower
     /// <summary>Raiz aproximada que a speedtreert.dll usa em comprimentos e áreas.</summary>
     static float FastSqrt(float x) => BitConverter.Int32BitsToSingle((BitConverter.SingleToInt32Bits(x) >> 1) + 0x1fc00000);
 
-    sealed record Branch(Vector3[] Centers, Frame[] Tms, float[] Radii, float[] Ts, int Sides, float TileU, float TileV, Flare[] Flares, float Area);
+    sealed record Branch(Vector3[] Centers, Frame[] Tms, float[] Radii, float[] Ts, int Sides, float TileU, float TileV, Flare[] Flares, float Area, int Level);
 
     /// <summary>
     /// Galhos da LOD alta: o jogo desenha de perto só os maiores até somar 9012 da área (FUN_100286f0). Cada galho fora da
@@ -797,6 +799,7 @@ public static class SptGrower
                 int a = first + i * (sides + 1) + j, c = a + sides + 1;
                 m.Index.Add(a); m.Index.Add(c); m.Index.Add(a + 1);
                 m.Index.Add(a + 1); m.Index.Add(c); m.Index.Add(c + 1);
+                if (b.Level == 0) { m.TrunkIndex.Add(a); m.TrunkIndex.Add(c); m.TrunkIndex.Add(a + 1); m.TrunkIndex.Add(a + 1); m.TrunkIndex.Add(c); m.TrunkIndex.Add(c + 1); }
             }
     }
 

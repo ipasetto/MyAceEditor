@@ -85,7 +85,7 @@ internal sealed partial class WorldView
         _toolTip.SetToolTip(save, "<mapa>_N.t2mk / .t2bk, bsdata, .ecwld + map\\N.hmap, watermap\\N.wmap");
         _terrainPage.Controls.Add(save);
         _terrainPage.Controls.Add(new Label { AutoSize = false, Width = 240, Height = 92, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Margin = new Padding(3, 8, 3, 30),
-            Text = Loc.T("terrain.note4", "Textura: só o cliente. Altura e água: cliente e servidor (envie depois); a passagem dos monstros é refeita junto. A sombra do chão é textura: retoque com o pincel (conta-gotas I).") });
+            Text = Loc.T("terrain.note5", "Textura: só o cliente. Altura e água: cliente e servidor (envie depois); a passagem dos monstros é refeita junto. A sombra do chão: pincel de Sombra e luz.") });
         TexLabels(); WaterLabels();
     }
 

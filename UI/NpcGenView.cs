@@ -807,6 +807,9 @@ internal sealed class NpcGenView : UserControl
             return;
         }
         if (_world is { IsDisposed: false }) _world.Close();
+        // o Mundo 3D abre sem trocar para esta aba: a lista (ListView virtual) pode ainda não existir na tela, e escolher uma
+        // linha nela antes disso não faz nada; o clique numa criatura no 3D não escolhia nada (usuário 09/11). Cria agora.
+        if (!_list.IsHandleCreated) { _ = _list.Handle; Refill(SelectedIndex()); }
         var w = _world = new WorldView(t, new OpenTK.Mathematics.Vector3(start.X, start.Y, start.Z), () =>
             {
                 var list = new List<WorldView.Marker>(f.Spawns.Count + f.Resources.Count);

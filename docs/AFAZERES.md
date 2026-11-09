@@ -16,7 +16,7 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] etapa 2a (07/11): Ctrl+C/Ctrl+V de construcoes e modelos + tamanho da construcao; falta testar no jogo
        [x] 3 arvores (08/11): mover, apagar, copiar/colar, plantar pelos tipos do mapa; so .ecwld (sem colisao no servidor); falta testar no jogo; um por clique, recarrega apos backup, caixa da arvore inteira (08/11)
        [x] 2b catalogo das construcoes por perto com previa, estrela e outro pedaco (08/11) | [x] arvores e construcoes de todos os mapas e instancias (08/11) | [x] 4 luzes da cena e nome das construcoes (08/11; falta testar no jogo) | [x] 5 pincel de grama e flores (08/11; falta testar no jogo)
-       Sombra no chao = pintada no mapa de luz do terreno (.t2lm): o usuario retoca com o pincel de textura + conta-gotas I (09/11)
+       Sombra no chao = pintada no mapa de luz do terreno (.t2lm): pincel de Sombra e luz da pilula Terreno (09/11)
        [x] terreno: pincel de altura (subir, descer, alisar, plainar) + .hmap do servidor (08/11; falta testar no jogo)
        [x] agua: escolher, nova, nivel, tamanho, cor, apagar, copiar/colar; cliente (bsdata/.ecbsd/.ecwld) + servidor (watermap) (08/11; falta testar no jogo; espuma da margem nova e passagem dos monstros de agua depois)
        [x] passagem dos NPCs: .rmap refeito onde o chao mudou ao salvar (08/11; .dhmap e regeracao completa com colisao depois)
@@ -30,8 +30,10 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] arvores: plantar, mover, apagar feitos; colisao no servidor nao existe no 1.5.5 (sem .tbh), mas a passagem dos monstros (.rmap) tem o circulo de cada arvore: refeito ao salvar (09/11; falta testar no jogo)
        [x] construcoes e objetos: girar, colocar novos, apagar (etapas 1/2a/2b)
        [x] Edicao de Mundo: Objetos e Terreno numa ferramenta (pilulas), grama na pilula Terreno, um Salvar, Ctrl+Z em ordem, backup por sessao (09/11)
-       [x] pincel de sombra e luz do chao (.t2lm/.t2lm1): Sombra, Luz, Pegar luz, Borracha; previa ao vivo; so blocos mexidos (09/11; falta testar no jogo)
-       [ ] testar no jogo: ponte nova com criatura passando por cima
+       [x] pincel de sombra e luz do chao (.t2lm/.t2lm1): Sombra, Luz, Pegar tom, Borracha; previa ao vivo; so blocos mexidos (09/11; TESTADO NO JOGO 09/11: aparece; backup por sessao tambem funcionou)
+       [x] pendencias 09/11: sombra nao some na troca dia/noite; conta-gotas pega sombra ou luz (amostra do tom); clique nas criaturas/NPCs de volta (lista do NPCGen sem janela); Ver colisao so do escolhido (pecas solidas reais); aviso do salvar agrupado (max. 12 linhas)
+       [x] PASSAGEM PELA MALHA (09/11): construcoes = triangulos da malha (parede na altura do corpo, piso deitado: anda-se em cima da ponte); arvores = tronco e raizes ate a metade da altura + 0,5 m (galhos nao barram) (falta testar no jogo)
+       [ ] testar no jogo: ponte nova com criatura passando por cima/lado; arvore grande com raizes; construcao sem colisao
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
            [x] pontes novas como caminho de monstro (.rmap + .dhmap) e voo dos monstros (.octr) ao mexer construcoes (09/11; falta testar no jogo)
        [-] luzes da cena: removidas (o cliente 1.5.5 nao usa; usuario 09/11)

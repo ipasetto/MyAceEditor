@@ -201,6 +201,7 @@ internal sealed partial class WorldView : Form
         _element = element;
         if (element is not null) _clientNames = MapTags.LocalMapNames(element);
         _terrain = new WorldTerrain(t, _load, element, start);
+        _terrain.LightOverride = (ar, ac, night) => _terrainDraft?.Light?.Pixels(ar, ac, night);   // pintura de sombra/luz não gravada
         _models = new WorldModels(element, _load);
         _buildings = new WorldBuildings(element, t.Name, _load);
         _trees = new WorldTrees(element, t.Name);

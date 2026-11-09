@@ -46,8 +46,8 @@ public static class TreePassage
     /// movida), <paramref name="come"/> = círculos novos, <paramref name="stay"/> = árvores que continuam (o círculo delas
     /// não reabre). Devolve o arquivo e quantos metros mudaram.
     /// </summary>
-    public static (byte[] Rmap, int Changed) Apply(byte[] rmap, float x0, float zSouth, IReadOnlyList<(float X, float Z, float R)> gone,
-        IReadOnlyList<(float X, float Z, float R)> come, IReadOnlyList<(float X, float Z, float R)> stay, Func<float, float, float?> height, BrushSet? walls)
+    public static (byte[] Rmap, int Changed) Apply(byte[] rmap, float x0, float zSouth, IReadOnlyList<(float X, float Z, float R, IReadOnlyList<(float Dx, float Dz)>? Foot)> gone,
+        IReadOnlyList<(float X, float Z, float R, IReadOnlyList<(float Dx, float Dz)>? Foot)> come, IReadOnlyList<(float X, float Z, float R, IReadOnlyList<(float Dx, float Dz)>? Foot)> stay, Func<float, float, float?> height, BrushSet? walls)
     {
         var (w, _, iw, ih, px) = MoveMapFile.Header(rmap);
         var d = (byte[])rmap.Clone();
@@ -72,14 +72,28 @@ public static class TreePassage
                     if (dx * dx + dz * dz <= r * r) yield return (u, v);
                 }
         }
+        // círculo do tipo + pegada do tronco e das raízes (MeshFootprint; usuário 09/11: passavam pelas raízes das grandes)
+        IEnumerable<(int U, int V)> Cells((float X, float Z, float R, IReadOnlyList<(float Dx, float Dz)>? Foot) s, float grow)
+        {
+            var seen = new HashSet<(int, int)>();
+            if (s.R > 0) foreach (var p in Disc(s.X, s.Z, s.R + grow)) if (seen.Add(p)) yield return p;
+            if (s.Foot is null) yield break;
+            foreach (var (dx, dz) in s.Foot)
+                for (float ox = -grow; ox <= grow + 1e-3f; ox += MathF.Max(grow, 1))
+                    for (float oz = -grow; oz <= grow + 1e-3f; oz += MathF.Max(grow, 1))
+                    {
+                        int u = (int)MathF.Floor((s.X + dx + ox - x0) / px), v = (int)MathF.Floor((s.Z + dz + oz - zSouth) / px);
+                        if (u < 0 || v < 0 || u >= iw || v >= ih || !seen.Add((u, v))) continue;
+                        yield return (u, v);
+                    }
+        }
         var keep = new HashSet<(int, int)>();
-        foreach (var (x, z, r) in stay.Concat(come)) if (r > 0) foreach (var p in Disc(x, z, r)) keep.Add(p);
+        foreach (var s in stay.Concat(come)) foreach (var p in Cells(s, 0)) keep.Add(p);
 
         // 1) de onde a árvore saiu: candidatos fechados que nenhuma árvore que fica cobre, de pé (sem parede no corpo)
         var cand = new HashSet<(int U, int V)>();
-        foreach (var (x, z, r) in gone)
-            if (r > 0)
-                foreach (var p in Disc(x, z, r + 0.5f))
+        foreach (var s in gone)
+                foreach (var p in Cells(s, 0.5f))
                 {
                     if (keep.Contains(p) || Get(p.U, p.V)) continue;
                     float cx = Cx(p.U), cz = Cz(p.V);
@@ -114,7 +128,7 @@ public static class TreePassage
         }
         foreach (var (u, v) in reached) Set(u, v, true);
         // 2) árvores novas: o círculo fecha
-        foreach (var (x, z, r) in come) if (r > 0) foreach (var (u, v) in Disc(x, z, r)) Set(u, v, false);
+        foreach (var s in come) foreach (var (u, v) in Cells(s, 0)) Set(u, v, false);
         return (d, changed);
     }
 }

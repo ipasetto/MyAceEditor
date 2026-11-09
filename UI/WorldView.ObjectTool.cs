@@ -173,8 +173,8 @@ internal sealed partial class WorldView
         foreach (var n in _objXYZ) NoWheel(n);
         NoWheel(_objYaw); NoWheel(_objScale);   // só clicar e digitar muda (a roda em cima do campo mudava o valor)
         _stickGround.Text = Loc.T("obj.stick", "Grudar no chão");
-        _showCollision.Text = Loc.T("obj.showCollision", "Ver colisão");
-        _showCollision.CheckedChanged += (_, _) => _gl.Invalidate();
+        _showCollision.Text = Loc.T("obj.showCollision2", "Ver colisão do escolhido");
+        _showCollision.CheckedChanged += (_, _) => { CollisionNote(); _gl.Invalidate(); };
         _objYaw.ValueChanged += (_, _) => { if (!_objBinding) TurnSelected((float)_objYaw.Value); };
         // giro e tamanho em duas linhas alinhadas (numa linha só o campo do tamanho saía cortado à direita)
         var row = new TableLayoutPanel { Dock = DockStyle.Top, Height = 60, BackColor = _objPanel.BackColor, Padding = new Padding(0, 2, 0, 0), ColumnCount = 2, RowCount = 2 };
@@ -341,11 +341,56 @@ internal sealed partial class WorldView
             foreach (int v in BoxEdges) GL.Vertex3((v & 1) == 0 ? mn.X : mx.X, (v & 2) == 0 ? mn.Y : mx.Y, -((v & 4) == 0 ? mn.Z : mx.Z));
             GL.End();
         }
-        if (_showCollision.Checked)
-            foreach (var o in _draft.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Solid && !o.Deleted))
-                if ((Gl(o.Now.Pos.X, o.Now.Pos.Y, o.Now.Pos.Z) - _cam).LengthSquared < 150 * 150) Box(o, Color.FromArgb(255, 90, 90), 1);
+        // Ver colisão: só do objeto escolhido, com as peças sólidas de verdade (usuário 09/11: antes eram as caixas de todas
+        // as construções num raio de 150 m)
+        if (_showCollision.Checked && SelDraft is { Deleted: false, Kind: ObjKind.Building } cs && SelCollision(cs) is { Count: > 0 } segs)
+        {
+            GL.LineWidth(1.5f); GL.Color3(Color.FromArgb(255, 90, 90));
+            GL.Begin(PrimitiveType.Lines);
+            foreach (var (a, b) in segs) { GL.Vertex3(a.X, a.Y, -a.Z); GL.Vertex3(b.X, b.Y, -b.Z); }
+            GL.End();
+        }
         if (SelDraft is { Deleted: false } sel && _objMode != ObjMode.Turn) Box(sel, Color.Gold, 2.5f);   // no Girar fica só o anel (usuário 08/11)   // caixa para todos (usuário 08/11: a malha amarela da construção virou caixa, como a da árvore)
         GL.LineWidth(1); GL.Color3(Color.White); GL.Enable(EnableCap.DepthTest);
+    }
+
+    (string Key, List<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> Seg, ObjTransform From)? _collCache;
+
+    /// <summary>Arestas da colisão da construção no lugar atual dela (lidas do .bmd uma vez por construção). Vazio = sem colisão.</summary>
+    List<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> SelCollision(DraftObject o)
+    {
+        string src = o.CopyOf ?? o.Key;
+        if (_collCache?.Key != src)
+        {
+            try
+            {
+                if (_draftSrc is null) return [];
+                var b = DraftSaver.ReadBmd(_draftSrc, src);
+                _collCache = (src, BmdModel.BrushEdges(b), ObjectFormats.ReadBmd(b));
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+            {
+                AppLog.Error("objetos: ver colisão de " + src, ex);
+                _collCache = (src, [], o.Original);
+            }
+        }
+        var c = _collCache!.Value;
+        if (c.Seg.Count == 0) return c.Seg;
+        var (r, p0, p1) = DraftSaver.Rigid(c.From, o.Now);
+        float k = c.From.Scale > 0 ? o.Now.Scale / c.From.Scale : 1;
+        System.Numerics.Vector3 Map(System.Numerics.Vector3 p) => System.Numerics.Vector3.Transform((p - p0) * k, r) + p1;
+        return c.Seg.Select(s => (Map(s.A), Map(s.B))).ToList();
+    }
+
+    /// <summary>Barra de baixo ao ligar "Ver colisão" ou trocar a escolha com ela ligada: avisa quando não há colisão.</summary>
+    void CollisionNote()
+    {
+        if (!_showCollision.Checked || _tool != Tool.Scene) return;
+        if (SelDraft is not { Deleted: false } o) { _status.Text = Loc.T("obj.collPick", "Escolha uma construção para ver a colisão dela."); return; }
+        if (o.Kind != ObjKind.Building) { _status.Text = Loc.T("obj.collNoneKind", "Só construções têm colisão no servidor 1.5.5; árvores e modelos só mudam a passagem dos monstros."); return; }
+        _status.Text = SelCollision(o).Count == 0
+            ? Loc.T("obj.collNone", "Esta construção não tem colisão própria: o jogador atravessa (os monstros contornam pela malha).")
+            : Loc.T("obj.collShown", "Em vermelho: as peças sólidas desta construção (onde o jogador bate).");
     }
 
     /// <summary>
@@ -413,7 +458,8 @@ internal sealed partial class WorldView
         var blocks = checks.Where(c => c.Blocks).ToList();
         if (blocks.Count > 0)
         {
-            string text = Loc.T("obj.blocked", "Não dá para salvar ainda:") + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", blocks.Select(c => c.Text));
+            string text = Loc.T("obj.blocked", "Não dá para salvar ainda:") + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", blocks.Take(12).Select(c => c.Text))
+                + (blocks.Count > 12 ? Environment.NewLine + string.Format(Loc.T("obj.warnMore", "… e mais {0} aviso(s)."), blocks.Count - 12) : "");
             if (ask) MessageBox.Show(this, text, Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             _status.Text = text;
             FlyTo(blocks[0].Key);
@@ -423,8 +469,11 @@ internal sealed partial class WorldView
         {
             string summary = string.Join(Environment.NewLine, plan.Summary.DefaultIfEmpty(Loc.T("obj.sceneOnly", "Mudanças nos efeitos, sons ou bichos do cenário.")));
             if (plan.PckFiles.Count > 0 || plan.Files.Keys.Any(k => k.EndsWith("map.bht", StringComparison.OrdinalIgnoreCase)))
-                summary += Environment.NewLine + Loc.T("obj.shadowNote2", "A sombra pintada no chão (mapa de luz do terreno) fica onde estava: retoque com o pincel de textura do Terreno (conta-gotas I).");
-            string warn = checks.Count == 0 ? "" : Environment.NewLine + Environment.NewLine + Loc.T("obj.warnings", "Avisos (Não = cancelar e ir até o primeiro):") + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", checks.Select(c => c.Text));
+                summary += Environment.NewLine + Loc.T("obj.shadowNote3", "A sombra do chão (mapa de luz do terreno) fica onde estava: retoque com o pincel de Sombra e luz da pílula Terreno.");
+            // no máximo 12 linhas: a janela tem de caber na tela com os botões
+            const int maxWarn = 12;
+            string warn = checks.Count == 0 ? "" : Environment.NewLine + Environment.NewLine + Loc.T("obj.warnings", "Avisos (Não = cancelar e ir até o primeiro):") + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", checks.Take(maxWarn).Select(c => c.Text))
+                + (checks.Count > maxWarn ? Environment.NewLine + string.Format(Loc.T("obj.warnMore", "… e mais {0} aviso(s)."), checks.Count - maxWarn) : "");
             var answer = MessageBox.Show(this, Loc.T("obj.confirm", "Vai gravar:") + Environment.NewLine + summary + warn + Environment.NewLine + Environment.NewLine + Loc.T("obj.confirmQ", "Salvar agora?"),
                 Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.YesNo, checks.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
             if (answer != DialogResult.Yes) { if (checks.Count > 0) FlyTo(checks[0].Key); return false; }

@@ -177,6 +177,7 @@ internal sealed partial class WorldView
         // objeto do rascunho que não existe mais (desfeito, relido): nada escolhido, o cartão some
         if (_sceneSel is BuildingSel or ModelSel or TreeSel && SelDraft is null && _sceneSel is not BuildingSel) _sceneSel = null;
         UpdateModeButtons();
+        CollisionNote();
         if (_sceneSel is null) { _objPanel.Visible = false; FitObjPanel(); UpdateInfoCard(); return; }
         if (_brushPanel.Visible) { if (_brushDown) EndDab(); _brushActive = false; _brushPanel.Visible = false; }
         var (name, x, y, z) = _sceneSel switch

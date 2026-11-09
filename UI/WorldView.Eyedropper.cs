@@ -22,7 +22,7 @@ internal sealed partial class WorldView
     string DropperHint => _dropper switch
     {
         1 => Loc.T("drop.hintTex", "Conta-gotas: clique no chão para pegar a textura (Esc cancela)"),
-        3 => Loc.T("drop.hintLight", "Conta-gotas da luz: clique no chão para pegar a luz dali (Esc cancela)"),
+        3 => Loc.T("drop.hintTone", "Conta-gotas de sombra e luz: clique no chão (na sombra ou no claro) para pegar o tom dali (Esc cancela)"),
         _ => Loc.T("drop.hintGrass", "Conta-gotas: clique numa grama ou flor para pegar o tipo (Esc cancela)"),
     };
 

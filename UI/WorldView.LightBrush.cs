@@ -20,6 +20,21 @@ internal sealed partial class WorldView
     int _lastLightBrush = 1;
     bool _lightDown;
 
+    readonly Panel _lightSwatch = new();
+    readonly Label _lightSwatchText = new();
+    FlowLayoutPanel? _lightPickRow;
+
+    /// <summary>Mostra o tom pego (amostra do dia) e quanto de luz ele tem.</summary>
+    void ShowLightPick()
+    {
+        if (_lightPickRow is null) return;
+        _lightPickRow.Visible = _lightPick is not null;
+        if (_lightPick is not { } p) return;
+        _lightSwatch.BackColor = Color.FromArgb(255, Color.FromArgb(p.Day));
+        int lum = (((p.Day >> 16) & 255) + ((p.Day >> 8) & 255) + (p.Day & 255)) / 3;
+        _lightSwatchText.Text = string.Format(Loc.T("light.picked2", "Tom pego: {0}% de luz"), lum * 100 / 255);
+    }
+
     LightDraft LightDraftOrNew() => TerrainDraftOrNew().Light ??= new LightDraft(_t);
 
     void InitLightSection()
@@ -28,14 +43,21 @@ internal sealed partial class WorldView
         var row = new FlowLayoutPanel { Width = 250, Height = 70, WrapContents = false, Margin = new Padding(0, 2, 0, 4) };
         _lightBtns[0] = BigButton("", Loc.T("light.shadow", "Sombra"), "7", () => SetLightMode(1), 57);
         _lightBtns[1] = BigButton("", Loc.T("light.light", "Luz"), "8", () => SetLightMode(2), 57);
-        _lightBtns[2] = BigButton("", Loc.T("light.pick", "Pegar luz"), "I", () => StartDropper(3), 57);
+        _lightBtns[2] = BigButton("", Loc.T("light.pickTone", "Pegar tom"), "I", () => StartDropper(3), 57);
         _lightBtns[3] = BigButton("", Loc.T("grass.eraser", "Borracha"), "E", () => SetLightMode(4), 57);
         _toolTip.SetToolTip(_lightBtns[3]!, Loc.T("light.eraseTip", "Borracha da sombra e luz: volta o chão à luz do arquivo (como era antes das pinceladas)."));
         _toolTip.SetToolTip(_lightBtns[0]!, Loc.T("light.shadowTip", "Escurece o chão (o mapa de luz, de dia e de noite). A força do pincel diz quanto."));
         _toolTip.SetToolTip(_lightBtns[1]!, Loc.T("light.lightTip", "Clareia o chão (tira sombra). A força do pincel diz quanto."));
-        _toolTip.SetToolTip(_lightBtns[2]!, Loc.T("light.pickTip", "Conta-gotas da luz: clique num ponto do chão e o pincel passa a pintar com a luz dali (para a sombra ficar igual ao resto)."));
+        _toolTip.SetToolTip(_lightBtns[2]!, Loc.T("light.pickTip2", "Conta-gotas de sombra e luz: clique num ponto do chão (na sombra ou no claro) e o pincel passa a pintar com o tom dali."));
         foreach (var b in _lightBtns) row.Controls.Add(b!);
         _terrainPage.Controls.Add(row);
+        // tom pego pelo conta-gotas (usuário 09/11: não dava para saber se tinha pego sombra ou luz)
+        var pickRow = new FlowLayoutPanel { Width = 250, Height = 26, WrapContents = false, Margin = new Padding(0, 0, 0, 4), Visible = false };
+        _lightSwatch.Size = new Size(36, 20); _lightSwatch.Margin = new Padding(2, 2, 6, 2); _lightSwatch.BorderStyle = BorderStyle.FixedSingle;
+        _lightSwatchText.AutoSize = true; _lightSwatchText.ForeColor = Color.Gainsboro; _lightSwatchText.Margin = new Padding(0, 4, 0, 0);
+        pickRow.Controls.Add(_lightSwatch); pickRow.Controls.Add(_lightSwatchText);
+        _lightPickRow = pickRow;
+        _terrainPage.Controls.Add(pickRow);
         _terrainPage.Controls.Add(Hint(Loc.T("light.hint", "A cor do chão no jogo é a textura vezes a luz: pintar textura não tira sombra. Aqui você pinta a luz.")));
     }
 
@@ -67,7 +89,7 @@ internal sealed partial class WorldView
                 1 => Loc.T("light.shadowing", "Sombra: arraste no chão para escurecer"),
                 2 => Loc.T("light.lighting", "Luz: arraste no chão para clarear"),
                 4 => Loc.T("light.erasing", "Borracha: arraste para voltar à luz do arquivo"),
-                _ => Loc.T("light.copying", "Copiando a luz pega: arraste no chão"),
+                _ => Loc.T("light.copyingTone", "Copiando o tom pego: arraste no chão"),
             };
     }
 
@@ -84,7 +106,8 @@ internal sealed partial class WorldView
         }
         if (got is not { } p) { _status.Text = Loc.T("light.pickNone", "Este lugar não tem mapa de luz."); return false; }
         _lightPick = p; _lightMode = 3;
-        _status.Text = Loc.T("light.picked", "Luz pega: arraste no chão para pintar com ela.");
+        ShowLightPick();
+        _status.Text = Loc.T("light.pickedTone", "Tom pego (sombra ou claro, como estava no ponto): arraste no chão para pintar com ele.");
         TexLabels(); _gl.Invalidate();
         return true;
     }
@@ -152,7 +175,7 @@ internal sealed partial class WorldView
         if (_terrainDraft?.Light is not { } ld) return;
         foreach (var (ar, ac, night) in ld.OpenAreas) { _lightPending.Add((ar, ac)); _grass.ForgetLight(ar, ac); }
         if (_grass.Scene is { } gs) _grass.Invalidate(gs.Grass, true);
-        _lightMode = 0; _lightPick = null;
+        _lightMode = 0; _lightPick = null; ShowLightPick();
     }
 
     /// <summary>
@@ -186,8 +209,29 @@ internal sealed partial class WorldView
         SetLightMode(1); TerrainKey(Keys.E); bool eLight = _lightMode == 4; TerrainKey(Keys.I); bool iLight = _dropper == 3; StopDropper();
         if (_t.TextureNames.Count > 0 && _texSel < 0) _texSel = 0;   // sem textura o Pincel abriria a janela de escolher (teste não abre janela)
         TexPaint(); TerrainKey(Keys.E); bool eTex = _texErase && _lightMode == 0;
+        // conta-gotas pega SOMBRA: no ponto escurecido pega o tom escuro; copiado em outro ponto, ele escurece também
+        SetLightMode(1); LightBegin(at); TerrainMouseUp(); var dark = ld.Pick(at.X, at.Z);
+        StartDropper(3); bool picked = LightPickAt(at);
+        bool pickDark = picked && dark is { } dk && _lightPick is { } pk && pk.Day == dk.Day;
+        var at2 = at + new System.Numerics.Vector3(_texR * 3 + 4, 0, 0); at2.Y = _t.HeightAt(at2.X, at2.Z) ?? at.Y;
+        var plain = ld.Pick(at2.X, at2.Z);
+        for (int i = 0; i < 4; i++) { LightBegin(at2); TerrainMouseUp(); }
+        var copied = ld.Pick(at2.X, at2.Z);
+        bool copyDark = plain is { } pl && copied is { } cp && dark is { } dk2 && Math.Abs(Lum(cp.Day) - Lum(dk2.Day)) < Math.Abs(Lum(pl.Day) - Lum(dk2.Day));
+        bool swatch = _lightPickRow?.Visible == true;
+        try
+        {
+            using var bmp = new Bitmap(_tools.Width, _tools.Height);
+            _tools.DrawToBitmap(bmp, new Rectangle(0, 0, _tools.Width, _tools.Height));
+            bmp.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "window-light-pick.png"));
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or System.Runtime.InteropServices.ExternalException) { AppLog.Error("dftlight: foto do painel", ex); }
+        // trocar dia/noite: a área recarregada usa a pintura (não o arquivo)
+        int ac0 = (int)MathF.Floor((at.X + _t.Width / 2) / TerrainFile.AreaM), ar0 = (int)MathF.Floor((_t.Height / 2 - at.Z) / TerrainFile.AreaM);
+        bool keepsNight = _terrain.LightOverride?.Invoke(ar0, ac0, true) is { } ovn && ld.Pixels(ar0, ac0, true) is { } pn && ReferenceEquals(ovn.Px, pn.Px)
+            && _terrain.LightOverride?.Invoke(ar0, ac0, false) is not null;
         _texStrength = _texForce.Value / 100f;
         bool ab = AbandonWorld();
-        return load + $" | dftlight: antes {before?.Day:X6} depois {after?.Day:X6} mais escuro={darker}; Ctrl+Z={u} voltou igual={same}; Ctrl+Y={y} {(redone == after ? "igual" : "diferente")}; arquivos {files.Count} ({string.Join(",", files.Keys.Select(Path.GetFileName))}) tamanho igual={sizes} bytes mudados {diffBytes} de {total}; {string.Join(" / ", sum)}; borracha voltou ao arquivo={erasedOk}; teclas E/I na luz={eLight}/{iLight} E na textura={eTex}; abandonou={ab} sujo={WorldDirty}";
+        return load + $" | dftlight: antes {before?.Day:X6} depois {after?.Day:X6} mais escuro={darker}; Ctrl+Z={u} voltou igual={same}; Ctrl+Y={y} {(redone == after ? "igual" : "diferente")}; arquivos {files.Count} ({string.Join(",", files.Keys.Select(Path.GetFileName))}) tamanho igual={sizes} bytes mudados {diffBytes} de {total}; {string.Join(" / ", sum)}; borracha voltou ao arquivo={erasedOk}; teclas E/I na luz={eLight}/{iLight} E na textura={eTex}; conta-gotas pega sombra={pickDark} copiou a sombra={copyDark} amostra={swatch}; dia/noite usa a pintura={keepsNight}; abandonou={ab} sujo={WorldDirty} sem pintura depois={_terrain.LightOverride?.Invoke(ar0, ac0, false) is null}";
     }
 }

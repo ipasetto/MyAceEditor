@@ -31,6 +31,8 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("voo-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Floors(r); }
         catch (Exception ex) { r.Check("pisos-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { MeshPassage(r, element); }
+        catch (Exception ex) { r.Check("malha-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { DeltaHeights(r, element, config); }
         catch (Exception ex) { r.Check("dhmap-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { NewTexture(r, element); }
@@ -357,6 +359,62 @@ public static class ObjectsSelfTest
         var di3 = d3 is null ? null : new MoveMapFile.DeltaImage(d3);
         bool backOk = MoveMapFile.Reach(r3, 128, 15, 15) && (di3?.Get(15, 15) ?? 0) == 0;
         r.Check("pisos-novos", lowOk && tallOk && backOk, $"plataforma 0,8 m: andável={MoveMapFile.Reach(r1, 128, 15, 15)} delta={di?.Get(15, 15):0.00}; 3 m: em cima={MoveMapFile.Reach(r2, 128, 45, 15)} ao lado={MoveMapFile.Reach(r2, 128, 38, 15)}; apagada: chão={backOk}");
+    }
+
+    /// <summary>
+    /// Passagem pela MALHA (usuário 09/11): (1) sintético, sem nenhum brush: parede fina vira bloqueio dos dois lados; ponte
+    /// com rampas e grades = anda-se em cima (delta 1,5 m), a grade barra o lado, apagar devolve o chão. (2) árvores reais do
+    /// world: pegada do tronco e das raízes (até a metade da altura, folga 0,5 m) e o .rmap fecha toda ela; a árvore apagada reabre.
+    /// </summary>
+    static void MeshPassage(Report r, string element)
+    {
+        var rmap = new byte[8 + 20 + 128 * 1024];
+        BitConverter.GetBytes(1).CopyTo(rmap, 0); BitConverter.GetBytes(20 + 128 * 1024).CopyTo(rmap, 4); BitConverter.GetBytes(128).CopyTo(rmap, 8);
+        BitConverter.GetBytes(1024).CopyTo(rmap, 12); BitConverter.GetBytes(1024).CopyTo(rmap, 16); BitConverter.GetBytes(1024).CopyTo(rmap, 20); BitConverter.GetBytes(1f).CopyTo(rmap, 24);
+        for (int i = 28; i < rmap.Length; i++) rmap[i] = 0xFF;
+        var dh = new List<byte>(); dh.AddRange(BitConverter.GetBytes(1)); dh.AddRange(BitConverter.GetBytes(0));
+        foreach (int v in new[] { 16, 16, 6, 1024, 1024 }) dh.AddRange(BitConverter.GetBytes(v)); dh.AddRange(BitConverter.GetBytes(1f));
+        for (int i = 0; i < 256; i++) dh.AddRange(BitConverter.GetBytes(-1)); dh.AddRange(BitConverter.GetBytes(0));
+        var dhB = dh.ToArray(); BitConverter.GetBytes(dhB.Length - 8).CopyTo(dhB, 4);
+        Func<float, float, float?> flat = (_, _) => 100f;
+        var none = BrushSet.Near(Bht(), 0, 0, 100, 100);
+        var m = new MeshObstacles();
+        void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d) { m.Add(a, b, c); m.Add(a, c, d); }
+        // parede fina (um plano, sem espessura) em z = 40, de x 20 a 30, 3 m de altura
+        Quad(new(20, 100, 40), new(30, 100, 40), new(30, 103, 40), new(20, 103, 40));
+        // ponte: rampa x 55→60 (sobe 1,5 m), tabuleiro x 60→80 a 101,5, rampa de descida x 80→85; largura z 10→14; grades de 1 m
+        Quad(new(55, 100, 10), new(60, 101.5f, 10), new(60, 101.5f, 14), new(55, 100, 14));
+        Quad(new(60, 101.5f, 10), new(80, 101.5f, 10), new(80, 101.5f, 14), new(60, 101.5f, 14));
+        Quad(new(80, 101.5f, 10), new(85, 100, 10), new(85, 100, 14), new(80, 101.5f, 14));
+        Quad(new(60, 101.5f, 10), new(80, 101.5f, 10), new(80, 102.5f, 10), new(60, 102.5f, 10));
+        Quad(new(60, 101.5f, 14), new(80, 101.5f, 14), new(80, 102.5f, 14), new(60, 102.5f, 14));
+        var rects = new List<(float, float, float, float)> { (15, 35, 35, 45), (50, 5, 90, 20) };
+        var (r1, d1, _) = MoveMapFile.UpdateWithFloors(rmap, dhB, 0, 0, rects, flat, none, none, new MeshObstacles(), m);
+        var di = d1 is null ? null : new MoveMapFile.DeltaImage(d1);
+        bool wall = !MoveMapFile.Reach(r1, 128, 25, 40) && !MoveMapFile.Reach(r1, 128, 25, 39) && MoveMapFile.Reach(r1, 128, 25, 43) && MoveMapFile.Reach(r1, 128, 25, 36);
+        bool deck = MoveMapFile.Reach(r1, 128, 70, 12) && di is not null && MathF.Abs(di.Get(70, 12) - 1.5f) < 0.1f;
+        bool rail = !MoveMapFile.Reach(r1, 128, 70, 14) || !MoveMapFile.Reach(r1, 128, 70, 13);   // a grade fecha a borda
+        var (r2, d2, _) = MoveMapFile.UpdateWithFloors(r1, d1, 0, 0, rects, flat, none, none, m, new MeshObstacles());
+        var di2 = d2 is null ? null : new MoveMapFile.DeltaImage(d2);
+        bool back = MoveMapFile.Reach(r2, 128, 25, 40) && MoveMapFile.Reach(r2, 128, 70, 12) && (di2?.Get(70, 12) ?? 0) == 0;
+        r.Check("malha-parede-ponte", wall && deck && rail && back,
+            $"parede fina: em cima={MoveMapFile.Reach(r1, 128, 25, 40)} lado={MoveMapFile.Reach(r1, 128, 25, 39)} longe={MoveMapFile.Reach(r1, 128, 25, 43)}; ponte: em cima={MoveMapFile.Reach(r1, 128, 70, 12)} delta={di?.Get(70, 12):0.00} grade fecha={rail}; apagada volta={back}");
+
+        // árvores reais: a de maior pegada do world
+        var ecw = Path.Combine(element, "maps", "world", "world.ecwld");
+        if (!File.Exists(ecw)) return;
+        var sc = new WorldScene(ecw);
+        var feet = sc.TreeTypes.Select(t => (t.Spt, Foot: MeshFootprint.Tree(element, t.Spt))).ToList();
+        int withFoot = feet.Count(f => f.Foot.Count > 0);
+        var big = feet.OrderByDescending(f => f.Foot.Count == 0 ? 0 : f.Foot.Max(p => MathF.Sqrt(p.Dx * p.Dx + p.Dz * p.Dz))).First();
+        float reach = big.Foot.Count == 0 ? 0 : big.Foot.Max(p => MathF.Sqrt(p.Dx * p.Dx + p.Dz * p.Dz));
+        var spot = (X: 500.3f, Z: 500.7f, R: 1f, Foot: (IReadOnlyList<(float Dx, float Dz)>?)big.Foot);
+        var (t1, n1) = TreePassage.Apply(rmap, 0, 0, [], [spot], [], flat, null);
+        int closedFoot = big.Foot.Count(p => !MoveMapFile.Reach(t1, 128, (int)MathF.Floor(500.3f + p.Dx), (int)MathF.Floor(500.7f + p.Dz)));
+        var (t2, n2) = TreePassage.Apply(t1, 0, 0, [spot], [], [], flat, null);
+        bool reopened = t2.AsSpan().SequenceEqual(rmap);
+        r.Check("malha-arvore", withFoot > 0 && closedFoot == big.Foot.Count && reach > 1 && reopened,
+            $"tipos com pegada {withFoot} de {feet.Count}; maior: {Path.GetFileName(big.Spt)} até {reach:0.0} m do tronco ({big.Foot.Count} pontos); fechou {closedFoot}/{big.Foot.Count} ({n1} metros); apagada reabriu tudo={reopened} ({n2}); alcance por tipo: {string.Join(", ", feet.Where(f => f.Foot.Count > 0).Select(f => (N: Path.GetFileNameWithoutExtension(f.Spt), R: f.Foot.Max(p => MathF.Sqrt(p.Dx * p.Dx + p.Dz * p.Dz)), A: f.Foot.Count * MeshFootprint.Grid * MeshFootprint.Grid)).OrderByDescending(x => x.R).Take(6).Select(x => $"{x.N} {x.R:0.0}m/{x.A:0}m²"))}");
     }
 
     /// <summary>.dhmap: subir o chão embaixo de um piso (ponte/muralha) diminui o delta na mesma medida; resto igual.</summary>
