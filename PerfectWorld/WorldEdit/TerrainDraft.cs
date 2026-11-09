@@ -365,6 +365,25 @@ public sealed class TerrainDraft(TerrainFile t)
                 if (n > 0) { d[rp] = nr; rmapChanged += n; }
             }
         }
+        // luz e sombra do chão: refaz onde a altura mudou (e a sombra que o relevo novo joga em volta)
+        if (_hDirty.Count > 0)
+        {
+            float bm = Terrain.CellsPerBlock * Terrain.Cell, pad = 96;
+            var rects = _hDirty.Select(k => (X0: -Terrain.Width / 2 + k.Bc * bm - pad, Z0: Terrain.Height / 2 - (k.Br + 1) * bm - pad, X1: -Terrain.Width / 2 + (k.Bc + 1) * bm + pad, Z1: Terrain.Height / 2 - k.Br * bm + pad)).ToList();
+            float pm = Terrain.CellsPerPiece * Terrain.Cell;
+            var lpieces = new HashSet<int>();
+            foreach (var r in rects)
+                for (float z = r.Z0; z <= r.Z1 + pm; z += pm) for (float x = r.X0; x <= r.X1 + pm; x += pm)
+                    if (Terrain.PieceAt(MathF.Min(x, r.X1), MathF.Min(z, r.Z1)) is > 0 and var lp) lpieces.Add(lp);
+            int lit = 0;
+            foreach (int lp in lpieces)
+            {
+                var (lf, n) = LightmapBaker.Piece(Terrain, lp, rects, OrigHeightAt, Terrain.HeightAt);
+                foreach (var (k, v) in lf) d[k] = v;
+                lit += n;
+            }
+            if (lit > 0) summary?.Add(string.Format(Loc.T("terrain.litSummary", "Luz e sombra do chão refeitas: {0} ponto(s)"), lit));
+        }
         if (rmapChanged > 0) summary?.Add(string.Format(Loc.T("terrain.rmapSummary", "Passagem dos NPCs: {0} metro(s) refeito(s) onde o chão mudou"), rmapChanged));
         foreach (int p in _dirty)
         {

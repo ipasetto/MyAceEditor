@@ -286,12 +286,14 @@ internal sealed partial class WorldView
         }
     }
 
-    readonly HashSet<(int, int)> _groundPending = new();
+    readonly HashSet<(int, int)> _groundPending = new(), _lightPending = new();
     internal double PerfSculpt, PerfMesh, PerfGrass;   // diagnóstico da captura (tempo por parte da pincelada de altura)
 
     /// <summary>No desenho (contexto do OpenGL ativo): manda as máscaras pintadas desde o último quadro.</summary>
     void FlushGround()
     {
+        foreach (var (ar, ac) in _lightPending) _terrain.RefreshLight(ar, ac);
+        _lightPending.Clear();
         if (_groundPending.Count == 0) return;
         foreach (var (ar, ac) in _groundPending) _terrain.RefreshGround(ar, ac);
         _groundPending.Clear();
@@ -376,6 +378,10 @@ internal sealed partial class WorldView
         if (!ok) { MessageBox.Show(this, r.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); _status.Text = r.Message; return false; }
         _terrainDraft = null; _texDown = false;   // o cache do terreno já tem o que foi gravado
         _waterSel = -1; _waterMode = 0; _clientWater = null;   // a água relê do disco (IDs novos)
+        // luz e sombra refeitas: troca a textura de luz das áreas dos pedaços gravados
+        var litPieces = files.Keys.Where(k => k.EndsWith(".t2lm", StringComparison.OrdinalIgnoreCase) || k.EndsWith(".t2lm1", StringComparison.OrdinalIgnoreCase))
+            .Select(k => Path.GetFileNameWithoutExtension(k)).Select(n => int.TryParse(n[(n.LastIndexOf('_') + 1)..], out int p) ? p : 0).Where(p => p > 0).Distinct().ToList();
+        foreach (var k in _t.ForgetLight(litPieces)) _lightPending.Add(k);
         TexLabels(); WaterLabels();
         string msg = r.Message + (sum.Count > 0 ? Environment.NewLine + string.Join(Environment.NewLine, sum) : "");
         _status.Text = r.Message;

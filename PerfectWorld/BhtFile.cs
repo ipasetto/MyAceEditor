@@ -86,16 +86,37 @@ public sealed class BhtFile
         return -1;
     }
 
-    /// <summary>Brushes inteiros dentro da caixa (coordenadas do jogo) — os de uma construção ficam dentro da caixa dela.</summary>
-    public List<int> Inside(float x0, float y0, float z0, float x1, float y1, float z1)
+    /// <summary>Brushes inteiros dentro da caixa (coordenadas do jogo) — os de uma construção ficam dentro da caixa dela.
+    /// touching = os que só encostam/cruzam a caixa também (pré-filtro dos raios de sombra e da passagem).</summary>
+    public List<int> Inside(float x0, float y0, float z0, float x1, float y1, float z1, bool touching = false)
     {
         var r = new List<int>();
         for (int i = 0; i < _at.Length; i++)
         {
             var b = Box(i);
-            if (b.X0 >= x0 && b.Y0 >= y0 && b.Z0 >= z0 && b.X1 <= x1 && b.Y1 <= y1 && b.Z1 <= z1) r.Add(i);
+            if (touching ? b.X1 >= x0 && b.X0 <= x1 && b.Y1 >= y0 && b.Y0 <= y1 && b.Z1 >= z0 && b.Z0 <= z1
+                         : b.X0 >= x0 && b.Y0 >= y0 && b.Z0 >= z0 && b.X1 <= x1 && b.Y1 <= y1 && b.Z1 <= z1) r.Add(i);
         }
         return r;
+    }
+
+    /// <summary>O segmento a→b entra no brush i (sólido convexo; Cyrus-Beck)?</summary>
+    public bool SegmentHitOne(int i, float ax, float ay, float az, float bx, float by, float bz)
+    {
+        float dx = bx - ax, dy = by - ay, dz = bz - az;
+        int o = _at[i], sides = I(o + 52);
+        float t0 = 0, t1 = 1;
+        for (int k = 0; k < sides; k++)
+        {
+            int p = o + 56 + 17 * k;
+            float nx = F(p), ny = F(p + 4), nz = F(p + 8), dist = F(p + 12);
+            float side0 = nx * ax + ny * ay + nz * az - dist, den = nx * dx + ny * dy + nz * dz;
+            if (MathF.Abs(den) < 1e-6f) { if (side0 > 0) return false; continue; }
+            float t = -side0 / den;
+            if (den < 0) t0 = MathF.Max(t0, t); else t1 = MathF.Min(t1, t);
+            if (t0 > t1) return false;
+        }
+        return true;
     }
 
     /// <summary>Desloca os brushes (caixa toda + dist de cada lado += normal·d). Sem girar: girar exige refazer os planos.</summary>

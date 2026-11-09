@@ -95,6 +95,18 @@ internal sealed class WorldTerrain : IDisposable
         _ground[(ar, ac)] = new GroundGpu(gl, old.Light);
     }
 
+    /// <summary>Luz do chão regravada (Salvar terreno): troca só a textura de luz da área (no desenho, contexto ativo).</summary>
+    internal void RefreshLight(int ar, int ac)
+    {
+        if (!_ground.TryGetValue((ar, ac), out var g) || g is null) return;
+        (int[] Pixels, int Width, int Height)? img;
+        try { img = _t.LightmapDds(ar, ac, _night) is { } ld ? DdsDecoder.Decode(ld) : null; } catch { img = null; }
+        if (img is not { } i) return;
+        int tex = UploadTexture(i.Pixels, i.Width, i.Height, false, false);
+        if (g.Light != 0) GL.DeleteTexture(g.Light);
+        _ground[(ar, ac)] = g with { Light = tex };
+    }
+
     readonly Dictionary<string, Bitmap?> _texThumbs = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Imagem pequena de uma textura do chão (janela de escolher); null = não achou.</summary>

@@ -285,6 +285,21 @@ public sealed class TerrainFile
     // cada área de 256 m é um .dds de lado×lado (1 m por pixel)
     readonly Dictionary<int, byte[]?> _lightFiles = new(), _nightFiles = new();
 
+    /// <summary>Esquece a luz gravada dos pedaços (Salvar terreno refez o .t2lm): relê do disco na próxima vez. Áreas para refazer.</summary>
+    internal List<(int Ar, int Ac)> ForgetLight(IEnumerable<int> pieces)
+    {
+        var list = new List<(int, int)>();
+        int per = (int)(CellsPerPiece * Cell / AreaM);
+        lock (_areaSync)
+            foreach (int p in pieces)
+            {
+                _lightFiles.Remove(p); _nightFiles.Remove(p);
+                int pr = (p - 1) / Cols, pc = (p - 1) % Cols;
+                for (int r = 0; r < per; r++) for (int c = 0; c < per; c++) list.Add((pr * per + r, pc * per + c));
+            }
+        return list;
+    }
+
     /// <summary>DDS da luz da área de 256 m (linha/coluna globais), ou null. night = .t2lm1 (o jogo mistura as duas pelo
     /// fator dia/noite, A3DTerrain2::SetDNFactor).</summary>
     public byte[]? LightmapDds(int areaRow, int areaCol, bool night = false)
