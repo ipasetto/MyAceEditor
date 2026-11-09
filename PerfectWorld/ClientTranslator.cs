@@ -200,7 +200,7 @@ public static class ClientTranslator
                     Default = true, Enabled = true,
                     Apply = log =>
                     {
-                        foreach (var (file, bytes, _) in regions) { BackupStore.Save(file); AtomicFileSave.Write(file, bytes); }   // atômico: nunca meio gravado
+                        foreach (var (file, bytes, _) in regions) AtomicFileSave.Write(file, bytes);   // atômico (já guarda a cópia): nunca meio gravado
                         log(string.Format(Loc.T("ct.regionsLog", "precinct.clt: {0} mapas"), regions.Count));
                         return regions[0].File;
                     },

@@ -169,9 +169,7 @@ public sealed class WorldTargets
     {
         var cb = ClientBytes();
         var sb = _serverPath is null ? null : WriteServer(Server);
-        var cbak = BackupStore.Save(_clientPath);
-        if (_serverPath is not null) BackupStore.Save(_serverPath);
-        AtomicFileSave.Write(_clientPath, cb);
+        var cbak = AtomicFileSave.Write(_clientPath, cb);   // a gravação atômica já faz a cópia de segurança e devolve onde
         if (_serverPath is null || sb is null) return;
         try { AtomicFileSave.Write(_serverPath, sb); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

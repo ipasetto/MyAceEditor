@@ -77,8 +77,11 @@ public static class BackupSets
         var missing = set.Files.Where(e => !File.Exists(e.Backup)).Select(e => Path.GetFileName(e.Original)).ToList();
         if (missing.Count > 0) return string.Format(Loc.T("bak.setMissing", "Faltam cópias de: {0}. Nada foi restaurado."), string.Join(", ", missing));
         var failed = new List<string>();
-        foreach (var e in set.Files)
+        var undo = new List<(string Original, string? Before)>();   // arquivos pequenos já voltados e a cópia do estado de antes
+        static bool Big(BackupSetEntry x) => !x.Backup.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) && new FileInfo(x.Backup).Length > 256L * 1024 * 1024;
+        foreach (var e in set.Files.OrderBy(Big))   // pequenos antes: a parte grande do pacote não tem como desfazer, vai por último
         {
+            if (failed.Count > 0) break;   // um falhou: não segue (desfaz os já voltados abaixo)
             try
             {
                 bool big = !e.Backup.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) && new FileInfo(e.Backup).Length > 256L * 1024 * 1024;
@@ -91,8 +94,9 @@ public static class BackupSets
                 }
                 else
                 {
-                    if (File.Exists(e.Original)) BackupStore.Save(e.Original);
-                    AtomicFileSave.Write(e.Original, BackupStore.Read(e.Backup));
+                    bool existed = File.Exists(e.Original);
+                    var before = AtomicFileSave.Write(e.Original, BackupStore.Read(e.Backup));   // já guarda o estado atual
+                    undo.Add((e.Original, existed ? before : null));
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or FileSaveException)
@@ -100,6 +104,14 @@ public static class BackupSets
                 AppLog.Error("backup: restaurar " + e.Original, ex);
                 failed.Add(Path.GetFileName(e.Original));
             }
+        }
+        if (failed.Count > 0)
+        {
+            // tudo ou nada: os pequenos que já tinham voltado voltam ao estado de antes (par cliente+servidor não desencontra)
+            foreach (var (orig, before) in undo)
+                try { if (before is not null) AtomicFileSave.Write(orig, BackupStore.Read(before)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or FileSaveException) { AppLog.Error("backup: desfazer " + orig, ex); }
+            return string.Format(Loc.T("bak.setFailedNone", "Não deu para restaurar: {0} (aberto em outro programa?). Nada foi restaurado; feche o programa e tente de novo."), string.Join(", ", failed));
         }
         if (set.PckMain is { } main && set.PckHeader is { Length: 8 } hex)
         {

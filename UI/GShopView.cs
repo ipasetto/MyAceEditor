@@ -234,26 +234,37 @@ internal sealed class GShopView : UserControl
             SaveSetting("gshop_server", dlg.SelectedPath);
             _serverPath[_which] = Path.Combine(dlg.SelectedPath, _which == 0 ? "gshopsev.data" : "gshopsev1.data");
         }
+        int oldTs = f.Timestamp;
+        string? cbak = null; bool clientWritten = false;
         try
         {
             // o jogo compara o timestamp do cliente com o do servidor: os dois recebem o mesmo, novo; só quando a loja
-            // mudou de fato (senão um Salvar sem mudança deixaria o servidor já enviado "diferente" do cliente)
+            // mudou de fato (senão um Salvar sem mudança deixaria o servidor já enviado "diferente" do cliente).
+            // Tudo ou nada com cópia de segurança dos dois: se o do servidor falhar, o do cliente volta (antes ficavam
+            // com timestamps diferentes).
             bool same = File.Exists(cp) && File.ReadAllBytes(cp).AsSpan().SequenceEqual(f.WriteClient());
-            if (!same)
-            {
-                f.Timestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                AtomicFileSave.Write(cp, f.WriteClient());
-            }
             var sp = _serverPath[_which]!;
-            var sv = f.WriteServer();
-            if (!same || !File.Exists(sp) || !File.ReadAllBytes(sp).AsSpan().SequenceEqual(sv)) AtomicFileSave.Write(sp, sv);
+            if (!same) f.Timestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var cb = f.WriteClient(); var sv = f.WriteServer();
+            bool serverDiff = !same || !File.Exists(sp) || !File.ReadAllBytes(sp).AsSpan().SequenceEqual(sv);
+            if (!same) { cbak = AtomicFileSave.Write(cp, cb); clientWritten = true; }   // a gravação atômica já guarda a cópia
+            if (serverDiff) AtomicFileSave.Write(sp, sv);
             _dirty[_which] = false;
             _saved[_which] = f.WriteClient();
             UpdateInfo();
+            if (serverDiff) ServerNotice.Notify(Path.GetFileName(sp));   // acende o "enviar ao servidor"
             if (quiet) return true;
-            MessageBox.Show(this, string.Format(Loc.T("gshop.saved", "Loja salva:\n{0}\n{1}\n\nCliente e servidor com o mesmo timestamp. Envie o gshopsev ao servidor e o gshop aos jogadores."), cp, _serverPath[_which]), "GShop");
+            SavedDialog.Show(this, string.Format(Loc.T("gshop.saved", "Loja salva:\n{0}\n{1}\n\nCliente e servidor com o mesmo timestamp. Envie o gshopsev ao servidor e o gshop aos jogadores."), cp, _serverPath[_which]));
         }
-        catch (Exception ex) { if (!quiet) MessageBox.Show(this, ex.Message, Loc.T("gshop.saveFail", "Falha ao salvar a loja"), MessageBoxButtons.OK, MessageBoxIcon.Error); return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            AppLog.Error("gshop: salvar", ex);
+            if (clientWritten && cbak is not null)
+                try { AtomicFileSave.Write(cp, BackupStore.Read(cbak)); } catch (Exception rex) when (rex is IOException or UnauthorizedAccessException or InvalidDataException) { AppLog.Error("gshop: voltar o cliente", rex); }
+            f.Timestamp = oldTs;
+            if (!quiet) MessageBox.Show(this, ex.Message, Loc.T("gshop.saveFail", "Falha ao salvar a loja"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
         return true;
     }
 

@@ -417,8 +417,17 @@ internal sealed partial class WorldView
                 check.LoadCrittersAndCurves(_bsd!);
                 if (check.Critters.Count != (_objScene?.Critters.Count ?? check.Critters.Count)) throw new InvalidDataException(Loc.T("world.sceneBad", "a releitura não bateu; nada foi gravado"));
             }
-            if (ecwChanged) { AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
-            if (bsdChanged && _bsdPath is not null) { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
+            // par .ecwld + .ecbsd tudo ou nada: o .ecwld aponta para posições do .ecbsd; se o 2º falhar, o 1º volta da cópia
+            string? ecwBak = null; var ecwPrev = _ecwSaved;
+            if (ecwChanged) { ecwBak = AtomicFileSave.Write(_ecwPath, bytes); _ecwSaved = bytes; }   // backup fora do cliente (BackupStore)
+            if (bsdChanged && _bsdPath is not null)
+                try { AtomicFileSave.Write(_bsdPath, _bsd!); _bsdSaved = (byte[])_bsd!.Clone(); }
+                catch (Exception) when (ecwChanged)
+                {
+                    try { if (ecwBak is not null) AtomicFileSave.Write(_ecwPath, BackupStore.Read(ecwBak)); _ecwSaved = ecwPrev; }
+                    catch (Exception rex) when (rex is IOException or UnauthorizedAccessException or InvalidDataException) { AppLog.Error("cenário: voltar o .ecwld", rex); }
+                    throw;
+                }
             UpdateSideState();
             FlashSaveProgress(Loc.T("world.savedBar", "Salvo"), true);   // barra azul cheia por um instante (todo salvar do Mundo 3D)
             if (interactive) BeginInvoke(() => SavedDialog.Show(this, Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.")));

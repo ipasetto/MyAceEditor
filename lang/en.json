@@ -5972,5 +5972,6 @@
   "world.fx.count": "{0} effect(s) on this map.",
   "terrain.dhSummary": "Bridges and floors above the changed ground: {0} meter(s) adjusted so monsters step at the same height",
   "terrain.rmapFail": "NPC passage of piece {0} not rebuilt (server file unreadable; see the log).",
-  "terrain.litFail": "Light and shadow of piece {0} not rebuilt (file unreadable; see the log)."
+  "terrain.litFail": "Light and shadow of piece {0} not rebuilt (file unreadable; see the log).",
+  "bak.setFailedNone": "Could not restore: {0} (open in another program?). Nothing was restored; close the program and try again."
 }

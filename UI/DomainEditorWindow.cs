@@ -405,9 +405,7 @@ internal sealed class DomainEditorWindow : Form
             var cb = _map.Build();
             byte[]? sb = null;
             if (_server is not null && _sevPath is not null) { _server.Match(_map); sb = _server.Build(); }
-            var cbak = BackupStore.Save(_dataPath);
-            if (sb is not null) BackupStore.Save(_sevPath!);
-            AtomicFileSave.Write(_dataPath, cb);
+            var cbak = AtomicFileSave.Write(_dataPath, cb);   // já faz a cópia de segurança e devolve onde
             if (sb is not null)
                 try { AtomicFileSave.Write(_sevPath!, sb); }
                 catch (Exception) when (cbak is not null) { try { AtomicFileSave.Write(_dataPath, BackupStore.Read(cbak)); } catch (Exception rex) when (rex is IOException or UnauthorizedAccessException or InvalidDataException) { AppLog.Error("domain.data: voltar o cliente", rex); } throw; }
