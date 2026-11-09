@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { TerrainHeights(r, element, config); }
         catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { DeltaHeights(r, element, config); }
+        catch (Exception ex) { r.Check("dhmap-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { NewTexture(r, element); }
         catch (Exception ex) { r.Check("textura-nova-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { MoveMap(r, element, config); }
@@ -227,6 +229,46 @@ public static class ObjectsSelfTest
             for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
             r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
         }
+    }
+
+    /// <summary>.dhmap: subir o chão embaixo de um piso (ponte/muralha) diminui o delta na mesma medida; resto igual.</summary>
+    static void DeltaHeights(Report r, string element, string? config)
+    {
+        if (config is null) return;
+        var t = TerrainFile.Open(Path.Combine(element, "maps", "world"))!;
+        float pm = t.CellsPerPiece * t.Cell;
+        // acha um metro com piso (0 < delta < 60 m) num pedaço com .dhmap
+        for (int piece = 1; piece <= t.Rows * t.Cols; piece++)
+        {
+            var dp = Path.Combine(config, "world", "movemap", $"{piece}.dhmap");
+            if (!File.Exists(dp) || new FileInfo(dp).Length < 36 || !File.Exists(Path.ChangeExtension(dp, ".rmap"))) continue;
+            var dh = File.ReadAllBytes(dp);
+            int bw = BitConverter.ToInt32(dh, 8), exp = BitConverter.ToInt32(dh, 16), bs = 1 << exp, cells = bs * bs, bl = BitConverter.ToInt32(dh, 12);
+            int blocksAt = 32 + 4 * bw * bl + 4;
+            int Val(byte[] f, int u, int v)
+            {
+                int fbw = BitConverter.ToInt32(f, 8), fbl = BitConverter.ToInt32(f, 12), fbat = 32 + 4 * fbw * fbl + 4;
+                int id = BitConverter.ToInt32(f, 32 + 4 * ((v >> exp) * fbw + (u >> exp)));
+                return id < 0 ? 0 : BitConverter.ToUInt16(f, fbat + 2 * (cells * id + (v - ((v >> exp) << exp)) * bs + (u - ((u >> exp) << exp))));
+            }
+            int fu = -1, fv = -1;
+            for (int v = 200; v < 824 && fu < 0; v += 7) for (int u = 200; u < 824; u += 7) { int x = Val(dh, u, v); if (x > 64 && x < 64 * 60) { fu = u; fv = v; break; } }
+            if (fu < 0) continue;
+            int pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols;
+            float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm, wx = px0 + fu + 0.5f, wz = pzS + fv + 0.5f;
+            var d = new TerrainDraft(t);
+            d.BeginStroke(); for (int k = 0; k < 4; k++) d.Sculpt(wx, wz, 6, TerrainDraft.SculptMode.Raise, 1, 0); d.EndStroke();
+            float rise = (t.HeightAt(wx, wz) ?? 0) - (d.OrigHeightAt(wx, wz) ?? 0);
+            var sum = new List<string>();
+            var files = d.Files(Path.Combine(config, "world"), sum);
+            bool has = files.TryGetValue(dp, out var nd);
+            float before = Val(dh, fu, fv) / 64f, after = has ? Val(nd!, fu, fv) / 64f : before;
+            bool farSame = has && Val(nd!, Math.Min(1023, fu + 300), fv) == Val(dh, Math.Min(1023, fu + 300), fv);
+            r.Check("dhmap-piso-mesma-altura", has && MathF.Abs((before - after) - rise) < 0.1f && farSame,
+                $"pedaço {piece} ({wx:0},{wz:0}): chão subiu {rise:0.00} m, delta {before:0.00} -> {after:0.00}; longe igual={farSame}; {string.Join(" | ", sum.Where(s => s.Contains("ontes")))}");
+            return;
+        }
+        r.Check("dhmap-piso-mesma-altura", false, "nenhum piso achado no world");
     }
 
     /// <summary>Textura de outro mapa: pintar acrescenta no fim do .trn2 (resto igual) e a máscara usa o índice novo.</summary>

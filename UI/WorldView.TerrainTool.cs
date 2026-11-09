@@ -389,6 +389,7 @@ internal sealed partial class WorldView
         if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".hmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "map", Path.GetFileName(f)));
         if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".wmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "watermap", Path.GetFileName(f)));
         if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "movemap", Path.GetFileName(f)));
+        if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".dhmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "movemap", Path.GetFileName(f)));
         BeginInvoke(() => SavedDialog.Show(this, msg, server ? SaveAndSendAll : null));
         return true;
     }

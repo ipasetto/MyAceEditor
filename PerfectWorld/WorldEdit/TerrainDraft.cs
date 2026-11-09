@@ -345,7 +345,7 @@ public sealed class TerrainDraft(TerrainFile t)
             d[trn] = nb;
             summary?.Add(string.Format(Loc.T("terrain.texAdded", "Texturas novas na lista do mapa: {0}"), add.Count));
         }
-        int bpp = Terrain.BlocksPerPiece, rmapChanged = 0;
+        int bpp = Terrain.BlocksPerPiece, rmapChanged = 0, dhChanged = 0;
         foreach (var piece in _hDirty.Select(k => k.Br / bpp * Terrain.Cols + k.Bc / bpp + 1).Distinct())
         {
             var path = Path.Combine(Terrain.Dir, $"{Terrain.Name}_{piece}.t2bk");
@@ -363,6 +363,13 @@ public sealed class TerrainDraft(TerrainFile t)
                     .Select(k => (X0: -Terrain.Width / 2 + k.Bc * bm, Z0: Terrain.Height / 2 - (k.Br + 1) * bm, X1: -Terrain.Width / 2 + (k.Bc + 1) * bm, Z1: Terrain.Height / 2 - k.Br * bm)).ToList();
                 var (nr, n) = MoveMapFile.Update(System.IO.File.ReadAllBytes(rp), px0, pzS, rects, Terrain.HeightAt, OrigHeightAt);
                 if (n > 0) { d[rp] = nr; rmapChanged += n; }
+                // pontes/pisos acima do chão mexido: o piso continua na mesma altura (o gs põe o NPC em chão + delta)
+                var dp = Path.ChangeExtension(rp, ".dhmap");
+                if (System.IO.File.Exists(dp) && new FileInfo(dp).Length >= 36)
+                {
+                    var (nd, dn) = MoveMapFile.AdjustDeltaHeights(System.IO.File.ReadAllBytes(dp), px0, pzS, rects, Terrain.HeightAt, OrigHeightAt);
+                    if (dn > 0) { d[dp] = nd; dhChanged += dn; }
+                }
             }
         }
         // luz e sombra do chão: refaz onde a altura mudou (e a sombra que o relevo novo joga em volta)
@@ -384,6 +391,7 @@ public sealed class TerrainDraft(TerrainFile t)
             }
             if (lit > 0) summary?.Add(string.Format(Loc.T("terrain.litSummary", "Luz e sombra do chão refeitas: {0} ponto(s)"), lit));
         }
+        if (dhChanged > 0) summary?.Add(string.Format(Loc.T("terrain.dhSummary", "Pontes e pisos acima do chão mexido: {0} metro(s) ajustado(s) para os monstros pisarem na mesma altura"), dhChanged));
         if (rmapChanged > 0) summary?.Add(string.Format(Loc.T("terrain.rmapSummary", "Passagem dos NPCs: {0} metro(s) refeito(s) onde o chão mudou"), rmapChanged));
         foreach (int p in _dirty)
         {

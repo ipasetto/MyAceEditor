@@ -63,6 +63,69 @@ public static class MoveMapFile
         return (d, changed);
     }
 
+    /// <summary>
+    /// .dhmap (CBlockImage&lt;FIX16&gt;, PathMap/BlockImage.h): u32 1, u32 tamanho, i32 blocos na largura e no comprimento,
+    /// i32 expoente do bloco, i32 imagem 1024 × 1024, f pixel, i32[blocos] índice do bloco (−1 = tudo zero), i32 n, n blocos
+    /// de lado² u16; valor/64 = metros acima do chão onde o NPC pisa (o gs põe o NPC em chão + valor). Mesmo sentido do
+    /// .rmap (v do sul). Chão mexido embaixo de ponte/piso: soma (chão velho − chão novo) para o piso ficar na mesma altura
+    /// (≤ 0 vira 0: o chão subiu acima do piso). Blocos não mexidos ficam iguais; bloco mexido vira um bloco novo no fim
+    /// (os índices dos outros não mudam). ~1024 m (marcador) não mexe.
+    /// </summary>
+    public static (byte[] Data, int Changed) AdjustDeltaHeights(byte[] dh, float x0, float zSouth, IEnumerable<(float X0, float Z0, float X1, float Z1)> rects,
+        Func<float, float, float?> newH, Func<float, float, float?> oldH)
+    {
+        if (dh.Length < 36 || BitConverter.ToInt32(dh, 0) != 1) throw new InvalidDataException(".dhmap: versão desconhecida");
+        int bw = BitConverter.ToInt32(dh, 8), bl = BitConverter.ToInt32(dh, 12), exp = BitConverter.ToInt32(dh, 16), iw = BitConverter.ToInt32(dh, 20), ih = BitConverter.ToInt32(dh, 24);
+        float px = BitConverter.ToSingle(dh, 28);
+        if (bw <= 0 || bl <= 0 || bw * bl > 1 << 20 || exp < 0 || exp > 10 || !(px > 0)) throw new InvalidDataException(".dhmap: cabeçalho fora do esperado");
+        int bs = 1 << exp, cells = bs * bs, idsAt = 32, nAt = idsAt + 4 * bw * bl;
+        if (nAt + 4 > dh.Length) throw new InvalidDataException(".dhmap: curto");
+        int n = BitConverter.ToInt32(dh, nAt), blocksAt = nAt + 4;
+        if (n < 0 || blocksAt + 2L * cells * n > dh.Length) throw new InvalidDataException(".dhmap: blocos fora do arquivo");
+        var ids = new int[bw * bl];
+        for (int i = 0; i < ids.Length; i++) ids[i] = BitConverter.ToInt32(dh, idsAt + 4 * i);
+        var blocks = new List<ushort[]>(n);
+        for (int b = 0; b < n; b++) { var a = new ushort[cells]; Buffer.BlockCopy(dh, blocksAt + 2 * cells * b, a, 0, 2 * cells); blocks.Add(a); }
+        var edited = new Dictionary<int, ushort[]>();   // posição do bloco -> dados novos
+        int changed = 0;
+        var done = new HashSet<int>();
+        foreach (var (rx0, rz0, rx1, rz1) in rects)
+        {
+            int u0 = Math.Max(0, (int)MathF.Floor((rx0 - x0) / px)), u1 = Math.Min(iw - 1, (int)MathF.Ceiling((rx1 - x0) / px));
+            int v0 = Math.Max(0, (int)MathF.Floor((rz0 - zSouth) / px)), v1 = Math.Min(ih - 1, (int)MathF.Ceiling((rz1 - zSouth) / px));
+            for (int v = v0; v <= v1; v++)
+                for (int u = u0; u <= u1; u++)
+                {
+                    if (!done.Add(v * iw + u)) continue;
+                    int bx = u >> exp, by = v >> exp; if (bx >= bw || by >= bl) continue;
+                    int pos = by * bw + bx, k = (v - (by << exp)) * bs + (u - (bx << exp));
+                    var cur = edited.TryGetValue(pos, out var e) ? e : ids[pos] >= 0 && ids[pos] < n ? blocks[ids[pos]] : null;
+                    if (cur is null || cur[k] == 0 || cur[k] >= 65000) continue;   // sem piso aqui (ou marcador)
+                    float x = x0 + (u + 0.5f) * px, z = zSouth + (v + 0.5f) * px;
+                    if (newH(x, z) is not float hn || oldH(x, z) is not float ho || MathF.Abs(hn - ho) < 0.02f) continue;
+                    float m = cur[k] / 64f + (ho - hn);
+                    ushort nv = m <= 0.02f ? (ushort)0 : (ushort)Math.Min(64999, (int)MathF.Round(m * 64));
+                    if (nv == cur[k]) continue;
+                    if (!edited.ContainsKey(pos)) { cur = (ushort[])cur.Clone(); edited[pos] = cur; }
+                    cur[k] = nv; changed++;
+                }
+        }
+        if (changed == 0) return (dh, 0);
+        foreach (var (pos, data) in edited)
+        {
+            if (data.All(x => x == 0)) { ids[pos] = -1; continue; }
+            blocks.Add(data); ids[pos] = blocks.Count - 1;
+        }
+        int size = 5 * 4 + 4 + 4 * ids.Length + 4 + 2 * cells * blocks.Count;
+        var o = new byte[8 + size];
+        Buffer.BlockCopy(dh, 0, o, 0, 32);
+        BitConverter.GetBytes(size).CopyTo(o, 4);
+        for (int i = 0; i < ids.Length; i++) BitConverter.GetBytes(ids[i]).CopyTo(o, idsAt + 4 * i);
+        BitConverter.GetBytes(blocks.Count).CopyTo(o, nAt);
+        for (int b = 0; b < blocks.Count; b++) Buffer.BlockCopy(blocks[b], 0, o, blocksAt + 2 * cells * b, 2 * cells);
+        return (o, changed);
+    }
+
     public static bool Reach(byte[] d, int w, int u, int v) => (d[28 + v * w + (u >> 3)] & (1 << (u & 7))) != 0;
 
     /// <summary>
