@@ -192,7 +192,7 @@ public static class DraftSaver
         var ecw = new EcwldFile(ecwldBase ?? File.ReadAllBytes(src.EcwldPath));
         var bsd = (byte[])(ecbsdBase ?? File.ReadAllBytes(src.EcbsdPath)).Clone();
         bool ecwDirty = false, bsdDirty = false, bhtDirty = false;
-        BhtFile? bht = null; Dictionary<string, List<int>>? keys = null;
+        BhtFile? bht = null; Dictionary<string, List<int>>? keys = null; byte[]? bhtOrig = null;
         var drop = new HashSet<int>();
         var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var count = new Dictionary<(int Piece, string What), int>();
@@ -208,7 +208,8 @@ public static class DraftSaver
             if (mine.Count > 0 && bht is null)
             {
                 var path = src.BhtPath ?? throw new InvalidDataException(Loc.T("world.bldNoServer", "Não achei o map.bht do servidor deste mapa. Abra a pasta do servidor (aba NPCGen ou Verificação) e salve de novo."));
-                bht = new BhtFile(File.ReadAllBytes(path)); keys = bht.Keys();
+                bhtOrig = File.ReadAllBytes(path);
+                bht = new BhtFile(bhtOrig); keys = bht.Keys();
             }
             var sel = keys is null ? new List<int>() : mine.Where(keys.ContainsKey).SelectMany(k => keys[k]).Distinct().ToList();
 
@@ -425,8 +426,13 @@ public static class DraftSaver
         {
             var bb = drop.Count > 0 ? bht.Without(drop) : bht.Write();
             if (newBrushes.Count > 0) bb = new BhtFile(bb).With(newBrushes);
-            _ = new BhtFile(bb);   // relê: formato inteiro ainda certo
+            var nbht = new BhtFile(bb);   // relê: formato inteiro ainda certo
             plan.Files[src.BhtPath!] = bb;
+            // passagem dos NPCs e sombra do chão no lugar antigo e no novo das construções mexidas (colisão velha × nova)
+            if (bhtOrig is not null)
+                try { DraftChecks.BuildingEffects(plan, src, changed.Concat(added).Where(o => o.Kind == ObjKind.Building).ToList(), new BhtFile(bhtOrig, clone: false), nbht); }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+                { AppLog.Error("objetos: passagem/sombra das construções", ex); plan.Summary.Add(Loc.T("obj.effectsFail", "A passagem dos NPCs e a sombra do chão não foram refeitas (veja o log); as construções gravam assim mesmo.")); }
         }
         foreach (var g in count.GroupBy(k => k.Key.Piece).OrderBy(g => g.Key))
         {
@@ -574,6 +580,66 @@ public static class DraftChecks
     }
 
     /// <summary>Caixa no mundo (8 cantos da caixa local girados e escalados); sem caixa, o próprio ponto.</summary>
+    /// <summary>
+    /// Construções postas, mexidas ou apagadas: no lugar antigo e no novo (caixa + 4 m), refaz o movemap\N.rmap do servidor
+    /// (parede da construção na altura de um personagem = bloqueado; saiu e o chão não é íngreme = livre) e a luz do chão
+    /// (.t2lm/.t2lm1: a sombra das construções acompanha; folga de 60 m para a sombra comprida).
+    /// </summary>
+    internal static void BuildingEffects(SavePlan plan, DraftSources src, List<DraftObject> objs, BhtFile oldB, BhtFile newB)
+    {
+        if (objs.Count == 0) return;
+        string mapDir = Path.GetDirectoryName(src.EcwldPath)!;
+        var t = TerrainFile.Open(mapDir);
+        if (t is null) return;
+        var rects = new List<(float X0, float Z0, float X1, float Z1)>();
+        foreach (var o in objs)
+        {
+            var (mn, mx) = WorldBox(o);
+            var d = o.Original.Pos - o.Now.Pos;   // lugar antigo (mesma caixa deslocada; giro/tamanho ficam na folga)
+            rects.Add((mn.X - 4, mn.Z - 4, mx.X + 4, mx.Z + 4));
+            if (o.CopyOf is null && d.LengthSquared() > 1e-4f) rects.Add((mn.X + d.X - 4, mn.Z + d.Z - 4, mx.X + d.X + 4, mx.Z + d.Z + 4));
+        }
+        float pm = t.CellsPerPiece * t.Cell;
+        HashSet<int> PiecesOf(IEnumerable<(float X0, float Z0, float X1, float Z1)> rs)
+        {
+            var set = new HashSet<int>();
+            foreach (var r in rs)
+                for (float z = r.Z0; z <= r.Z1 + pm; z += pm) for (float x = r.X0; x <= r.X1 + pm; x += pm)
+                    if (t.PieceAt(MathF.Min(x, r.X1), MathF.Min(z, r.Z1)) is > 0 and var p) set.Add(p);
+            return set;
+        }
+        (float, float, float, float) Grow((float X0, float Z0, float X1, float Z1) r, float g) => (r.X0 - g, r.Z0 - g, r.X1 + g, r.Z1 + g);
+        // passagem (servidor)
+        int moved = 0;
+        if (src.ServerConfigDir is { } sd)
+            foreach (int piece in PiecesOf(rects))
+            {
+                var rp = Path.Combine(sd, src.Map, "movemap", $"{piece}.rmap");
+                if (!File.Exists(rp)) continue;
+                int pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols;
+                float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm;
+                var bx = rects.Aggregate((a, b) => (Math.Min(a.X0, b.X0), Math.Min(a.Z0, b.Z0), Math.Max(a.X1, b.X1), Math.Max(a.Z1, b.Z1)));
+                var ob = LightmapBaker.BrushSet.Near(oldB, bx.X0, bx.Z0, bx.X1, bx.Z1); var nb = LightmapBaker.BrushSet.Near(newB, bx.X0, bx.Z0, bx.X1, bx.Z1);
+                var (data, n) = MoveMapFile.UpdateBuildings(File.ReadAllBytes(rp), px0, pzS, rects, t.HeightAt,
+                    (x, y, z) => ob.Hit(new Vector3(x, y + 0.5f, z), new Vector3(x, y + 1.8f, z)), (x, y, z) => nb.Hit(new Vector3(x, y + 0.5f, z), new Vector3(x, y + 1.8f, z)));
+                if (n > 0) { plan.Files[rp] = data; moved += n; }
+            }
+        if (moved > 0) plan.Summary.Add(string.Format(Loc.T("obj.rmapSummary", "Passagem dos NPCs refeita em volta das construções: {0} metro(s)."), moved));
+        // sombra do chão (cliente)
+        var lrects = rects.Select(r => Grow(r, 60)).ToList();
+        var lb = lrects.Aggregate((a, b) => (Math.Min(a.Item1, b.Item1), Math.Min(a.Item2, b.Item2), Math.Max(a.Item3, b.Item3), Math.Max(a.Item4, b.Item4)));
+        var lo = LightmapBaker.BrushSet.Near(oldB, lb.Item1 - 160, lb.Item2 - 160, lb.Item3 + 160, lb.Item4 + 160);
+        var ln = LightmapBaker.BrushSet.Near(newB, lb.Item1 - 160, lb.Item2 - 160, lb.Item3 + 160, lb.Item4 + 160);
+        int lit = 0;
+        foreach (int piece in PiecesOf(lrects))
+        {
+            var (lf, n) = LightmapBaker.Piece(t, piece, lrects, t.HeightAt, t.HeightAt, lo, ln);
+            foreach (var (k, v) in lf) plan.Files[k] = v;
+            lit += n;
+        }
+        if (lit > 0) plan.Summary.Add(string.Format(Loc.T("obj.litSummary", "Sombra do chão refeita em volta das construções: {0} ponto(s)."), lit));
+    }
+
     public static (Vector3 Min, Vector3 Max) WorldBox(DraftObject o)
     {
         var t = o.Now;

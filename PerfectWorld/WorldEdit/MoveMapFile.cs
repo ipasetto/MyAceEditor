@@ -22,6 +22,47 @@ public static class MoveMapFile
         return (w, rows, iw, ih, px);
     }
 
+    /// <summary>
+    /// Construções mexidas: nos retângulos, onde a colisão mudou na altura de um personagem: parede nova = bloqueado; parede
+    /// que saiu = livre se o chão não é íngreme (degrau de 1 m). Onde a colisão não mudou, fica como está.
+    /// </summary>
+    public static (byte[] Data, int Changed) UpdateBuildings(byte[] rmap, float x0, float zSouth, IEnumerable<(float X0, float Z0, float X1, float Z1)> rects,
+        Func<float, float, float?> h, Func<float, float, float, bool> oldWall, Func<float, float, float, bool> newWall)
+    {
+        var (w, _, iw, ih, px) = Header(rmap);
+        var d = (byte[])rmap.Clone();
+        int changed = 0;
+        var done = new HashSet<int>();
+        foreach (var (rx0, rz0, rx1, rz1) in rects)
+        {
+            int u0 = Math.Max(0, (int)MathF.Floor((rx0 - x0) / px)), u1 = Math.Min(iw - 1, (int)MathF.Ceiling((rx1 - x0) / px));
+            int v0 = Math.Max(0, (int)MathF.Floor((rz0 - zSouth) / px)), v1 = Math.Min(ih - 1, (int)MathF.Ceiling((rz1 - zSouth) / px));
+            for (int v = v0; v <= v1; v++)
+                for (int u = u0; u <= u1; u++)
+                {
+                    if (!done.Add(v * iw + u)) continue;
+                    float x = x0 + (u + 0.5f) * px, z = zSouth + (v + 0.5f) * px;
+                    if (h(x, z) is not float y) continue;
+                    bool ow = oldWall(x, y, z), nw = newWall(x, y, z);
+                    if (ow == nw) continue;
+                    bool now;
+                    if (nw) now = false;
+                    else
+                    {
+                        float s = 0;
+                        foreach (var (dx, dz) in new[] { (px, 0f), (-px, 0f), (0f, px), (0f, -px) }) if (h(x + dx, z + dz) is float n) s = MathF.Max(s, MathF.Abs(n - y));
+                        now = s <= MaxStep;
+                    }
+                    bool was = Reach(d, w, u, v);
+                    if (now == was) continue;
+                    ref byte b = ref d[28 + v * w + (u >> 3)];
+                    b = now ? (byte)(b | (1 << (u & 7))) : (byte)(b & ~(1 << (u & 7)));
+                    changed++;
+                }
+        }
+        return (d, changed);
+    }
+
     public static bool Reach(byte[] d, int w, int u, int v) => (d[28 + v * w + (u >> 3)] & (1 << (u & 7))) != 0;
 
     /// <summary>

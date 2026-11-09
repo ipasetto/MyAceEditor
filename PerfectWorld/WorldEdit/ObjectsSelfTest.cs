@@ -602,6 +602,25 @@ public static class ObjectsSelfTest
         r.Check("plano-relido-igual", headerOk && brushesOk && bsdOk && !plan.Files.ContainsKey(a05.EcwldPath) && plan.Summary.Count > 0,
             $"{Path.GetFileName(single)}: cabeçalho={headerOk} brushes={brushesOk} ornamento={bsdOk} ({bsdDiff.Count} faixas) resumo=\"{string.Join(" / ", plan.Summary)}\"");
 
+        // construção mexida: sombra do chão (.t2lm) e passagem (.rmap, se o pedaço tem) refeitas em volta
+        var litK = plan.Files.Keys.Where(k => k.EndsWith(".t2lm", StringComparison.OrdinalIgnoreCase) || k.EndsWith(".t2lm1", StringComparison.OrdinalIgnoreCase)).ToList();
+        var rmK = plan.Files.Keys.Where(k => k.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase)).ToList();
+        bool litSame = litK.All(k => plan.Files[k].Length == File.ReadAllBytes(k).Length);
+        var tA = TerrainFile.Open(Path.GetDirectoryName(a05.EcwldPath)!)!;
+        var (bmn, bmx) = DraftChecks.WorldBox(o1);
+        var bo = new BhtFile(bhtOld); var bn = new BhtFile(bhtNew!);
+        string Col(BhtFile f, float x, float z)
+        {
+            float y = tA.HeightAt(x, z) ?? 0;
+            var ids = f.Inside(x - 1, -1e6f, z - 1, x + 1, 1e6f, z + 1, touching: true);
+            bool wall = ids.Any(i => f.SegmentHitOne(i, x, y + 0.5f, z, x, y + 1.8f, z));
+            string box = ids.Count > 0 ? f.Box(ids[0]).Y0.ToString("0.0") + ".." + f.Box(ids[0]).Y1.ToString("0.0") : "-";
+            return (wall ? "parede" : "livre") + "(" + ids.Count + "," + y.ToString("0.0") + "," + box + ")";
+        }
+        float cxN = (bmn.X + bmx.X) / 2, czN = (bmn.Z + bmx.Z) / 2, cxO = cxN - 4, czO = czN + 3;
+        string diag = "caixa " + (bmx.X - bmn.X).ToString("0") + "x" + (bmx.Y - bmn.Y).ToString("0") + "x" + (bmx.Z - bmn.Z).ToString("0") + "; centro novo: velho=" + Col(bo, cxN, czN) + " novo=" + Col(bn, cxN, czN) + "; centro antigo: velho=" + Col(bo, cxO, czO) + " novo=" + Col(bn, cxO, czO);
+        r.Check("construcao-sombra-passagem", litK.Count > 0 && litSame, $"{diag}; luz: {string.Join(",", litK.Select(Path.GetFileName))} passagem: {string.Join(",", rmK.Select(Path.GetFileName))} | {string.Join(" / ", plan.Summary)}");
+
         // gêmeas: mexer uma leva as duas, e cada brush do map.bht anda uma vez só (procura no a05 e em pedaços do world)
         DraftSources twinSrc = a05; int[] twinPieces = all;
         if (twin is null)

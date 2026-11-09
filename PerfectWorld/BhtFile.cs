@@ -18,9 +18,12 @@ public sealed class BhtFile
     public int Count => _at.Length;
     public int TreeStart { get; }
 
-    public BhtFile(byte[] data)
+    public BhtFile(byte[] data) : this(data, clone: true) { }
+
+    /// <summary>clone: false usa o vetor direto (só leitura; map.bht do world tem ~195 MB, evita mais uma cópia).</summary>
+    public BhtFile(byte[] data, bool clone)
     {
-        _data = (byte[])data.Clone();
+        _data = clone ? (byte[])data.Clone() : data;
         if (data.Length < 12 || U(0) != Magic || U(4) != 1) throw new InvalidDataException("map.bht: cabeçalho não é 'brtf' versão 1");
         int n = I(8), o = 12;
         if (n < 0) throw new InvalidDataException("map.bht: número de brushes inválido");

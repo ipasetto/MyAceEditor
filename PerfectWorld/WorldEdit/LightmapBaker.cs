@@ -78,15 +78,17 @@ public sealed class LightmapBaker
     /// Acha a direção do sol e a, b pela luz gravada da área (correlação do brilho com normal·sol no relevo velho, sem os
     /// pontos escuros que são sombra). Falso = área sem relevo que dê para ler (fica o sol padrão).
     /// </summary>
-    public bool Calibrate(int[] px, float x0, float zTop)
+    public bool Calibrate(int[] px, int side, float x0, float zTop)
     {
         var pts = new List<(Vector3 N, float L)>();
-        for (int v = 4; v < 256; v += 6)
-            for (int u = 4; u < 256; u += 6)
+        float m = TerrainFile.AreaM / side;   // metros por ponto (lado 128/256/512 conforme o mapa)
+        int step = Math.Max(1, side / 42);
+        for (int v = 2; v < side; v += step)
+            for (int u = 2; u < side; u += step)
             {
-                float x = x0 + u + 0.5f, z = zTop - v - 0.5f;
+                float x = x0 + (u + 0.5f) * m, z = zTop - (v + 0.5f) * m;
                 if (_oldH(x, z) is null) continue;
-                int c = px[v * 256 + u];
+                int c = px[v * side + u];
                 float l = (((c >> 16) & 255) * 0.3f + ((c >> 8) & 255) * 0.59f + (c & 255) * 0.11f) / 255f;
                 pts.Add((Normal(_oldH, x, z), l));
             }
@@ -110,10 +112,10 @@ public sealed class LightmapBaker
         if (best < 0.15) return false;
         Sun = bestSun;
         // a + b·lam pelos mínimos quadrados
-        double tx = 0, ty = 0, txx = 0, txy = 0; int m = 0;
-        foreach (var (N, L) in pts) { double lam = Math.Max(0, Vector3.Dot(N, Sun)); tx += lam; ty += L; txx += lam * lam; txy += lam * L; m++; }
-        double den = m * txx - tx * tx;
-        if (den > 1e-9) { _b = (float)Math.Clamp((m * txy - tx * ty) / den, 0.05, 2); _a = (float)Math.Clamp((ty - _b * tx) / m, 0.02, 1.5); }
+        double tx = 0, ty = 0, txx = 0, txy = 0; int cnt = 0;
+        foreach (var (N, L) in pts) { double lam = Math.Max(0, Vector3.Dot(N, Sun)); tx += lam; ty += L; txx += lam * lam; txy += lam * L; cnt++; }
+        double den = cnt * txx - tx * tx;
+        if (den > 1e-9) { _b = (float)Math.Clamp((cnt * txy - tx * ty) / den, 0.05, 2); _a = (float)Math.Clamp((ty - _b * tx) / cnt, 0.02, 1.5); }
         return true;
     }
 
@@ -123,14 +125,15 @@ public sealed class LightmapBaker
     /// </summary>
     public (byte[] Dds, int Changed) Bake(byte[] dds, float x0, float zTop, IReadOnlyList<(float X0, float Z0, float X1, float Z1)> rects, float soft = 1)
     {
-        if (DdsDecoder.Decode(dds) is not { Width: 256, Height: 256 } img) return (dds, 0);
-        var px = img.Pixels;
+        if (DdsDecoder.Decode(dds) is not { } img || img.Width != img.Height || img.Width % 4 != 0 || img.Width < 16) return (dds, 0);
+        var px = img.Pixels; int side = img.Width, bs = side / 4;
+        float m = TerrainFile.AreaM / side;
         int changed = 0;
-        var blocks = new bool[64 * 64];
-        for (int v = 0; v < 256; v++)
-            for (int u = 0; u < 256; u++)
+        var blocks = new bool[bs * bs];
+        for (int v = 0; v < side; v++)
+            for (int u = 0; u < side; u++)
             {
-                float x = x0 + u + 0.5f, z = zTop - v - 0.5f;
+                float x = x0 + (u + 0.5f) * m, z = zTop - (v + 0.5f) * m;
                 bool inside = false;
                 foreach (var r in rects) if (x >= r.X0 && x <= r.X1 && z >= r.Z0 && z <= r.Z1) { inside = true; break; }
                 if (!inside) continue;
@@ -139,15 +142,15 @@ public sealed class LightmapBaker
                 k = 1 + (k - 1) * soft;
                 if (MathF.Abs(k - 1) < 0.02f) continue;
                 k = Math.Clamp(k, 0.15f, 4f);
-                int c = px[v * 256 + u];
+                int c = px[v * side + u];
                 int rr = Math.Clamp((int)(((c >> 16) & 255) * k), 0, 255), gg = Math.Clamp((int)(((c >> 8) & 255) * k), 0, 255), bb = Math.Clamp((int)((c & 255) * k), 0, 255);
-                px[v * 256 + u] = unchecked((int)0xFF000000) | (rr << 16) | (gg << 8) | bb;
-                blocks[(v >> 2) * 64 + (u >> 2)] = true;
+                px[v * side + u] = unchecked((int)0xFF000000) | (rr << 16) | (gg << 8) | bb;
+                blocks[(v >> 2) * bs + (u >> 2)] = true;
                 changed++;
             }
         if (changed == 0) return (dds, 0);
         var o = (byte[])dds.Clone();
-        Dxt1.Encode(px, 256, 256, o, 128, (bx, by) => blocks[(by >> 2) * 64 + (bx >> 2)]);   // só os blocos mexidos; o resto fica igual
+        Dxt1.Encode(px, side, side, o, 128, (bx, by) => blocks[(by >> 2) * bs + (bx >> 2)]);   // só os blocos mexidos; o resto fica igual
         return (o, changed);
     }
 
@@ -181,7 +184,7 @@ public sealed class LightmapBaker
                 int o = BitConverter.ToInt32(d, 0x18 + k * 4), end = k + 1 < n ? BitConverter.ToInt32(d, 0x18 + (k + 1) * 4) : d.Length;
                 if (o <= 0 || end <= o || end > d.Length) continue;
                 var dds = d.AsSpan(o, end - o).ToArray();
-                if (!calibrated && DdsDecoder.Decode(dds) is { Width: 256 } cal) calibrated = baker.Calibrate(cal.Pixels, x0, zTop);
+                if (!calibrated && DdsDecoder.Decode(dds) is { } cal && cal.Width == cal.Height) calibrated = baker.Calibrate(cal.Pixels, cal.Width, x0, zTop);
                 var (nd, ch) = baker.Bake(dds, x0, zTop, mine, soft);
                 if (ch == 0 || nd.Length != dds.Length) continue;
                 if (!any) { outB = (byte[])d.Clone(); any = true; }
