@@ -25,7 +25,6 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] luz e sombra do chao automaticas ao salvar terreno e construcoes (08/11; falta testar no jogo)
        [x] passagem dos NPCs ao mexer construcoes (08/11; .dhmap/andares depois)
        [x] filtro de efeitos visuais na barra Mostrar (08/11; particulas animadas fora)
-       [ ] espuma nova na margem da agua (usuario: pensar depois)
        [x] textura do chao: pincel por camadas (08/11; falta testar no jogo; texturas novas no .trn2 depois)
        [x] grama: pincel de grama e flores (feito: item 5 acima)
        [~] arvores: plantar, mover, apagar feitos; colisao da arvore no map.bht nao (usuario 08/11: app quase final)
@@ -33,7 +32,6 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
            (pontes novas como caminho de monstro e voo/octree: descartados pelo usuario 08/11)
        [~] passagem dos NPCs feita; voo (octree) fora (usuario 08/11)
-Depois (sem data): ferramenta de portabilidade (1.5.5 parecendo versao antiga), so apos entrevista com o usuario.
 
 ## PRONTO (conferido pelo usuario)
 - Elements: leitura completa e gravacao identica, lista e detalhe no estilo Rody, vinculos, editores de duplo clique,
