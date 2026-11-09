@@ -497,7 +497,7 @@ public static class DraftSaver
             foreach (var (f, bytes) in p.Files)
             {
                 if (FailAfter >= 0 && written.Count >= FailAfter) throw new IOException("falha simulada (teste)");
-                AtomicFileSave.Write(f, bytes);
+                AtomicFileSave.Write(f, bytes, backup: false);   // a cópia já está no conjunto (baks)
                 written.Add(f);
                 Report(10 + 10 * written.Count / Math.Max(1, p.Files.Count));
             }

@@ -8,11 +8,13 @@ public sealed class FileSaveException : IOException
 /// <summary>Temporário único na mesma pasta, releitura bloco a bloco, backup único e substituição; o erro original nunca é escondido.</summary>
 public static class AtomicFileSave
 {
-    public static string? Write(string path, byte[] bytes, LoadContext? context = null)
+    /// <param name="backup">false = quem chama já guardou a cópia (salvar com conjunto de backup): não copia de novo
+    /// (o map.bht do world tem ~195 MB; antes ficavam duas cópias por salvar).</param>
+    public static string? Write(string path, byte[] bytes, LoadContext? context = null, bool backup = true)
     {
         string full = Path.GetFullPath(path);
         string temp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        string? backup = null;
+        string? bak = null; bool withBackup = backup;
         string stage = FieldKinds.Translate("fsave.writeTemp", "Gravando arquivo temporário");
         try
         {
@@ -50,7 +52,7 @@ public static class AtomicFileSave
             {
                 stage = FieldKinds.Translate("fsave.backup", "Criando backup");
                 context?.Report(.90, stage, Path.GetFileName(full), force: true);
-                backup = BackupStore.Save(full);   // fora do cliente, compactado (BackupStore)
+                bak = withBackup ? BackupStore.Save(full) : null;   // fora do cliente, compactado (BackupStore)
                 // A última checagem de cancelamento vem antes da substituição; depois dela nunca se reporta cancelamento.
                 context?.Check();
                 stage = FieldKinds.Translate("fsave.replace", "Substituindo o arquivo");
@@ -63,12 +65,12 @@ public static class AtomicFileSave
                 context?.Check();
                 File.Move(temp, full);
             }
-            return backup;
+            return bak;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException)
         {
             throw new FileSaveException(string.Format(FieldKinds.Translate("fsave.failedAt", "Falha em: {0}.\nDestino: {1}\n"), stage, full) +
-                (backup is null ? "" : string.Format(FieldKinds.Translate("fsave.backupAt", "Backup em: {0}\n"), backup)) + string.Format(FieldKinds.Translate("fsave.reason", "Motivo: {0}"), ex.Message), ex);
+                (bak is null ? "" : string.Format(FieldKinds.Translate("fsave.backupAt", "Backup em: {0}\n"), bak)) + string.Format(FieldKinds.Translate("fsave.reason", "Motivo: {0}"), ex.Message), ex);
         }
         finally
         {

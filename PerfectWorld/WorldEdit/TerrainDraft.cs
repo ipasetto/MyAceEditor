@@ -435,7 +435,7 @@ public static class TerrainSaver
         var written = new List<string>();
         try
         {
-            foreach (var (f, b) in files) { AtomicFileSave.Write(f, b); written.Add(f); progress?.Invoke(100 * written.Count / files.Count); }
+            foreach (var (f, b) in files) { AtomicFileSave.Write(f, b, backup: false); written.Add(f); progress?.Invoke(100 * written.Count / files.Count); }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FileSaveException)
         {
