@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { TerrainHeights(r, element, config); }
         catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { Octrees(r, config); }
+        catch (Exception ex) { r.Check("voo-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { Floors(r); }
         catch (Exception ex) { r.Check("pisos-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { DeltaHeights(r, element, config); }
@@ -233,30 +235,72 @@ public static class ObjectsSelfTest
         }
     }
 
+    /// <summary>Voo: todo .octr do world regrava idêntico; mudar um cubo vale só para ele (divide no fim do arquivo).</summary>
+    static void Octrees(Report r, string? config)
+    {
+        if (config is null || !Directory.Exists(Path.Combine(config, "world", "airmap"))) return;
+        int files = 0, same = 0; string? bad = null; bool setOk = false; string setInfo = "";
+        foreach (var f in Directory.GetFiles(Path.Combine(config, "world", "airmap"), "*.octr"))
+        {
+            var b = File.ReadAllBytes(f); if (b.Length <= 29) continue;   // só cabeçalho = pedaço sem voo
+            files++;
+            var o = OctreeFile.Read(b);
+            if (o.Write().AsSpan().SequenceEqual(b)) same++; else bad ??= Path.GetFileName(f);
+            if (setInfo.Length == 0)
+            {
+                int c = o.N / 2; byte before = o.Get(c, c, c), near = o.Get(c + 1, c, c), want = before == OctreeFile.Border ? OctreeFile.Free : OctreeFile.Border;
+                o.Set(c, c, c, want);
+                var back = OctreeFile.Read(o.Write());
+                setOk = back.Get(c, c, c) == want && back.Get(c + 1, c, c) == near && o.Write().AsSpan(0, b.Length - 4).Length > 0;
+                setInfo = $"; {Path.GetFileName(f)} cubo do meio {before}->{back.Get(c, c, c)}, vizinho {near}->{back.Get(c + 1, c, c)}, nós {(b.Length - 29) / 4}->{(o.Write().Length - 29) / 4}";
+            }
+        }
+        r.Check("voo-regrava", files > 0 && same == files && setOk, $"{files} arquivos, idênticos {same}" + (bad is null ? "" : "; diferente: " + bad) + setInfo);
+
+        // construção nova no meio de um pedaço de voo: os cubos dela viram borda; apagar devolve como era
+        var f14 = Directory.GetFiles(Path.Combine(config, "world", "airmap"), "*.octr").FirstOrDefault(f => new FileInfo(f).Length > 29);
+        if (f14 is null) return;
+        var orig = File.ReadAllBytes(f14); var oc = OctreeFile.Read(orig);
+        float gy = oc.Cy - oc.Half + 41, bx = oc.Cx + 1, bz = oc.Cz + 1;   // chão plano de teste
+        var empty = Bht(); var box = Bht(Box(bx - 3, gy, bz - 3, bx + 3, gy + 6, bz + 3));
+        BrushSet S(BhtFile f) => BrushSet.Near(f, bx - 50, bz - 50, bx + 50, bz + 50);
+        var rects = new List<(float X0, float Z0, float X1, float Z1)> { (bx - 4, bz - 4, bx + 4, bz + 4) };
+        var cell = oc.CellOf(bx, gy + 3, bz)!.Value; byte cb0 = oc.Get(cell.X, cell.Y, cell.Z);
+        int up = oc.Refresh(rects, (_, _) => gy, S(empty), S(box)); var o2 = OctreeFile.Read(oc.Write());
+        byte mid = o2.Get(cell.X, cell.Y, cell.Z);
+        int down = o2.Refresh(rects, (_, _) => gy, S(box), S(empty));
+        byte after = o2.Get(cell.X, cell.Y, cell.Z);
+        var high = oc.CellOf(bx, gy + 60, bz)!.Value; byte highO = OctreeFile.Read(orig).Get(high.X, high.Y, high.Z), highN = oc.Get(high.X, high.Y, high.Z);
+        r.Check("voo-construcao", up > 0 && mid == OctreeFile.Border && down == up && after == OctreeFile.Free && highO == highN,
+            $"{Path.GetFileName(f14)}: caixa 6x6x6: {up} cubo(s) viraram borda (meio {cb0}->{mid}), apagada: {down} livre(s) (meio {after}); 60 m acima {highO}->{highN}");
+    }
+
+    // brushes sintéticos (caixa de 6 planos) e um map.bht com eles, para testes sem arquivo do jogo
+    static byte[] Box(float x0, float y0, float z0, float x1, float y1, float z1)
+    {
+        var b = new List<byte>();
+        void F(float v) => b.AddRange(BitConverter.GetBytes(v));
+        F((x0 + x1) / 2); F((y0 + y1) / 2); F((z0 + z1) / 2); F((x1 - x0) / 2); F((y1 - y0) / 2); F((z1 - z0) / 2);
+        F(x0); F(y0); F(z0); F(x1); F(y1); F(z1);
+        b.AddRange(BitConverter.GetBytes(0)); b.AddRange(BitConverter.GetBytes(6));
+        foreach (var (nx, ny, nz, dist) in new[] { (1f, 0f, 0f, x1), (-1f, 0f, 0f, -x0), (0f, 1f, 0f, y1), (0f, -1f, 0f, -y0), (0f, 0f, 1f, z1), (0f, 0f, -1f, -z0) })
+        { F(nx); F(ny); F(nz); F(dist); b.Add(0); }
+        return [.. b];
+    }
+    static BhtFile Bht(params byte[][] brushes)
+    {
+        var b = new List<byte>(); b.AddRange(BitConverter.GetBytes(BhtFile.Magic)); b.AddRange(BitConverter.GetBytes(1)); b.AddRange(BitConverter.GetBytes(brushes.Length));
+        foreach (var x in brushes) b.AddRange(x);
+        b.AddRange(new byte[17]); b.Add(1);   // um nó folha
+        return new BhtFile([.. b]);
+    }
+
     /// <summary>
     /// Pisos novos (sintético): chão plano a 100 m; plataforma nova de 0,8 m (sobe pelo degrau de 1 m) = andável com delta
     /// 0,8; de 3 m = em cima ninguém chega (bloqueado) e a volta continua livre; apagar a plataforma devolve o chão.
     /// </summary>
     static void Floors(Report r)
     {
-        static byte[] Box(float x0, float y0, float z0, float x1, float y1, float z1)
-        {
-            var b = new List<byte>();
-            void F(float v) => b.AddRange(BitConverter.GetBytes(v));
-            F((x0 + x1) / 2); F((y0 + y1) / 2); F((z0 + z1) / 2); F((x1 - x0) / 2); F((y1 - y0) / 2); F((z1 - z0) / 2);
-            F(x0); F(y0); F(z0); F(x1); F(y1); F(z1);
-            b.AddRange(BitConverter.GetBytes(0)); b.AddRange(BitConverter.GetBytes(6));
-            foreach (var (nx, ny, nz, dist) in new[] { (1f, 0f, 0f, x1), (-1f, 0f, 0f, -x0), (0f, 1f, 0f, y1), (0f, -1f, 0f, -y0), (0f, 0f, 1f, z1), (0f, 0f, -1f, -z0) })
-            { F(nx); F(ny); F(nz); F(dist); b.Add(0); }
-            return [.. b];
-        }
-        static BhtFile Bht(params byte[][] brushes)
-        {
-            var b = new List<byte>(); b.AddRange(BitConverter.GetBytes(BhtFile.Magic)); b.AddRange(BitConverter.GetBytes(1)); b.AddRange(BitConverter.GetBytes(brushes.Length));
-            foreach (var x in brushes) b.AddRange(x);
-            b.AddRange(new byte[17]); b.Add(1);   // um nó folha
-            return new BhtFile([.. b]);
-        }
         var rmap = new byte[8 + 20 + 128 * 1024];
         BitConverter.GetBytes(1).CopyTo(rmap, 0); BitConverter.GetBytes(20 + 128 * 1024).CopyTo(rmap, 4); BitConverter.GetBytes(128).CopyTo(rmap, 8);
         BitConverter.GetBytes(1024).CopyTo(rmap, 12); BitConverter.GetBytes(1024).CopyTo(rmap, 16); BitConverter.GetBytes(1024).CopyTo(rmap, 20); BitConverter.GetBytes(1f).CopyTo(rmap, 24);

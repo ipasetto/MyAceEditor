@@ -86,7 +86,7 @@ internal sealed partial class WorldView
         colors.Controls.Add(_lightColorBtn); colors.Controls.Add(_lightAmbBtn); colors.Controls.Add(_lightNight); colors.Controls.Add(del);
         foreach (var c in new Control[] { colors, row, grid }) _lightCard.Controls.Add(c);
         var note = new Label { Dock = DockStyle.Top, Height = 92, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Padding = new Padding(0, 6, 0, 0),
-            Text = Loc.T("light.note2", "No jogo a luz pinta personagens, NPCs e monstros que passam perto (o brilho no chão aqui é só a prévia da cor e do alcance; com \"só à noite\" ela acende de noite). O chão e as construções já vêm com a luz pronta. Grava no Salvar cenário.") };
+            Text = Loc.T("light.note3", "Atenção: o jogo 1.5.5 não usa as luzes da cena (o arquivo é gravado, mas nada muda no jogo; conferido no código do cliente). O brilho aqui é só a prévia da cor e do alcance. Grava no Salvar cenário.") };
         foreach (var c in new Control[] { note, _lightCard, modes, _lightTitle }) _lightPanel.Controls.Add(c);
         FitLightPanel();
     }

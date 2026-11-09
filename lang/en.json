@@ -5973,5 +5973,17 @@
   "terrain.dhSummary": "Bridges and floors above the changed ground: {0} meter(s) adjusted so monsters step at the same height",
   "terrain.rmapFail": "NPC passage of piece {0} not rebuilt (server file unreadable; see the log).",
   "terrain.litFail": "Light and shadow of piece {0} not rebuilt (file unreadable; see the log).",
-  "bak.setFailedNone": "Could not restore: {0} (open in another program?). Nothing was restored; close the program and try again."
+  "bak.setFailedNone": "Could not restore: {0} (open in another program?). Nothing was restored; close the program and try again.",
+  "grass.eyedropper": "Eyedropper (I): pick the ground type",
+  "grass.eyedropperTip": "Hover a grass or flower and press I: the brush takes the same type.",
+  "terrain.eyedropper": "Eyedropper (I): pick the ground texture",
+  "terrain.eyedropperTip": "Hover the ground and press I: the brush takes the texture shown there (good for touching up shadows).",
+  "terrain.pickNone": "Could not read the texture at this spot.",
+  "terrain.picked": "Brush with the texture from here: {0}",
+  "obj.preparing": "Preparing to save…",
+  "obj.shadowNote2": "The shadow painted on the ground (terrain light map) stays where it was: touch it up with the Terrain texture brush (eyedropper I).",
+  "obj.floorsSummary": "Building floors (bridges, stairs, storeys) updated for monsters.",
+  "obj.flySummary": "Monster flight rebuilt around the buildings: {0} cube(s) of 4 m.",
+  "obj.flyFail": "Monster flight of part {0} not rebuilt (server file unreadable; see the log).",
+  "light.note3": "Note: game 1.5.5 does not use scene lights (the file is saved, but nothing changes in the game; checked in the client code). The glow here is only a preview of color and range. Saved by Save scene."
 }

@@ -628,6 +628,29 @@ public static class DraftChecks
             }
         if (moved > 0) plan.Summary.Add(string.Format(Loc.T("obj.rmapSummary", "Passagem dos NPCs refeita em volta das construções: {0} metro(s)."), moved));
         if (floors > 0) plan.Summary.Add(Loc.T("obj.floorsSummary", "Pisos das construções (pontes, escadas, andares) atualizados para os monstros."));
+        // voo dos monstros (airmap/N.octr): cubo que passou a encostar numa parede vira borda (não se voa por ele); o que
+        // deixou de encostar fica livre. Só construções mexem: o gs vê o chão à parte (GlobalSPMap CanPosPass).
+        int flyCells = 0;
+        if (src.ServerConfigDir is { } sd2)
+            foreach (int piece in PiecesOf(rects))
+            {
+                var op = Path.Combine(sd2, src.Map, "airmap", $"{piece}.octr");
+                if (!File.Exists(op) || new FileInfo(op).Length <= 29) continue;   // pedaço sem voo
+                try
+                {
+                    var oct = OctreeFile.Read(File.ReadAllBytes(op));
+                    var ab = rects.Aggregate((a, b) => (Math.Min(a.X0, b.X0), Math.Min(a.Z0, b.Z0), Math.Max(a.X1, b.X1), Math.Max(a.Z1, b.Z1)));
+                    var ob = BrushSet.Near(oldB, ab.X0 - 8, ab.Z0 - 8, ab.X1 + 8, ab.Z1 + 8); var nb = BrushSet.Near(newB, ab.X0 - 8, ab.Z0 - 8, ab.X1 + 8, ab.Z1 + 8);
+                    flyCells += oct.Refresh(rects, (x, z) => t.HeightAt(x, z), ob, nb);
+                    if (oct.Dirty) { var nbytes = oct.Write(); _ = OctreeFile.Read(nbytes); plan.Files[op] = nbytes; }
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+                {
+                    AppLog.Error("objetos: voo do pedaço " + piece, ex);
+                    plan.Summary.Add(string.Format(Loc.T("obj.flyFail", "Voo dos monstros do pedaço {0} não refeito (arquivo do servidor ilegível; veja o log)."), piece));
+                }
+            }
+        if (flyCells > 0) plan.Summary.Add(string.Format(Loc.T("obj.flySummary", "Voo dos monstros refeito em volta das construções: {0} cubo(s) de 4 m."), flyCells));
     }
 
     public static (Vector3 Min, Vector3 Max) WorldBox(DraftObject o)
