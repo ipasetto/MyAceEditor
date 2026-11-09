@@ -182,11 +182,11 @@ internal sealed partial class WorldView
     /// Renomear textura (F2 na JAV): só o nome que aparece, no glossário deste cliente e no idioma atual; o arquivo não muda.
     /// true = mudou.
     /// </summary>
-    bool TextureNamePrompt(string path)
+    bool TextureNamePrompt(string path, string? title = null)
     {
         if (_element is null) return false;
         string b = TextureNameGlossary.Base(path), auto = TextureNameGlossary.Compose(b, AppLang.Current);
-        using var f = new Form { Text = Loc.T("texnames.title", "Renomear textura"), Width = 480, Height = 230, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+        using var f = new Form { Text = title ?? Loc.T("texnames.title", "Renomear textura"), Width = 480, Height = 230, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, BackColor = Color.FromArgb(28, 32, 38), ForeColor = Color.White, Font = new Font("Segoe UI", 9.5f) };
         var info = new Label { Dock = DockStyle.Top, Height = 54, Padding = new Padding(10, 8, 10, 0), ForeColor = Color.Silver,
             Text = string.Format(Loc.T("texnames.info", "Só muda o nome que aparece no editor, neste cliente e neste idioma (o arquivo do jogo não muda). Arquivo: {0} · automático: {1}"), b, auto) };
@@ -208,6 +208,9 @@ internal sealed partial class WorldView
         if (changed) TexLabels();
         return changed;
     }
+
+    /// <summary>Linha da JAV: nome no idioma do MyAce (glossário + renomeados) e o original entre parênteses (a busca acha os dois).</summary>
+    string GlossaryRow(string path) { var d = TextureNameGlossary.Display(path, _element); var b = TextureNameGlossary.Base(path); return d == b ? b : d + "  (" + b + ")"; }
 
     bool TerrainMouseDown(MouseEventArgs e)
     {
@@ -275,7 +278,10 @@ internal sealed partial class WorldView
         if (_terrainDraft is not { } d) return;
         foreach (var (ar, ac) in areas)
         {
-            _t.SetGround(ar, ac, d.Layers(ar, ac));
+            // só áreas cuja textura o rascunho abriu: o Ctrl+Z de altura passava aqui com o pedaço sem máscaras abertas,
+            // gravava "sem camadas" no cache e o chão ficava com a imagem de longe (borrada) até reabrir (teste do usuário 08/11)
+            if (d.Layers(ar, ac) is not { } layers) continue;
+            _t.SetGround(ar, ac, layers);
             _groundPending.Add((ar, ac));   // a placa recebe no próximo quadro, com o contexto certo e uma vez só
         }
     }

@@ -295,6 +295,12 @@ public static class ObjectsSelfTest
                 if (TextScript.HasCjk(s)) bad ??= $"{lang}: {p} -> {s}";
             }
         r.Check("texturas-nomes-traduzidos", all.Count > 50 && bad is null, $"{all.Count} texturas x 3 idiomas ({n})" + (bad is null ? "" : "; sobrou: " + bad) + "; ex.: " + TextureNameGlossary.Compose("雪城雪草", "pt") + " / " + TextureNameGlossary.Compose("雪城雪草", "en"));
+        // grama e árvores: nome do .mox/.spt e das pastas
+        var gt = GrassKind.All(element).Select(k => k.Mox).Concat(TreeTypeIndex.Build(element).Select(k => k.Spt)).Distinct().ToList();
+        var left = gt.SelectMany(p => p.Replace('/', '\\').Split('\\').Select(s => Path.GetFileNameWithoutExtension(s))).Distinct()
+            .Where(s => TextScript.HasCjk(TextureNameGlossary.Compose(s, "pt"))).ToList();
+        File.WriteAllLines(Path.Combine(Path.GetTempPath(), "myace-names-left.txt"), left);
+        r.Check("grama-arvores-nomes-traduzidos", left.Count == 0, $"{gt.Count} grama/árvores; com chinês sobrando: {left.Count} (lista em myace-names-left.txt)");
         var tmpEl = Path.Combine(Path.GetTempPath(), "myace-texnames-" + Environment.ProcessId);
         var why = TextureNameGlossary.Rename(@"x\雪地.dds", tmpEl, "Minha neve");
         bool ok = why is null && TextureNameGlossary.Display(@"y\雪地.dds", tmpEl) == "Minha neve";

@@ -29,7 +29,8 @@ internal sealed class ItemSearchWindow : Form
     readonly Dictionary<int, int> _tries = [];
     bool _missing, _hasIcon;
     Bitmap? _noModel;   // ícone ampliado quando o item não tem modelo 3D
-    int _modelId;
+    const int NoModel = int.MinValue;   // nenhuma prévia (0 é uma linha válida: construção, árvore e textura começam no 0)
+    int _modelId = NoModel;
     float _yaw;
 
     public int Picked { get; private set; }
@@ -192,7 +193,7 @@ internal sealed class ItemSearchWindow : Form
 
     void DrawModel()
     {
-        if (_model is null || _modelId <= 0) return;
+        if (_model is null || _modelId == NoModel) return;
         Image? img = null;
         try { img = _model(_modelId, _yaw); }   // a imagem é da cache do ModelPreview: não descartar aqui
         catch (Exception ex) { MyAceEditor.PerfectWorld.AppLog.Error("JAV: prévia 3D " + _modelId, ex); }

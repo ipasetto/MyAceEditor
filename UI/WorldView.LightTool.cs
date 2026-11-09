@@ -191,7 +191,7 @@ internal sealed partial class WorldView
         return true;
     }
 
-    static SceneLight NewLight(System.Numerics.Vector3 at) => new(at, 20, System.Numerics.Vector3.Zero, new(1f, 0.75f, 0.45f, 2f), new(0.2f, 0.15f, 0.1f, 0.3f), SceneLight.NightOnly);
+    static SceneLight NewLight(System.Numerics.Vector3 at) => new(at, 20, System.Numerics.Vector3.Zero, new(1f, 0.75f, 0.45f, 2f), new(0.2f, 0.15f, 0.1f, 0.3f), 0);   // acesa sempre (2.373 de 3.680 luzes do 155; usuário pôs luz de dia e não acendeu)
 
     void StartLightPlacing()
     {

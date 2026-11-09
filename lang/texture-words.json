@@ -1,4 +1,166 @@
 {
+"幻海奇潭": [
+"Mar Ilusório",
+"Illusion Sea",
+"Море иллюзий",
+"p"
+],
+"许仙极乐园": [
+"Paraíso de Xu Xian",
+"Xu Xian Paradise",
+"Рай Сюй Сяня",
+"p"
+],
+"新手岛": [
+"Ilha inicial",
+"Starter island",
+"Остров новичков",
+"p"
+],
+"伊奥斯岛": [
+"Ilha de Eos",
+"Eos Isle",
+"Остров Эос",
+"p"
+],
+"赤壁": [
+"Penhasco Vermelho",
+"Red Cliff",
+"Красная скала",
+"p"
+],
+"嘉米尔": [
+"Jamir",
+"Jamir",
+"Джамир",
+"p"
+],
+"冰大陆": [
+"Continente de Gelo",
+"Ice Continent",
+"Ледяной континент",
+"p"
+],
+"64随机地图": [
+"mapa aleatório 64",
+"random map 64",
+"случайная карта 64",
+"p"
+],
+"随机地图": [
+"mapa aleatório",
+"random map",
+"случайная карта",
+"p"
+],
+"自建家园": [
+"Lar próprio",
+"Own homestead",
+"Собственный дом",
+"p"
+],
+"家园": [
+"Lar",
+"Homestead",
+"Дом",
+"p"
+],
+"白帝城": [
+"Cidade do Imperador Branco",
+"White Emperor City",
+"Город Белого императора",
+"p"
+],
+"静仙地宫": [
+"Palácio subterrâneo Jingxian",
+"Jingxian Underground Palace",
+"Подземный дворец Цзинсянь",
+"p"
+],
+"河北": [
+"Hebei",
+"Hebei",
+"Хэбэй",
+"p"
+],
+"新种族": [
+"raça nova",
+"new race",
+"новая раса",
+"p"
+],
+"西部": [
+"Oeste",
+"West",
+"Запад",
+"p"
+],
+"蚁穴": [
+"Formigueiro",
+"Ant nest",
+"Муравейник",
+"p"
+],
+"密林": [
+"Mata fechada",
+"Dense forest",
+"Густой лес",
+"p"
+],
+"仙界": [
+"Reino Imortal",
+"Immortal Realm",
+"Мир бессмертных",
+"p"
+],
+"魔界": [
+"Reino Demoníaco",
+"Demon Realm",
+"Мир демонов",
+"p"
+],
+"磨牙镇": [
+"Vila Moya",
+"Moya town",
+"Город Моя",
+"p"
+],
+"蜻蜓台": [
+"Mesa das Libélulas",
+"Dragonfly Terrace",
+"Терраса стрекоз",
+"p"
+],
+"神魔精灵": [
+"Espíritos dos deuses e demônios",
+"God-demon spirits",
+"Духи богов и демонов",
+"p"
+],
+"笑傲": [
+"Xiao'ao",
+"Xiao'ao",
+"Сяоао",
+"p"
+],
+"少林寺": [
+"Templo Shaolin",
+"Shaolin Temple",
+"Храм Шаолинь",
+"p"
+],
+"剑灵": [
+"Espírito da espada",
+"Sword spirit",
+"Дух меча",
+"p"
+],
+"东北": [
+"Nordeste",
+"Northeast",
+"Северо-восток",
+"p"
+],
 "12宫": [
 "Doze Palácios",
 "Twelve Palaces",
@@ -77,12 +239,6 @@
 "Клан бессмертных",
 "p"
 ],
-"仙界": [
-"Reino Imortal",
-"Immortal Realm",
-"Мир бессмертных",
-"p"
-],
 "伊万大本营": [
 "Base de Ivan",
 "Ivan base",
@@ -105,12 +261,6 @@
 "Clã das feras",
 "Beast clan",
 "Клан зверей",
-"p"
-],
-"冰大陆": [
-"Continente de Gelo",
-"Ice Continent",
-"Ледяной континент",
 "p"
 ],
 "出生点": [
@@ -195,12 +345,6 @@
 "tela de entrada",
 "login screen",
 "экран входа",
-"p"
-],
-"蚁穴": [
-"Formigueiro",
-"Ant nest",
-"Муравейник",
 "p"
 ],
 "血鲷鱼人池": [
@@ -515,12 +659,6 @@
 "Остров живописи",
 "p"
 ],
-"白帝城": [
-"Cidade do Imperador Branco",
-"White Emperor City",
-"Город Белого императора",
-"p"
-],
 "白帝": [
 "Imperador Branco",
 "White Emperor",
@@ -683,12 +821,6 @@
 "Озеро бурь",
 "p"
 ],
-"少林寺": [
-"Templo Shaolin",
-"Shaolin Temple",
-"Храм Шаолинь",
-"p"
-],
 "鬼冥居": [
 "Morada dos Fantasmas",
 "Ghost Abode",
@@ -754,6 +886,90 @@
 "PvP",
 "PvP",
 "p"
+],
+"李燃": [
+"",
+"",
+"",
+"x"
+],
+"王欣": [
+"",
+"",
+"",
+"x"
+],
+"石": [
+"pedra",
+"stone",
+"камень",
+"w"
+],
+"云": [
+"",
+"",
+"",
+"x"
+],
+"兰": [
+"",
+"",
+"",
+"x"
+],
+"许仙": [
+"",
+"",
+"",
+"x"
+],
+"牟": [
+"",
+"",
+"",
+"x"
+],
+"邢": [
+"",
+"",
+"",
+"x"
+],
+"非神": [
+"",
+"",
+"",
+"x"
+],
+"都锶": [
+"",
+"",
+"",
+"x"
+],
+"完美": [
+"",
+"",
+"",
+"x"
+],
+"精简": [
+"",
+"",
+"",
+"x"
+],
+"修改": [
+"",
+"",
+"",
+"x"
+],
+"做好的": [
+"",
+"",
+"",
+"x"
 ],
 "堂": [
 "",
@@ -839,12 +1055,6 @@
 "",
 "x"
 ],
-"完美": [
-"",
-"",
-"",
-"x"
-],
 "贴图": [
 "",
 "",
@@ -880,6 +1090,726 @@
 "",
 "",
 "x"
+],
+"花": [
+"flores",
+"flowers",
+"цветы",
+"w"
+],
+"陆地": [
+"terra firme",
+"land",
+"суша",
+"w"
+],
+"蕨类": [
+"samambaias",
+"ferns",
+"папоротники",
+"w"
+],
+"灌木": [
+"arbusto",
+"shrub",
+"кустарник",
+"w"
+],
+"高灌木": [
+"arbusto alto",
+"tall shrub",
+"высокий кустарник",
+"w"
+],
+"千层红": [
+"amaranto vermelho",
+"red amaranth",
+"красный амарант",
+"w"
+],
+"粉康萘薪": [
+"cravo-rosa",
+"pink carnation",
+"розовая гвоздика",
+"w"
+],
+"花腾": [
+"trepadeira florida",
+"flowering vine",
+"цветущая лиана",
+"w"
+],
+"紫铅牛": [
+"verbena roxa",
+"purple verbena",
+"фиолетовая вербена",
+"w"
+],
+"灌木球": [
+"arbusto redondo",
+"round shrub",
+"круглый куст",
+"w"
+],
+"普通草": [
+"grama comum",
+"common grass",
+"обычная трава",
+"w"
+],
+"草药": [
+"ervas medicinais",
+"herbs",
+"травы",
+"w"
+],
+"长叶": [
+"folhas longas",
+"long leaves",
+"длинные листья",
+"w"
+],
+"浅色": [
+"claro",
+"light",
+"светлый",
+"w"
+],
+"地表植物": [
+"plantas rasteiras",
+"ground plants",
+"наземные растения",
+"w"
+],
+"小花": [
+"florzinhas",
+"small flowers",
+"мелкие цветы",
+"w"
+],
+"绿草": [
+"grama verde",
+"green grass",
+"зелёная трава",
+"w"
+],
+"秋天": [
+"outono",
+"autumn",
+"осенний",
+"w"
+],
+"草地": [
+"gramado",
+"grass field",
+"трава",
+"w"
+],
+"兰草": [
+"orquídea",
+"orchid grass",
+"орхидея",
+"w"
+],
+"中高草": [
+"grama média",
+"medium grass",
+"средняя трава",
+"w"
+],
+"串红花": [
+"sálvia vermelha",
+"scarlet sage",
+"шалфей блестящий",
+"w"
+],
+"矮草": [
+"grama baixa",
+"short grass",
+"низкая трава",
+"w"
+],
+"高草": [
+"grama alta",
+"tall grass",
+"высокая трава",
+"w"
+],
+"草原": [
+"pradaria",
+"grassland",
+"степь",
+"w"
+],
+"乱黄花": [
+"flores amarelas espalhadas",
+"scattered yellow flowers",
+"разбросанные жёлтые цветы",
+"w"
+],
+"大紫花": [
+"flores roxas grandes",
+"big purple flowers",
+"крупные фиолетовые цветы",
+"w"
+],
+"毛毛狗草": [
+"rabo-de-raposa",
+"foxtail grass",
+"лисохвост",
+"w"
+],
+"紫喇叭花": [
+"ipomeia roxa",
+"purple morning glory",
+"фиолетовый вьюнок",
+"w"
+],
+"藕荷花": [
+"flores lilás",
+"lilac flowers",
+"сиреневые цветы",
+"w"
+],
+"暗黑": [
+"sombrio",
+"dark",
+"тёмный",
+"w"
+],
+"放射草": [
+"grama em leque",
+"radiating grass",
+"веерная трава",
+"w"
+],
+"雪地草堆": [
+"tufo de grama na neve",
+"grass tuft in snow",
+"пучок травы в снегу",
+"w"
+],
+"新手地表植物": [
+"plantas rasteiras iniciais",
+"starter ground plants",
+"растения новичков",
+"w"
+],
+"灰藜黄": [
+"quenopódio amarelo",
+"yellow goosefoot",
+"жёлтая марь",
+"w"
+],
+"闪亮植物": [
+"planta brilhante",
+"shiny plant",
+"сияющее растение",
+"w"
+],
+"蓝色花": [
+"flores azuis",
+"blue flowers",
+"синие цветы",
+"w"
+],
+"骆驼刺黄": [
+"espinho-de-camelo amarelo",
+"yellow camelthorn",
+"жёлтая верблюжья колючка",
+"w"
+],
+"红色花": [
+"flores vermelhas",
+"red flowers",
+"красные цветы",
+"w"
+],
+"铁芒萁": [
+"samambaia-de-ferro",
+"iron fern",
+"железный папоротник",
+"w"
+],
+"老绿": [
+"verde-velho",
+"old green",
+"старый зелёный",
+"w"
+],
+"雪": [
+"neve",
+"snow",
+"снег",
+"w"
+],
+"鲜艳灌木": [
+"arbusto colorido",
+"bright shrub",
+"яркий кустарник",
+"w"
+],
+"红黄花": [
+"flores vermelhas e amarelas",
+"red-yellow flowers",
+"красно-жёлтые цветы",
+"w"
+],
+"海底植物": [
+"plantas do fundo do mar",
+"seabed plants",
+"подводные растения",
+"w"
+],
+"带雪": [
+"com neve",
+"snowy",
+"заснеженный",
+"w"
+],
+"奇幻小花": [
+"florzinhas fantásticas",
+"fantasy flowers",
+"волшебные цветочки",
+"w"
+],
+"草": [
+"grama",
+"grass",
+"трава",
+"w"
+],
+"细穗腹水草": [
+"veronicastro",
+"veronicastrum",
+"вероникаструм",
+"w"
+],
+"紫色水草": [
+"alga roxa",
+"purple waterweed",
+"фиолетовые водоросли",
+"w"
+],
+"粉色花": [
+"flores rosas",
+"pink flowers",
+"розовые цветы",
+"w"
+],
+"紫色花": [
+"flores roxas",
+"purple flowers",
+"фиолетовые цветы",
+"w"
+],
+"芦苇": [
+"junco",
+"reed",
+"тростник",
+"w"
+],
+"红草": [
+"grama vermelha",
+"red grass",
+"красная трава",
+"w"
+],
+"植物": [
+"planta",
+"plant",
+"растение",
+"w"
+],
+"牛蒡花": [
+"flor de bardana",
+"burdock flower",
+"цветок лопуха",
+"w"
+],
+"郁金香": [
+"tulipa",
+"tulip",
+"тюльпан",
+"w"
+],
+"深蓝草": [
+"grama azul-escura",
+"dark blue grass",
+"тёмно-синяя трава",
+"w"
+],
+"沼泽灌木": [
+"arbusto do pântano",
+"swamp shrub",
+"болотный кустарник",
+"w"
+],
+"大坑植物": [
+"plantas da cratera",
+"crater plants",
+"растения кратера",
+"w"
+],
+"芦苇花": [
+"flor de junco",
+"reed flower",
+"цветок тростника",
+"w"
+],
+"野外灌木": [
+"arbusto selvagem",
+"wild shrub",
+"дикий кустарник",
+"w"
+],
+"红": [
+"vermelho",
+"red",
+"красный",
+"w"
+],
+"玉米": [
+"milho",
+"corn",
+"кукуруза",
+"w"
+],
+"麦子": [
+"trigo",
+"wheat",
+"пшеница",
+"w"
+],
+"向日葵": [
+"girassol",
+"sunflower",
+"подсолнух",
+"w"
+],
+"油菜花": [
+"flor de canola",
+"rapeseed flowers",
+"цветы рапса",
+"w"
+],
+"秋天草": [
+"grama de outono",
+"autumn grass",
+"осенняя трава",
+"w"
+],
+"荒草": [
+"mato seco",
+"wild grass",
+"бурьян",
+"w"
+],
+"蒲公英": [
+"dente-de-leão",
+"dandelion",
+"одуванчик",
+"w"
+],
+"黄绿灌木": [
+"arbusto verde-amarelo",
+"yellow-green shrub",
+"жёлто-зелёный кустарник",
+"w"
+],
+"植物组合": [
+"grupo de plantas",
+"plant group",
+"группа растений",
+"w"
+],
+"桃金娘": [
+"murta",
+"myrtle",
+"мирт",
+"w"
+],
+"小灌木": [
+"arbusto pequeno",
+"small shrub",
+"маленький куст",
+"w"
+],
+"绿短草": [
+"grama curta verde",
+"short green grass",
+"короткая зелёная трава",
+"w"
+],
+"豆苗": [
+"broto de feijão",
+"bean sprouts",
+"ростки бобов",
+"w"
+],
+"荆棘": [
+"espinheiro",
+"thorns",
+"терновник",
+"w"
+],
+"水草": [
+"alga",
+"waterweed",
+"водоросли",
+"w"
+],
+"紫草": [
+"grama roxa",
+"purple grass",
+"фиолетовая трава",
+"w"
+],
+"刷的草": [
+"grama pintada",
+"brushed grass",
+"нарисованная трава",
+"w"
+],
+"树木": [
+"árvores",
+"trees",
+"деревья",
+"w"
+],
+"歪脖枯树": [
+"árvore seca torta",
+"crooked dead tree",
+"кривое сухое дерево",
+"w"
+],
+"松树": [
+"pinheiro",
+"pine",
+"сосна",
+"w"
+],
+"巨大毛榉": [
+"faia gigante",
+"giant beech",
+"гигантский бук",
+"w"
+],
+"新毛榉": [
+"faia nova",
+"new beech",
+"новый бук",
+"w"
+],
+"毛榉": [
+"faia",
+"beech",
+"бук",
+"w"
+],
+"杉树": [
+"abeto",
+"fir",
+"ель",
+"w"
+],
+"红松": [
+"pinheiro-vermelho",
+"red pine",
+"красная сосна",
+"w"
+],
+"绿色": [
+"verde",
+"green",
+"зелёный",
+"w"
+],
+"英国像树": [
+"carvalho inglês",
+"English oak",
+"английский дуб",
+"w"
+],
+"英格兰像树": [
+"carvalho inglês",
+"English oak",
+"английский дуб",
+"w"
+],
+"像树": [
+"carvalho",
+"oak",
+"дуб",
+"w"
+],
+"象树": [
+"carvalho",
+"oak",
+"дуб",
+"w"
+],
+"怪异松树": [
+"pinheiro estranho",
+"strange pine",
+"странная сосна",
+"w"
+],
+"棕榈": [
+"palmeira",
+"palm",
+"пальма",
+"w"
+],
+"椰子树": [
+"coqueiro",
+"coconut tree",
+"кокосовая пальма",
+"w"
+],
+"俄国橄榄": [
+"oliveira-russa",
+"Russian olive",
+"лох узколистный",
+"w"
+],
+"榕树": [
+"figueira-de-bengala",
+"banyan",
+"баньян",
+"w"
+],
+"印度榕": [
+"figueira-da-índia",
+"Indian rubber tree",
+"фикус каучуконосный",
+"w"
+],
+"鹅卵石": [
+"seixos",
+"cobblestones",
+"булыжник",
+"w"
+],
+"长松树": [
+"pinheiro alto",
+"tall pine",
+"высокая сосна",
+"w"
+],
+"菩提树": [
+"figueira-sagrada",
+"bodhi tree",
+"дерево бодхи",
+"w"
+],
+"外脖白树": [
+"árvore branca torta",
+"crooked white tree",
+"кривое белое дерево",
+"w"
+],
+"桃树": [
+"pessegueiro",
+"peach tree",
+"персиковое дерево",
+"w"
+],
+"枯树": [
+"árvore seca",
+"dead tree",
+"сухое дерево",
+"w"
+],
+"面包树": [
+"fruta-pão",
+"breadfruit tree",
+"хлебное дерево",
+"w"
+],
+"巨松": [
+"pinheiro gigante",
+"giant pine",
+"гигантская сосна",
+"w"
+],
+"白杨": [
+"álamo",
+"poplar",
+"тополь",
+"w"
+],
+"柳树": [
+"salgueiro",
+"willow",
+"ива",
+"w"
+],
+"大像树": [
+"carvalho grande",
+"big oak",
+"большой дуб",
+"w"
+],
+"梨树": [
+"pereira",
+"pear tree",
+"груша",
+"w"
+],
+"糖梧桐": [
+"bordo-açucareiro",
+"sugar maple",
+"сахарный клён",
+"w"
+],
+"桑树": [
+"amoreira",
+"mulberry",
+"шелковица",
+"w"
+],
+"雪松": [
+"cedro",
+"cedar",
+"кедр",
+"w"
+],
+"雪杉树": [
+"abeto nevado",
+"snowy fir",
+"заснеженная ель",
+"w"
+],
+"当归": [
+"angélica",
+"angelica",
+"дягиль",
+"w"
+],
+"垂钓": [
+"pendente",
+"drooping",
+"плакучий",
+"w"
+],
+"小": [
+"pequeno",
+"small",
+"малый",
+"w"
+],
+"新": [
+"novo",
+"new",
+"новый",
+"w"
+],
+"怪异": [
+"estranho",
+"strange",
+"странный",
+"w"
 ],
 "侧面山石": [
 "rocha lateral",
@@ -989,12 +1919,6 @@
 "красная трава",
 "w"
 ],
-"草地": [
-"gramado",
-"grass field",
-"трава",
-"w"
-],
 "暗": [
 "escuro",
 "dark",
@@ -1089,12 +2013,6 @@
 "toca dos lobos",
 "wolf den",
 "волчье логово",
-"w"
-],
-"红草": [
-"grama vermelha",
-"red grass",
-"красная трава",
 "w"
 ],
 "乱杂碎草": [
@@ -1571,12 +2489,6 @@
 "водоросли на поверхности",
 "w"
 ],
-"水草": [
-"alga",
-"waterweed",
-"водоросли",
-"w"
-],
 "小石头": [
 "pedrinhas",
 "pebbles",
@@ -1677,12 +2589,6 @@
 "chão de montanha",
 "mountain ground",
 "горная земля",
-"w"
-],
-"带雪": [
-"com neve",
-"snowy",
-"заснеженный",
 "w"
 ],
 "红色": [
@@ -1799,12 +2705,6 @@
 "персиковый сад",
 "w"
 ],
-"绿草": [
-"grama verde",
-"green grass",
-"зелёная трава",
-"w"
-],
 "杂碎石": [
 "cascalho misto",
 "mixed gravel",
@@ -1887,12 +2787,6 @@
 "gramado com pedras",
 "stony grass",
 "трава с камнями",
-"w"
-],
-"草": [
-"grama",
-"grass",
-"трава",
 "w"
 ],
 "橄榄绿": [
@@ -2045,12 +2939,6 @@
 "влажная земля",
 "w"
 ],
-"花": [
-"flores",
-"flowers",
-"цветы",
-"w"
-],
 "棕红": [
 "vermelho-amarronzado",
 "brownish red",
@@ -2091,12 +2979,6 @@
 "verde-escuro",
 "dark green",
 "тёмно-зелёный",
-"w"
-],
-"新": [
-"novo",
-"new",
-"новый",
 "w"
 ],
 "深翠绿色": [
@@ -2519,12 +3401,6 @@
 "заснеженная дорога",
 "w"
 ],
-"草原": [
-"pradaria",
-"grassland",
-"степь",
-"w"
-],
 "最终": [
 "final",
 "final",
@@ -2615,12 +3491,6 @@
 "глубокий снег",
 "w"
 ],
-"荒草": [
-"mato seco",
-"wild grass",
-"бурьян",
-"w"
-],
 "沙石": [
 "areia e pedra",
 "sand and stone",
@@ -2705,12 +3575,6 @@
 "проход",
 "w"
 ],
-"小花": [
-"florzinhas",
-"small flowers",
-"мелкие цветы",
-"w"
-],
 "河畔": [
 "margem do rio",
 "riverside",
@@ -2727,12 +3591,6 @@
 "neve quebrada",
 "broken snow",
 "колотый снег",
-"w"
-],
-"雪": [
-"neve",
-"snow",
-"снег",
 "w"
 ],
 "冰": [
@@ -2769,12 +3627,6 @@
 "grama seca",
 "dry grass",
 "сухая трава",
-"w"
-],
-"鹅卵石": [
-"seixos",
-"cobblestones",
-"булыжник",
 "w"
 ],
 "青黑": [
@@ -2927,12 +3779,6 @@
 "песок",
 "w"
 ],
-"石": [
-"pedra",
-"stone",
-"камень",
-"w"
-],
 "地": [
 "chão",
 "ground",
@@ -2943,12 +3789,6 @@
 "folhas",
 "leaves",
 "листья",
-"w"
-],
-"红": [
-"vermelho",
-"red",
-"красный",
 "w"
 ],
 "蓝": [
@@ -2979,12 +3819,6 @@
 "claro",
 "light",
 "светлый",
-"w"
-],
-"小": [
-"pequeno",
-"small",
-"малый",
 "w"
 ],
 "高": [

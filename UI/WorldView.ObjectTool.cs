@@ -1270,7 +1270,7 @@ internal sealed partial class WorldView
             if (!rowsK.Any(r => r.Spt.Equals(k.Spt, StringComparison.OrdinalIgnoreCase) && r.Comp.Equals(k.Comp, StringComparison.OrdinalIgnoreCase)))
                 rowsK.Add((k.Spt, k.Comp, MapLabel(k.Maps.OrderBy(MapRank).First())));
         if (rowsK.Count == 0) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
-        var rows = rowsK.Select((r, i) => (Id: i, Name: System.IO.Path.GetFileNameWithoutExtension(r.Spt), Block: r.Block)).ToList();
+        var rows = rowsK.Select((r, i) => (Id: i, Name: GlossaryRow(r.Spt), Block: r.Block)).ToList();   // nome no idioma do MyAce + original
         int TypeOfRow(int row) => row >= 0 && row < rowsK.Count ? _trees.TypeFor(rowsK[row].Spt, rowsK[row].Comp) : -1;
         int SigOf(int row) => new TreeKind(rowsK[row].Spt, rowsK[row].Comp, []).Sig;
         JavFavorites? fav = null;
@@ -1281,7 +1281,8 @@ internal sealed partial class WorldView
                 i => i >= 0 && i < rowsK.Count && file.Has(SigOf(i)), i => file.Toggle(SigOf(i)));
         }
         var recentT = _element is null ? [] : JavRecents.Read("tree", _element).Select(sig => Enumerable.Range(0, rowsK.Count).FirstOrDefault(i => SigOf(i) == sig, -1)).Where(i => i >= 0).ToList();
-        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recentT, model: (row, yaw) => TypeOfRow(row) is var t && t >= 0 ? TreeThumb(t, yaw) : null, fav: fav, keepBlockOrder: true)
+        using var w = new ItemSearchWindow(rows, askQuantity: false, recent: recentT, model: (row, yaw) => TypeOfRow(row) is var t && t >= 0 ? TreeThumb(t, yaw) : null, fav: fav, keepBlockOrder: true,
+            rename: row => TextureNamePrompt(rowsK[row].Spt, Loc.T("names.treeTitle", "Renomear árvore")) ? GlossaryRow(rowsK[row].Spt) : null)
             { Text = Loc.T("obj.chooseTree", "Escolher árvore para plantar") };
         if (w.ShowDialog(this) != DialogResult.OK || w.Picked < 0) return;
         int type = TypeOfRow(w.Picked);
