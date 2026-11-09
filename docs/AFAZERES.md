@@ -16,22 +16,22 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] etapa 2a (07/11): Ctrl+C/Ctrl+V de construcoes e modelos + tamanho da construcao; falta testar no jogo
        [x] 3 arvores (08/11): mover, apagar, copiar/colar, plantar pelos tipos do mapa; so .ecwld (sem colisao no servidor); falta testar no jogo; um por clique, recarrega apos backup, caixa da arvore inteira (08/11)
        [x] 2b catalogo das construcoes por perto com previa, estrela e outro pedaco (08/11) | [x] arvores e construcoes de todos os mapas e instancias (08/11) | [x] 4 luzes da cena e nome das construcoes (08/11; falta testar no jogo) | [x] 5 pincel de grama e flores (08/11; falta testar no jogo)
-       Sombra no chao = pintada no mapa de luz do terreno (.t2lm): refazer junto com a ferramenta de terreno
+       Sombra no chao = pintada no mapa de luz do terreno (.t2lm): o usuario retoca com o pincel de textura + conta-gotas I (09/11)
        [x] terreno: pincel de altura (subir, descer, alisar, plainar) + .hmap do servidor (08/11; falta testar no jogo)
        [x] agua: escolher, nova, nivel, tamanho, cor, apagar, copiar/colar; cliente (bsdata/.ecbsd/.ecwld) + servidor (watermap) (08/11; falta testar no jogo; espuma da margem nova e passagem dos monstros de agua depois)
        [x] passagem dos NPCs: .rmap refeito onde o chao mudou ao salvar (08/11; .dhmap e regeracao completa com colisao depois)
        [x] nomes das texturas no idioma do MyAce + Renomear (F2) no glossario do cliente (08/11)
        [x] texturas novas: escolher de outros mapas do cliente; entram no fim da lista do .trn2 ao salvar (08/11; falta testar no jogo)
-       [x] luz e sombra do chao automaticas ao salvar terreno e construcoes (08/11; falta testar no jogo)
+       [-] luz e sombra do chao automaticas: removidas a pedido do usuario (09/11); conta-gotas I na textura e na grama
        [x] passagem dos NPCs ao mexer construcoes (08/11; .dhmap/andares depois)
-       [x] filtro de efeitos visuais na barra Mostrar (08/11; particulas animadas fora)
+       [-] filtro de efeitos visuais: removido a pedido do usuario (09/11); o gatilho fica so visual
        [x] textura do chao: pincel por camadas (08/11; falta testar no jogo; texturas novas no .trn2 depois)
        [x] grama: pincel de grama e flores (feito: item 5 acima)
-       [~] arvores: plantar, mover, apagar feitos; colisao da arvore no map.bht nao (usuario 08/11: app quase final)
+       [x] arvores: plantar, mover, apagar feitos; colisao no servidor nao existe no 1.5.5 (sem .tbh; 09/11)
        [x] construcoes e objetos: girar, colocar novos, apagar (etapas 1/2a/2b)
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
-           (pontes novas como caminho de monstro e voo/octree: descartados pelo usuario 08/11)
-       [~] passagem dos NPCs feita; voo (octree) fora (usuario 08/11)
+           [x] pontes novas como caminho de monstro (.rmap + .dhmap) e voo dos monstros (.octr) ao mexer construcoes (09/11; falta testar no jogo)
+       [?] luzes da cena: o cliente 1.5.5 nao usa (09/11); decidir com o usuario se a pilula Luzes fica
 
 ## PRONTO (conferido pelo usuario)
 - Elements: leitura completa e gravacao identica, lista e detalhe no estilo Rody, vinculos, editores de duplo clique,
