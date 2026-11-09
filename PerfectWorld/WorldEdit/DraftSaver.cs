@@ -431,7 +431,7 @@ public static class DraftSaver
             // passagem dos NPCs e sombra do chão no lugar antigo e no novo das construções mexidas (colisão velha × nova)
             if (bhtOrig is not null)
                 try { DraftChecks.BuildingEffects(plan, src, changed.Concat(added).Where(o => o.Kind == ObjKind.Building).ToList(), new BhtFile(bhtOrig, clone: false), nbht); }
-                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 { AppLog.Error("objetos: passagem/sombra das construções", ex); plan.Summary.Add(Loc.T("obj.effectsFail", "A passagem dos NPCs e a sombra do chão não foram refeitas (veja o log); as construções gravam assim mesmo.")); }
         }
         foreach (var g in count.GroupBy(k => k.Key.Piece).OrderBy(g => g.Key))

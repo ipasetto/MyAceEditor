@@ -401,14 +401,16 @@ internal sealed class DomainEditorWindow : Form
                 Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return false;
         try
         {
-            BackupStore.Save(_dataPath);
-            File.WriteAllBytes(_dataPath, _map.Build());
-            if (_server is not null && _sevPath is not null)
-            {
-                BackupStore.Save(_sevPath);
-                _server.Match(_map);
-                File.WriteAllBytes(_sevPath, _server.Build());
-            }
+            // tudo ou nada: monta os dois, cópia dos dois, escrita atômica; servidor falhou = o cliente volta da cópia
+            var cb = _map.Build();
+            byte[]? sb = null;
+            if (_server is not null && _sevPath is not null) { _server.Match(_map); sb = _server.Build(); }
+            var cbak = BackupStore.Save(_dataPath);
+            if (sb is not null) BackupStore.Save(_sevPath!);
+            AtomicFileSave.Write(_dataPath, cb);
+            if (sb is not null)
+                try { AtomicFileSave.Write(_sevPath!, sb); }
+                catch (Exception) when (cbak is not null) { try { AtomicFileSave.Write(_dataPath, BackupStore.Read(cbak)); } catch (Exception rex) when (rex is IOException or UnauthorizedAccessException or InvalidDataException) { AppLog.Error("domain.data: voltar o cliente", rex); } throw; }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("domain.data", ex); MessageBox.Show(this, ex.Message, Text); return false; }
         _dirty = false;

@@ -5970,5 +5970,7 @@
   "world.fx.h": "Show the map's visual effects (fire, smoke, glows…) as orange marks; hover to see the name. Editing them stays in World objects.",
   "world.fx.find": "Filter effects by name (e.g. fire, smoke, water)",
   "world.fx.count": "{0} effect(s) on this map.",
-  "terrain.dhSummary": "Bridges and floors above the changed ground: {0} meter(s) adjusted so monsters step at the same height"
+  "terrain.dhSummary": "Bridges and floors above the changed ground: {0} meter(s) adjusted so monsters step at the same height",
+  "terrain.rmapFail": "NPC passage of piece {0} not rebuilt (server file unreadable; see the log).",
+  "terrain.litFail": "Light and shadow of piece {0} not rebuilt (file unreadable; see the log)."
 }

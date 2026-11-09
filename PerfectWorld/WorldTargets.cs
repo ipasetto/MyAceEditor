@@ -161,13 +161,23 @@ public sealed class WorldTargets
 
     public bool HasServerFile => _serverPath is not null;
 
-    /// <summary>Grava o par, com cópia de segurança dos dois.</summary>
+    /// <summary>
+    /// Grava o par tudo ou nada: monta os dois antes, cópia de segurança dos dois, escrita atômica; se o do servidor
+    /// falhar, o do cliente volta da cópia (antes ficava o cliente novo com o servidor velho: destinos desencontrados).
+    /// </summary>
     public void Save()
     {
-        BackupStore.Save(_clientPath);
-        File.WriteAllBytes(_clientPath, ClientBytes());
-        if (_serverPath is null) return;
-        BackupStore.Save(_serverPath);
-        File.WriteAllBytes(_serverPath, WriteServer(Server));
+        var cb = ClientBytes();
+        var sb = _serverPath is null ? null : WriteServer(Server);
+        var cbak = BackupStore.Save(_clientPath);
+        if (_serverPath is not null) BackupStore.Save(_serverPath);
+        AtomicFileSave.Write(_clientPath, cb);
+        if (_serverPath is null || sb is null) return;
+        try { AtomicFileSave.Write(_serverPath, sb); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (cbak is not null) try { AtomicFileSave.Write(_clientPath, BackupStore.Read(cbak)); } catch (Exception rex) when (rex is IOException or UnauthorizedAccessException or InvalidDataException) { AppLog.Error("world_targets: voltar o cliente", rex); }
+            throw;
+        }
     }
 }

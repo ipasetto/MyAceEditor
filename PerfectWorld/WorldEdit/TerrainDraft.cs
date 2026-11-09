@@ -355,6 +355,7 @@ public sealed class TerrainDraft(TerrainFile t)
             // passagem dos NPCs: refaz os metros cujo chão mudou (pedaço sem .rmap no servidor = sem passagem: nada a fazer)
             var rp = serverMapDir is null ? null : Path.Combine(serverMapDir, "movemap", $"{piece}.rmap");
             if (rp is not null && System.IO.File.Exists(rp))
+            try
             {
                 float pm = Terrain.CellsPerPiece * Terrain.Cell, bm = Terrain.CellsPerBlock * Terrain.Cell;
                 int pr = (piece - 1) / Terrain.Cols, pc = (piece - 1) % Terrain.Cols;
@@ -371,6 +372,11 @@ public sealed class TerrainDraft(TerrainFile t)
                     if (dn > 0) { d[dp] = nd; dhChanged += dn; }
                 }
             }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {   // extra: a passagem ruim não impede salvar o terreno
+                AppLog.Error($"terreno: passagem do pedaço {piece}", ex);
+                summary?.Add(string.Format(Loc.T("terrain.rmapFail", "Passagem dos NPCs do pedaço {0} não refeita (arquivo do servidor ilegível; veja o log)."), piece));
+            }
         }
         // luz e sombra do chão: refaz onde a altura mudou (e a sombra que o relevo novo joga em volta)
         if (_hDirty.Count > 0)
@@ -384,11 +390,17 @@ public sealed class TerrainDraft(TerrainFile t)
                     if (Terrain.PieceAt(MathF.Min(x, r.X1), MathF.Min(z, r.Z1)) is > 0 and var lp) lpieces.Add(lp);
             int lit = 0;
             foreach (int lp in lpieces)
-            {
-                var (lf, n) = LightmapBaker.Piece(Terrain, lp, rects, OrigHeightAt, Terrain.HeightAt);
-                foreach (var (k, v) in lf) d[k] = v;
-                lit += n;
-            }
+                try
+                {
+                    var (lf, n) = LightmapBaker.Piece(Terrain, lp, rects, OrigHeightAt, Terrain.HeightAt);
+                    foreach (var (k, v) in lf) d[k] = v;
+                    lit += n;
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {   // extra: a luz ruim não impede salvar o terreno
+                    AppLog.Error($"terreno: luz do pedaço {lp}", ex);
+                    summary?.Add(string.Format(Loc.T("terrain.litFail", "Luz e sombra do pedaço {0} não refeitas (arquivo ilegível; veja o log)."), lp));
+                }
             if (lit > 0) summary?.Add(string.Format(Loc.T("terrain.litSummary", "Luz e sombra do chão refeitas: {0} ponto(s)"), lit));
         }
         if (dhChanged > 0) summary?.Add(string.Format(Loc.T("terrain.dhSummary", "Pontes e pisos acima do chão mexido: {0} metro(s) ajustado(s) para os monstros pisarem na mesma altura"), dhChanged));

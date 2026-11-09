@@ -31,7 +31,7 @@ internal sealed class WorldLoader : IDisposable
             _signal.Wait(200);
             while (!_stop && (_urgent.TryDequeue(out var job) || _normal.TryDequeue(out job)))
             {
-                try { job(); } catch { /* um arquivo ruim não derruba a carga */ }
+                try { job(); } catch (Exception ex) { Report("carga", ex); }   // um arquivo ruim não derruba a carga, mas fica no log
                 Interlocked.Decrement(ref _pending);
             }
         }
@@ -50,8 +50,15 @@ internal sealed class WorldLoader : IDisposable
     {
         var sw = Stopwatch.StartNew();
         while (sw.Elapsed.TotalMilliseconds < ms && _done.TryDequeue(out var a))
-            try { a(); } catch { }
+            try { a(); } catch (Exception ex) { Report("envio à placa", ex); }
         return !_done.IsEmpty || Volatile.Read(ref _pending) > 0;
+    }
+
+    int _errors;
+    /// <summary>Erro de um trabalho da carga: vai para o log (só os 20 primeiros da sessão, para não encher).</summary>
+    void Report(string where, Exception ex)
+    {
+        if (Interlocked.Increment(ref _errors) <= 20) MyAceEditor.PerfectWorld.AppLog.Error("Mundo 3D: " + where, ex);
     }
 
     public void Dispose() { _stop = true; _signal.Release(); }

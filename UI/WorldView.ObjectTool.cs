@@ -487,7 +487,7 @@ internal sealed partial class WorldView
         bool moved = MathF.Abs(CenterOf(o).X - c0.X - 5) < 0.05f;
         var checks = _draftSrc is null ? [] : DraftChecks.Run(_draft, _draftSrc, (x, z) => _t.HeightAt(x, z) ?? 0, _allMarks.Select(m => (new System.Numerics.Vector3(m.X, m.Y, m.Z), m.Name)));
         SavePlan? plan = null; string planErr = "";
-        try { plan = _draftSrc is null ? null : DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd); } catch (InvalidDataException ex) { planErr = ex.Message; }
+        try { plan = _draftSrc is null ? null : DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd); } catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException) { planErr = ex.Message; }
         string card = _objTitle.Text.Replace(Environment.NewLine, " / ");
         using (var shot = ToolsShot()) shot.Save(System.IO.Path.Combine(outDir, "dftcard-panel.png"), System.Drawing.Imaging.ImageFormat.Png);
         _scenePage.AutoScrollPosition = new Point(0, 100000); Application.DoEvents();
@@ -600,7 +600,7 @@ internal sealed partial class WorldView
         var (mn1, mx1) = DraftChecks.WorldBox(copy);
         bool scaled = MathF.Abs((mx1.Y - mn1.Y) / MathF.Max(0.01f, mx0.Y - mn0.Y) - 1.5f / s0) < 0.02f && copy.Now.Scale == 1.5f;
         string sum = "";
-        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (InvalidDataException ex) { sum = ex.Message; }
+        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException) { sum = ex.Message; }
         return load + $" | dftpaste: {msg} criou={made} clique={System.IO.Path.GetFileName(click)} (cópia {copy.Key}) ctrlz={undo} ctrly={redo} tamanho1,5={scaled} plano=\"{sum}\"";
     }
 
@@ -685,7 +685,7 @@ internal sealed partial class WorldView
         var tbox = _trees.BoxOf(t.Type);
         string boxTxt = tbox is { } bb ? $"{bb.Max.X - bb.Min.X:0}x{bb.Max.Y - bb.Min.Y:0}x{bb.Max.Z - bb.Min.Z:0}" : "nenhuma";
         string sum = "";
-        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft!, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (InvalidDataException ex) { sum = ex.Message; }
+        try { if (_draftSrc is not null) sum = string.Join(" / ", DraftSaver.Plan(_draft!, _draftSrc, _ecw?.Write(), _bsd).Summary); } catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException) { sum = ex.Message; }
         // backup restaurado com a ferramenta aberta: relê do disco e as plantadas (não salvas) somem sem fechar a janela
         int addedBefore = _draft!.Pieces.Values.Sum(p => p.Added.Count(a => !a.Deleted));
         OnBackupRestored([System.IO.Path.Combine(_element!, "maps", _t.Name, _t.Name + ".ecwld")]);
@@ -1437,7 +1437,7 @@ internal sealed partial class WorldView
                 blocksOk = ef.Find(EcwldFile.Kind.Ornament, max).Count(h => ObjectFormats.BlockArea(ef, h.Block) is var a && target.Value.X >= a.X0 - 60 && target.Value.X <= a.X1 + 60 && target.Value.Z >= a.Z0 - 60 && target.Value.Z <= a.Z1 + 60);
             }
         }
-        catch (InvalidDataException ex) { sum = ex.Message; }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException) { sum = ex.Message; }
         ObjectUndo(false);
         return load + $" | dftcat: indice={others} formas de {otherMaps} mapas {note} previa-outro-mapa={farThumb} altura-outro-mapa=[{farGhost}] | {_catalog.Count} formas ({total} construções) 1a={System.IO.Path.GetFileName(_catalog[0].Key)} x{_catalog[0].Count} outro-pedaco={one} (de {src.Piece} para {copy?.Piece}) bloqueou={blocked} blocos-do-lugar-novo={blocksOk} plano=\"{sum}\"";
     }

@@ -1284,6 +1284,9 @@ internal static class Program
             AppLog.Error("erro na tela", e.Exception);
             MessageBox.Show(e.Exception.Message, "MyAceEditor", MessageBoxButtons.OK, MessageBoxIcon.Error);
         };
+        // erros fora da tela (threads e tarefas em segundo plano): antes não ficavam no log
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => { if (e.ExceptionObject is Exception ex) AppLog.Error("erro fatal fora da tela", ex); };
+        TaskScheduler.UnobservedTaskException += (_, e) => { AppLog.Error("erro numa tarefa em segundo plano", e.Exception); e.SetObserved(); };
         if (args.Length >= 3 && args[0] == "--entrance")   // <gamed\config> <mapa>: portais do mapa e quem leva até ele
         {
             var sb = new StringBuilder();
