@@ -95,6 +95,15 @@ internal sealed class WorldTerrain : IDisposable
         _ground[(ar, ac)] = new GroundGpu(gl, old.Light);
     }
 
+    /// <summary>Prévia do pincel de sombra e luz: troca a textura de luz da área pelos pontos dados (se for o dia/noite à vista).</summary>
+    internal void SetLight(int ar, int ac, bool night, int[] px, int side)
+    {
+        if (night != _night || !_ground.TryGetValue((ar, ac), out var g) || g is null) return;
+        int tex = UploadTexture(px, side, side, false, false);
+        if (g.Light != 0) GL.DeleteTexture(g.Light);
+        _ground[(ar, ac)] = g with { Light = tex };
+    }
+
     /// <summary>Luz do chão regravada (Salvar terreno): troca só a textura de luz da área (no desenho, contexto ativo).</summary>
     internal void RefreshLight(int ar, int ac)
     {

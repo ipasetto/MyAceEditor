@@ -108,7 +108,7 @@ internal sealed partial class WorldView
         if (GrassDraftOrNew() is null) return;
         StopPlanting(); StopDropper();
         if (_texDown) TerrainMouseUp();
-        _texActive = false; _sculpt = -1; _waterMode = 0; TexLabels(); WaterLabels();   // um pincel por vez na pílula Terreno
+        _texActive = false; _sculpt = -1; _waterMode = 0; _lightMode = 0; TexLabels(); WaterLabels();   // um pincel por vez na pílula Terreno
         _sceneSel = null; ShowObjPanel();
         _brushActive = false; _brushErase = false;
         _brushPanel.Visible = true; BrushLabels(); FitObjPanel();

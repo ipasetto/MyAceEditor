@@ -28,6 +28,8 @@ public sealed class TerrainDraft(TerrainFile t)
     }
     /// <summary>Águas do mapa (null = mapa sem .ecwld/.ecbsd). Mexer nelas passa por WaterEdit para entrar no Ctrl+Z.</summary>
     public WaterDraft? Water { get; set; }
+    /// <summary>Sombra e luz do chão (.t2lm/.t2lm1) pintadas à mão; null = não mexeu.</summary>
+    public LightDraft? Light { get; set; }
     /// <summary>Alguma água mudou desde a última leitura (o desenho refaz e zera).</summary>
     public bool WaterChanged { get; set; }
 
@@ -71,7 +73,7 @@ public sealed class TerrainDraft(TerrainFile t)
     readonly List<Stroke> _undo = new(), _redo = new();
     Stroke? _cur;
 
-    public bool Dirty => (_dirty.Count > 0 || _hDirty.Count > 0) && _undo.Count > 0 || Water?.Dirty == true;
+    public bool Dirty => (_dirty.Count > 0 || _hDirty.Count > 0) && _undo.Count > 0 || Water?.Dirty == true || Light?.Dirty == true;
 
     /// <summary>Tamanho da lista de texturas do arquivo (texturas novas vêm depois; −1 = nenhuma acrescentada).</summary>
     public int FileTextureCount { get; private set; } = -1;
@@ -335,6 +337,7 @@ public sealed class TerrainDraft(TerrainFile t)
     {
         var d = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         if (Water is { Dirty: true } w) foreach (var (k, v) in w.Files(serverMapDir, summary ?? new List<string>())) d[k] = v;
+        if (Light is { Dirty: true } lt) foreach (var (k, v) in lt.Files(summary)) d[k] = v;   // sombra e luz pintadas: só os blocos mexidos
         // texturas novas usadas: entram no fim da lista do .trn2 (sem uso nenhum, o arquivo não muda)
         if (FileTextureCount >= 0 && Terrain.TextureNames.Count > FileTextureCount && _dirty.Count > 0)
         {

@@ -189,6 +189,11 @@ internal sealed class WorldGrass : IDisposable
         }
     }
 
+    /// <summary>Pincel de sombra e luz: a cor da grama da área passa a usar estes pontos (o Invalidate refaz os tufos).</summary>
+    internal void SetLight(int ar, int ac, bool night, int[] px, int side) { if (night == _night) _light[(ar, ac)] = (px, side, side); }
+    /// <summary>Volta a luz da área ao disco (abandonar).</summary>
+    internal void ForgetLight(int ar, int ac) => _light.Remove((ar, ac));
+
     /// <summary>Luz do terreno (mapa de luz do dia, 256 m por área) no ponto do jogo, como cor BGRA opaca.</summary>
     float LightAt(float x, float z)
     {

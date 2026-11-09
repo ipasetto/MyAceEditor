@@ -30,7 +30,7 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] arvores: plantar, mover, apagar feitos; colisao no servidor nao existe no 1.5.5 (sem .tbh), mas a passagem dos monstros (.rmap) tem o circulo de cada arvore: refeito ao salvar (09/11; falta testar no jogo)
        [x] construcoes e objetos: girar, colocar novos, apagar (etapas 1/2a/2b)
        [x] Edicao de Mundo: Objetos e Terreno numa ferramenta (pilulas), grama na pilula Terreno, um Salvar, Ctrl+Z em ordem, backup por sessao (09/11)
-       [?] pincel de sombra e luz do chao (.t2lm/.t2lm1): estudo feito, aguardando confirmacao do usuario (09/11)
+       [x] pincel de sombra e luz do chao (.t2lm/.t2lm1): Sombra, Luz, Pegar luz, Borracha; previa ao vivo; so blocos mexidos (09/11; falta testar no jogo)
        [ ] testar no jogo: ponte nova com criatura passando por cima
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
            [x] pontes novas como caminho de monstro (.rmap + .dhmap) e voo dos monstros (.octr) ao mexer construcoes (09/11; falta testar no jogo)

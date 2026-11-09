@@ -91,7 +91,7 @@ internal sealed partial class WorldView
     /// <summary>Depois dos objetos gravados: o que o Salvar mundo ainda tem para fazer (o terreno). null = só os objetos.</summary>
     Action<SaveResult, bool>? _objSaveThen;
 
-    // ---- Ctrl+Z em ordem entre as pílulas: T = terreno/água, G = grama, O = objetos, S = cenário (efeitos, sons, bichos) ----
+    // ---- Ctrl+Z em ordem entre as pílulas: T = terreno/água, G = grama, O = objetos, S = cenário (efeitos, sons, bichos), L = sombra/luz ----
     readonly List<char> _wUndo = new(), _wRedo = new();
 
     void WorldDid(char kind)
@@ -114,6 +114,7 @@ internal sealed partial class WorldView
                 'G' => GrassUndoCore(redo),
                 'O' => ObjectUndo(redo),
                 'S' => SceneUndo(redo),
+                'L' => LightUndoCore(redo),
                 _ => false,
             };
             if (ok) { to.Add(k); return true; }   // falhou = passo velho (salvo ou abandonado): sai e tenta o anterior

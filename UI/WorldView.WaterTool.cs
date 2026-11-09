@@ -62,7 +62,7 @@ internal sealed partial class WorldView
     {
         if (WaterEd is null && TerrainDraftOrNew().Water is null) { _status.Text = Loc.T("water.none", "Este mapa não tem arquivo de cenário (.ecwld/.ecbsd): sem água para editar."); return; }
         _waterMode = _waterMode == m && m != 3 ? 0 : m;
-        if (_waterMode > 0) { _texActive = false; _sculpt = -1; }
+        if (_waterMode > 0) { _texActive = false; _sculpt = -1; _lightMode = 0; }
         _status.Text = _waterMode switch
         {
             1 => Loc.T("water.pickHint", "Clique numa água para escolher. Ela aparece onde o chão fica abaixo do nível."),

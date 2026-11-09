@@ -31,7 +31,7 @@ internal sealed partial class WorldView
     bool SculptOn => _tool == Tool.Terrain && _sculpt >= 0;
 
     bool TerrainDirty => _terrainDraft?.Dirty == true;
-    bool TexOn => _tool == Tool.Terrain && (_texActive && (_texErase || _texSel >= 0) || _sculpt >= 0);
+    bool TexOn => _tool == Tool.Terrain && (_texActive && (_texErase || _texSel >= 0) || _sculpt >= 0 || _lightMode > 0);
 
     void InitTerrainPage()
     {
@@ -69,6 +69,7 @@ internal sealed partial class WorldView
         _texForce.ValueChanged += (_, _) => { _texStrength = _texForce.Value / 100f; TexLabels(); };
         NoWheel(_texSize); NoWheel(_texForce);
         foreach (var c in new Control[] { _texSizeLbl, _texSize, _texForceLbl, _texForce }) _terrainPage.Controls.Add(c);
+        InitLightSection();   // sombra e luz do chão (usa o mesmo tamanho e força)
         InitWaterSection();
         // grama e flores (usuário 09/11: mesmos botões da textura, mais sentido aqui que em Objetos)
         _terrainPage.Controls.Add(SectionLabel(Loc.T("grass.section", "Grama e flores")));
@@ -102,6 +103,7 @@ internal sealed partial class WorldView
         bool p = _texActive && !_texErase, e = _texActive && _texErase;
         if (_texPaintBtn is not null) { _texPaintBtn.BackColor = p ? UiKit.Accent : Color.FromArgb(40, 45, 54); _texPaintBtn.FlatAppearance.BorderColor = p ? UiKit.Accent : Color.FromArgb(62, 70, 84); }
         if (_texEraseBtn is not null) { _texEraseBtn.BackColor = e ? Color.FromArgb(150, 50, 50) : Color.FromArgb(40, 45, 54); _texEraseBtn.FlatAppearance.BorderColor = e ? Color.FromArgb(150, 50, 50) : Color.FromArgb(62, 70, 84); }
+        LightLabels();
         _terrainState.Text = WorldDirty ? Loc.T("world.dirtyLine", "● Mudanças não salvas — use Salvar mundo.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
         _terrainState.ForeColor = WorldDirty ? Color.FromArgb(255, 200, 90) : Color.Silver;
     }
@@ -140,19 +142,19 @@ internal sealed partial class WorldView
         int idx = -1;
         for (int i = 0; i < _t.TextureNames.Count; i++) if (_t.TextureNames[i].Equals(pick, StringComparison.OrdinalIgnoreCase)) { idx = i; break; }
         if (idx < 0) { _status.Text = Loc.T("terrain.pickNone", "Não deu para ler a textura deste lugar."); return false; }
-        _texSel = idx; _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true;
+        _texSel = idx; _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true; _lightMode = 0; _lightFamily = false;
         _status.Text = string.Format(Loc.T("terrain.picked", "Pincel com a textura daqui: {0}"), TextureNameGlossary.Display(pick, _element));
         TexLabels(); WaterLabels(); _gl.Invalidate();
         return true;
     }
 
-    void TexPaint() { StopBrush(); if (_texSel < 0) { ChooseTexture(); return; } _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
-    void TexEraser() { StopBrush(); _sculpt = -1; _waterMode = 0; _texErase = true; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
+    void TexPaint() { StopBrush(); _lightMode = 0; _lightFamily = false; if (_texSel < 0) { ChooseTexture(); return; } _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
+    void TexEraser() { StopBrush(); _lightMode = 0; _lightFamily = false; _sculpt = -1; _waterMode = 0; _texErase = true; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
 
     /// <summary>Liga um modo de altura (o pincel de textura apaga); de novo no mesmo botão desliga.</summary>
     void SetSculpt(int m)
     {
-        StopBrush();
+        StopBrush(); _lightMode = 0;
         _sculpt = _sculpt == m ? -1 : m; _texActive = false;
         if (_sculpt >= 0) _waterMode = 0;
         TexLabels(); WaterLabels(); _gl.Invalidate();
@@ -194,7 +196,7 @@ internal sealed partial class WorldView
             _status.Text = Loc.T("terrain.texFromOther", "Textura de outro mapa: entra na lista deste mapa quando você salvar o terreno com ela pintada.");
         }
         else _texSel = w.Picked;
-        _texErase = false; _texActive = true;
+        _texErase = false; _texActive = true; _lightMode = 0; _lightFamily = false; StopBrush();
         if (_element is not null) JavRecents.Add("groundtex", _element, SigOf(w.Picked));
         TexLabels(); _gl.Focus(); _gl.Invalidate();
     }
@@ -255,8 +257,9 @@ internal sealed partial class WorldView
     bool TerrainMouseDown(MouseEventArgs e)
     {
         if (_tool != Tool.Terrain || !TexOn) return false;
-        if (e.Button == MouseButtons.Right) { _texActive = false; _sculpt = -1; TexLabels(); _gl.Invalidate(); return true; }
+        if (e.Button == MouseButtons.Right) { _texActive = false; _sculpt = -1; _lightMode = 0; TexLabels(); _gl.Invalidate(); return true; }
         if (e.Button != MouseButtons.Left || Ray(e.Location) is not { } g) return e.Button == MouseButtons.Left;
+        if (_lightMode > 0) { LightBegin(new System.Numerics.Vector3(g.X, g.Y, g.Z)); return true; }   // sombra e luz do chão
         TerrainDraftOrNew().BeginStroke(); _texDown = true; _texLast = null;
         _flatTarget = _t.HeightAt(g.X, g.Z) ?? g.Y;   // plainar: altura do ponto onde começou
         TexDab(new System.Numerics.Vector3(g.X, g.Y, g.Z));
@@ -286,6 +289,7 @@ internal sealed partial class WorldView
     {
         if (!_texDown) return false;
         _texDown = false;
+        if (_lightDown) { LightEnd(); return true; }
         if (_terrainDraft?.EndStroke() == true) { WorldDid('T'); TexLabels(); WaterLabels(); }
         if (_terrainDraft?.LastRefusal is { } why) _status.Text = why;
         return true;
@@ -293,6 +297,7 @@ internal sealed partial class WorldView
 
     void TexDab(System.Numerics.Vector3 at)
     {
+        if (_lightDown) { LightDab(at); return; }
         var d = TerrainDraftOrNew();
         try
         {
@@ -366,11 +371,14 @@ internal sealed partial class WorldView
     bool TerrainKey(Keys k)
     {
         if (_tool != Tool.Terrain) return false;
-        if (k == Keys.B) { TexPaint(); return true; }
-        if (k == Keys.E) { TexEraser(); return true; }
+        // B pincel, E borracha, I conta-gotas: da seção em uso (textura do chão ou sombra e luz)
+        if (k == Keys.B) { if (_lightFamily) SetLightMode(_lightMode is 1 or 2 or 3 ? _lightMode : _lastLightBrush); else TexPaint(); return true; }
+        if (k == Keys.E) { if (_lightFamily) SetLightMode(4); else TexEraser(); return true; }
         if (k is >= Keys.D1 and <= Keys.D4) { SetSculpt(k - Keys.D1); return true; }
         if (k is Keys.D5 or Keys.D6) { SetWaterMode(k == Keys.D5 ? 1 : 2); return true; }
-        if (k == Keys.I) { StartDropper(1); return true; }   // conta-gotas da textura do chão (usuário 09/11)
+        if (k == Keys.I) { StartDropper(_lightFamily ? 3 : 1); return true; }
+        if (k == Keys.D7) { SetLightMode(1); return true; }   // sombra
+        if (k == Keys.D8) { SetLightMode(2); return true; }   // luz   // conta-gotas da textura do chão (usuário 09/11)
         if (k == Keys.Delete && WaterSel is not null) { WaterDelete(); return true; }
         return false;
     }
@@ -386,9 +394,9 @@ internal sealed partial class WorldView
     bool TerrainEscape()
     {
         if (_tool == Tool.Terrain && _waterMode > 0) { SetWaterMode(_waterMode is 2 or 3 ? 1 : 0); if (_waterMode == 0) { _waterSel = -1; WaterLabels(); } return true; }
-        if (_tool != Tool.Terrain || !_texActive && _sculpt < 0) return false;
+        if (_tool != Tool.Terrain || !_texActive && _sculpt < 0 && _lightMode == 0) return false;
         if (_texDown) TerrainMouseUp();
-        _texActive = false; _sculpt = -1; TexLabels(); _gl.Invalidate();
+        _texActive = false; _sculpt = -1; _lightMode = 0; TexLabels(); _gl.Invalidate();
         return true;
     }
 
@@ -404,6 +412,7 @@ internal sealed partial class WorldView
     /// <summary>Tira o rascunho e relê a textura do chão dos pedaços mexidos (abandonar, salvar, restaurar backup).</summary>
     void ResetTerrainEdit()
     {
+        ForgetLightDraft();   // sombra e luz pintadas: a tela e a grama voltam ao disco
         var pieces = _terrainDraft?.DirtyPieces.ToList() ?? [];
         // altura: volta o que estava antes de cada pincelada (desfaz tudo; o cache do terreno é o mesmo vetor)
         if (_terrainDraft is { } td) { while (td.UndoCount > 0 && td.Undo(false) is { } a) _terrain.RefreshHeights(a); }
@@ -474,7 +483,7 @@ internal sealed partial class WorldView
         if (!TexOn || _hover is not { } h) return;
         GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.DepthTest);
         GL.LineWidth(2.5f);
-        GL.Color3(_sculpt >= 0 ? Color.FromArgb(255, 190, 70) : _texErase ? Color.FromArgb(255, 90, 80) : Color.FromArgb(110, 200, 255));
+        GL.Color3(_lightMode switch { 1 => Color.FromArgb(40, 40, 70), 2 => Color.FromArgb(255, 240, 120), 3 => Color.FromArgb(80, 240, 220), 4 => Color.FromArgb(255, 90, 80), _ => _sculpt >= 0 ? Color.FromArgb(255, 190, 70) : _texErase ? Color.FromArgb(255, 90, 80) : Color.FromArgb(110, 200, 255) });
         GL.Begin(PrimitiveType.LineLoop);
         for (int i = 0; i < 72; i++)
         {

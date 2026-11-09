@@ -1495,6 +1495,7 @@ internal static class Program
             else if (c.Name?.StartsWith("dftfix") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftFixTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftcard") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCardTest(outDir) + Environment.NewLine);
             else if (c.Name?.StartsWith("dftinfo") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.InfoCardTest() + Environment.NewLine);
+            else if (c.Name?.StartsWith("dftlight") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.LightBrushTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftworld") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.WorldEditTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftmove") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftMoveTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftload") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftLoadTest() + Environment.NewLine);   // "dftload…": rascunho dos objetos (3x3)

@@ -16,17 +16,20 @@ internal sealed partial class WorldView
     Button? _texDropBtn, _grassDropBtn;
     static readonly Color DropColor = Color.FromArgb(190, 110, 255);
 
-    bool DropperOn => _dropper == 1 && _tool == Tool.Terrain && !_texActive && _sculpt < 0 && _waterMode == 0
+    bool DropperOn => _dropper is 1 or 3 && _tool == Tool.Terrain && !_texActive && _sculpt < 0 && _waterMode == 0 && _lightMode == 0
                    || _dropper == 2 && _tool == Tool.Terrain && _brushPanel.Visible && !_brushActive;
 
-    string DropperHint => _dropper == 1
-        ? Loc.T("drop.hintTex", "Conta-gotas: clique no chão para pegar a textura (Esc cancela)")
-        : Loc.T("drop.hintGrass", "Conta-gotas: clique numa grama ou flor para pegar o tipo (Esc cancela)");
+    string DropperHint => _dropper switch
+    {
+        1 => Loc.T("drop.hintTex", "Conta-gotas: clique no chão para pegar a textura (Esc cancela)"),
+        3 => Loc.T("drop.hintLight", "Conta-gotas da luz: clique no chão para pegar a luz dali (Esc cancela)"),
+        _ => Loc.T("drop.hintGrass", "Conta-gotas: clique numa grama ou flor para pegar o tipo (Esc cancela)"),
+    };
 
     void StartDropper(int kind)
     {
         if (DropperOn && _dropper == kind) { StopDropper(); return; }   // I de novo / botão de novo: desliga
-        if (kind == 1) { StopBrush(); if (_texDown) TerrainMouseUp(); _texActive = false; _sculpt = -1; _waterMode = 0; _dropper = 1; TexLabels(); WaterLabels(); }
+        if (kind is 1 or 3) { _lightFamily = kind == 3; StopBrush(); if (_texDown) TerrainMouseUp(); _texActive = false; _sculpt = -1; _waterMode = 0; _lightMode = 0; _dropper = kind; TexLabels(); WaterLabels(); }
         else { if (_brushDown) EndDab(); _brushActive = false; _dropper = 2; BrushLabels(); }
         _status.Text = DropperHint;
         _gl.Focus(); _gl.Invalidate();
@@ -60,7 +63,7 @@ internal sealed partial class WorldView
         if (e.Button != MouseButtons.Left) return false;
         if (Ray(e.Location) is not { } g) return true;
         var at = new System.Numerics.Vector3(g.X, g.Y, g.Z);
-        bool ok = _dropper == 1 ? TexEyedropperAt(at) : GrassEyedropperAt(at);
+        bool ok = _dropper switch { 1 => TexEyedropperAt(at), 3 => LightPickAt(at), _ => GrassEyedropperAt(at) };
         if (ok) { _dropper = 0; DropButtons(); }   // pegou: o pincel já ficou ligado com o que pegou
         _gl.Invalidate();
         return true;
