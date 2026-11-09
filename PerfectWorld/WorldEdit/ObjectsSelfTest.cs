@@ -322,32 +322,6 @@ public static class ObjectsSelfTest
         bool farSame = has && MoveMapFile.Reach(nr!, w, U(x + 200), V(z)) == MoveMapFile.Reach(old, w, U(x + 200), V(z));
         float h0 = d.OrigHeightAt(x + 5, z) ?? 0, h1 = t.HeightAt(x + 5, z) ?? 0;
         r.Check("passagem-morro-bloqueia", slopeBlocked && farSame, $"pedaço {piece}, altura na encosta {h0:0.0} -> {h1:0.0}; {string.Join(" | ", sum)}");
-        // luz e sombra: o morro ganha lado claro e escuro; longe nada muda; mesmo tamanho
-        var lp = Path.Combine(element, "maps", "world", $"world_{piece}.t2lm");
-        bool lhas = files.TryGetValue(lp, out var nl);
-        var ol = File.ReadAllBytes(lp);
-        int per = (int)(t.CellsPerPiece * t.Cell / TerrainFile.AreaM);
-        float ax0 = -t.Width / 2 + pc * pm, azTop = t.Height / 2 - pr * pm;
-        int ac = (int)((x - ax0) / TerrainFile.AreaM), ar = (int)((azTop - z) / TerrainFile.AreaM), ka = ar * per + ac;
-        int brighter = 0, darker = 0; bool farLit = false;
-        if (lhas && nl!.Length == ol.Length)
-        {
-            int o = BitConverter.ToInt32(ol, 0x18 + ka * 4), end = BitConverter.ToInt32(ol, 0x18 + (ka + 1) * 4);
-            var a = DdsDecoder.Decode(ol.AsSpan(o, end - o).ToArray())!.Value.Pixels; var b = DdsDecoder.Decode(nl.AsSpan(o, end - o).ToArray())!.Value.Pixels;
-            float x0a = ax0 + ac * TerrainFile.AreaM, zta = azTop - ar * TerrainFile.AreaM;
-            int L(int c) => ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255);
-            for (int dv = -12; dv <= 12; dv++) for (int du = -12; du <= 12; du++)
-            {
-                int u = (int)(x - x0a) + du, v = (int)(zta - z) + dv;
-                if (u < 0 || v < 0 || u > 255 || v > 255) continue;
-                int dl = L(b[v * 256 + u]) - L(a[v * 256 + u]);
-                if (dl > 20) brighter++; else if (dl < -20) darker++;
-            }
-            // longe (fora da folga de 96 m + bloco): mesmos bytes no arquivo inteiro fora da área? confere outra área do pedaço
-            int k2 = (ka + 2) % (per * per), o2 = BitConverter.ToInt32(ol, 0x18 + k2 * 4), e2 = k2 + 1 < per * per ? BitConverter.ToInt32(ol, 0x18 + (k2 + 1) * 4) : ol.Length;
-            farLit = ol.AsSpan(o2, e2 - o2).SequenceEqual(nl.AsSpan(o2, e2 - o2)) || Math.Abs(k2 % per - ac) <= 1 && Math.Abs(k2 / per - ar) <= 1;
-        }
-        r.Check("sombra-chao-refeita", lhas && brighter > 0 && darker > 0 && farLit, $"{lp[^14..]}: mais claro {brighter}, mais escuro {darker}, área longe igual={farLit}");
     }
 
     /// <summary>Nomes das texturas: todas as de todos os mapas saem sem chinês em pt, en e ru; renomear vale no idioma.</summary>
@@ -661,7 +635,7 @@ public static class ObjectsSelfTest
         }
         float cxN = (bmn.X + bmx.X) / 2, czN = (bmn.Z + bmx.Z) / 2, cxO = cxN - 4, czO = czN + 3;
         string diag = "caixa " + (bmx.X - bmn.X).ToString("0") + "x" + (bmx.Y - bmn.Y).ToString("0") + "x" + (bmx.Z - bmn.Z).ToString("0") + "; centro novo: velho=" + Col(bo, cxN, czN) + " novo=" + Col(bn, cxN, czN) + "; centro antigo: velho=" + Col(bo, cxO, czO) + " novo=" + Col(bn, cxO, czO);
-        r.Check("construcao-sombra-passagem", litK.Count > 0 && litSame, $"{diag}; luz: {string.Join(",", litK.Select(Path.GetFileName))} passagem: {string.Join(",", rmK.Select(Path.GetFileName))} | {string.Join(" / ", plan.Summary)}");
+        r.Check("construcao-passagem-sem-luz", litK.Count == 0, $"{diag}; luz: {string.Join(",", litK.Select(Path.GetFileName))} passagem: {string.Join(",", rmK.Select(Path.GetFileName))} | {string.Join(" / ", plan.Summary)}");
 
         // gêmeas: mexer uma leva as duas, e cada brush do map.bht anda uma vez só (procura no a05 e em pedaços do world)
         DraftSources twinSrc = a05; int[] twinPieces = all;

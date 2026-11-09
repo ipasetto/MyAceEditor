@@ -213,3 +213,21 @@ public sealed class BhtFile
     int I(int o) => BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(o));
     float F(int o) => BinaryPrimitives.ReadSingleLittleEndian(_data.AsSpan(o));
 }
+
+/// <summary>Brushes perto (pré-filtro do map.bht para os testes de parede da passagem dos NPCs).</summary>
+public sealed class BrushSet(BhtFile bht, IReadOnlyList<int> ids)
+{
+    public int Count => ids.Count;
+    public bool Hit(System.Numerics.Vector3 a, System.Numerics.Vector3 b)
+    {
+        foreach (int i in ids)
+        {
+            var bb = bht.Box(i);
+            float lx = MathF.Min(a.X, b.X), hx = MathF.Max(a.X, b.X), ly = MathF.Min(a.Y, b.Y), hy = MathF.Max(a.Y, b.Y), lz = MathF.Min(a.Z, b.Z), hz = MathF.Max(a.Z, b.Z);
+            if (bb.X1 < lx || bb.X0 > hx || bb.Y1 < ly || bb.Y0 > hy || bb.Z1 < lz || bb.Z0 > hz) continue;
+            if (bht.SegmentHitOne(i, a.X, a.Y, a.Z, b.X, b.Y, b.Z)) return true;
+        }
+        return false;
+    }
+    public static BrushSet Near(BhtFile bht, float x0, float z0, float x1, float z1) => new(bht, bht.Inside(x0, -1e6f, z0, x1, 1e6f, z1, touching: true));
+}

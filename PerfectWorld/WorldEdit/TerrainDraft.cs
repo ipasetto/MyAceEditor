@@ -378,31 +378,6 @@ public sealed class TerrainDraft(TerrainFile t)
                 summary?.Add(string.Format(Loc.T("terrain.rmapFail", "Passagem dos NPCs do pedaço {0} não refeita (arquivo do servidor ilegível; veja o log)."), piece));
             }
         }
-        // luz e sombra do chão: refaz onde a altura mudou (e a sombra que o relevo novo joga em volta)
-        if (_hDirty.Count > 0)
-        {
-            float bm = Terrain.CellsPerBlock * Terrain.Cell, pad = 96;
-            var rects = _hDirty.Select(k => (X0: -Terrain.Width / 2 + k.Bc * bm - pad, Z0: Terrain.Height / 2 - (k.Br + 1) * bm - pad, X1: -Terrain.Width / 2 + (k.Bc + 1) * bm + pad, Z1: Terrain.Height / 2 - k.Br * bm + pad)).ToList();
-            float pm = Terrain.CellsPerPiece * Terrain.Cell;
-            var lpieces = new HashSet<int>();
-            foreach (var r in rects)
-                for (float z = r.Z0; z <= r.Z1 + pm; z += pm) for (float x = r.X0; x <= r.X1 + pm; x += pm)
-                    if (Terrain.PieceAt(MathF.Min(x, r.X1), MathF.Min(z, r.Z1)) is > 0 and var lp) lpieces.Add(lp);
-            int lit = 0;
-            foreach (int lp in lpieces)
-                try
-                {
-                    var (lf, n) = LightmapBaker.Piece(Terrain, lp, rects, OrigHeightAt, Terrain.HeightAt);
-                    foreach (var (k, v) in lf) d[k] = v;
-                    lit += n;
-                }
-                catch (Exception ex) when (ex is not OutOfMemoryException)
-                {   // extra: a luz ruim não impede salvar o terreno
-                    AppLog.Error($"terreno: luz do pedaço {lp}", ex);
-                    summary?.Add(string.Format(Loc.T("terrain.litFail", "Luz e sombra do pedaço {0} não refeitas (arquivo ilegível; veja o log)."), lp));
-                }
-            if (lit > 0) summary?.Add(string.Format(Loc.T("terrain.litSummary", "Luz e sombra do chão refeitas: {0} ponto(s)"), lit));
-        }
         if (dhChanged > 0) summary?.Add(string.Format(Loc.T("terrain.dhSummary", "Pontes e pisos acima do chão mexido: {0} metro(s) ajustado(s) para os monstros pisarem na mesma altura"), dhChanged));
         if (rmapChanged > 0) summary?.Add(string.Format(Loc.T("terrain.rmapSummary", "Passagem dos NPCs: {0} metro(s) refeito(s) onde o chão mudou"), rmapChanged));
         foreach (int p in _dirty)

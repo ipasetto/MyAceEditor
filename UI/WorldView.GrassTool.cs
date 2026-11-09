@@ -53,13 +53,17 @@ internal sealed partial class WorldView
         _toolTip.SetToolTip(_brushEraseBtn, Loc.T("grass.eraserTip", "Apaga a grama e as flores de qualquer tipo arrastando no chão."));
         _toolTip.SetToolTip(pick, Loc.T("grass.pickTip", "Abre a lista de gramas e flores de todos os mapas."));
         modes.Controls.Add(_brushPaintBtn); modes.Controls.Add(_brushEraseBtn); modes.Controls.Add(pick);
+        var dropRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 42, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 2, 0, 4) };
+        var drop = SmallButton("", Loc.T("grass.eyedropper", "Conta-gotas (I): pegar o tipo do chão"), () => GrassEyedropper()); drop.Width = 236;
+        _toolTip.SetToolTip(drop, Loc.T("grass.eyedropperTip", "Passe o mouse em cima de uma grama ou flor e aperte I: o pincel fica com o mesmo tipo."));
+        dropRow.Controls.Add(drop);
         var gap = new Panel { Dock = DockStyle.Top, Height = 10, BackColor = _brushPanel.BackColor };
         var doneRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 8, 0, 0) };
         var done = SmallButton("\uE73E", Loc.T("grass.done", "Concluir"), () => StopBrush(), main: true); done.Width = 236;
         doneRow.Controls.Add(done);
         var note = new Label { Dock = DockStyle.Top, Height = 46, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Padding = new Padding(0, 6, 0, 0),
             Text = Loc.T("grass.note2", "Cada arrastada é um passo do Ctrl+Z. Grava no Salvar cenário (só no cliente; o servidor não muda).") };
-        foreach (var c in new Control[] { note, doneRow, _brushDens, _brushDensLbl, gap, _brushSize, _brushSizeLbl, modes, _brushTitle }) _brushPanel.Controls.Add(c);
+        foreach (var c in new Control[] { note, doneRow, _brushDens, _brushDensLbl, gap, _brushSize, _brushSizeLbl, dropRow, modes, _brushTitle }) _brushPanel.Controls.Add(c);
         _brushPanel.Height = _brushPanel.Controls.Cast<Control>().Sum(c => c.Height) + 16;
         BrushLabels();
     }
@@ -209,6 +213,7 @@ internal sealed partial class WorldView
         if (_tool != Tool.Scene || !_brushPanel.Visible) return false;
         if (k == Keys.B) { BrushPaint(); return true; }
         if (k == Keys.E) { BrushEraser(); return true; }
+        if (k == Keys.I) { GrassEyedropper(); return true; }   // conta-gotas: o tipo embaixo do mouse (usuário 09/11)
         return false;
     }
 
@@ -280,14 +285,14 @@ internal sealed partial class WorldView
     /// <summary>Conta-gotas (Ctrl+C com o pincel): o tipo de grama que tem tufo embaixo do mouse vira o tipo do pincel.</summary>
     bool GrassEyedropper()
     {
-        if (!BrushOn || _grass.Scene is not { } sc || _hover is not { } h) return false;
+        if (!_brushPanel.Visible || _grass.Scene is not { } sc || _hover is not { } h) return false;
         for (int i = sc.Grass.Count - 1; i >= 0; i--)
         {
             var g = sc.Grass[i];
             float x0 = g.X - g.Cols * g.Cell / 2, z1 = g.Z + g.Rows * g.Cell / 2;
             int col = (int)MathF.Floor((h.X - x0) / g.Cell), row = (int)MathF.Floor((z1 - h.Z) / g.Cell);   // _hover: coordenadas do jogo
             if (col < 0 || row < 0 || col >= g.Cols || row >= g.Rows || !g.On(col, row)) continue;
-            _brushType = g.Type; _brushErase = false; BrushLabels();
+            _brushType = g.Type; _brushErase = false; _brushActive = true; BrushLabels(); _gl.Invalidate();   // já liga o pincel
             _status.Text = string.Format(Loc.T("grass.picked", "Pincel com o tipo daqui: {0}"), Path.GetFileNameWithoutExtension(sc.GrassTypes[g.Type].Mox));
             return true;
         }

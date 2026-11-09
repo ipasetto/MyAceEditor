@@ -43,6 +43,9 @@ internal sealed partial class WorldView
         var pick = BigButton("", Loc.T("terrain.pick", "Escolher textura"), "", ChooseTexture, 76);
         modes.Controls.Add(_texPaintBtn); modes.Controls.Add(_texEraseBtn); modes.Controls.Add(pick);
         _terrainPage.Controls.Add(modes);
+        var drop = SmallButton("", Loc.T("terrain.eyedropper", "Conta-gotas (I): pegar a textura do chão"), TexEyedropper); drop.Width = 236;
+        _toolTip.SetToolTip(drop, Loc.T("terrain.eyedropperTip", "Passe o mouse em cima do chão e aperte I: o pincel fica com a textura que aparece ali (bom para retocar sombras)."));
+        _terrainPage.Controls.Add(drop);
         _terrainPage.Controls.Add(_texTitle);
         // altura do chão: subir, descer, alisar, plainar (teclas 1 a 4); o tamanho e a força valem para os dois pincéis
         _terrainPage.Controls.Add(SectionLabel(Loc.T("terrain.height", "Altura do chão")));
@@ -105,6 +108,33 @@ internal sealed partial class WorldView
             _status.Text = Loc.T("water.loadFail", "Não deu para abrir a água deste mapa; veja o log.");
         }
         return _terrainDraft;
+    }
+
+    /// <summary>
+    /// Conta-gotas (I): a textura que aparece por cima embaixo do mouse (última camada com máscara ≥ metade naquele metro;
+    /// senão a base) vira a textura do pincel, que já liga. Para retocar a sombra que o usuário pinta à mão.
+    /// </summary>
+    void TexEyedropper()
+    {
+        if (_hover is not { } h) return;
+        var d = TerrainDraftOrNew();
+        if (d.AreaAt(h.X, h.Z) is not { } a) return;
+        var layers = d.Layers(a.Ar, a.Ac) ?? _t.Ground(a.Ar, a.Ac);
+        if (layers is null || layers.Length == 0) { _status.Text = Loc.T("terrain.pickNone", "Não deu para ler a textura deste lugar."); return; }
+        string pick = layers[0].Texture;
+        for (int i = layers.Length - 1; i > 0; i--)
+        {
+            var l = layers[i];
+            if (l.Mask is not { } m || l.MaskSide <= 0) continue;
+            int px = Math.Clamp((int)((h.X - a.X0) * l.MaskSide / TerrainFile.AreaM), 0, l.MaskSide - 1), py = Math.Clamp((int)((a.Z1 - h.Z) * l.MaskSide / TerrainFile.AreaM), 0, l.MaskSide - 1);
+            if (m[py * l.MaskSide + px] >= 128) { pick = l.Texture; break; }
+        }
+        int idx = -1;
+        for (int i = 0; i < _t.TextureNames.Count; i++) if (_t.TextureNames[i].Equals(pick, StringComparison.OrdinalIgnoreCase)) { idx = i; break; }
+        if (idx < 0) { _status.Text = Loc.T("terrain.pickNone", "Não deu para ler a textura deste lugar."); return; }
+        _texSel = idx; _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true;
+        _status.Text = string.Format(Loc.T("terrain.picked", "Pincel com a textura daqui: {0}"), TextureNameGlossary.Display(pick, _element));
+        TexLabels(); WaterLabels(); _gl.Invalidate();
     }
 
     void TexPaint() { if (_texSel < 0) { ChooseTexture(); return; } _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
@@ -320,6 +350,7 @@ internal sealed partial class WorldView
         if (k == Keys.E) { TexEraser(); return true; }
         if (k is >= Keys.D1 and <= Keys.D4) { SetSculpt(k - Keys.D1); return true; }
         if (k is Keys.D5 or Keys.D6) { SetWaterMode(k == Keys.D5 ? 1 : 2); return true; }
+        if (k == Keys.I) { TexEyedropper(); return true; }   // conta-gotas da textura do chão (usuário 09/11)
         if (k == Keys.Delete && WaterSel is not null) { WaterDelete(); return true; }
         return false;
     }
@@ -479,7 +510,6 @@ internal sealed partial class WorldView
         _heightTxt = $"{perfT}; {perfH} | pisca textura={flickT} altura={flickH} | altura {h0:0.00}->{h1:0.00} ctrlz={hUndo} plainar->{h2:0.00} arquivos=[{string.Join(", ", keys)}]";
         _sculpt = -1;
         _heightTxt += " | " + DraftWaterTest(at + new System.Numerics.Vector3(60, 0, 0));
-        if (_fxBtn is not null) { _fxBtn.Checked = true; _heightTxt += $" | efeitos no mapa {_trees.Scene?.Effects.Count ?? 0}, a até 450 m {(_trees.Scene?.Effects.Count(f => (Gl(f.X, f.Y, f.Z) - _cam).LengthSquared < 450 * 450) ?? 0)}"; }
         for (int k = 0; k < 20; k++) CaptureFrame()?.Dispose();
         using (var p = ToolsShot()) p.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "dfttex-painel.png"));
         _hover = new Vector3(at.X, at.Y, at.Z);

@@ -582,8 +582,7 @@ public static class DraftChecks
     /// <summary>Caixa no mundo (8 cantos da caixa local girados e escalados); sem caixa, o próprio ponto.</summary>
     /// <summary>
     /// Construções postas, mexidas ou apagadas: no lugar antigo e no novo (caixa + 4 m), refaz o movemap\N.rmap do servidor
-    /// (parede da construção na altura de um personagem = bloqueado; saiu e o chão não é íngreme = livre) e a luz do chão
-    /// (.t2lm/.t2lm1: a sombra das construções acompanha; folga de 60 m para a sombra comprida).
+    /// (parede da construção na altura de um personagem = bloqueado; saiu e o chão não é íngreme = livre). A sombra do chão fica com o usuário (pintura da textura; refazer a luz gravada destoava: teste do usuário 09/11).
     /// </summary>
     internal static void BuildingEffects(SavePlan plan, DraftSources src, List<DraftObject> objs, BhtFile oldB, BhtFile newB)
     {
@@ -619,25 +618,12 @@ public static class DraftChecks
                 int pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols;
                 float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm;
                 var bx = rects.Aggregate((a, b) => (Math.Min(a.X0, b.X0), Math.Min(a.Z0, b.Z0), Math.Max(a.X1, b.X1), Math.Max(a.Z1, b.Z1)));
-                var ob = LightmapBaker.BrushSet.Near(oldB, bx.X0, bx.Z0, bx.X1, bx.Z1); var nb = LightmapBaker.BrushSet.Near(newB, bx.X0, bx.Z0, bx.X1, bx.Z1);
+                var ob = BrushSet.Near(oldB, bx.X0, bx.Z0, bx.X1, bx.Z1); var nb = BrushSet.Near(newB, bx.X0, bx.Z0, bx.X1, bx.Z1);
                 var (data, n) = MoveMapFile.UpdateBuildings(File.ReadAllBytes(rp), px0, pzS, rects, t.HeightAt,
                     (x, y, z) => ob.Hit(new Vector3(x, y + 0.5f, z), new Vector3(x, y + 1.8f, z)), (x, y, z) => nb.Hit(new Vector3(x, y + 0.5f, z), new Vector3(x, y + 1.8f, z)));
                 if (n > 0) { plan.Files[rp] = data; moved += n; }
             }
         if (moved > 0) plan.Summary.Add(string.Format(Loc.T("obj.rmapSummary", "Passagem dos NPCs refeita em volta das construções: {0} metro(s)."), moved));
-        // sombra do chão (cliente)
-        var lrects = rects.Select(r => Grow(r, 60)).ToList();
-        var lb = lrects.Aggregate((a, b) => (Math.Min(a.Item1, b.Item1), Math.Min(a.Item2, b.Item2), Math.Max(a.Item3, b.Item3), Math.Max(a.Item4, b.Item4)));
-        var lo = LightmapBaker.BrushSet.Near(oldB, lb.Item1 - 160, lb.Item2 - 160, lb.Item3 + 160, lb.Item4 + 160);
-        var ln = LightmapBaker.BrushSet.Near(newB, lb.Item1 - 160, lb.Item2 - 160, lb.Item3 + 160, lb.Item4 + 160);
-        int lit = 0;
-        foreach (int piece in PiecesOf(lrects))
-        {
-            var (lf, n) = LightmapBaker.Piece(t, piece, lrects, t.HeightAt, t.HeightAt, lo, ln);
-            foreach (var (k, v) in lf) plan.Files[k] = v;
-            lit += n;
-        }
-        if (lit > 0) plan.Summary.Add(string.Format(Loc.T("obj.litSummary", "Sombra do chão refeita em volta das construções: {0} ponto(s)."), lit));
     }
 
     public static (Vector3 Min, Vector3 Max) WorldBox(DraftObject o)

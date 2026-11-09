@@ -354,16 +354,30 @@ internal sealed partial class WorldView
     bool SaveObjects(bool ask = true, bool wait = false)
     {
         if (_draft is null || _draftSrc is null || _saving) return false;
-        SavePlan plan;
-        try
+        if (!wait && ask)
         {
-            plan = DraftSaver.Plan(_draft, _draftSrc, _ecw?.Write(), _bsd);
-            if (_ecwPath is not null && _ecw is not null && !plan.Files.ContainsKey(_ecwPath) && _ecwSaved is not null && !_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)) plan.Files[_ecwPath] = _ecw.Write();
-            if (_bsdPath is not null && _bsd is not null && !plan.Files.ContainsKey(_bsdPath) && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved)) plan.Files[_bsdPath] = (byte[])_bsd.Clone();
-            // grama e flores por último, em cima do que o cenário já mudou (efeitos, sons, objetos): tudo ou nada no mesmo salvar
-            if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc);
-            AddLightsToPlan(plan);   // luzes da cena no mesmo salvar
+            // montar o plano lê o map.bht (world ~195 MB) e refaz a passagem: em segundo plano, com a barra já visível
+            // (antes a tela travava alguns segundos sem nada aparecer; usuário 09/11)
+            _saving = true; _gl.Enabled = false; _tools.Enabled = false;
+            ShowSaveProgress(Loc.T("obj.preparing", "Preparando o salvar…"), 0);
+            System.Threading.Tasks.Task.Run(BuildObjectsPlan).ContinueWith(t => BeginInvoke(() =>
+            {
+                _saving = false; _gl.Enabled = true; _tools.Enabled = true;
+                HideSaveProgress(false);
+                if (t.IsFaulted)
+                {
+                    var ex = t.Exception!.GetBaseException();
+                    AppLog.Error("objetos: montar o salvar", ex);
+                    MessageBox.Show(this, ex.Message, Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _status.Text = ex.Message;
+                    return;
+                }
+                ContinueObjectsSave(t.Result, ask, wait: false);
+            }));
+            return true;
         }
+        SavePlan plan;
+        try { plan = BuildObjectsPlan(); }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             AppLog.Error("objetos: montar o salvar", ex);
@@ -371,6 +385,28 @@ internal sealed partial class WorldView
             _status.Text = ex.Message;
             return false;
         }
+        return ContinueObjectsSave(plan, ask, wait);
+    }
+
+    /// <summary>Plano do salvar (construções, modelos, cenário, grama, luzes). Pode rodar em segundo plano: só lê.</summary>
+    SavePlan BuildObjectsPlan()
+    {
+        SavePlan plan;
+        {
+            plan = DraftSaver.Plan(_draft!, _draftSrc!, _ecw?.Write(), _bsd);
+            if (_ecwPath is not null && _ecw is not null && !plan.Files.ContainsKey(_ecwPath) && _ecwSaved is not null && !_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)) plan.Files[_ecwPath] = _ecw.Write();
+            if (_bsdPath is not null && _bsd is not null && !plan.Files.ContainsKey(_bsdPath) && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved)) plan.Files[_bsdPath] = (byte[])_bsd.Clone();
+            // grama e flores por último, em cima do que o cenário já mudou (efeitos, sons, objetos): tudo ou nada no mesmo salvar
+            if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc);
+            AddLightsToPlan(plan);   // luzes da cena no mesmo salvar
+        }
+        return plan;
+    }
+
+    /// <summary>Depois do plano: conferências, pergunta e gravação (a gravação do pacote vai para o segundo plano).</summary>
+    bool ContinueObjectsSave(SavePlan plan, bool ask, bool wait)
+    {
+        if (_draft is null || _draftSrc is null) return false;
         if (plan.Empty) { _status.Text = Loc.T("obj.nothing", "Nada para salvar."); return false; }
         var points = _allMarks.Select(m => (new System.Numerics.Vector3(m.X, m.Y, m.Z), m.Name));
         var checks = DraftChecks.Run(_draft, _draftSrc, (x, z) => _t.HeightAt(x, z) ?? float.MinValue / 2, points);
@@ -387,7 +423,7 @@ internal sealed partial class WorldView
         {
             string summary = string.Join(Environment.NewLine, plan.Summary.DefaultIfEmpty(Loc.T("obj.sceneOnly", "Mudanças nos efeitos, sons ou bichos do cenário.")));
             if (plan.PckFiles.Count > 0 || plan.Files.Keys.Any(k => k.EndsWith("map.bht", StringComparison.OrdinalIgnoreCase)))
-                summary += Environment.NewLine + Loc.T("obj.shadowNote", "A sombra pintada no chão (mapa de luz do terreno) fica onde estava; ela será refeita com a ferramenta de terreno.");
+                summary += Environment.NewLine + Loc.T("obj.shadowNote2", "A sombra pintada no chão (mapa de luz do terreno) fica onde estava: retoque com o pincel de textura do Terreno (conta-gotas I).");
             string warn = checks.Count == 0 ? "" : Environment.NewLine + Environment.NewLine + Loc.T("obj.warnings", "Avisos (Não = cancelar e ir até o primeiro):") + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", checks.Select(c => c.Text));
             var answer = MessageBox.Show(this, Loc.T("obj.confirm", "Vai gravar:") + Environment.NewLine + summary + warn + Environment.NewLine + Environment.NewLine + Loc.T("obj.confirmQ", "Salvar agora?"),
                 Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.YesNo, checks.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
