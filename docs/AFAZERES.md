@@ -27,12 +27,12 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] filtro de efeitos visuais na barra Mostrar (08/11; particulas animadas fora)
        [ ] espuma nova na margem da agua (usuario: pensar depois)
        [x] textura do chao: pincel por camadas (08/11; falta testar no jogo; texturas novas no .trn2 depois)
-       [ ] grama: pincel de grama e flores
-       [ ] arvores: plantar, mover, apagar (+ colisao da arvore no map.bht)
-       [ ] construcoes e objetos: girar, colocar novos, apagar (mover ja existe)
-       [ ] servidor: gerar de novo map.bht / rmap / dhmap depois de mexer em terreno ou objeto solido
-           (obrigatorio antes de liberar terreno e objetos; sem isso o servidor anda no relevo antigo)
-       [ ] passagem dos NPCs e voo (mapa de passagem, octree)
+       [x] grama: pincel de grama e flores (feito: item 5 acima)
+       [~] arvores: plantar, mover, apagar feitos; colisao da arvore no map.bht nao (usuario 08/11: app quase final)
+       [x] construcoes e objetos: girar, colocar novos, apagar (etapas 1/2a/2b)
+       [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
+           (pontes novas como caminho de monstro e voo/octree: descartados pelo usuario 08/11)
+       [~] passagem dos NPCs feita; voo (octree) fora (usuario 08/11)
 Depois (sem data): ferramenta de portabilidade (1.5.5 parecendo versao antiga), so apos entrevista com o usuario.
 
 ## PRONTO (conferido pelo usuario)
