@@ -478,6 +478,7 @@ internal sealed partial class WorldView
         _heightTxt = $"{perfT}; {perfH} | pisca textura={flickT} altura={flickH} | altura {h0:0.00}->{h1:0.00} ctrlz={hUndo} plainar->{h2:0.00} arquivos=[{string.Join(", ", keys)}]";
         _sculpt = -1;
         _heightTxt += " | " + DraftWaterTest(at + new System.Numerics.Vector3(60, 0, 0));
+        if (_fxBtn is not null) { _fxBtn.Checked = true; _heightTxt += $" | efeitos no mapa {_trees.Scene?.Effects.Count ?? 0}, a até 450 m {(_trees.Scene?.Effects.Count(f => (Gl(f.X, f.Y, f.Z) - _cam).LengthSquared < 450 * 450) ?? 0)}"; }
         for (int k = 0; k < 20; k++) CaptureFrame()?.Dispose();
         using (var p = ToolsShot()) p.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "dfttex-painel.png"));
         _hover = new Vector3(at.X, at.Y, at.Z);

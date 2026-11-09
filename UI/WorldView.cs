@@ -194,6 +194,7 @@ internal sealed partial class WorldView : Form
         pathsBtn.CheckedChanged += (_, _) => { _allPaths = pathsBtn.Checked; pathsBtn.Image = DarkBarRenderer.Dot(_allPaths ? Color.FromArgb(205, 140, 255) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
         _syncPathsBtn = () => { if (pathsBtn.Checked != _allPaths) pathsBtn.Checked = _allPaths; };
         _showBar.Items.Add(pathsBtn);
+        InitEffectsFilter();   // efeitos visuais do mapa (marcas laranja + busca)
         _find.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
         _find.TextChanged += (_, _) => _findAt = -1;
         Controls.Add(_gl); Controls.Add(_bar); Controls.Add(_quests); Controls.Add(_creature); Controls.Add(_showBar); Controls.Add(_saveBar); Controls.Add(_status);   // painel de quests acima da barra de status
@@ -361,6 +362,7 @@ internal sealed partial class WorldView : Form
         _gl.MouseMove += (_, e) =>
         {
             SyncPickCursor();
+            if (_fxShow) _gl.Invalidate();   // nome do efeito embaixo do mouse
             if (_areaA is not null) { if (Ray(e.Location) is { } b) _areaB = b; _gl.Invalidate(); return; }
             if (_objAxis > 0) { ObjGizmoDrag(e.Location); return; }
             if (LightMouseMove(e.Location)) return;   // setas da luz
@@ -731,6 +733,7 @@ internal sealed partial class WorldView : Form
         DrawZoneGround();
         DrawTeleports();
         DrawSceneObjects();
+        DrawEffectsFilter();
         DrawGizmo();
         DrawObjGizmo();
 

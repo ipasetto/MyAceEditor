@@ -5961,5 +5961,15 @@
   "terrain.trnChanged": "地图纹理列表在编辑器外被修改；请重新打开 3D 世界再保存。",
   "terrain.texAdded": "地图列表中的新纹理：{0}",
   "terrain.otherMaps": "其他地图",
-  "terrain.texFromOther": "来自其他地图的纹理：在您保存已绘制它的地形时加入此地图的列表。"
+  "terrain.texFromOther": "来自其他地图的纹理：在您保存已绘制它的地形时加入此地图的列表。",
+  "names.grassTitle": "重命名草或花",
+  "names.treeTitle": "重命名树",
+  "terrain.litSummary": "已重建地面光影：{0} 个点",
+  "obj.rmapSummary": "已在建筑周围重建 NPC 通行：{0} 米。",
+  "obj.litSummary": "已在建筑周围重建地面阴影：{0} 个点。",
+  "obj.effectsFail": "NPC 通行和地面阴影未重建（见日志）；建筑仍已保存。",
+  "world.fx": "特效",
+  "world.fx.h": "以橙色标记显示地图的视觉特效（火、烟、光晕…）；悬停可查看名称。编辑请在“世界物体”中进行。",
+  "world.fx.find": "按名称筛选特效（如：火、烟、水）",
+  "world.fx.count": "此地图有 {0} 个特效。"
 }

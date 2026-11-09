@@ -5959,5 +5959,15 @@
   "terrain.trnChanged": "The map texture list changed outside the editor; reopen the 3D World before saving.",
   "terrain.texAdded": "New textures in the map list: {0}",
   "terrain.otherMaps": "Other maps",
-  "terrain.texFromOther": "Texture from another map: it joins this map's list when you save the terrain with it painted."
+  "terrain.texFromOther": "Texture from another map: it joins this map's list when you save the terrain with it painted.",
+  "names.grassTitle": "Rename grass or flower",
+  "names.treeTitle": "Rename tree",
+  "terrain.litSummary": "Ground light and shadow rebuilt: {0} point(s)",
+  "obj.rmapSummary": "NPC passage rebuilt around the buildings: {0} meter(s).",
+  "obj.litSummary": "Ground shadow rebuilt around the buildings: {0} point(s).",
+  "obj.effectsFail": "NPC passage and ground shadow were not rebuilt (see the log); the buildings are saved anyway.",
+  "world.fx": "Effects",
+  "world.fx.h": "Show the map's visual effects (fire, smoke, glows…) as orange marks; hover to see the name. Editing them stays in World objects.",
+  "world.fx.find": "Filter effects by name (e.g. fire, smoke, water)",
+  "world.fx.count": "{0} effect(s) on this map."
 }

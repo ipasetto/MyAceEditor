@@ -22,6 +22,10 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] passagem dos NPCs: .rmap refeito onde o chao mudou ao salvar (08/11; .dhmap e regeracao completa com colisao depois)
        [x] nomes das texturas no idioma do MyAce + Renomear (F2) no glossario do cliente (08/11)
        [x] texturas novas: escolher de outros mapas do cliente; entram no fim da lista do .trn2 ao salvar (08/11; falta testar no jogo)
+       [x] luz e sombra do chao automaticas ao salvar terreno e construcoes (08/11; falta testar no jogo)
+       [x] passagem dos NPCs ao mexer construcoes (08/11; .dhmap/andares depois)
+       [x] filtro de efeitos visuais na barra Mostrar (08/11; particulas animadas fora)
+       [ ] espuma nova na margem da agua (usuario: pensar depois)
        [x] textura do chao: pincel por camadas (08/11; falta testar no jogo; texturas novas no .trn2 depois)
        [ ] grama: pincel de grama e flores
        [ ] arvores: plantar, mover, apagar (+ colisao da arvore no map.bht)
