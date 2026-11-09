@@ -455,6 +455,11 @@ internal sealed partial class WorldView
         try { if (_element is not null && (plan.PckFiles.Count > 0 || plan.Files.Count > 0)) { _buildings.Reopen(_element); _piece = -1; } }   // _piece = -1: pede os pedaços de novo já
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("objetos: reabrir litmodels.pck", ex); }
         if (server) ServerNotice.Notify("map.bht");   // acende o "Salvar e enviar ao servidor"
+        foreach (var k in plan.Files.Keys.Where(k => k.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "movemap", Path.GetFileName(k)));
+        // sombra do chão refeita em volta das construções: troca a luz das áreas na tela
+        var litP = plan.Files.Keys.Where(k => k.EndsWith(".t2lm", StringComparison.OrdinalIgnoreCase) || k.EndsWith(".t2lm1", StringComparison.OrdinalIgnoreCase))
+            .Select(k => Path.GetFileNameWithoutExtension(k)).Select(n => int.TryParse(n[(n.LastIndexOf('_') + 1)..], out int pn) ? pn : 0).Where(pn => pn > 0).Distinct().ToList();
+        foreach (var k in _t.ForgetLight(litP)) _lightPending.Add(k);
         ObjectsSaved();
         if (plan.Files.Keys.Any(k => k.Contains("bsdata", StringComparison.OrdinalIgnoreCase) || k.EndsWith(".ecbsd", StringComparison.OrdinalIgnoreCase))) ResetGrassEdit();   // grama relida do disco
         if (plan.Files.Keys.Any(k => k.EndsWith("scenelights.dat", StringComparison.OrdinalIgnoreCase))) ResetLightEdit();   // luzes relidas do disco
