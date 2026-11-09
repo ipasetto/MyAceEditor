@@ -10,7 +10,7 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed class GameServiceWindow : Panel
 {
-    const float Scale = 1.25f;
+    new const float Scale = 1.25f;
     const int Pad = 14;
     const int Foot = 174;   // título, linha do que precisa ou do preço, ajuda, botões
     static readonly Color Gold = Color.FromArgb(255, 203, 74), Sel = Color.FromArgb(255, 220, 90), TextC = Color.FromArgb(235, 235, 235);

@@ -154,14 +154,9 @@ internal sealed partial class WorldView
         FormClosing += (_, e) =>
         {
             if (Headless) return;   // captura de teste: fecha sem perguntar (nada foi gravado)
-            if (TerrainDirty)
-            {
-                var tr = MessageBox.Show(this, Loc.T("terrain.askSave", "Há mudanças não salvas no terreno. Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-                if (tr == DialogResult.Cancel || tr == DialogResult.Yes && !SaveTerrain()) { e.Cancel = true; return; }
-            }
             if (_saving) { e.Cancel = true; MessageBox.Show(this, Loc.T("obj.waitSave", "Espere o Salvar terminar antes de fechar."), Text, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-            if (!SceneDirty) return;
-            var r = MessageBox.Show(this, Loc.T("obj.askSave", "Há mudanças não salvas nos objetos do mundo (construções, modelos, efeitos, sons ou bichos). Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (!WorldDirty) return;
+            var r = MessageBox.Show(this, Loc.T("world.askSave", "Há mudanças não salvas na Edição de Mundo (objetos, terreno, água, grama). Salvar antes de fechar?"), Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             e.Cancel = CancelClose(r, interactive: true);
         };
     }
@@ -228,6 +223,7 @@ internal sealed partial class WorldView
         int critterAt = (_sceneSel as WorldScene.Critter)?.Offset ?? -1;
         uint keep = change(_ecw);
         _sUndo.Add(step); if (_sUndo.Count > MaxSceneSteps) _sUndo.RemoveAt(0);
+        WorldDid('S');
         _sRedo.Clear();
         Reselect(keep, critterAt);
         UpdateSideState();
@@ -389,7 +385,7 @@ internal sealed partial class WorldView
     bool CancelClose(DialogResult answer, bool interactive)
     {
         if (answer == DialogResult.Cancel) return true;
-        if (answer == DialogResult.Yes) return !SaveScene(interactive, wait: true);   // salvar recusado/falhou: fica aberto, nada se perde
+        if (answer == DialogResult.Yes) return !SaveWorld(interactive, wait: true);   // salvar recusado/falhou: fica aberto, nada se perde
         return false;
     }
 
@@ -428,7 +424,9 @@ internal sealed partial class WorldView
                 }
             UpdateSideState();
             FlashSaveProgress(Loc.T("world.savedBar", "Salvo"), true);   // barra azul cheia por um instante (todo salvar do Mundo 3D)
-            if (interactive) BeginInvoke(() => SavedDialog.Show(this, Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.")));
+            string savedMsg = Loc.T("world.sceneSavedShort", "Cenário salvo. Só o cliente muda: feche e abra o jogo para ver.");
+            if (_objSaveThen is { } then) { _objSaveThen = null; then(new SaveResult(SaveKind.ClientOnly, savedMsg), false); }   // Salvar mundo: o terreno vem agora
+            else if (interactive) BeginInvoke(() => SavedDialog.Show(this, savedMsg));
             _status.Text = string.Format(Loc.T("world.sceneSaved", "Cenário salvo em {0} (backup feito). Só o cliente muda; não precisa enviar ao servidor."),
                 string.Join(" + ", new[] { ecwChanged ? Path.GetFileName(_ecwPath) : null, bsdChanged ? Path.GetFileName(_bsdPath) : null }.Where(s => s is not null)));
         }

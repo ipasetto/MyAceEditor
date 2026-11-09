@@ -11,7 +11,7 @@ namespace MyAceEditor.UI;
 /// </summary>
 internal sealed class MakePreview : Panel
 {
-    const float Scale = 1.35f;
+    new const float Scale = 1.35f;
     const int Pad = 12;
     static readonly Color Gold = Color.FromArgb(255, 203, 74), Sel = Color.FromArgb(255, 220, 90), TextC = Color.FromArgb(235, 235, 235);
 

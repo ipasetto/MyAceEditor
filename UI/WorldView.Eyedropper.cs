@@ -17,7 +17,7 @@ internal sealed partial class WorldView
     static readonly Color DropColor = Color.FromArgb(190, 110, 255);
 
     bool DropperOn => _dropper == 1 && _tool == Tool.Terrain && !_texActive && _sculpt < 0 && _waterMode == 0
-                   || _dropper == 2 && _tool == Tool.Scene && _brushPanel.Visible && !_brushActive;
+                   || _dropper == 2 && _tool == Tool.Terrain && _brushPanel.Visible && !_brushActive;
 
     string DropperHint => _dropper == 1
         ? Loc.T("drop.hintTex", "Conta-gotas: clique no chão para pegar a textura (Esc cancela)")
@@ -26,7 +26,7 @@ internal sealed partial class WorldView
     void StartDropper(int kind)
     {
         if (DropperOn && _dropper == kind) { StopDropper(); return; }   // I de novo / botão de novo: desliga
-        if (kind == 1) { if (_texDown) TerrainMouseUp(); _texActive = false; _sculpt = -1; _waterMode = 0; _dropper = 1; TexLabels(); WaterLabels(); }
+        if (kind == 1) { StopBrush(); if (_texDown) TerrainMouseUp(); _texActive = false; _sculpt = -1; _waterMode = 0; _dropper = 1; TexLabels(); WaterLabels(); }
         else { if (_brushDown) EndDab(); _brushActive = false; _dropper = 2; BrushLabels(); }
         _status.Text = DropperHint;
         _gl.Focus(); _gl.Invalidate();
@@ -124,6 +124,7 @@ internal sealed partial class WorldView
     {
         string load = DraftLoadTest();
         var r = new List<string>();
+        OpenTool(Tool.Terrain);
         if (_grass.Scene is { } sc)
         {
             _brushPanel.Visible = true; _brushActive = false;

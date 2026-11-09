@@ -99,7 +99,7 @@ internal sealed partial class WorldView
     /// <summary>Uma ação nas águas como passo de Ctrl+Z, com o desenho e o painel atualizados e erro explicado.</summary>
     void WaterDo(Action<WaterDraft> act)
     {
-        try { TerrainDraftOrNew().WaterEdit(act); }
+        try { TerrainDraftOrNew().WaterEdit(act); WorldDid('T'); }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IndexOutOfRangeException)
         {
             AppLog.Error("agua: editar", ex);

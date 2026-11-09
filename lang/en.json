@@ -5994,5 +5994,17 @@
   "terrain.eyedropperTip2": "Turns on the eyedropper (I): click the ground and the brush takes the texture shown there (good for touching up shadows).",
   "grass.eyedropperTip2": "Turns on the eyedropper (I): click a grass or flower and the brush takes the same type.",
   "obj.treePassFail": "Monster paths around the trees were not rebuilt (see the log); the trees are saved anyway.",
-  "obj.treePassSummary": "Monster paths around the trees rebuilt: {0} meter(s) (monsters go around a new tree; a deleted one they walk through)."
+  "obj.treePassSummary": "Monster paths around the trees rebuilt: {0} meter(s) (monsters go around a new tree; a deleted one they walk through).",
+  "tools.world": "World editing",
+  "tools.worldSub": "Objects, terrain, water, grass and flowers in one place, with one Save.",
+  "world.pillObjects": "Objects",
+  "world.pillTerrain": "Terrain",
+  "world.save": "Save world",
+  "world.saveTip": "Writes everything that changed in World editing: objects, grass, terrain and water.",
+  "world.abandonAsk": "There are unsaved changes in World editing (objects, terrain, water, grass). Discard them and lose these changes?",
+  "world.askSave": "There are unsaved changes in World editing (objects, terrain, water, grass). Save before closing?",
+  "grass.section": "Grass and flowers",
+  "grass.openBtn": "Paint grass and flowers",
+  "terrain.hint2": "Paint the ground texture: choose the texture, turn on the Brush and drag on the ground. The Eraser goes back to the texture below. Nothing is saved until Save world.",
+  "world.dirtyLine": "● Unsaved changes — use Save world."
 }

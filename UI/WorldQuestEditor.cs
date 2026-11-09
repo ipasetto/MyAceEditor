@@ -72,7 +72,7 @@ internal sealed class WorldQuestEditor : Panel
     readonly ListView _items = new() { View = View.Details, FullRowSelect = true, Height = 130, Width = 330, BackColor = Field, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable };
 
     /// <summary>Quest criada (ID) — o Mundo 3D fecha o painel e mostra o NPC.</summary>
-    public event Action<int>? Created;
+    public new event Action<int>? Created;
     public event Action? Cancelled;
 
     public WorldQuestEditor(IQuestHost host, QuestDraft draft, QuestWorld world)
@@ -136,7 +136,7 @@ internal sealed class WorldQuestEditor : Panel
     // ---------- montagem ----------
 
     static NumericUpDown Num(int min, int max) => new() { Minimum = min, Maximum = max, Width = 120, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
-    static TextBox Text(bool multi) => new() { Multiline = multi, Width = 330, Height = multi ? 90 : 24, ScrollBars = multi ? ScrollBars.Vertical : ScrollBars.None, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+    static new TextBox Text(bool multi) => new() { Multiline = multi, Width = 330, Height = multi ? 90 : 24, ScrollBars = multi ? ScrollBars.Vertical : ScrollBars.None, BackColor = Field, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
     static Label Muted() => new() { AutoSize = true, ForeColor = Color.Silver, Margin = new Padding(3, 0, 3, 6) };
 
     // todo campo de item passa por aqui: a janela escolhe o item e a quantidade, o resto vai pelo "adicionar" de cada lista

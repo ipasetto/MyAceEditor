@@ -632,7 +632,7 @@ internal sealed class PluginsView : Panel
         return Refresh();
     }
 
-    string? Refresh()
+    new string? Refresh()
     {
         if (!LocalServer.DistroExists()) return null;
         var a = Admin();

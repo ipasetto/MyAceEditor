@@ -106,7 +106,9 @@ internal sealed partial class WorldView
     void OpenGrassPanel()
     {
         if (GrassDraftOrNew() is null) return;
-        StopPlanting();
+        StopPlanting(); StopDropper();
+        if (_texDown) TerrainMouseUp();
+        _texActive = false; _sculpt = -1; _waterMode = 0; TexLabels(); WaterLabels();   // um pincel por vez na pílula Terreno
         _sceneSel = null; ShowObjPanel();
         _brushActive = false; _brushErase = false;
         _brushPanel.Visible = true; BrushLabels(); FitObjPanel();
@@ -228,7 +230,7 @@ internal sealed partial class WorldView
     /// <summary>Teclas do painel da grama: B pincel, E borracha. Falso = não era do painel.</summary>
     bool GrassKey(Keys k)
     {
-        if (_tool != Tool.Scene || !_brushPanel.Visible) return false;
+        if (_tool != Tool.Terrain || !_brushPanel.Visible) return false;
         if (k == Keys.B) { BrushPaint(); return true; }
         if (k == Keys.E) { BrushEraser(); return true; }
         if (k == Keys.I) { GrassEyedropper(); return true; }   // conta-gotas: o tipo embaixo do mouse (usuário 09/11)
@@ -238,7 +240,7 @@ internal sealed partial class WorldView
     /// <summary>Ctrl + roda do mouse com o painel da grama aberto: muda o tamanho do pincel (a câmera não anda). Falso = não era.</summary>
     bool GrassWheel(MouseEventArgs e)
     {
-        if (_tool != Tool.Scene || !_brushPanel.Visible || (ModifierKeys & Keys.Control) == 0) return false;
+        if (_tool != Tool.Terrain || !_brushPanel.Visible || (ModifierKeys & Keys.Control) == 0) return false;
         int v = Math.Clamp(_brushSize.Value + Math.Sign(e.Delta) * ((ModifierKeys & Keys.Shift) != 0 ? 5 : 1), _brushSize.Minimum, _brushSize.Maximum);
         _brushSize.Value = v;
         _status.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), v);
@@ -248,7 +250,7 @@ internal sealed partial class WorldView
     /// <summary>Começa uma pincelada (botão esquerdo no chão).</summary>
     bool BrushMouseDown(MouseEventArgs e)
     {
-        if (_tool != Tool.Scene || !BrushOn) return false;
+        if (_tool != Tool.Terrain || !BrushOn) return false;
         if (e.Button == MouseButtons.Right) { StopBrush(); return true; }
         if (e.Button != MouseButtons.Left || Ray(e.Location) is not { } g || GrassDraftOrNew() is not { } gd) return e.Button == MouseButtons.Left;
         gd.BeginStroke(); _brushDown = true; _lastDab = null;
@@ -272,7 +274,7 @@ internal sealed partial class WorldView
     void EndDab()
     {
         _brushDown = false;
-        if (_grassDraft?.EndStroke() == true) { _grassLast = true; UpdateSideState(); }
+        if (_grassDraft?.EndStroke() == true) { _grassLast = true; WorldDid('G'); UpdateSideState(); }
     }
 
     void Dab(System.Numerics.Vector3 at)
@@ -288,8 +290,14 @@ internal sealed partial class WorldView
     /// <summary>Ctrl+Z / Ctrl+Y da grama: com o pincel ligado, ou quando a última ação foi uma pincelada.</summary>
     bool GrassUndo(bool redo)
     {
-        if (_tool != Tool.Scene || _grassDraft is not { } gd) return false;
+        if (_tool != Tool.Terrain || _grassDraft is null) return false;
         if (!BrushOn && !_grassLast && (redo ? _draft?.RedoTag is not null : _draft?.UndoTag is not null)) return false;
+        return GrassUndoCore(redo);
+    }
+
+    bool GrassUndoCore(bool redo)
+    {
+        if (_grassDraft is not { } gd) return false;
         int n0 = gd.Scene.Grass.Count;
         var touched = redo ? gd.Redo() : gd.Undo();
         if (touched is null) return false;
@@ -306,7 +314,7 @@ internal sealed partial class WorldView
     /// <summary>Círculo do pincel no chão (verde = pinta, vermelho = apaga), acompanhando o relevo.</summary>
     void DrawBrush()
     {
-        if (_tool != Tool.Scene || !BrushOn || _hover is not { } h) return;
+        if (_tool != Tool.Terrain || !BrushOn || _hover is not { } h) return;
         GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting); GL.Disable(EnableCap.DepthTest);
         GL.LineWidth(2.5f);
         GL.Color3(_brushErase ? Color.FromArgb(255, 90, 80) : Color.FromArgb(120, 230, 110));

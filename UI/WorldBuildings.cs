@@ -504,7 +504,7 @@ internal sealed class WorldBuildings : IDisposable
                     // como o jogo (Direct3D descarta as faces de trás): planos de fundo vistos por trás somem (a08: um
                     // quadro de 51×25 m bege cobria a parede da sala). Recorte (folhas, grades) continua dos dois lados.
                     if (_cutout.Contains(tex) || CullMode == "off") GL.Disable(EnableCap.CullFace);
-                    else { GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(CullMode == "ccw" ? FrontFaceDirection.Ccw : FrontFaceDirection.Cw); }
+                    else { GL.Enable(EnableCap.CullFace); GL.CullFace(TriangleFace.Back); GL.FrontFace(CullMode == "ccw" ? FrontFaceDirection.Ccw : FrontFaceDirection.Cw); }
                     if (_cutout.Contains(tex)) GL.Enable(EnableCap.AlphaTest); else GL.Disable(EnableCap.AlphaTest);
                     if (tex != 0) { GL.Enable(EnableCap.Texture2D); GL.BindTexture(TextureTarget.Texture2D, tex); }
                     else GL.Disable(EnableCap.Texture2D);

@@ -53,7 +53,7 @@ internal sealed class MapCanvas : Control
     public event Action<MouseEventArgs, PointF>? MapDown, MapMove, MapUp, MapDoubleClick;
 
     float Fit => Math.Max(1e-3f, Math.Min((Width - 20f) / Math.Max(1, _world.Width), (Height - 20f) / Math.Max(1, _world.Height)));
-    float Scale => Fit * _zoom;
+    new float Scale => Fit * _zoom;
 
     public PointF ToScreen(PointF p) => new(Width / 2f + (p.X - _center.X) * Scale, Height / 2f + (p.Y - _center.Y) * Scale);
     public PointF ToMap(Point p) => new(_center.X + (p.X - Width / 2f) / Scale, _center.Y + (p.Y - Height / 2f) / Scale);

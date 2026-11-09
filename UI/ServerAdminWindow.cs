@@ -581,7 +581,7 @@ public sealed class ServerAdminWindow : Form
 
     void MapAction(bool start)
     {
-        var tags = _maps.SelectedRows.Cast<DataGridViewRow>().OrderBy(r => r.Index).Select(r => (string)r.Cells["tag"].Value).ToList();
+        var tags = _maps.SelectedRows.Cast<DataGridViewRow>().OrderBy(r => r.Index).Select(r => r.Cells["tag"].Value as string ?? "").Where(t => t.Length > 0).ToList();
         if (tags.Count == 0) { _status.Text = Loc.T("adm.pickAMapInThe", "Escolha um mapa na lista."); return; }
         if (!start && tags.Contains("gs01") && !Confirm(Loc.T("adm.stoppingTheMainWorldDisconnects", "Parar o mundo principal derruba todos os jogadores. Continuar?"))) return;
         var failed = new List<string>();
@@ -603,7 +603,7 @@ public sealed class ServerAdminWindow : Form
     void SaveDefaultMaps()
     {
         if (_maps.Rows.Count == 0) return;
-        var tags = _maps.Rows.Cast<DataGridViewRow>().Where(r => r.Cells["def"].Value is true).Select(r => (string)r.Cells["tag"].Value).Where(t => t != "gs01").ToList();
+        var tags = _maps.Rows.Cast<DataGridViewRow>().Where(r => r.Cells["def"].Value is true).Select(r => r.Cells["tag"].Value as string ?? "").Where(t => t.Length > 0 && t != "gs01").ToList();
         Work(Loc.T("adm.savingDefaultMaps", "Salvando padrões…"), () => _adm.SetDefaultMaps(tags),
             () => _status.Text = string.Format(Loc.T("adm.defaultMapsSaved", "Padrões salvos: o servidor sobe com {0}."), string.Join(", ", tags.Prepend("gs01"))));
     }

@@ -261,6 +261,7 @@ public sealed class AiPolicyView : UserControl
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         _policies.Nodes.Clear(); ClearDetail(); _meaning.Text = "";
+        if (_file is null) return;
         if (!_file.Ok)
         {
             _report.Text = (Loc.T("ai.incompleteRead", "Leitura INCOMPLETA — edição desativada para não corromper o arquivo.") + "\n\n" + _file.Error! + "\n\n" +

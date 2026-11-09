@@ -56,7 +56,7 @@ internal sealed class UiImportDialog : Form
         Fill();
     }
 
-    IEnumerable<UiImport.Item> Visible()
+    new IEnumerable<UiImport.Item> Visible()
     {
         var q = _filter.Text.Trim();
         return _items.Where(i => q.Length == 0 || i.Path.Contains(q, StringComparison.OrdinalIgnoreCase) || i.Why.Contains(q, StringComparison.OrdinalIgnoreCase));

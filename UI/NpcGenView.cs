@@ -254,7 +254,7 @@ internal sealed class NpcGenView : UserControl
         else { _cur = null; Refill(); }
     }
 
-    NpcGenFile? Load(string name)
+    new NpcGenFile? Load(string name)
     {
         if (_files.TryGetValue(name, out var f)) return f;
         if (!_paths.TryGetValue(name, out var p)) return null;
@@ -595,7 +595,7 @@ internal sealed class NpcGenView : UserControl
                 Set(_trigger, r.Trigger); Set(_maxNum, r.MaxNum);
                 _location.SelectedIndex = 0;
                 _autoRevive.Checked = r.AutoRevive != 0; _initGen.Checked = r.InitGen != 0; _validOnce.Checked = r.ValidOnce != 0;
-                foreach (var x in r.Items) _grid.Rows.Add(IconImg(x.Id), NameOf(x.Id), x.Amount, x.Respawn, "");
+                foreach (var x in r.Items) _grid.Rows.Add(IconImg(x.Id)!, NameOf(x.Id) ?? "", x.Amount, x.Respawn, "");
             }
             else
             {
@@ -606,7 +606,7 @@ internal sealed class NpcGenView : UserControl
                 Set(_trigger, s.Trigger); Set(_maxNum, s.MaxNum);
                 _location.SelectedIndex = s.Location is 0 or 1 ? s.Location : 0;
                 _autoRevive.Checked = s.AutoRevive != 0; _initGen.Checked = s.InitGen != 0; _validOnce.Checked = s.ValidOnce != 0;
-                foreach (var c in s.Creatures) _grid.Rows.Add(IconImg(c.Id), NameOf(c.Id), c.Amount, c.Respawn, c.PathId);
+                foreach (var c in s.Creatures) _grid.Rows.Add(IconImg(c.Id)!, NameOf(c.Id) ?? "", c.Amount, c.Respawn, c.PathId);
             }
             _grid.Columns[4].Visible = !mine;
         }

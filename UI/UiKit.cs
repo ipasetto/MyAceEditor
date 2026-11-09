@@ -469,7 +469,7 @@ internal sealed class SegmentBar : Control
 /// <summary>Lista vertical de seções (ícone + nome + contagem), para escolher o grupo de campos de um item.</summary>
 internal sealed class SectionList : ListBox
 {
-    public Func<object, string>? GlyphOf;
+    public Func<object, string?>? GlyphOf;
     public SectionList()
     {
         DrawMode = DrawMode.OwnerDrawFixed; ItemHeight = 34; BorderStyle = BorderStyle.None; IntegralHeight = false;
@@ -496,8 +496,9 @@ internal sealed class StepperBar : Control
     readonly List<Func<string>> _names = new();
     int _current, _hover = -1;
     public event Action<int>? Picked;
-    public Func<int, bool>? HasProblem;   // passo com pendência: círculo laranja
-    static readonly Color Line = Color.FromArgb(70, 78, 90), Done = Color.FromArgb(80, 140, 220), Text = Color.Gainsboro;
+    public Func<int, bool>? HasProblem = null;   // passo com pendência: círculo laranja
+    static readonly Color Line = Color.FromArgb(70, 78, 90), Done = Color.FromArgb(80, 140, 220);
+    static new readonly Color Text = Color.Gainsboro;
 
     public StepperBar() { DoubleBuffered = true; Dock = DockStyle.Top; Height = 62; BackColor = Color.FromArgb(36, 41, 49); }
     public void Add(Func<string> name) { _names.Add(name); Invalidate(); }

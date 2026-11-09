@@ -600,7 +600,7 @@ internal sealed class GShopView : UserControl
         static readonly Color Outline = Color.FromArgb(10, 20, 30);
 
         // mesmas fontes do cliente e reserva p/ acentos do editor de interface; aqui o texto diminui para caber (nomes vêm do arquivo)
-        void Text(Graphics g, string t, Rectangle r, Color c, float size, bool bold = false, ContentAlignment align = ContentAlignment.MiddleCenter)
+        new void Text(Graphics g, string t, Rectangle r, Color c, float size, bool bold = false, ContentAlignment align = ContentAlignment.MiddleCenter)
             => GameDraw.Text(g, t, r, c, size, bold, align);
 
         protected override void OnPaint(PaintEventArgs e)

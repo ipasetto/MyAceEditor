@@ -1527,7 +1527,7 @@ public sealed class EditorForm : Form
     /// </summary>
     private bool TeleportRulesOk(Module m)
     {
-        if (_npcgen.ConfigDir is not { } dir || Path.Combine(dir, "world_targets.sev") is var sev && !File.Exists(sev)) return true;
+        if (_npcgen?.ConfigDir is not { } dir || Path.Combine(dir, "world_targets.sev") is var sev && !File.Exists(sev)) return true;
         List<ItemRules.Problem> bad;
         try { bad = ItemRules.CheckTeleports(m, WorldTargets.ReadServer(File.ReadAllBytes(sev)).Select(t => t.Id).ToHashSet()); }
         catch (Exception ex) when (ex is IOException or InvalidDataException) { AppLog.Error("world_targets.sev", ex); return true; }
@@ -1842,7 +1842,7 @@ public sealed class EditorForm : Form
             return;
         }
         if (o is TypeEntry { Major: null }) col = GGold;
-        TextRenderer.DrawText(e.Graphics, o.ToString(), cb.Font, Rectangle.Inflate(e.Bounds, -4, 0), sel ? Color.White : col,
+        TextRenderer.DrawText(e.Graphics, o?.ToString(), cb.Font, Rectangle.Inflate(e.Bounds, -4, 0), sel ? Color.White : col,
             TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }
 
@@ -5136,6 +5136,7 @@ public sealed class EditorForm : Form
     /// <summary>Favoritos do cliente aberto; item que não existe neste elements.data não entra (nem na contagem).</summary>
     private void LoadFavoritesFor()
     {
+        if (_recentKey is null) return;   // nenhum cliente aberto ainda
         _favFile = Path.Combine(SettingsDir, _recentKey.Replace("recent-", "favorites-") + ".txt");
         var from = File.Exists(_favFile) ? _favFile : OldFavFile;
         string[] saved = [];

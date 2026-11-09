@@ -1342,7 +1342,7 @@ public static class ObjectsSelfTest
             var keys = bht.Keys();
             var pick = entries.Select(e => (e, b: lit.Read(e))).FirstOrDefault(x => BmdModel.CdBrushes(x.b) is { Count: > 0 } at
                 && at.All(o => keys.ContainsKey(BhtFile.KeyAt(x.b, o))) && BmdModel.Read(x.b) is { Meshes.Count: > 0 });
-            if (pick.b is null) { r.Check($"bmd-giro-brushes {map}", false, "nenhuma construção com brushes achados no map.bht"); continue; }
+            if (pick.b is null || pick.e is null) { r.Check($"bmd-giro-brushes {map}", false, "nenhuma construção com brushes achados no map.bht"); continue; }
             var rot = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
             var center = ObjectFormats.BmdCenter(pick.b);
             var oldKeys = BmdModel.CdBrushes(pick.b)!.Select(o => BhtFile.KeyAt(pick.b, o)).ToList();
@@ -1351,13 +1351,13 @@ public static class ObjectsSelfTest
             bht.Rotate(sel, rot, center);
             var newBht = bht.Write();
             var bht2 = new BhtFile(newBht);
-            var newAt = BmdModel.CdBrushes(turned);
-            var newKeys = newAt?.Select(o => BhtFile.KeyAt(turned, o)).ToHashSet() ?? [];
+            var newAt = BmdModel.CdBrushes(turned) ?? [];
+            var newKeys = newAt.Select(o => BhtFile.KeyAt(turned, o)).ToHashSet();
             var bhtKeys2 = bht2.Keys();
             bool allInBht = newAt is { Count: > 0 } && newKeys.All(bhtKeys2.ContainsKey);
             var m = BmdModel.Read(turned)!;
             var verts = BmdModel.WorldVertices(m);
-            var boxes = newAt!.Select(o => ObjectFormats.BrushBox(turned, o)).ToList();
+            var boxes = newAt.Select(o => ObjectFormats.BrushBox(turned, o)).ToList();
             var (mn, mx) = (new Vector3(boxes.Min(b => b.Min.X), boxes.Min(b => b.Min.Y), boxes.Min(b => b.Min.Z)), new Vector3(boxes.Max(b => b.Max.X), boxes.Max(b => b.Max.Y), boxes.Max(b => b.Max.Z)));
             var (vmn, vmx) = (new Vector3(verts.Min(v => v[0]), verts.Min(v => v[1]), verts.Min(v => v[2])), new Vector3(verts.Max(v => v[0]), verts.Max(v => v[1]), verts.Max(v => v[2])));
             // os brushes não precisam cobrir o desenho inteiro (só o que bate); confere que giraram junto: centro dos brushes
@@ -1368,14 +1368,14 @@ public static class ObjectsSelfTest
             var expect = Vector3.Transform(oldC - center, rot) + center;
             bool centerOk = Vector3.Distance(expect, newC) < 0.05f + expect.Length() * 1e-4f;
             r.Check($"bmd-giro-brushes {map}", allInBht && centerOk && sel.Count > 0,
-                $"{Path.GetFileName(pick.e.Path)}: {newAt.Count} brushes no .bmd, {sel.Count} no map.bht, todos achados={allInBht}, centro ok={centerOk} (esperado {expect}, veio {newC}); caixa dos brushes {mn}..{mx}, desenho {vmn}..{vmx}");
+                $"{Path.GetFileName(pick.e!.Path)}: {newAt.Count} brushes no .bmd, {sel.Count} no map.bht, todos achados={allInBht}, centro ok={centerOk} (esperado {expect}, veio {newC}); caixa dos brushes {mn}..{mx}, desenho {vmn}..{vmx}");
 
             // 3) apagar construção: sem a referência no .ecwld e sem os brushes no map.bht, os dois arquivos releem
             var ecwPath = Path.Combine(element, "maps", map, map + ".ecwld");
             var ecwBytes = File.ReadAllBytes(ecwPath);
             var ecw = new EcwldFile(ecwBytes);
             var bsd = File.ReadAllBytes(Path.ChangeExtension(ecwPath, ".ecbsd"));
-            uint? oid = ObjectFormats.OrnamentIdOf(ecw, bsd, pick.e.Path);
+            uint? oid = ObjectFormats.OrnamentIdOf(ecw, bsd, pick.e!.Path);
             if (oid is not { } id) { r.Check($"apagar-construcao {map}", false, $"não achei o ornamento de {pick.e.Path} no .ecwld"); continue; }
             int refs = ecw.Delete(EcwldFile.Kind.Ornament, id);
             var ecwOut = ecw.Write();

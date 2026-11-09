@@ -1494,6 +1494,7 @@ internal static class Program
             else if (c.Name?.StartsWith("dftlayout") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.LayoutCheck() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftfix") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftFixTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftcard") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCardTest(outDir) + Environment.NewLine);
+            else if (c.Name?.StartsWith("dftworld") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.WorldEditTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftmove") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftMoveTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftload") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftLoadTest() + Environment.NewLine);   // "dftload…": rascunho dos objetos (3x3)
             else if (c.Name?.StartsWith("bldplan") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.BuildingPlanTest() + Environment.NewLine);
@@ -1503,7 +1504,7 @@ internal static class Program
             bmp?.Save(Path.Combine(outDir, (c.Name ?? $"shot{i + 1}") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         // a janela inteira (barra, painéis): o 3D sai preto aqui, só serve para conferir a interface
-        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png"), (4, "window-create.png"), (5, "window-teleports.png"), (6, "window-teleport-new.png") })
+        foreach (var (scene, png) in new[] { (0, "window.png"), (1, "window-tool.png"), (2, "window-paths.png"), (3, "window-quests.png"), (4, "window-create.png"), (5, "window-teleports.png"), (6, "window-teleport-new.png"), (7, "window-terrain.png") })
         {
             w.ShotTool(scene); Application.DoEvents();
             using var full = new System.Drawing.Bitmap(w.Width, w.Height);

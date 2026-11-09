@@ -5996,5 +5996,17 @@
   "terrain.eyedropperTip2": "打开吸管 (I)：点击地面，画笔会使用该处显示的纹理（适合修补阴影）。",
   "grass.eyedropperTip2": "打开吸管 (I)：点击草或花，画笔会使用相同的类型。",
   "obj.treePassFail": "树木周围的怪物路径未重建（请查看日志）；树木仍会保存。",
-  "obj.treePassSummary": "已重建树木周围的怪物路径：{0} 米（怪物会绕开新树；删除的树可以穿过）。"
+  "obj.treePassSummary": "已重建树木周围的怪物路径：{0} 米（怪物会绕开新树；删除的树可以穿过）。",
+  "tools.world": "世界编辑",
+  "tools.worldSub": "物体、地形、水、草和花集中在一处，一次保存。",
+  "world.pillObjects": "物体",
+  "world.pillTerrain": "地形",
+  "world.save": "保存世界",
+  "world.saveTip": "写入世界编辑中所有改动：物体、草、地形和水。",
+  "world.abandonAsk": "世界编辑中有未保存的改动（物体、地形、水、草）。放弃并丢失这些改动吗？",
+  "world.askSave": "世界编辑中有未保存的改动（物体、地形、水、草）。关闭前保存吗？",
+  "grass.section": "草和花",
+  "grass.openBtn": "绘制草和花",
+  "terrain.hint2": "绘制地面纹理：选择纹理，打开画笔并在地面上拖动。橡皮擦恢复下层纹理。点击“保存世界”前不会保存。",
+  "world.dirtyLine": "● 有未保存的改动——请使用“保存世界”。"
 }

@@ -266,9 +266,9 @@ public static class VersionCheck
         if (!cOn && !sOn) return (CheckLevel.Ok, Loc.T("chk.encryptionOffOnBothSides", "Criptografia desligada nos dois lados."), Desc(cOn), Desc(sOn));
         if (cOn != sOn) return (CheckLevel.Erro, Loc.T("chk.encryptionOnOnlyOneSide", "Criptografia ligada só de um lado: o cliente não conecta."), Desc(cOn), Desc(sOn));
         bool ok = c!.GetValueOrDefault("iseckey") == s.GetValueOrDefault("oseckey")
-               && c.GetValueOrDefault("oseckey") == s.GetValueOrDefault("iseckey")
-               && c.GetValueOrDefault("isec") == s.GetValueOrDefault("osec")
-               && c.GetValueOrDefault("osec") == s.GetValueOrDefault("isec");
+               && c!.GetValueOrDefault("oseckey") == s.GetValueOrDefault("iseckey")
+               && c!.GetValueOrDefault("isec") == s.GetValueOrDefault("osec")
+               && c!.GetValueOrDefault("osec") == s.GetValueOrDefault("isec");
         return ok ? (CheckLevel.Ok, Loc.T("chk.keysCrossCorrectly", "Chaves cruzadas corretamente."), Desc(true), Desc(true))
                   : (CheckLevel.Erro, Loc.T("chk.keysDoNotCrossOne", "Chaves não cruzam (iseckey de um lado deve ser o oseckey do outro)."), Desc(true), Desc(true));
     }

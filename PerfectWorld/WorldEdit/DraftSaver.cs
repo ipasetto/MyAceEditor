@@ -313,7 +313,7 @@ public static class DraftSaver
             var (mn, mx) = DraftChecks.WorldBox(o);
             if (o.Kind == ObjKind.Model)
             {
-                uint srcId = uint.Parse(o.CopyOf![(o.CopyOf.LastIndexOf(':') + 1)..]);
+                uint srcId = uint.Parse(o.CopyOf![(o.CopyOf!.LastIndexOf(':') + 1)..]);
                 var hits = ecw.Find(EcwldFile.Kind.EcModel, srcId).ToList();
                 if (hits.Count == 0) throw new InvalidDataException(string.Format(Loc.T("obj.modelGone", "Modelo {0} não está mais no .ecwld."), srcId));
                 var item = (byte[])hits[0].Block.Items[(int)EcwldFile.Kind.EcModel][hits[0].Index].Clone();
@@ -693,7 +693,6 @@ public static class DraftChecks
                     if (t.PieceAt(MathF.Min(x, r.X1), MathF.Min(z, r.Z1)) is > 0 and var p) set.Add(p);
             return set;
         }
-        (float, float, float, float) Grow((float X0, float Z0, float X1, float Z1) r, float g) => (r.X0 - g, r.Z0 - g, r.X1 + g, r.Z1 + g);
         // passagem (servidor)
         int moved = 0, floors = 0;
         if (src.ServerConfigDir is { } sd)

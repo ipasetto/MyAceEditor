@@ -26,7 +26,7 @@ internal sealed partial class WorldView : Form
     /// <summary>Filtro "Mostrar" (vale para a sessão toda): por padrão tudo menos eventos e gatilhos.</summary>
     static MarkKind _show = MarkKind.Monster | MarkKind.Npc | MarkKind.Merchant | MarkKind.Guard | MarkKind.Mine | MarkKind.Plugin;   // pontos de plugin ligados por padrão (usuário 01/11)
     List<Marker> _allMarks = new();
-    static bool Visible(Marker m) => m.Kind == 0 || (m.Kind & Types & _show) != 0 && ((m.Kind & Triggers) == 0 || (m.Kind & Triggers & _show) != 0);
+    static new bool Visible(Marker m) => m.Kind == 0 || (m.Kind & Types & _show) != 0 && ((m.Kind & Triggers) == 0 || (m.Kind & Triggers & _show) != 0);
 
     const System.ComponentModel.DesignerSerializationVisibility Hidden = System.ComponentModel.DesignerSerializationVisibility.Hidden;
     [System.ComponentModel.DesignerSerializationVisibility(Hidden)] public Action<object, Vector3>? CloneHere { get; set; }
@@ -185,7 +185,7 @@ internal sealed partial class WorldView : Form
         // grama: só mostrar/esconder (G); desenhar grama é pincel do Objetos do mundo
         _showBar.Items.Add(new ToolStripSeparator());
         _showBar.Items.Add(new ToolStripLabel(Loc.T("world.showWorld", "Mundo:")) { ForeColor = Color.Silver });
-        _grassBtn.CheckedChanged += (_, _) => { _grass.Visible = _grassBtn.Checked; _grassBtn.Image = DarkBarRenderer.Dot(_grassBtn.Checked ? Color.FromArgb(124, 179, 66) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
+        _grassBtn.CheckedChanged += (_, _) => { _grass!.Visible = _grassBtn.Checked; _grassBtn.Image = DarkBarRenderer.Dot(_grassBtn.Checked ? Color.FromArgb(124, 179, 66) : Color.FromArgb(70, 70, 70)); _gl.Invalidate(); _gl.Focus(); };
         _showBar.Items.Add(_grassBtn);
         // caminhos de patrulha de todos os monstros (riscos rosas; antes só pela tecla P, sem nada dizendo o que eram)
         var pathsBtn = new ToolStripButton(Loc.T("world.allPaths", "Patrulhas"), DarkBarRenderer.Dot(Color.FromArgb(70, 70, 70)))
@@ -418,7 +418,7 @@ internal sealed partial class WorldView : Form
         if (_tool == Tool.None) return ClearScreen();
         if (_tool == Tool.Scene && StopPlanting()) return true;   // 1º Esc no plantio: só para de plantar
         if (StopDropper()) return true;                           // Esc no conta-gotas: só desliga o conta-gotas
-        if (_tool == Tool.Scene && GrassEscape()) return true;    // Esc na grama: apaga o pincel, depois fecha o painel
+        if (_tool == Tool.Terrain && GrassEscape()) return true;    // Esc na grama: apaga o pincel, depois fecha o painel
         if (TerrainEscape()) return true;                         // Esc no terreno: apaga o pincel antes de sair
         if (_tool == Tool.Scene && _sceneSel is not null) { _sceneSel = null; ShowObjPanel(); _gl.Invalidate(); return true; }   // 1º Esc: tira a seleção
         LeaveTool();
@@ -471,14 +471,14 @@ internal sealed partial class WorldView : Form
                     bool ok = e.KeyCode == Keys.Z ? UndoAny() : RedoAny();
                     _status.Text = ok ? "" : e.KeyCode == Keys.Z ? Loc.T("status.nothingUndo", "Nada para desfazer") : Loc.T("status.nothingRedo", "Nada para refazer");
                     RefreshMarkers(); break;
+                case Keys.C when _tool == Tool.Terrain && BrushOn:
+                    GrassEyedropper();   // com o pincel da grama: conta-gotas (o tipo embaixo do mouse)
+                    break;
                 case Keys.C when _tool == Tool.Terrain:
                     WaterCopy();
                     break;
                 case Keys.V when _tool == Tool.Terrain:
                     WaterPaste();
-                    break;
-                case Keys.C when _tool == Tool.Scene && BrushOn:
-                    GrassEyedropper();   // com o pincel: conta-gotas (o tipo embaixo do mouse)
                     break;
                 case Keys.C when _tool == Tool.Scene:
                     _objClip = _sceneSel;
@@ -653,7 +653,7 @@ internal sealed partial class WorldView : Form
 
         // terreno só de cima (faces da frente sobem: a→d→b), como o jogo: visto de baixo, a tampa das cavernas some.
         // O "teto" das instâncias (a35, a24, a27) não é terreno — é o céu da área (A3DSkySphere com texturas de pedra).
-        GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(FrontFaceDirection.Ccw);
+        GL.Enable(EnableCap.CullFace); GL.CullFace(TriangleFace.Back); GL.FrontFace(FrontFaceDirection.Ccw);
         FlushGround();
         bool terrainBusy = _terrain.Draw(_cam, Forward);
         GL.Disable(EnableCap.CullFace);
@@ -825,14 +825,14 @@ internal sealed partial class WorldView : Form
         {
             var g = Gl(fx.X, fx.Y, fx.Z);
             if ((g - _cam).LengthSquared > R2) continue;
-            if (fx == _sceneSel) GL.Color3(1f, 1f, 0.4f); else GL.Color3(1f, 0.55f, 0.1f);
+            if (ReferenceEquals(fx, _sceneSel)) GL.Color3(1f, 1f, 0.4f); else GL.Color3(1f, 0.55f, 0.1f);
             GL.Vertex3(g);
         }
         foreach (var sd in sc.Sounds)
         {
             var g = Gl(sd.X, sd.Y, sd.Z);
             if ((g - _cam).LengthSquared > R2) continue;
-            if (sd == _sceneSel) GL.Color3(1f, 1f, 0.4f); else GL.Color3(0.3f, 0.7f, 1f);
+            if (ReferenceEquals(sd, _sceneSel)) GL.Color3(1f, 1f, 0.4f); else GL.Color3(0.3f, 0.7f, 1f);
             GL.Vertex3(g);
         }
         GL.End();
@@ -843,7 +843,7 @@ internal sealed partial class WorldView : Form
         {
             var g = Gl(cr.X, cr.Y, cr.Z);
             if ((g - _cam).LengthSquared > R2) continue;
-            if (cr == _sceneSel) GL.Color3(1f, 1f, 0.4f); else GL.Color3(0.4f, 0.95f, 0.4f);
+            if (ReferenceEquals(cr, _sceneSel)) GL.Color3(1f, 1f, 0.4f); else GL.Color3(0.4f, 0.95f, 0.4f);
             GL.Vertex3(g);
         }
         GL.End(); GL.PointSize(1);
@@ -1101,7 +1101,7 @@ internal sealed partial class WorldView : Form
         GL.Enable(EnableCap.ClipPlane0);
         GL.Enable(EnableCap.Fog);
         GL.Enable(EnableCap.DepthTest);
-        GL.Enable(EnableCap.CullFace); GL.CullFace(CullFaceMode.Back); GL.FrontFace(FrontFaceDirection.Cw);
+        GL.Enable(EnableCap.CullFace); GL.CullFace(TriangleFace.Back); GL.FrontFace(FrontFaceDirection.Cw);
         var eye = new Vector3(_cam.X, 2 * h - _cam.Y, _cam.Z); var look = new Vector3(Forward.X, -Forward.Y, Forward.Z);
         _terrain.Draw(eye, look);
         GL.Disable(EnableCap.CullFace);
@@ -1955,7 +1955,7 @@ internal sealed partial class WorldView : Form
     {
         if (_host is null) return;
         if (_editor is not null) { _editor.Focus(); return; }
-        if (_host.NewDraft(npcId, out var why) is not { } draft) { MessageBox.Show(this, why, Loc.T("qe.cantCreate", "Não dá para criar quest agora"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        if (_host.NewDraft(npcId, out var why) is not { } draft) { MessageBox.Show(this, why ?? "", Loc.T("qe.cantCreate", "Não dá para criar quest agora"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         OpenDraft(draft, npcId);
     }
 
@@ -1964,7 +1964,7 @@ internal sealed partial class WorldView : Form
     {
         if (_host is null) return;
         if (_editor is not null) { _editor.Focus(); return; }
-        if (_host.EditDraft(questId, out var why) is not { } draft) { MessageBox.Show(this, why, Loc.T("qe.cantEdit", "Não dá para editar esta quest aqui"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        if (_host.EditDraft(questId, out var why) is not { } draft) { MessageBox.Show(this, why ?? "", Loc.T("qe.cantEdit", "Não dá para editar esta quest aqui"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         OpenDraft(draft, _questNpc);
     }
 
@@ -2007,6 +2007,7 @@ internal sealed partial class WorldView : Form
             () => MapTag,
             act => { _pickMonster = act; _pickNpc = null; _pickArea = null; _pickMine = null; _status.Text = Loc.T("qe.pickingMonster", "Clique num ponto de monstro no mundo… (Esc cancela)"); _gl.Focus(); },
             act => { _pickMine = act; _pickNpc = null; _pickArea = null; _pickMonster = null; _status.Text = Loc.T("qe.pickingMine", "Clique num ponto de coleta (minério, erva…) no mundo… (Esc cancela)"); _gl.Focus(); });
+        if (_host is null) return;
         var ed = _editor = new WorldQuestEditor(_host, draft, world);
         // durante a edição só o assistente fica na tela: o menu/painel de ferramentas some e volta ao concluir ou cancelar (usuário 01/11)
         _tools.Visible = false;
@@ -2070,6 +2071,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Undo();   // janela da loja/fornalha aberta: mexe no rascunho
         if (_tool == Tool.Domains) return false;   // o editor de territórios tem o Ctrl+Z dele
         if (ZoneUndo(redo: false)) return true;
+        if (WorldUndo(redo: false)) return true;   // Edição de Mundo: a última ação, de qualquer pílula
         if (TerrainUndo(redo: false)) return true;   // terreno: pinceladas de textura
         if (GrassUndo(redo: false)) return true;   // pincel ligado ou a última ação foi uma pincelada
         if (ObjectUndo(redo: false)) return true;  // objetos do mundo (rascunho) só se foi a última ação
@@ -2092,6 +2094,7 @@ internal sealed partial class WorldView : Form
         if (ActiveServiceWindow is { Visible: true } svc) return svc.Redo();
         if (_tool == Tool.Domains) return false;
         if (ZoneUndo(redo: true)) return true;
+        if (WorldUndo(redo: true)) return true;
         if (TerrainUndo(redo: true)) return true;
         if (GrassUndo(redo: true)) return true;
         if (ObjectUndo(redo: true)) return true;

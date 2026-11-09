@@ -119,15 +119,14 @@ internal sealed partial class WorldView
         _toolBack.FlatAppearance.BorderSize = 0; _toolFold.FlatAppearance.BorderSize = 0;
         _toolBack.Image = UiKit.Icon("", Color.White, 16);
         _toolTip.SetToolTip(_toolBack, Loc.T("tools.back", "Voltar ao menu de ferramentas"));
-        _toolBack.Click += (_, _) => { if (_tool == Tool.Scene && !AbandonObjects()) return; if (_tool == Tool.Terrain && !AbandonTerrain()) return; if (_tool == Tool.Zones && !ZoneLeave()) return; if (_tool == Tool.Domains && !CloseDomains()) return; if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
+        _toolBack.Click += (_, _) => { if (WorldEditOpen && !AbandonWorld()) return; if (_tool == Tool.Zones && !ZoneLeave()) return; if (_tool == Tool.Domains && !CloseDomains()) return; if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
         _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
         _toolTitle.ImageAlign = ContentAlignment.MiddleLeft; _toolTitle.TextAlign = ContentAlignment.MiddleLeft;
 
         // ---- menu ----
-        _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.objects", "Objetos do mundo"), Loc.T("tools.objectsSub", "Escolher, mover, clonar e apagar o que há no mapa"), () => OpenTool(Tool.Scene)));
-        _toolMenu.Controls.Add(ToolButton("\uE81D", Loc.T("tools.terrain", "Terreno"), Loc.T("tools.terrainSub2", "Pintar a textura do chão e mudar a altura (subir, descer, alisar, plainar)."), () => OpenTool(Tool.Terrain)));
+        _toolMenu.Controls.Add(ToolButton("\uF158", Loc.T("tools.world", "Edição de Mundo"), Loc.T("tools.worldSub", "Objetos, terreno, água, grama e flores num lugar só, com um Salvar."), () => OpenTool(_worldPill)));
         _toolMenu.Controls.Add(ToolButton("\uE707", Loc.T("tools.paths2", "Caminhos e áreas"), Loc.T("tools.paths2Sub", "Como cada monstro ou NPC anda: área ou patrulha"), () => OpenTool(Tool.Paths)));
         _toolMenu.Controls.Add(ToolButton("\uE7C1", Loc.T("tools.quests", "Quests"), Loc.T("tools.questsSub", "Clique num NPC: ver, criar, dar, editar e excluir as quests dele"), () => OpenTool(Tool.Quests)));
         _toolMenu.Controls.Add(ToolButton("\uE710", Loc.T("tools.npcs", "NPCs e monstros"), Loc.T("tools.npcsSub", "Criar e editar NPC, vendedor, fornalha e monstro."), () => OpenTool(Tool.Create)));
@@ -144,6 +143,7 @@ internal sealed partial class WorldView
         _toolMenu.Controls.Add(send);
 
         // ---- Objetos do mundo: só o que serve aqui ----
+        _scenePage.Controls.Add(WorldPills());
         _scenePage.Controls.Add(Hint(Loc.T("obj.steps", "Clique em qualquer objeto à vista: construção, modelo, efeito (laranja), som (azul) ou bichos (verde). Mova pelos números ou com o botão direito no chão; gire pelo giro; Delete apaga. Nada grava até o Salvar.")));
         _showScenePoints.Text = Loc.T("obj.showPoints", "Mostrar efeitos e sons");
         _showScenePoints.CheckedChanged += (_, _) => { if (!_showScenePoints.Checked && _sceneSel is WorldScene.SceneEffect or WorldScene.SceneSound or WorldScene.Critter) { _sceneSel = null; ShowObjPanel(); } _gl.Invalidate(); };
@@ -151,26 +151,23 @@ internal sealed partial class WorldView
         _scenePage.Padding = new Padding(_scenePage.Padding.Left, _scenePage.Padding.Top, _scenePage.Padding.Right, 36);
         _scenePage.Controls.Add(SectionLabel(Loc.T("obj.insert", "Inserir no mundo")));
         foreach (var (g, k, pt) in new[] {
-            ("\uE80F", "obj.pillBuildings", "Construções"), ("\uE913", "obj.pillTrees", "Árvores"), ("\uE790", "obj.pillGrass", "Grama"),
+            ("\uE80F", "obj.pillBuildings", "Construções"), ("\uE913", "obj.pillTrees", "Árvores"),
             ("\uE7B8", "obj.pillModels", "Modelos") })
         {
-            bool trees = k == "obj.pillTrees", blds = k == "obj.pillBuildings", grass = k == "obj.pillGrass";
-            var b = SmallButton(g, Loc.T(k, pt), trees ? ChooseTreeToPlant : blds ? ChooseBuildingToPlace : grass ? OpenGrassPanel : () => { });
+            bool trees = k == "obj.pillTrees", blds = k == "obj.pillBuildings";
+            var b = SmallButton(g, Loc.T(k, pt), trees ? ChooseTreeToPlant : blds ? ChooseBuildingToPlace : () => { });
             if (trees) _toolTip.SetToolTip(b, Loc.T("obj.pillTreesTip", "Escolher o tipo de árvore e clicar no chão para plantar."));
             else if (blds) _toolTip.SetToolTip(b, Loc.T("obj.pillBuildingsTip", "Escolher uma construção das que estão por perto e clicar no chão para pôr uma cópia."));
-            else if (grass) _toolTip.SetToolTip(b, Loc.T("obj.pillGrassTip", "Escolher a grama ou flor e pintar no chão com o pincel (Borracha apaga)."));
             else { b.Enabled = false; b.ForeColor = Color.Gray; _toolTip.SetToolTip(b, Loc.T("obj.pillSoon", "Chega na próxima etapa da ferramenta.")); }
             _scenePage.Controls.Add(b);
         }
         _objPanel.Visible = false; _objPanel.Width = 250; _objPanel.Height = 330; _objPanel.Margin = new Padding(0, 4, 0, 4);
         _scenePage.Controls.Add(_objPanel);
-        InitGrassPanel();
-        _scenePage.Controls.Add(_brushPanel);
         _scenePage.Controls.Add(_sceneState);
         _scenePage.Controls.Add(SmallButton("\uE7A7", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
         _scenePage.Controls.Add(SmallButton("\uE7A6", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
-        var sceneSave = SmallButton("\uE74E", Loc.T("world.objSave", "Salvar cenário"), () => SaveScene(), main: true);
-        _toolTip.SetToolTip(sceneSave, ".ecwld\n.ecbsd\nlitmodels.pck\nmap.bht");
+        var sceneSave = SmallButton("\uE74E", Loc.T("world.save", "Salvar mundo"), () => SaveWorld(), main: true);
+        _toolTip.SetToolTip(sceneSave, Loc.T("world.saveTip", "Grava tudo o que mudou na Edição de Mundo: objetos, grama, terreno e água."));
         _scenePage.Controls.Add(sceneSave);
         _scenePage.Controls.Add(new Panel { Width = 10, Height = 40, Margin = Padding.Empty });   // espaço livre embaixo (regra do usuário)
 
@@ -229,8 +226,9 @@ internal sealed partial class WorldView
             _toolTitle.Text = "       " + Loc.T("tools.quests", "Quests");
             ShowQuestTool(_questNpc > 0 ? NpcQuests?.Invoke(_questNpc) : null);
         }
-        if (t == Tool.Scene) { _toolTitle.Text = "       " + Loc.T("tools.objects", "Objetos do mundo"); SetSceneObjects(true); }
-        if (t == Tool.Terrain) { _toolTitle.Text = "       " + Loc.T("tools.terrain", "Terreno"); _toolTitle.Image = UiKit.Icon("\uE81D", Color.White, 18); TexLabels(); }
+        if (t is Tool.Scene or Tool.Terrain) { _worldPill = t; _toolTitle.Text = "       " + Loc.T("tools.world", "Edição de Mundo"); _toolTitle.Image = UiKit.Icon("\uF158", Color.White, 18); PaintPills(); }
+        if (t == Tool.Scene) SetSceneObjects(true);
+        if (t == Tool.Terrain) TexLabels();
         if (t == Tool.Paths) { _toolTitle.Text = "       " + Loc.T("tools.paths2", "Caminhos e áreas"); UpdatePathPanel(); _gl.Invalidate(); }
         if (t == Tool.Create)
         {
@@ -249,9 +247,8 @@ internal sealed partial class WorldView
     {
         if (_tool == Tool.Zones && !ZoneLeave()) return;
         if (_tool == Tool.Domains && !CloseDomains()) return;
-        if (_tool == Tool.Scene && !AbandonObjects()) return;
-        if (_tool == Tool.Terrain && !AbandonTerrain()) return;
-        if (_tool == Tool.Scene) { StopBrush(); StopPlanting(); }
+        if (WorldEditOpen && !AbandonWorld()) return;
+        if (WorldEditOpen) { StopBrush(); StopPlanting(); }
         StopDropper();
         if (_tool == Tool.Create)
         {
@@ -319,6 +316,7 @@ internal sealed partial class WorldView
     void CloseTool()
     {
         if (_tool == Tool.Scene) SetSceneObjects(false);
+        if (_tool == Tool.Terrain) StopBrush();
         if (_tool == Tool.Paths) { _drawPts = null; _dragPt = -1; _gl.Invalidate(); }
         if (_tool == Tool.Teleports) { _placing = null; _tpd = null; _gl.Invalidate(); }
         if (_tool == Tool.Zones) CloseZones();
@@ -343,14 +341,14 @@ internal sealed partial class WorldView
     }
 
     /// <summary>Para a captura (--world-shot): abre a ferramenta Editar cenário ou volta ao menu.</summary>
-    internal void ShotTool(int tool) { CloseTool(); if (tool == 5) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); return; } if (tool == 6) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); NewTeleport(); _tpFilling = true; _tpName.Text = "Vila Nova"; _tpFilling = false; _tpd!.At = new OpenTK.Mathematics.Vector3(100, 220, 100); _tpd.BaseNpc = 2171; _tpd.NpcName = "Teleportadora"; _tpd.Stops = [new TeleportStop(1001, 500, 0)]; UpdateTeleportPanel(); return; } if (tool == 4) { OpenTool(Tool.Create); PickKind(NpcKind.Seller); return; } if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
+    internal void ShotTool(int tool) { CloseTool(); if (tool == 5) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); return; } if (tool == 6) { MapTag = MapTag == 0 ? 1 : MapTag; OpenTool(Tool.Teleports); NewTeleport(); _tpFilling = true; _tpName.Text = "Vila Nova"; _tpFilling = false; _tpd!.At = new OpenTK.Mathematics.Vector3(100, 220, 100); _tpd.BaseNpc = 2171; _tpd.NpcName = "Teleportadora"; _tpd.Stops = [new TeleportStop(1001, 500, 0)]; UpdateTeleportPanel(); return; } if (tool == 4) { OpenTool(Tool.Create); PickKind(NpcKind.Seller); return; } if (tool == 7) { OpenTool(Tool.Terrain); return; } if (tool == 1) OpenTool(Tool.Scene); else if (tool == 2) OpenTool(Tool.Paths); else if (tool == 3) OpenTool(Tool.Quests); }
 
     /// <summary>Aviso de mudança não salva no painel da ferramenta.</summary>
     void UpdateSideState()
     {
-        bool dirty = SceneDirty;
+        bool dirty = WorldDirty;
         _sceneState.Text = !_sceneObjs ? "" : _ecw is null ? (_ecwWhy ?? "") : dirty
-            ? Loc.T("world.sceneDirtyLine", "● Mudanças não salvas — use Salvar cenário.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
+            ? Loc.T("world.dirtyLine", "● Mudanças não salvas — use Salvar mundo.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
         _sceneState.ForeColor = dirty ? Color.FromArgb(255, 200, 90) : Color.Silver;
     }
 }

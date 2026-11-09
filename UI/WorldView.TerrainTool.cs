@@ -35,7 +35,8 @@ internal sealed partial class WorldView
 
     void InitTerrainPage()
     {
-        _terrainPage.Controls.Add(Hint(Loc.T("terrain.hint", "Pinte a textura do chão: escolha a textura, ligue o Pincel e arraste no chão. A Borracha volta para a textura de baixo. Nada grava até o Salvar terreno.")));
+        _terrainPage.Controls.Add(WorldPills());
+        _terrainPage.Controls.Add(Hint(Loc.T("terrain.hint2", "Pinte a textura do chão: escolha a textura, ligue o Pincel e arraste no chão. A Borracha volta para a textura de baixo. Nada grava até o Salvar mundo.")));
         _terrainPage.Controls.Add(SectionLabel(Loc.T("terrain.texture", "Textura do chão")));
         var modes = new FlowLayoutPanel { Width = 250, Height = 70, WrapContents = false, Margin = new Padding(0, 2, 0, 8) };
         _texPaintBtn = BigButton("", Loc.T("grass.brush", "Pincel"), "B", TexPaint, 76);
@@ -69,10 +70,17 @@ internal sealed partial class WorldView
         NoWheel(_texSize); NoWheel(_texForce);
         foreach (var c in new Control[] { _texSizeLbl, _texSize, _texForceLbl, _texForce }) _terrainPage.Controls.Add(c);
         InitWaterSection();
+        // grama e flores (usuário 09/11: mesmos botões da textura, mais sentido aqui que em Objetos)
+        _terrainPage.Controls.Add(SectionLabel(Loc.T("grass.section", "Grama e flores")));
+        var grassBtn = SmallButton("\uE790", Loc.T("grass.openBtn", "Pintar grama e flores"), OpenGrassPanel);
+        _toolTip.SetToolTip(grassBtn, Loc.T("obj.pillGrassTip", "Escolher a grama ou flor e pintar no chão com o pincel (Borracha apaga)."));
+        _terrainPage.Controls.Add(grassBtn);
+        InitGrassPanel();
+        _terrainPage.Controls.Add(_brushPanel);
         _terrainPage.Controls.Add(_terrainState);
         _terrainPage.Controls.Add(SmallButton("", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => UndoAny()));
         _terrainPage.Controls.Add(SmallButton("", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => RedoAny()));
-        var save = SmallButton("", Loc.T("terrain.save", "Salvar terreno"), () => SaveTerrain(), main: true);
+        var save = SmallButton("", Loc.T("world.save", "Salvar mundo"), () => SaveWorld(), main: true);
         _toolTip.SetToolTip(save, "<mapa>_N.t2mk / .t2bk, bsdata, .ecwld + map\\N.hmap, watermap\\N.wmap");
         _terrainPage.Controls.Add(save);
         _terrainPage.Controls.Add(new Label { AutoSize = false, Width = 240, Height = 92, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Margin = new Padding(3, 8, 3, 30),
@@ -94,8 +102,8 @@ internal sealed partial class WorldView
         bool p = _texActive && !_texErase, e = _texActive && _texErase;
         if (_texPaintBtn is not null) { _texPaintBtn.BackColor = p ? UiKit.Accent : Color.FromArgb(40, 45, 54); _texPaintBtn.FlatAppearance.BorderColor = p ? UiKit.Accent : Color.FromArgb(62, 70, 84); }
         if (_texEraseBtn is not null) { _texEraseBtn.BackColor = e ? Color.FromArgb(150, 50, 50) : Color.FromArgb(40, 45, 54); _texEraseBtn.FlatAppearance.BorderColor = e ? Color.FromArgb(150, 50, 50) : Color.FromArgb(62, 70, 84); }
-        _terrainState.Text = TerrainDirty ? Loc.T("terrain.dirty", "● Mudanças não salvas — use Salvar terreno.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
-        _terrainState.ForeColor = TerrainDirty ? Color.FromArgb(255, 200, 90) : Color.Silver;
+        _terrainState.Text = WorldDirty ? Loc.T("world.dirtyLine", "● Mudanças não salvas — use Salvar mundo.") : Loc.T("world.sceneCleanLine", "✓ Tudo salvo.");
+        _terrainState.ForeColor = WorldDirty ? Color.FromArgb(255, 200, 90) : Color.Silver;
     }
 
     TerrainDraft TerrainDraftOrNew()
@@ -138,12 +146,13 @@ internal sealed partial class WorldView
         return true;
     }
 
-    void TexPaint() { if (_texSel < 0) { ChooseTexture(); return; } _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
-    void TexEraser() { _sculpt = -1; _waterMode = 0; _texErase = true; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
+    void TexPaint() { StopBrush(); if (_texSel < 0) { ChooseTexture(); return; } _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
+    void TexEraser() { StopBrush(); _sculpt = -1; _waterMode = 0; _texErase = true; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
 
     /// <summary>Liga um modo de altura (o pincel de textura apaga); de novo no mesmo botão desliga.</summary>
     void SetSculpt(int m)
     {
+        StopBrush();
         _sculpt = _sculpt == m ? -1 : m; _texActive = false;
         if (_sculpt >= 0) _waterMode = 0;
         TexLabels(); WaterLabels(); _gl.Invalidate();
@@ -269,7 +278,7 @@ internal sealed partial class WorldView
     {
         if (!_texDown) return false;
         _texDown = false;
-        if (_terrainDraft?.EndStroke() == true) { TexLabels(); WaterLabels(); }
+        if (_terrainDraft?.EndStroke() == true) { WorldDid('T'); TexLabels(); WaterLabels(); }
         if (_terrainDraft?.LastRefusal is { } why) _status.Text = why;
         return true;
     }
@@ -330,9 +339,11 @@ internal sealed partial class WorldView
         _groundPending.Clear();
     }
 
-    bool TerrainUndo(bool redo)
+    bool TerrainUndo(bool redo) => _tool == Tool.Terrain && TerrainUndoCore(redo);
+
+    bool TerrainUndoCore(bool redo)
     {
-        if (_tool != Tool.Terrain || _terrainDraft is not { } d) return false;
+        if (_terrainDraft is not { } d) return false;
         var areas = d.Undo(redo);
         if (areas is null) return false;
         RefreshTerrainAreas(areas);
@@ -396,9 +407,13 @@ internal sealed partial class WorldView
         TexLabels(); _gl.Invalidate();
     }
 
-    bool SaveTerrain()
+    bool SaveTerrain(string? before = null, bool beforeServer = false, bool interactive = true)
     {
-        if (_terrainDraft is not { Dirty: true } d) { _status.Text = Loc.T("obj.nothing", "Nada para salvar."); return false; }
+        if (_terrainDraft is not { Dirty: true } d)
+        {
+            if (before is not null) { if (interactive) BeginInvoke(() => SavedDialog.Show(this, before, beforeServer ? SaveAndSendAll : null)); return true; }
+            _status.Text = Loc.T("obj.nothing", "Nada para salvar."); return false;
+        }
         Dictionary<string, byte[]> files;
         var sum = new List<string>();
         try { files = d.Files(ServerConfigDir is { } sd ? Path.Combine(sd, _t.Name) : null, sum); }
@@ -407,7 +422,11 @@ internal sealed partial class WorldView
         var r = TerrainSaver.Write(files, _t.Name, pct => ShowSaveProgress(null, pct));
         bool ok = r.Kind is SaveKind.ClientOnly or SaveKind.Both;
         HideSaveProgress(ok);
-        if (!ok) { MessageBox.Show(this, r.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); _status.Text = r.Message; return false; }
+        if (!ok)
+        {
+            string fail = (before is null ? "" : before + Environment.NewLine + Environment.NewLine) + r.Message;
+            MessageBox.Show(this, fail, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); _status.Text = r.Message; return false;
+        }
         _terrainDraft = null; _texDown = false;   // o cache do terreno já tem o que foi gravado
         _waterSel = -1; _waterMode = 0; _clientWater = null;   // a água relê do disco (IDs novos)
         // luz e sombra refeitas: troca a textura de luz das áreas dos pedaços gravados
@@ -415,15 +434,30 @@ internal sealed partial class WorldView
             .Select(k => Path.GetFileNameWithoutExtension(k)).Select(n => int.TryParse(n[(n.LastIndexOf('_') + 1)..], out int p) ? p : 0).Where(p => p > 0).Distinct().ToList();
         foreach (var k in _t.ForgetLight(litPieces)) _lightPending.Add(k);
         TexLabels(); WaterLabels();
-        string msg = r.Message + (sum.Count > 0 ? Environment.NewLine + string.Join(Environment.NewLine, sum) : "");
+        string msg = (before is null ? "" : before + Environment.NewLine + Environment.NewLine) + r.Message + (sum.Count > 0 ? Environment.NewLine + string.Join(Environment.NewLine, sum) : "");
         _status.Text = r.Message;
-        bool server = r.Kind == SaveKind.Both;
+        bool server = r.Kind == SaveKind.Both || beforeServer;
+        ReloadSceneAfterTerrain(files);
         if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".hmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "map", Path.GetFileName(f)));
         if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".wmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "watermap", Path.GetFileName(f)));
         if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "movemap", Path.GetFileName(f)));
         if (server) foreach (var f in files.Keys.Where(k => k.EndsWith(".dhmap", StringComparison.OrdinalIgnoreCase))) ServerNotice.Notify(Path.Combine(_t.Name, "movemap", Path.GetFileName(f)));
-        BeginInvoke(() => SavedDialog.Show(this, msg, server ? SaveAndSendAll : null));
+        if (interactive) BeginInvoke(() => SavedDialog.Show(this, msg, server ? SaveAndSendAll : null));
         return true;
+    }
+
+    /// <summary>
+    /// A água grava .ecwld/.ecbsd relidos do disco: o cenário em memória da pílula Objetos passa a ser o gravado (senão o
+    /// próximo Salvar dos objetos gravaria por cima das águas novas).
+    /// </summary>
+    void ReloadSceneAfterTerrain(Dictionary<string, byte[]> files)
+    {
+        bool ecw = _ecwPath is not null && files.ContainsKey(_ecwPath), bsd = _bsdPath is not null && files.ContainsKey(_bsdPath);
+        if (!ecw && !bsd || SceneDirty) return;
+        if (ecw) { var ew = files[_ecwPath!]; _ecw = new EcwldFile(ew); _ecwSaved = ew; _objScene = ScanScene(ew); }
+        if (bsd) { var bw = files[_bsdPath!]; _bsd = (byte[])bw.Clone(); _bsdSaved = (byte[])bw.Clone(); }
+        ObjectsSaved();
+        if (_sceneObjs) DraftOpen();
     }
 
     void DrawTerrainBrush()

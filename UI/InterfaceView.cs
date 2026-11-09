@@ -589,7 +589,7 @@ internal sealed class InterfaceView : UserControl
         readonly InterfaceView _v;
         float _s = 1; PointF _o;
         public float? Zoom;   // null = ajustar à tela
-        public float Scale => _s;
+        public new float Scale => _s;
         enum Drag { None, Move, Resize }
         Drag _drag; Point _start; Rectangle _orig, _live;
         TextBox? _inline;

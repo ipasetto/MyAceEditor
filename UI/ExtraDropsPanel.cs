@@ -163,7 +163,7 @@ public sealed class ExtraDropsPanel : UserControl
         ShowSums(t);
     }
 
-    static string Name(Dictionary<uint, string> names, uint id) => names.TryGetValue(id, out var n) ? n : "";
+    static new string Name(Dictionary<uint, string> names, uint id) => names.TryGetValue(id, out var n) ? n : "";
 
     void ShowSums(ExtraDropsFile.Table t)
     {

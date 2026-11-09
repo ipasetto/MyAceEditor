@@ -112,6 +112,7 @@ internal sealed partial class WorldView
     {
         if (_draft is null) return _status.Text = Loc.T("obj.noDraft", "Abra a ferramenta Objetos do mundo para mexer nos objetos.");
         var why = _draft.Apply(op, new DraftMark(UndoDepth?.Invoke() ?? 0, _qUndo.Count, _sUndo.Count));
+        if (why is null) WorldDid('O');
         if (why is not null) _status.Text = why; else _grassLast = false;   // a última ação passou a ser um objeto
         UpdateSideState();
         return why;
@@ -397,7 +398,7 @@ internal sealed partial class WorldView
             if (_ecwPath is not null && _ecw is not null && !plan.Files.ContainsKey(_ecwPath) && _ecwSaved is not null && !_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)) plan.Files[_ecwPath] = _ecw.Write();
             if (_bsdPath is not null && _bsd is not null && !plan.Files.ContainsKey(_bsdPath) && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved)) plan.Files[_bsdPath] = (byte[])_bsd.Clone();
             // grama e flores por último, em cima do que o cenário já mudou (efeitos, sons, objetos): tudo ou nada no mesmo salvar
-            if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc);
+            if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc!);
         }
         return plan;
     }
@@ -479,6 +480,7 @@ internal sealed partial class WorldView
     {
         if (res.Kind is not (SaveKind.Both or SaveKind.ClientOnly))
         {
+            _objSaveThen = null;   // Salvar mundo: o terreno não segue se os objetos falharam
             if (ask) MessageBox.Show(this, res.Message, Loc.T("obj.saveTitle", "Salvar objetos"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             _status.Text = res.Message;
             return false;
@@ -503,6 +505,7 @@ internal sealed partial class WorldView
         DraftOpen();
         UpdateSideState();
         _status.Text = res.Message;
+        if (_objSaveThen is { } then) { _objSaveThen = null; then(res, server); return true; }   // Salvar mundo: o terreno vem agora
         if (ask) BeginInvoke(() => SavedDialog.Show(this, res.Message, server ? SaveAndSendAll : null));
         return true;
     }
@@ -1747,7 +1750,6 @@ internal sealed partial class WorldView
         if (_objPanel.Height != h) { _objPanel.Height = h; LayoutTools(); }
     }
 
-    int _bannerTex; Tool _bannerFor = Tool.None; int _bannerW, _bannerH;
     static Color ToolColor(Tool t) => t switch
     {
         Tool.Scene => Color.FromArgb(255, 190, 60), Tool.Paths => Color.FromArgb(235, 120, 200), Tool.Quests => Color.FromArgb(110, 190, 255),
@@ -1776,13 +1778,19 @@ internal sealed partial class WorldView
     {
         if (!SceneDirty) return true;
         if (MessageBox.Show(this, Loc.T("obj.abandonAsk", "Há mudanças não salvas nos objetos do mundo. Abandonar e perder essas mudanças?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return false;
+        DiscardObjects();
+        return true;
+    }
+
+    /// <summary>Joga fora o rascunho dos objetos, da grama e do cenário e relê do disco (sem perguntar).</summary>
+    void DiscardObjects()
+    {
         _sceneSel = null; ShowObjPanel();
         _draftSrc?.Dispose(); _draftSrc = null; _draft = null; _draftAsked.Clear();
         ResetGrassEdit();   // pinceladas não salvas saem junto
         _ecw = null; _bsd = null; _ecwWhy = null; _sUndo.Clear(); _sRedo.Clear();
         LoadSceneForEdit();
         UpdateSideState(); _gl.Invalidate();
-        return true;
     }
 
     void DraftDispose() { _draftSrc?.Dispose(); _draftSrc = null; }
