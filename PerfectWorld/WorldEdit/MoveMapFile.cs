@@ -126,6 +126,146 @@ public static class MoveMapFile
         return (o, changed);
     }
 
+    /// <summary>.dhmap aberto para ler/mudar ponto a ponto (blocos mexidos viram blocos novos no fim ao gravar).</summary>
+    public sealed class DeltaImage
+    {
+        readonly byte[] _src; readonly int _bw, _bl, _exp, _bs, _cells, _idsAt;
+        readonly int[] _ids; readonly List<ushort[]> _blocks; readonly Dictionary<int, ushort[]> _edited = new();
+        public int Width { get; } public int Height { get; }
+        public DeltaImage(byte[] dh)
+        {
+            if (dh.Length < 36 || BitConverter.ToInt32(dh, 0) != 1) throw new InvalidDataException(".dhmap: versão desconhecida");
+            _src = dh; _bw = BitConverter.ToInt32(dh, 8); _bl = BitConverter.ToInt32(dh, 12); _exp = BitConverter.ToInt32(dh, 16);
+            Width = BitConverter.ToInt32(dh, 20); Height = BitConverter.ToInt32(dh, 24);
+            if (_bw <= 0 || _bl <= 0 || _bw * _bl > 1 << 20 || _exp < 0 || _exp > 10) throw new InvalidDataException(".dhmap: cabeçalho fora do esperado");
+            _bs = 1 << _exp; _cells = _bs * _bs; _idsAt = 32;
+            int nAt = _idsAt + 4 * _bw * _bl; if (nAt + 4 > dh.Length) throw new InvalidDataException(".dhmap: curto");
+            int n = BitConverter.ToInt32(dh, nAt), at = nAt + 4;
+            if (n < 0 || at + 2L * _cells * n > dh.Length) throw new InvalidDataException(".dhmap: blocos fora do arquivo");
+            _ids = new int[_bw * _bl]; for (int i = 0; i < _ids.Length; i++) _ids[i] = BitConverter.ToInt32(dh, _idsAt + 4 * i);
+            _blocks = new List<ushort[]>(n);
+            for (int b = 0; b < n; b++) { var a = new ushort[_cells]; Buffer.BlockCopy(dh, at + 2 * _cells * b, a, 0, 2 * _cells); _blocks.Add(a); }
+        }
+        (int Pos, int K) Ix(int u, int v) => ((v >> _exp) * _bw + (u >> _exp), (v - ((v >> _exp) << _exp)) * _bs + (u - ((u >> _exp) << _exp)));
+        /// <summary>Metros acima do chão (0 = no chão; ~1024 = marcador).</summary>
+        public float Get(int u, int v)
+        {
+            var (pos, k) = Ix(u, v); if (pos < 0 || pos >= _ids.Length) return 0;
+            var cur = _edited.TryGetValue(pos, out var e) ? e : _ids[pos] >= 0 && _ids[pos] < _blocks.Count ? _blocks[_ids[pos]] : null;
+            return cur is null ? 0 : cur[k] / 64f;
+        }
+        public void Set(int u, int v, float meters)
+        {
+            var (pos, k) = Ix(u, v); if (pos < 0 || pos >= _ids.Length) return;
+            ushort nv = meters <= 0.02f ? (ushort)0 : (ushort)Math.Min(64999, (int)MathF.Round(meters * 64));
+            if (!_edited.TryGetValue(pos, out var cur))
+            {
+                var orig = _ids[pos] >= 0 && _ids[pos] < _blocks.Count ? _blocks[_ids[pos]] : null;
+                if ((orig?[k] ?? 0) == nv) return;
+                cur = orig is null ? new ushort[_cells] : (ushort[])orig.Clone(); _edited[pos] = cur;
+            }
+            cur[k] = nv;
+        }
+        public bool Dirty => _edited.Count > 0;
+        public byte[] Save()
+        {
+            if (_edited.Count == 0) return _src;
+            var ids = (int[])_ids.Clone(); var blocks = new List<ushort[]>(_blocks);
+            foreach (var (pos, data) in _edited) { if (data.All(x => x == 0)) { ids[pos] = -1; continue; } blocks.Add(data); ids[pos] = blocks.Count - 1; }
+            int size = 5 * 4 + 4 + 4 * ids.Length + 4 + 2 * _cells * blocks.Count, nAt = _idsAt + 4 * ids.Length;
+            var o = new byte[8 + size];
+            Buffer.BlockCopy(_src, 0, o, 0, 32); BitConverter.GetBytes(size).CopyTo(o, 4);
+            for (int i = 0; i < ids.Length; i++) BitConverter.GetBytes(ids[i]).CopyTo(o, _idsAt + 4 * i);
+            BitConverter.GetBytes(blocks.Count).CopyTo(o, nAt);
+            for (int b = 0; b < blocks.Count; b++) Buffer.BlockCopy(blocks[b], 0, o, nAt + 4 + 2 * _cells * b, 2 * _cells);
+            return o;
+        }
+    }
+
+    /// <summary>
+    /// Construções postas, mexidas ou apagadas (passagem com pisos, como o editor oficial: PassMapGenerator ExpandPassRegion).
+    /// Nos retângulos, os metros cuja coluna (do chão a +80 m) mudou de colisão (velha × nova) são refeitos: partindo dos
+    /// vizinhos onde já dá para andar (altura = chão + delta), anda metro a metro; em cada metro desce um raio a partir de
+    /// 1 m (degrau) + 0,3 m acima da altura atual até o chão e o 1º topo achado é o piso (de construção ou o chão). Parede na
+    /// altura de um personagem (piso + 0,5 até + 1,8 m) bloqueia. Metro mudado que ninguém alcança fica bloqueado e no chão.
+    /// Grava .rmap (pode andar) e .dhmap (piso − chão). Metros cuja colisão não mudou ficam como estavam.
+    /// </summary>
+    public static (byte[] Rmap, byte[]? Dhmap, int Changed) UpdateWithFloors(byte[] rmap, byte[]? dhmap, float x0, float zSouth,
+        IEnumerable<(float X0, float Z0, float X1, float Z1)> rects, Func<float, float, float?> h, BrushSet oldB, BrushSet newB)
+    {
+        var (w, _, iw, ih, px) = Header(rmap);
+        var d = (byte[])rmap.Clone();
+        var dimg = dhmap is { Length: >= 36 } ? new DeltaImage(dhmap) : null;
+        var rect = new HashSet<int>(); var changedCol = new HashSet<int>();
+        System.Numerics.Vector3 P(int u, int v, float y) => new(x0 + (u + 0.5f) * px, y, zSouth + (v + 0.5f) * px);
+        foreach (var (rx0, rz0, rx1, rz1) in rects)
+        {
+            int u0 = Math.Max(0, (int)MathF.Floor((rx0 - x0) / px)), u1 = Math.Min(iw - 1, (int)MathF.Ceiling((rx1 - x0) / px));
+            int v0 = Math.Max(0, (int)MathF.Floor((rz0 - zSouth) / px)), v1 = Math.Min(ih - 1, (int)MathF.Ceiling((rz1 - zSouth) / px));
+            for (int v = v0; v <= v1; v++) for (int u = u0; u <= u1; u++)
+                {
+                    int id = v * iw + u; if (!rect.Add(id)) continue;
+                    var c = P(u, v, 0); if (h(c.X, c.Z) is not float g) continue;
+                    var lo = c with { Y = g - 1 }; var hi = c with { Y = g + 80 };
+                    if (oldB.Hit(lo, hi) != newB.Hit(lo, hi) || oldB.Hit(hi, lo) != newB.Hit(hi, lo)) changedCol.Add(id);
+                }
+        }
+        if (changedCol.Count == 0) return (rmap, null, 0);
+        // altura em que se anda em cada metro já alcançado (chão + delta); sementes = vizinhos não mudados onde dá para andar
+        var height = new Dictionary<int, float>(); var queue = new Queue<int>();
+        int[] du = { 1, -1, 0, 0 }, dv = { 0, 0, 1, -1 };
+        foreach (int id in changedCol)
+        {
+            int u = id % iw, v = id / iw;
+            for (int k = 0; k < 4; k++)
+            {
+                int nu = u + du[k], nv = v + dv[k]; if (nu < 0 || nv < 0 || nu >= iw || nv >= ih) continue;
+                int nid = nv * iw + nu; if (changedCol.Contains(nid) || height.ContainsKey(nid) || !Reach(d, w, nu, nv)) continue;
+                var c = P(nu, nv, 0); if (h(c.X, c.Z) is not float g) continue;
+                float dh = dimg?.Get(nu, nv) ?? 0; if (dh >= 1000) dh = 0;
+                height[nid] = g + dh; queue.Enqueue(nid);
+            }
+        }
+        var reached = new Dictionary<int, float>();
+        while (queue.Count > 0)
+        {
+            int id = queue.Dequeue(); int u = id % iw, v = id / iw; float y = height[id];
+            for (int k = 0; k < 4; k++)
+            {
+                int nu = u + du[k], nv = v + dv[k]; if (nu < 0 || nv < 0 || nu >= iw || nv >= ih) continue;
+                int nid = nv * iw + nu; if (!changedCol.Contains(nid) || reached.ContainsKey(nid)) continue;
+                var c = P(nu, nv, 0); if (h(c.X, c.Z) is not float g) continue;
+                float top = MathF.Max(y, g) + MaxStep + 0.3f;
+                var a = c with { Y = top }; var b = c with { Y = g - 0.05f };
+                float floor = newB.FirstHit(a, b) is float t ? MathF.Max(g, top + (g - 0.05f - top) * t) : g;
+                if (floor > y + MaxStep + 0.01f) continue;   // degrau alto demais
+                if (newB.Hit(c with { Y = floor + 0.5f }, c with { Y = floor + 1.8f })) continue;   // parede na altura de um personagem
+                if (floor <= g + 0.02f)
+                {   // no chão: a inclinação vale (degrau de 1 m para os vizinhos)
+                    float s = 0;
+                    foreach (var (ex, ez) in new[] { (px, 0f), (-px, 0f), (0f, px), (0f, -px) }) if (h(c.X + ex, c.Z + ez) is float n) s = MathF.Max(s, MathF.Abs(n - g));
+                    if (s > MaxStep) continue;
+                }
+                reached[nid] = floor; height[nid] = floor; queue.Enqueue(nid);
+            }
+        }
+        int changed = 0;
+        foreach (int id in changedCol)
+        {
+            int u = id % iw, v = id / iw;
+            bool now = reached.TryGetValue(id, out float floor);
+            var c = P(u, v, 0); float g = h(c.X, c.Z) ?? 0;
+            if (Reach(d, w, u, v) != now)
+            {
+                ref byte bt = ref d[28 + v * w + (u >> 3)];
+                bt = now ? (byte)(bt | (1 << (u & 7))) : (byte)(bt & ~(1 << (u & 7)));
+                changed++;
+            }
+            dimg?.Set(u, v, now ? floor - g : 0);
+        }
+        return (d, dimg is { Dirty: true } ? dimg.Save() : null, changed);
+    }
+
     public static bool Reach(byte[] d, int w, int u, int v) => (d[28 + v * w + (u >> 3)] & (1 << (u & 7))) != 0;
 
     /// <summary>

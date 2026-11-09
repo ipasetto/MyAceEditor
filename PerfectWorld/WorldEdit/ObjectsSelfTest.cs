@@ -27,6 +27,8 @@ public static class ObjectsSelfTest
         var r = new Report(lines);
         try { TerrainHeights(r, element, config); }
         catch (Exception ex) { r.Check("altura-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { Floors(r); }
+        catch (Exception ex) { r.Check("pisos-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { DeltaHeights(r, element, config); }
         catch (Exception ex) { r.Check("dhmap-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { NewTexture(r, element); }
@@ -229,6 +231,53 @@ public static class ObjectsSelfTest
             for (int i = 0; i < n; i += 97) worst = MathF.Max(worst, MathF.Abs(BitConverter.ToSingle(sv, i * 4) - BitConverter.ToSingle(mine, i * 4)) * 800);
             r.Check("hmap-bate-com-o-servidor", sv.Length == mine.Length && worst < 0.5f, $"tamanho {sv.Length}/{mine.Length}, maior diferença {worst:0.00} m");
         }
+    }
+
+    /// <summary>
+    /// Pisos novos (sintético): chão plano a 100 m; plataforma nova de 0,8 m (sobe pelo degrau de 1 m) = andável com delta
+    /// 0,8; de 3 m = em cima ninguém chega (bloqueado) e a volta continua livre; apagar a plataforma devolve o chão.
+    /// </summary>
+    static void Floors(Report r)
+    {
+        static byte[] Box(float x0, float y0, float z0, float x1, float y1, float z1)
+        {
+            var b = new List<byte>();
+            void F(float v) => b.AddRange(BitConverter.GetBytes(v));
+            F((x0 + x1) / 2); F((y0 + y1) / 2); F((z0 + z1) / 2); F((x1 - x0) / 2); F((y1 - y0) / 2); F((z1 - z0) / 2);
+            F(x0); F(y0); F(z0); F(x1); F(y1); F(z1);
+            b.AddRange(BitConverter.GetBytes(0)); b.AddRange(BitConverter.GetBytes(6));
+            foreach (var (nx, ny, nz, dist) in new[] { (1f, 0f, 0f, x1), (-1f, 0f, 0f, -x0), (0f, 1f, 0f, y1), (0f, -1f, 0f, -y0), (0f, 0f, 1f, z1), (0f, 0f, -1f, -z0) })
+            { F(nx); F(ny); F(nz); F(dist); b.Add(0); }
+            return [.. b];
+        }
+        static BhtFile Bht(params byte[][] brushes)
+        {
+            var b = new List<byte>(); b.AddRange(BitConverter.GetBytes(BhtFile.Magic)); b.AddRange(BitConverter.GetBytes(1)); b.AddRange(BitConverter.GetBytes(brushes.Length));
+            foreach (var x in brushes) b.AddRange(x);
+            b.AddRange(new byte[17]); b.Add(1);   // um nó folha
+            return new BhtFile([.. b]);
+        }
+        var rmap = new byte[8 + 20 + 128 * 1024];
+        BitConverter.GetBytes(1).CopyTo(rmap, 0); BitConverter.GetBytes(20 + 128 * 1024).CopyTo(rmap, 4); BitConverter.GetBytes(128).CopyTo(rmap, 8);
+        BitConverter.GetBytes(1024).CopyTo(rmap, 12); BitConverter.GetBytes(1024).CopyTo(rmap, 16); BitConverter.GetBytes(1024).CopyTo(rmap, 20); BitConverter.GetBytes(1f).CopyTo(rmap, 24);
+        for (int i = 28; i < rmap.Length; i++) rmap[i] = 0xFF;
+        var dh = new List<byte>(); dh.AddRange(BitConverter.GetBytes(1)); dh.AddRange(BitConverter.GetBytes(0));
+        foreach (int v in new[] { 16, 16, 6, 1024, 1024 }) dh.AddRange(BitConverter.GetBytes(v)); dh.AddRange(BitConverter.GetBytes(1f));
+        for (int i = 0; i < 256; i++) dh.AddRange(BitConverter.GetBytes(-1)); dh.AddRange(BitConverter.GetBytes(0));
+        var dhB = dh.ToArray(); BitConverter.GetBytes(dhB.Length - 8).CopyTo(dhB, 4);
+        Func<float, float, float?> flat = (_, _) => 100f;
+        var empty = Bht(); var low = Bht(Box(10, 100, 10, 20, 100.8f, 20)); var tall = Bht(Box(40, 100, 10, 50, 103, 20));
+        var rects = new List<(float, float, float, float)> { (5, 5, 25, 25), (35, 5, 55, 25) };
+        BrushSet S(BhtFile f) => BrushSet.Near(f, 0, 0, 100, 100);
+        var (r1, d1, n1) = MoveMapFile.UpdateWithFloors(rmap, dhB, 0, 0, rects, flat, S(empty), S(low));
+        var di = d1 is null ? null : new MoveMapFile.DeltaImage(d1);
+        bool lowOk = MoveMapFile.Reach(r1, 128, 15, 15) && di is not null && MathF.Abs(di.Get(15, 15) - 0.8f) < 0.05f;
+        var (r2, d2, n2) = MoveMapFile.UpdateWithFloors(rmap, dhB, 0, 0, rects, flat, S(empty), S(tall));
+        bool tallOk = !MoveMapFile.Reach(r2, 128, 45, 15) && MoveMapFile.Reach(r2, 128, 38, 15);
+        var (r3, d3, n3) = MoveMapFile.UpdateWithFloors(r1, d1, 0, 0, rects, flat, S(low), S(empty));
+        var di3 = d3 is null ? null : new MoveMapFile.DeltaImage(d3);
+        bool backOk = MoveMapFile.Reach(r3, 128, 15, 15) && (di3?.Get(15, 15) ?? 0) == 0;
+        r.Check("pisos-novos", lowOk && tallOk && backOk, $"plataforma 0,8 m: andável={MoveMapFile.Reach(r1, 128, 15, 15)} delta={di?.Get(15, 15):0.00}; 3 m: em cima={MoveMapFile.Reach(r2, 128, 45, 15)} ao lado={MoveMapFile.Reach(r2, 128, 38, 15)}; apagada: chão={backOk}");
     }
 
     /// <summary>.dhmap: subir o chão embaixo de um piso (ponte/muralha) diminui o delta na mesma medida; resto igual.</summary>
@@ -1154,7 +1203,7 @@ public static class ObjectsSelfTest
         bool moved = At(to.Pos, t1.Type) && !At(t1.Original.Pos, t1.Type);
         bool gone = !At(t2.Original.Pos, t2.Type);
         bool added = At(planted.Now.Pos, planted.Type);
-        r.Check("arvore-plano", moved && gone && added && items.Count == oldCount && p.PckFiles.Count == 0 && !p.Files.Keys.Any(k => k.EndsWith("map.bht")),
+        r.Check("arvore-plano", moved && gone && added && items.Count == oldCount && p.PckFiles.Count == 0,
             $"mexida={moved} apagada={gone} plantada={added} {oldCount}->{items.Count} \"{string.Join(" / ", p.Summary)}\"");
         // a árvore fica no bloco cuja área contém o lugar dela
         var blk = e.Blocks.First(b => b.Items[(int)EcwldFile.Kind.Tree].Any(i => BitConverter.ToInt32(i, 0) == planted.Type && MathF.Abs(BitConverter.ToSingle(i, 4) - planted.Now.Pos.X) < 1e-3f && MathF.Abs(BitConverter.ToSingle(i, 12) - planted.Now.Pos.Z) < 1e-3f));

@@ -104,7 +104,10 @@ public sealed class BhtFile
     }
 
     /// <summary>O segmento a→b entra no brush i (sólido convexo; Cyrus-Beck)?</summary>
-    public bool SegmentHitOne(int i, float ax, float ay, float az, float bx, float by, float bz)
+    public bool SegmentHitOne(int i, float ax, float ay, float az, float bx, float by, float bz) => SegmentEnter(i, ax, ay, az, bx, by, bz) is not null;
+
+    /// <summary>Fração (0..1) do segmento a→b em que ele entra no brush i; null = não entra.</summary>
+    public float? SegmentEnter(int i, float ax, float ay, float az, float bx, float by, float bz)
     {
         float dx = bx - ax, dy = by - ay, dz = bz - az;
         int o = _at[i], sides = I(o + 52);
@@ -114,12 +117,12 @@ public sealed class BhtFile
             int p = o + 56 + 17 * k;
             float nx = F(p), ny = F(p + 4), nz = F(p + 8), dist = F(p + 12);
             float side0 = nx * ax + ny * ay + nz * az - dist, den = nx * dx + ny * dy + nz * dz;
-            if (MathF.Abs(den) < 1e-6f) { if (side0 > 0) return false; continue; }
+            if (MathF.Abs(den) < 1e-6f) { if (side0 > 0) return null; continue; }
             float t = -side0 / den;
             if (den < 0) t0 = MathF.Max(t0, t); else t1 = MathF.Min(t1, t);
-            if (t0 > t1) return false;
+            if (t0 > t1) return null;
         }
-        return true;
+        return t0;
     }
 
     /// <summary>Desloca os brushes (caixa toda + dist de cada lado += normal·d). Sem girar: girar exige refazer os planos.</summary>
@@ -229,5 +232,19 @@ public sealed class BrushSet(BhtFile bht, IReadOnlyList<int> ids)
         }
         return false;
     }
+    /// <summary>Primeiro ponto (fração 0..1) em que o segmento a→b entra em algum brush; null = nenhum.</summary>
+    public float? FirstHit(System.Numerics.Vector3 a, System.Numerics.Vector3 b)
+    {
+        float? best = null;
+        foreach (int i in ids)
+        {
+            var bb = bht.Box(i);
+            float lx = MathF.Min(a.X, b.X), hx = MathF.Max(a.X, b.X), ly = MathF.Min(a.Y, b.Y), hy = MathF.Max(a.Y, b.Y), lz = MathF.Min(a.Z, b.Z), hz = MathF.Max(a.Z, b.Z);
+            if (bb.X1 < lx || bb.X0 > hx || bb.Y1 < ly || bb.Y0 > hy || bb.Z1 < lz || bb.Z0 > hz) continue;
+            if (bht.SegmentEnter(i, a.X, a.Y, a.Z, b.X, b.Y, b.Z) is float t && (best is null || t < best)) best = t;
+        }
+        return best;
+    }
+
     public static BrushSet Near(BhtFile bht, float x0, float z0, float x1, float z1) => new(bht, bht.Inside(x0, -1e6f, z0, x1, 1e6f, z1, touching: true));
 }

@@ -382,7 +382,7 @@ public static class DraftSaver
         }
         if (newBrushes.Count > 0) bhtDirty = true;
 
-        // ---- árvores: só o .ecwld (16 B: tipo, x, y, z; sem colisão no map.bht no 1.5.5) ----
+        // ---- árvores: só o .ecwld (16 B: tipo, x, y, z). Sem colisão no servidor no 1.5.5: o map.bht não tem paredes de árvore e o trees.pck não tem .tbh (0 de 57 tipos; estudo 09/11) ----
         foreach (var o in treeEdits)
         {
             var (bl, idx) = FindTree(ecw, o) ?? throw new InvalidDataException(string.Format(Loc.T("obj.treeGone", "Árvore {0} não está mais no .ecwld; reabra o Mundo 3D."), o.Key));
@@ -609,7 +609,7 @@ public static class DraftChecks
         }
         (float, float, float, float) Grow((float X0, float Z0, float X1, float Z1) r, float g) => (r.X0 - g, r.Z0 - g, r.X1 + g, r.Z1 + g);
         // passagem (servidor)
-        int moved = 0;
+        int moved = 0, floors = 0;
         if (src.ServerConfigDir is { } sd)
             foreach (int piece in PiecesOf(rects))
             {
@@ -619,11 +619,15 @@ public static class DraftChecks
                 float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm;
                 var bx = rects.Aggregate((a, b) => (Math.Min(a.X0, b.X0), Math.Min(a.Z0, b.Z0), Math.Max(a.X1, b.X1), Math.Max(a.Z1, b.Z1)));
                 var ob = BrushSet.Near(oldB, bx.X0, bx.Z0, bx.X1, bx.Z1); var nb = BrushSet.Near(newB, bx.X0, bx.Z0, bx.X1, bx.Z1);
-                var (data, n) = MoveMapFile.UpdateBuildings(File.ReadAllBytes(rp), px0, pzS, rects, t.HeightAt,
-                    (x, y, z) => ob.Hit(new Vector3(x, y + 0.5f, z), new Vector3(x, y + 1.8f, z)), (x, y, z) => nb.Hit(new Vector3(x, y + 0.5f, z), new Vector3(x, y + 1.8f, z)));
+                // passagem com pisos (pontes, escadas, andares da construção): .rmap + .dhmap juntos
+                var dp = Path.ChangeExtension(rp, ".dhmap");
+                byte[]? dhOld = File.Exists(dp) && new FileInfo(dp).Length >= 36 ? File.ReadAllBytes(dp) : null;
+                var (data, dhNew, n) = MoveMapFile.UpdateWithFloors(File.ReadAllBytes(rp), dhOld, px0, pzS, rects, t.HeightAt, ob, nb);
                 if (n > 0) { plan.Files[rp] = data; moved += n; }
+                if (dhNew is not null) { plan.Files[dp] = dhNew; floors++; }
             }
         if (moved > 0) plan.Summary.Add(string.Format(Loc.T("obj.rmapSummary", "Passagem dos NPCs refeita em volta das construções: {0} metro(s)."), moved));
+        if (floors > 0) plan.Summary.Add(Loc.T("obj.floorsSummary", "Pisos das construções (pontes, escadas, andares) atualizados para os monstros."));
     }
 
     public static (Vector3 Min, Vector3 Max) WorldBox(DraftObject o)
