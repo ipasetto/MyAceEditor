@@ -36,7 +36,24 @@ internal sealed partial class WorldView
             TextImageRelation = TextImageRelation.ImageAboveText, Margin = new Padding(0, 0, 4, 0), Cursor = Cursors.Hand, Font = new Font("Segoe UI", 8.5f), BackColor = Color.FromArgb(40, 45, 54) };
         b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
         b.Click += (_, _) => { a(); _gl.Focus(); };
+        FitBigText(b);
         return b;
+    }
+
+    /// <summary>
+    /// Botão grande com texto traduzido: diminui a letra até cada palavra caber inteira na largura e o texto inteiro
+    /// (nome em até 2 linhas + tecla) caber embaixo do ícone (usuário 09/11: "Smooth" virava "Smoot / h").
+    /// </summary>
+    static void FitBigText(Button b)
+    {
+        int w = b.Width - 10, h = b.Height - (b.Image?.Height ?? 0) - 8;
+        for (float size = b.Font.Size; size >= 6.5f; size -= 0.5f)
+        {
+            using var f = new Font(b.Font.FontFamily, size);
+            bool words = b.Text.Split(new[] { ' ', '\n' }, StringSplitOptions.RemoveEmptyEntries).All(word => TextRenderer.MeasureText(word, f).Width <= w);
+            bool tall = TextRenderer.MeasureText(b.Text, f, new Size(w, 0), TextFormatFlags.WordBreak).Height <= h;
+            if (words && tall || size <= 6.5f) { if (size != b.Font.Size) b.Font = new Font(b.Font.FontFamily, size); return; }
+        }
     }
 
     /// <summary>Monta o painel da grama: Pincel (B), Borracha (E), Escolher tipo; tamanho e densidade; Concluir.</summary>
@@ -54,8 +71,8 @@ internal sealed partial class WorldView
         _toolTip.SetToolTip(pick, Loc.T("grass.pickTip", "Abre a lista de gramas e flores de todos os mapas."));
         modes.Controls.Add(_brushPaintBtn); modes.Controls.Add(_brushEraseBtn); modes.Controls.Add(pick);
         var dropRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 42, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 2, 0, 4) };
-        var drop = SmallButton("", Loc.T("grass.eyedropper", "Conta-gotas (I): pegar o tipo do chão"), () => GrassEyedropper()); drop.Width = 236;
-        _toolTip.SetToolTip(drop, Loc.T("grass.eyedropperTip", "Passe o mouse em cima de uma grama ou flor e aperte I: o pincel fica com o mesmo tipo."));
+        var drop = _grassDropBtn = SmallButton("", Loc.T("grass.eyedropper", "Conta-gotas (I): pegar o tipo do chão"), () => StartDropper(2)); drop.Width = 236;
+        _toolTip.SetToolTip(drop, Loc.T("grass.eyedropperTip2", "Liga o conta-gotas (I): clique numa grama ou flor e o pincel fica com o mesmo tipo."));
         dropRow.Controls.Add(drop);
         var gap = new Panel { Dock = DockStyle.Top, Height = 10, BackColor = _brushPanel.BackColor };
         var doneRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, BackColor = _brushPanel.BackColor, Padding = new Padding(0, 8, 0, 0) };
@@ -89,7 +106,7 @@ internal sealed partial class WorldView
     void OpenGrassPanel()
     {
         if (GrassDraftOrNew() is null) return;
-        StopPlanting(); CloseLightPanel();
+        StopPlanting();
         _sceneSel = null; ShowObjPanel();
         _brushActive = false; _brushErase = false;
         _brushPanel.Visible = true; BrushLabels(); FitObjPanel();
@@ -101,11 +118,12 @@ internal sealed partial class WorldView
     {
         _brushSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _brushSize.Value) + Environment.NewLine + Loc.T("grass.wheelHint", "Ctrl + roda do mouse muda o tamanho");
         _brushDensLbl.Text = string.Format(Loc.T("grass.density", "Densidade: {0}%"), _brushDens.Value);
-        string name = _grass.Scene is { } sc && _brushType >= 0 && _brushType < sc.GrassTypes.Count ? Path.GetFileNameWithoutExtension(sc.GrassTypes[_brushType].Mox) : "";
+        string name = _grass.Scene is { } sc && _brushType >= 0 && _brushType < sc.GrassTypes.Count ? TextureNameGlossary.Display(sc.GrassTypes[_brushType].Mox, _element) : "";
         _brushTitle.Text = !_brushActive ? (name.Length > 0 ? string.Format(Loc.T("grass.typeOff", "Tipo: {0} (pincel apagado)"), name) : Loc.T("grass.noTypeYet", "Nenhum tipo escolhido: use Escolher tipo ou a Borracha."))
             : _brushErase ? Loc.T("grass.erasing", "Borracha: arraste para apagar a grama") : string.Format(Loc.T("grass.painting", "Pintando: {0}"), name);
         bool paintOn = _brushActive && !_brushErase, eraseOn = _brushActive && _brushErase;
         if (_brushPaintBtn is not null) { _brushPaintBtn.BackColor = paintOn ? UiKit.Accent : Color.FromArgb(40, 45, 54); _brushPaintBtn.FlatAppearance.BorderColor = paintOn ? UiKit.Accent : Color.FromArgb(62, 70, 84); }
+        DropButtons();
         if (_brushEraseBtn is not null) { _brushEraseBtn.BackColor = eraseOn ? Color.FromArgb(150, 50, 50) : Color.FromArgb(40, 45, 54); _brushEraseBtn.FlatAppearance.BorderColor = eraseOn ? Color.FromArgb(150, 50, 50) : Color.FromArgb(62, 70, 84); }
     }
 
@@ -282,23 +300,8 @@ internal sealed partial class WorldView
         return true;
     }
 
-    /// <summary>Conta-gotas (Ctrl+C com o pincel): o tipo de grama que tem tufo embaixo do mouse vira o tipo do pincel.</summary>
-    bool GrassEyedropper()
-    {
-        if (!_brushPanel.Visible || _grass.Scene is not { } sc || _hover is not { } h) return false;
-        for (int i = sc.Grass.Count - 1; i >= 0; i--)
-        {
-            var g = sc.Grass[i];
-            float x0 = g.X - g.Cols * g.Cell / 2, z1 = g.Z + g.Rows * g.Cell / 2;
-            int col = (int)MathF.Floor((h.X - x0) / g.Cell), row = (int)MathF.Floor((z1 - h.Z) / g.Cell);   // _hover: coordenadas do jogo
-            if (col < 0 || row < 0 || col >= g.Cols || row >= g.Rows || !g.On(col, row)) continue;
-            _brushType = g.Type; _brushErase = false; _brushActive = true; BrushLabels(); _gl.Invalidate();   // já liga o pincel
-            _status.Text = string.Format(Loc.T("grass.picked", "Pincel com o tipo daqui: {0}"), Path.GetFileNameWithoutExtension(sc.GrassTypes[g.Type].Mox));
-            return true;
-        }
-        _status.Text = Loc.T("grass.pickNone", "Não há grama embaixo do mouse.");
-        return true;
-    }
+    /// <summary>Conta-gotas da grama (I, botão ou Ctrl+C com o pincel): liga o modo (UI/WorldView.Eyedropper.cs).</summary>
+    bool GrassEyedropper() { if (!_brushPanel.Visible) return false; StartDropper(2); return true; }
 
     /// <summary>Círculo do pincel no chão (verde = pinta, vermelho = apaga), acompanhando o relevo.</summary>
     void DrawBrush()

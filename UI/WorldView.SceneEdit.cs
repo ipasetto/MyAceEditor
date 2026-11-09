@@ -40,7 +40,7 @@ internal sealed partial class WorldView
         return sc;
     }
 
-    bool SceneDirty => _draft?.Dirty == true || _grassDraft?.Dirty == true || LightsDirty || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
+    bool SceneDirty => _draft?.Dirty == true || _grassDraft?.Dirty == true || _ecw is not null && _ecwSaved is not null && (!_ecw.Write().AsSpan().SequenceEqual(_ecwSaved)
         || _bsd is not null && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved));
 
     /// <summary>Um backup voltou: se tocou arquivos deste mapa (ou o pacote de construções), relê tudo do disco.</summary>
@@ -88,7 +88,6 @@ internal sealed partial class WorldView
             _trees.Reload();
             ObjectsSaved();
             ResetGrassEdit();
-            ResetLightEdit();
             _bindex = null;
             if (_tool == Tool.Scene) DraftOpen();
             UpdateSideState();
@@ -185,7 +184,6 @@ internal sealed partial class WorldView
         UpdateModeButtons();
         if (_sceneSel is null) { _objPanel.Visible = false; FitObjPanel(); return; }
         if (_brushPanel.Visible) { if (_brushDown) EndDab(); _brushActive = false; _brushPanel.Visible = false; }
-        if (_lightPanel.Visible) { _lightPlacing = false; _lightSel = -1; _lightPanel.Visible = false; }   // um painel por vez   // escolheu um objeto: a grama fecha (um painel por vez)
         var (name, x, y, z) = _sceneSel switch
         {
             WorldScene.SceneEffect fx => (Loc.T("world.objEffect", "Efeito") + ": " + fx.Gfx, fx.X, fx.Y, fx.Z),
@@ -397,7 +395,7 @@ internal sealed partial class WorldView
 
     bool SaveScene(bool interactive = true, bool wait = false)
     {
-        if (_draft?.Dirty == true || _grassDraft?.Dirty == true || LightsDirty) return SaveObjects(interactive, wait);   // grama só: também (antes dizia "nada a salvar")
+        if (_draft?.Dirty == true || _grassDraft?.Dirty == true) return SaveObjects(interactive, wait);   // grama só: também (antes dizia "nada a salvar")
         if (_ecw is null || _ecwPath is null) return false;
         // construções primeiro: gravam litmodels.pck + map.bht e mexem no ornamento do .ecbsd (gravado logo abaixo)
         bool built = false;

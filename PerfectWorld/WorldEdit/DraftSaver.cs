@@ -434,6 +434,11 @@ public static class DraftSaver
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 { AppLog.Error("objetos: passagem/sombra das construções", ex); plan.Summary.Add(Loc.T("obj.effectsFail", "A passagem dos NPCs e a sombra do chão não foram refeitas (veja o log); as construções gravam assim mesmo.")); }
         }
+        // árvores na passagem dos monstros: a copiada/movida fecha o círculo dela, a apagada reabre (estudo 09/11)
+        if ((treeEdits.Count > 0 || treeNew.Count > 0) && src.ServerConfigDir is not null)
+            try { DraftChecks.TreeEffects(plan, src, treeEdits, treeNew, ecwldBase ?? File.ReadAllBytes(src.EcwldPath), bht); }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            { AppLog.Error("objetos: passagem das árvores", ex); plan.Summary.Add(Loc.T("obj.treePassFail", "A passagem dos monstros em volta das árvores não foi refeita (veja o log); as árvores gravam assim mesmo.")); }
         foreach (var g in count.GroupBy(k => k.Key.Piece).OrderBy(g => g.Key))
         {
             var parts = new List<string>();
@@ -584,6 +589,87 @@ public static class DraftChecks
     /// Construções postas, mexidas ou apagadas: no lugar antigo e no novo (caixa + 4 m), refaz o movemap\N.rmap do servidor
     /// (parede da construção na altura de um personagem = bloqueado; saiu e o chão não é íngreme = livre). A sombra do chão fica com o usuário (pintura da textura; refazer a luz gravada destoava: teste do usuário 09/11).
     /// </summary>
+    /// <summary>
+    /// Árvores mexidas na passagem dos monstros (.rmap; ver TreePassage): raio de cada tipo aprendido das originais do
+    /// mapa; apagada/lugar antigo reabre, nova/lugar novo fecha. <paramref name="ecwBase"/> = .ecwld antes deste salvar.
+    /// </summary>
+    internal static void TreeEffects(SavePlan plan, DraftSources src, List<DraftObject> edits, List<DraftObject> news, byte[] ecwBase, BhtFile? bht)
+    {
+        string mapDir = Path.GetDirectoryName(src.EcwldPath)!;
+        if (src.ServerConfigDir is not { } sd || TerrainFile.Open(mapDir) is not { } t) return;
+        var sc = new WorldScene(ecwBase);
+        float pm = t.CellsPerPiece * t.Cell;
+        var rm = new Dictionary<int, byte[]?>();
+        string RmPath(int piece) => Path.Combine(sd, src.Map, "movemap", $"{piece}.rmap");
+        byte[]? Rm(int piece)
+        {
+            if (rm.TryGetValue(piece, out var b)) return b;
+            var path = RmPath(piece);
+            b = plan.Files.TryGetValue(path, out var mem) ? mem : File.Exists(path) ? File.ReadAllBytes(path) : null;
+            return rm[piece] = b;
+        }
+        (float X0, float ZS) Origin(int piece) { int pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols; return (-t.Width / 2 + pc * pm, t.Height / 2 - (pr + 1) * pm); }
+        bool? Open(float x, float z)
+        {
+            if (t.PieceAt(x, z) is not (> 0 and var piece) || Rm(piece) is not { } b) return null;
+            var (w, _, iw, ih, px) = MoveMapFile.Header(b); var (x0, zs) = Origin(piece);
+            int u = (int)MathF.Floor((x - x0) / px), v = (int)MathF.Floor((z - zs) / px);
+            return u < 0 || v < 0 || u >= iw || v >= ih ? null : MoveMapFile.Reach(b, w, u, v);
+        }
+        // raio por tipo (.spt), das árvores originais do mapa (até 120 de cada)
+        var byType = new Dictionary<string, List<(float X, float Z)>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tr in sc.Trees)
+        {
+            if (tr.Type < 0 || tr.Type >= sc.TreeTypes.Count) continue;
+            var k = sc.TreeTypes[tr.Type].Spt;
+            if (!byType.TryGetValue(k, out var l)) byType[k] = l = new();
+            if (l.Count < 120) l.Add((tr.X, tr.Z));
+        }
+        var radius = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+        float R(string spt) => radius.TryGetValue(spt, out var r) ? r : radius[spt] = TreePassage.Radius(byType.TryGetValue(spt, out var l) ? l : [], Open);
+
+        var gone = new List<(float X, float Z, float R)>(); var come = new List<(float X, float Z, float R)>();
+        var editedKeys = new HashSet<string>(edits.Select(o => o.Key));
+        foreach (var o in edits)
+        {
+            float r = R(o.Source);
+            bool moved = (o.Original.Pos - o.Now.Pos).LengthSquared() > 1e-4f;
+            if (o.Deleted || moved) gone.Add((o.Original.Pos.X, o.Original.Pos.Z, r));
+            if (!o.Deleted && moved) come.Add((o.Now.Pos.X, o.Now.Pos.Z, r));
+        }
+        foreach (var o in news) come.Add((o.Now.Pos.X, o.Now.Pos.Z, R(o.Source)));
+        if (gone.Count == 0 && come.Count == 0) return;
+        // árvores que ficam perto (o círculo delas não reabre)
+        var all = gone.Concat(come).ToList();
+        float bx0 = all.Min(c => c.X) - 10, bx1 = all.Max(c => c.X) + 10, bz0 = all.Min(c => c.Z) - 10, bz1 = all.Max(c => c.Z) + 10;
+        var stay = new List<(float X, float Z, float R)>();
+        for (int i = 0; i < sc.Trees.Count; i++)
+        {
+            var tr = sc.Trees[i];
+            if (tr.X < bx0 || tr.X > bx1 || tr.Z < bz0 || tr.Z > bz1 || editedKeys.Contains($"tree:{i}") || tr.Type < 0 || tr.Type >= sc.TreeTypes.Count) continue;
+            stay.Add((tr.X, tr.Z, R(sc.TreeTypes[tr.Type].Spt)));
+        }
+        // paredes das construções (só para reabrir): o map.bht já aberto pelo salvar, ou lido agora
+        BrushSet? walls = null;
+        if (gone.Count > 0 && (bht ?? (src.BhtPath is { } bp && File.Exists(bp) ? new BhtFile(File.ReadAllBytes(bp)) : null)) is { } bf)
+            walls = BrushSet.Near(bf, bx0, bz0, bx1, bz1);
+        var pieces = new HashSet<int>();
+        foreach (var (x, z, r) in all)
+            foreach (var (dx, dz) in new[] { (-r - 1, -r - 1), (r + 1, -r - 1), (-r - 1, r + 1), (r + 1, r + 1) })
+                if (t.PieceAt(x + dx, z + dz) is > 0 and var p) pieces.Add(p);
+        int total = 0;
+        foreach (int piece in pieces)
+        {
+            if (Rm(piece) is not { } b) continue;
+            var (x0, zs) = Origin(piece);
+            var (data, n) = TreePassage.Apply(b, x0, zs, gone, come, stay, t.HeightAt, walls);
+            if (n == 0) continue;
+            MoveMapFile.Header(data);   // relê o cabeçalho: arquivo inteiro ainda certo
+            plan.Files[RmPath(piece)] = data; rm[piece] = data; total += n;
+        }
+        if (total > 0) plan.Summary.Add(string.Format(Loc.T("obj.treePassSummary", "Passagem dos monstros em volta das árvores refeita: {0} metro(s) (árvore nova os monstros contornam; apagada eles passam)."), total));
+    }
+
     internal static void BuildingEffects(SavePlan plan, DraftSources src, List<DraftObject> objs, BhtFile oldB, BhtFile newB)
     {
         if (objs.Count == 0) return;

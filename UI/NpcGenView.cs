@@ -753,6 +753,18 @@ internal sealed class NpcGenView : UserControl
     /// <summary>Mundo 3D pelo botão de fora do NPCGen: abre na visão geral do mapa (CameraStarts), não no ponto selecionado.</summary>
     public void OpenWorldOverview() => OpenWorld(true);
 
+    /// <summary>
+    /// Abre o Mundo 3D sem trazer a aba NPCGen para a frente (usuário 09/11: o MyAce pode ficar na tela em que estava).
+    /// false = o servidor ainda não foi escolhido (aí precisa da aba para "Abrir pasta…").
+    /// </summary>
+    public bool OpenWorldOverviewHere()
+    {
+        if (_configDir is null) TryOpenServer();
+        if (_configDir is null || Cur is null || _cur is null) return false;
+        OpenWorld(true);
+        return true;
+    }
+
     // fromSwitch: veio da troca de mapa no 3D — a câmera vai para a entrada, não para o ponto selecionado da lista
     void OpenWorld(bool fromSwitch)
     {

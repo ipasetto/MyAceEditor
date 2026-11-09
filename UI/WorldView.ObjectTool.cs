@@ -398,7 +398,6 @@ internal sealed partial class WorldView
             if (_bsdPath is not null && _bsd is not null && !plan.Files.ContainsKey(_bsdPath) && _bsdSaved is not null && !_bsd.AsSpan().SequenceEqual(_bsdSaved)) plan.Files[_bsdPath] = (byte[])_bsd.Clone();
             // grama e flores por último, em cima do que o cenário já mudou (efeitos, sons, objetos): tudo ou nada no mesmo salvar
             if (_grassDraft is { Dirty: true } gd) GrassSaver.Apply(plan, gd, _draftSrc);
-            AddLightsToPlan(plan);   // luzes da cena no mesmo salvar
         }
         return plan;
     }
@@ -498,7 +497,6 @@ internal sealed partial class WorldView
         foreach (var k in _t.ForgetLight(litP)) _lightPending.Add(k);
         ObjectsSaved();
         if (plan.Files.Keys.Any(k => k.Contains("bsdata", StringComparison.OrdinalIgnoreCase) || k.EndsWith(".ecbsd", StringComparison.OrdinalIgnoreCase))) ResetGrassEdit();   // grama relida do disco
-        if (plan.Files.Keys.Any(k => k.EndsWith("scenelights.dat", StringComparison.OrdinalIgnoreCase))) ResetLightEdit();   // luzes relidas do disco
         if (plan.PckFiles.Count > 0) _bindex = null;   // construções novas: o índice relê só os arquivos novos na próxima vez
         if (plan.Files.Keys.Any(k => k.EndsWith(".ecwld", StringComparison.OrdinalIgnoreCase)) && !_trees.Reload())
             _status.Text = Loc.T("obj.treesReloadFail", "Salvo, mas não deu para reler as árvores; feche e abra o Mundo 3D para vê-las.");
@@ -1781,7 +1779,6 @@ internal sealed partial class WorldView
         _sceneSel = null; ShowObjPanel();
         _draftSrc?.Dispose(); _draftSrc = null; _draft = null; _draftAsked.Clear();
         ResetGrassEdit();   // pinceladas não salvas saem junto
-        ResetLightEdit();
         _ecw = null; _bsd = null; _ecwWhy = null; _sUndo.Clear(); _sRedo.Clear();
         LoadSceneForEdit();
         UpdateSideState(); _gl.Invalidate();

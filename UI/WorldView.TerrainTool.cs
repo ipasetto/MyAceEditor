@@ -43,8 +43,8 @@ internal sealed partial class WorldView
         var pick = BigButton("", Loc.T("terrain.pick", "Escolher textura"), "", ChooseTexture, 76);
         modes.Controls.Add(_texPaintBtn); modes.Controls.Add(_texEraseBtn); modes.Controls.Add(pick);
         _terrainPage.Controls.Add(modes);
-        var drop = SmallButton("", Loc.T("terrain.eyedropper", "Conta-gotas (I): pegar a textura do chão"), TexEyedropper); drop.Width = 236;
-        _toolTip.SetToolTip(drop, Loc.T("terrain.eyedropperTip", "Passe o mouse em cima do chão e aperte I: o pincel fica com a textura que aparece ali (bom para retocar sombras)."));
+        var drop = _texDropBtn = SmallButton("", Loc.T("terrain.eyedropper", "Conta-gotas (I): pegar a textura do chão"), () => StartDropper(1)); drop.Width = 236;
+        _toolTip.SetToolTip(drop, Loc.T("terrain.eyedropperTip2", "Liga o conta-gotas (I): clique no chão e o pincel fica com a textura que aparece ali (bom para retocar sombras)."));
         _terrainPage.Controls.Add(drop);
         _terrainPage.Controls.Add(_texTitle);
         // altura do chão: subir, descer, alisar, plainar (teclas 1 a 4); o tamanho e a força valem para os dois pincéis
@@ -75,8 +75,8 @@ internal sealed partial class WorldView
         var save = SmallButton("", Loc.T("terrain.save", "Salvar terreno"), () => SaveTerrain(), main: true);
         _toolTip.SetToolTip(save, "<mapa>_N.t2mk / .t2bk, bsdata, .ecwld + map\\N.hmap, watermap\\N.wmap");
         _terrainPage.Controls.Add(save);
-        _terrainPage.Controls.Add(new Label { AutoSize = false, Width = 240, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Margin = new Padding(3, 8, 3, 30),
-            Text = Loc.T("terrain.note3", "Textura: só o cliente. Altura e água: cliente e servidor (envie depois). A passagem dos NPCs e a luz e sombra chegam nas próximas etapas.") });
+        _terrainPage.Controls.Add(new Label { AutoSize = false, Width = 240, Height = 92, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f), Margin = new Padding(3, 8, 3, 30),
+            Text = Loc.T("terrain.note4", "Textura: só o cliente. Altura e água: cliente e servidor (envie depois); a passagem dos monstros é refeita junto. A sombra do chão é textura: retoque com o pincel (conta-gotas I).") });
         TexLabels(); WaterLabels();
     }
 
@@ -84,6 +84,7 @@ internal sealed partial class WorldView
     {
         _texSizeLbl.Text = string.Format(Loc.T("grass.size", "Tamanho do pincel: {0} m"), _texSize.Value) + Environment.NewLine + Loc.T("grass.wheelHint", "Ctrl + roda do mouse muda o tamanho");
         _texForceLbl.Text = string.Format(Loc.T("terrain.force", "Força: {0}%"), _texForce.Value);
+        DropButtons();
         string name = _texSel >= 0 && _texSel < _t.TextureNames.Count ? TextureNameGlossary.Display(_t.TextureNames[_texSel], _element) : "";
         string[] sname = { Loc.T("terrain.raise", "Subir"), Loc.T("terrain.lower", "Descer"), Loc.T("terrain.smooth", "Alisar"), Loc.T("terrain.flatten", "Plainar") };
         for (int i = 0; i < 4; i++)
@@ -114,13 +115,12 @@ internal sealed partial class WorldView
     /// Conta-gotas (I): a textura que aparece por cima embaixo do mouse (última camada com máscara ≥ metade naquele metro;
     /// senão a base) vira a textura do pincel, que já liga. Para retocar a sombra que o usuário pinta à mão.
     /// </summary>
-    void TexEyedropper()
+    bool TexEyedropperAt(System.Numerics.Vector3 h)
     {
-        if (_hover is not { } h) return;
         var d = TerrainDraftOrNew();
-        if (d.AreaAt(h.X, h.Z) is not { } a) return;
+        if (d.AreaAt(h.X, h.Z) is not { } a) return false;
         var layers = d.Layers(a.Ar, a.Ac) ?? _t.Ground(a.Ar, a.Ac);
-        if (layers is null || layers.Length == 0) { _status.Text = Loc.T("terrain.pickNone", "Não deu para ler a textura deste lugar."); return; }
+        if (layers is null || layers.Length == 0) { _status.Text = Loc.T("terrain.pickNone", "Não deu para ler a textura deste lugar."); return false; }
         string pick = layers[0].Texture;
         for (int i = layers.Length - 1; i > 0; i--)
         {
@@ -131,10 +131,11 @@ internal sealed partial class WorldView
         }
         int idx = -1;
         for (int i = 0; i < _t.TextureNames.Count; i++) if (_t.TextureNames[i].Equals(pick, StringComparison.OrdinalIgnoreCase)) { idx = i; break; }
-        if (idx < 0) { _status.Text = Loc.T("terrain.pickNone", "Não deu para ler a textura deste lugar."); return; }
+        if (idx < 0) { _status.Text = Loc.T("terrain.pickNone", "Não deu para ler a textura deste lugar."); return false; }
         _texSel = idx; _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true;
         _status.Text = string.Format(Loc.T("terrain.picked", "Pincel com a textura daqui: {0}"), TextureNameGlossary.Display(pick, _element));
         TexLabels(); WaterLabels(); _gl.Invalidate();
+        return true;
     }
 
     void TexPaint() { if (_texSel < 0) { ChooseTexture(); return; } _sculpt = -1; _waterMode = 0; _texErase = false; _texActive = true; TexLabels(); WaterLabels(); _gl.Invalidate(); }
@@ -350,7 +351,7 @@ internal sealed partial class WorldView
         if (k == Keys.E) { TexEraser(); return true; }
         if (k is >= Keys.D1 and <= Keys.D4) { SetSculpt(k - Keys.D1); return true; }
         if (k is Keys.D5 or Keys.D6) { SetWaterMode(k == Keys.D5 ? 1 : 2); return true; }
-        if (k == Keys.I) { TexEyedropper(); return true; }   // conta-gotas da textura do chão (usuário 09/11)
+        if (k == Keys.I) { StartDropper(1); return true; }   // conta-gotas da textura do chão (usuário 09/11)
         if (k == Keys.Delete && WaterSel is not null) { WaterDelete(); return true; }
         return false;
     }

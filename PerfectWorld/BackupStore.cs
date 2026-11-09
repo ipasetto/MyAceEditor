@@ -187,7 +187,13 @@ public static class BackupStore
             .Select(f => (f, m: Regex.Match(Path.GetFileName(f)[prefix.Length..], @"^(\d{8}-\d{6})(?:-(\d+))?\.(?:gz|bak)$", RegexOptions.IgnoreCase)))
             .Where(x => x.m.Success)
             .OrderByDescending(x => x.m.Groups[1].Value, StringComparer.Ordinal).ThenByDescending(x => x.m.Groups[2].Success ? int.Parse(x.m.Groups[2].Value) : 1)
-            .Skip(Keep).Select(x => x.f);
-        foreach (var f in old) try { File.Delete(f); } catch (IOException) { }
+            .Select(x => x.f).ToList();
+        // nunca apaga (usuário 09/11: "o backup se perdeu"): a cópia MAIS VELHA (o arquivo como era antes da 1a gravação
+        // do MyAce) nem a que um conjunto de backup ainda usa (senão o conjunto some do menu Restaurar)
+        var keepAlways = BackupSets.ReferencedBackups();
+        if (old.Count > 0) keepAlways.Add(old[^1]);
+        foreach (var f in old.Skip(Keep))
+            if (!keepAlways.Contains(f) || new FileInfo(f).Length > 256L * 1024 * 1024)   // parte grande de pacote: só as mais novas
+                try { File.Delete(f); } catch (IOException) { }
     }
 }

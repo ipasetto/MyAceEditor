@@ -5985,5 +5985,14 @@
   "obj.floorsSummary": "Building floors (bridges, stairs, storeys) updated for monsters.",
   "obj.flySummary": "Monster flight rebuilt around the buildings: {0} cube(s) of 4 m.",
   "obj.flyFail": "Monster flight of part {0} not rebuilt (server file unreadable; see the log).",
-  "light.note3": "Note: game 1.5.5 does not use scene lights (the file is saved, but nothing changes in the game; checked in the client code). The glow here is only a preview of color and range. Saved by Save scene."
+  "light.note3": "Note: game 1.5.5 does not use scene lights (the file is saved, but nothing changes in the game; checked in the client code). The glow here is only a preview of color and range. Saved by Save scene.",
+  "tools.restore": "Before restoring",
+  "bak.setAskUndo": "Undo the restore of {0:dd/MM/yyyy HH:mm} (put these files back as they were before it)?",
+  "terrain.note4": "Texture: client only. Height and water: client and server (send afterwards); the monster paths are rebuilt with them. The ground shadow is texture: touch it up with the brush (eyedropper I).",
+  "drop.hintTex": "Eyedropper: click the ground to pick the texture (Esc cancels)",
+  "drop.hintGrass": "Eyedropper: click a grass or flower to pick the type (Esc cancels)",
+  "terrain.eyedropperTip2": "Turns on the eyedropper (I): click the ground and the brush takes the texture shown there (good for touching up shadows).",
+  "grass.eyedropperTip2": "Turns on the eyedropper (I): click a grass or flower and the brush takes the same type.",
+  "obj.treePassFail": "Monster paths around the trees were not rebuilt (see the log); the trees are saved anyway.",
+  "obj.treePassSummary": "Monster paths around the trees rebuilt: {0} meter(s) (monsters go around a new tree; a deleted one they walk through)."
 }

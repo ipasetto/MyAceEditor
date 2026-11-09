@@ -391,7 +391,7 @@ public sealed class EditorForm : Form
         serverBtn.Alignment = ToolStripItemAlignment.Right;   // à esquerda da bandeira, com leve destaque
         serverBtn.BackColor = Color.FromArgb(222, 233, 251); serverBtn.ForeColor = UiKit.Accent;
         serverBtn.Font = new Font("Segoe UI Semibold", 9f); serverBtn.Image = UiKit.Icon(UiKit.Server, UiKit.Accent, 22);
-        UiKit.Cmd(tb, UiKit.Globe, "tb.rWorld", "Mundo 3D", () => { if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); }, "tb.rWorldTip", "Abre o mapa do jogo em 3D com os pontos do NPCGen.");
+        UiKit.Cmd(tb, UiKit.Globe, "tb.rWorld", "Mundo 3D", () => { if (_npcgen?.OpenWorldOverviewHere() == true) return; if (_tabs is not null && _tabNpcGen is not null) _tabs.SelectedTab = _tabNpcGen; BeginInvoke(() => _npcgen?.OpenWorldOverview()); }, "tb.rWorldTip", "Abre o mapa do jogo em 3D com os pontos do NPCGen.");
         return tb;
     }
 
@@ -5709,7 +5709,9 @@ public sealed class EditorForm : Form
     void RestoreSet(BackupSet set)
     {
         string list = string.Join(Environment.NewLine, set.Files.Select(f => "• " + f.Original));
-        var ask = string.Format(Loc.T("bak.setAsk", "Voltar estes arquivos como estavam antes do Salvar de {0} ({1:dd/MM/yyyy HH:mm})?"), BackupSets.ToolName(set.Tool), set.When)
+        var ask = (set.Tool == "restore"
+                ? string.Format(Loc.T("bak.setAskUndo", "Desfazer a restauração de {0:dd/MM/yyyy HH:mm} (voltar estes arquivos como estavam antes dela)?"), set.When)
+                : string.Format(Loc.T("bak.setAsk", "Voltar estes arquivos como estavam antes do Salvar de {0} ({1:dd/MM/yyyy HH:mm})?"), BackupSets.ToolName(set.Tool), set.When))
             + Environment.NewLine + Environment.NewLine + list + Environment.NewLine + Environment.NewLine
             + Loc.T("bak.setReload", "Feche o jogo antes. O Mundo 3D aberto relê os arquivos sozinho (mudanças não salvas nele se perdem); o servidor precisa receber os arquivos de novo depois.");
         if (MessageBox.Show(this, ask, Loc.T("menu.restore", "&Restaurar backup").Replace("&", ""), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;

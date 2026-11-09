@@ -27,11 +27,11 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [-] filtro de efeitos visuais: removido a pedido do usuario (09/11); o gatilho fica so visual
        [x] textura do chao: pincel por camadas (08/11; falta testar no jogo; texturas novas no .trn2 depois)
        [x] grama: pincel de grama e flores (feito: item 5 acima)
-       [x] arvores: plantar, mover, apagar feitos; colisao no servidor nao existe no 1.5.5 (sem .tbh; 09/11)
+       [x] arvores: plantar, mover, apagar feitos; colisao no servidor nao existe no 1.5.5 (sem .tbh), mas a passagem dos monstros (.rmap) tem o circulo de cada arvore: refeito ao salvar (09/11; falta testar no jogo)
        [x] construcoes e objetos: girar, colocar novos, apagar (etapas 1/2a/2b)
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
            [x] pontes novas como caminho de monstro (.rmap + .dhmap) e voo dos monstros (.octr) ao mexer construcoes (09/11; falta testar no jogo)
-       [?] luzes da cena: o cliente 1.5.5 nao usa (09/11); decidir com o usuario se a pilula Luzes fica
+       [-] luzes da cena: removidas (o cliente 1.5.5 nao usa; usuario 09/11)
 
 ## PRONTO (conferido pelo usuario)
 - Elements: leitura completa e gravacao identica, lista e detalhe no estilo Rody, vinculos, editores de duplo clique,

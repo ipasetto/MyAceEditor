@@ -1213,6 +1213,29 @@ public static class ObjectsSelfTest
         }
         string vol = vols.Count == 0 ? "-" : $"caixa típica {vols.OrderBy(x => x).ElementAt(vols.Count / 2):0.0} m³";
         r.Check("arvore-colisao-bht", trees.Count > 0, $"pedaço {piece}: {withHit}/{trees.Count} árvores com brush (fora das construções) envolvendo o tronco; 7 m ao lado: {baseHit}; {vol}; árvores com altura no arquivo: {trees.Count(t => t.HasY)}");
+        // estudo 09/11 (usuário: monstros desviam das árvores originais, não das copiadas): a passagem (.rmap) tem as árvores?
+        // pixel do tronco vs anéis a 1, 2, 3, 5 e 8 m (4 pontos cada)
+        var rmPath = Path.Combine(config, "world", "movemap", $"{piece}.rmap");
+        if (File.Exists(rmPath))
+        {
+            var rm = File.ReadAllBytes(rmPath); var (rw, _, iw, ih, px) = MoveMapFile.Header(rm);
+            var tf = TerrainFile.Open(Path.GetDirectoryName(src.EcwldPath)!)!; float pm = tf.Width / tf.Cols;
+            int pr = (piece - 1) / tf.Cols, pc = (piece - 1) % tf.Cols; float rx0 = -tf.Width / 2 + pc * pm, rzS = tf.Height / 2 - (pr + 1) * pm;
+            bool? Open(float x, float z) { int u = (int)MathF.Floor((x - rx0) / px), v = (int)MathF.Floor((z - rzS) / px); return u < 0 || v < 0 || u >= iw || v >= ih ? null : MoveMapFile.Reach(rm, rw, u, v); }
+            var rings = new[] { 0f, 1f, 2f, 3f, 5f, 8f }; var blocked = new int[rings.Length]; var total = new int[rings.Length];
+            var kinds = new Dictionary<string, (int Trunk, int N)>();
+            foreach (var t in trees)
+                for (int k = 0; k < rings.Length; k++)
+                    foreach (var (dx, dz) in rings[k] == 0 ? new[] { (0f, 0f) } : new[] { (rings[k], 0f), (-rings[k], 0f), (0f, rings[k]), (0f, -rings[k]) })
+                        if (Open(t.X + dx, t.Z + dz) is bool o)
+                        {
+                            total[k]++; if (!o) blocked[k]++;
+                            if (k == 0) { var key = Path.GetFileName(sc.TreeTypes.ElementAtOrDefault(t.Type)?.Spt ?? "?"); var c = kinds.GetValueOrDefault(key); kinds[key] = (c.Trunk + (o ? 0 : 1), c.N + 1); }
+                        }
+            string ring = string.Join(" ", rings.Select((d, k) => $"{d:0}m={blocked[k]}/{total[k]}"));
+            string kk = string.Join(", ", kinds.OrderByDescending(x => x.Value.N).Take(6).Select(x => $"{x.Key} {x.Value.Trunk}/{x.Value.N}"));
+            r.Check("arvore-passagem-estudo", true, $"pedaço {piece}: fechados no .rmap por distância do tronco: {ring}; por tipo (tronco fechado/árvores): {kk}");
+        }
     }
 
 
@@ -1227,7 +1250,7 @@ public static class ObjectsSelfTest
     {
         var world = Sources(element, "world", config);
         var trees = world.Scene.Value.Objects.Where(o => o.Kind == ObjKind.Tree && o.Piece > 0).ToList();
-        var t1 = trees.First(); var t2 = trees.First(o => o.Key != t1.Key && o.Piece == t1.Piece);
+        var t1 = trees.FirstOrDefault(o => config is not null && File.Exists(Path.Combine(config, "world", "movemap", $"{o.Piece}.rmap"))) ?? trees.First(); var t2 = trees.First(o => o.Key != t1.Key && o.Piece == t1.Piece);   // pedaço com passagem dos monstros
         var d = DraftOf(world, t1.Piece);
         r.Check("arvore-editavel", d.Find(t1.Key) is { ReadOnlyWhy: null, Type: >= 0 }, d.Find(t1.Key)?.ReadOnlyWhy ?? "");
         var oldBytes = File.ReadAllBytes(world.EcwldPath);
@@ -1249,6 +1272,27 @@ public static class ObjectsSelfTest
         bool added = At(planted.Now.Pos, planted.Type);
         r.Check("arvore-plano", moved && gone && added && items.Count == oldCount && p.PckFiles.Count == 0,
             $"mexida={moved} apagada={gone} plantada={added} {oldCount}->{items.Count} \"{string.Join(" / ", p.Summary)}\"");
+        // passagem dos monstros: a plantada fecha o círculo (raio padrão 1,5 m: tipo de teste), a apagada não deixa mais fechado
+        if (config is not null)
+        {
+            var tf = TerrainFile.Open(Path.GetDirectoryName(world.EcwldPath)!)!; float pm = tf.CellsPerPiece * tf.Cell;
+            bool? Shut(Dictionary<string, byte[]> files, Vector3 at)
+            {
+                if (tf.PieceAt(at.X, at.Z) is not (> 0 and var pc)) return null;
+                var path = Path.Combine(config, "world", "movemap", $"{pc}.rmap");
+                var b = files.TryGetValue(path, out var m) ? m : File.Exists(path) ? File.ReadAllBytes(path) : null;
+                if (b is null) return null;
+                var (w, _, iw, ih, px) = MoveMapFile.Header(b);
+                int pr = (pc - 1) / tf.Cols, pcol = (pc - 1) % tf.Cols; float x0 = -tf.Width / 2 + pcol * pm, zs = tf.Height / 2 - (pr + 1) * pm;
+                int u = (int)MathF.Floor((at.X - x0) / px), v = (int)MathF.Floor((at.Z - zs) / px);
+                return !MoveMapFile.Reach(b, w, u, v);
+            }
+            var none = new Dictionary<string, byte[]>();
+            bool? plB = Shut(none, planted.Now.Pos), plA = Shut(p.Files, planted.Now.Pos), t2B = Shut(none, t2.Original.Pos), t2A = Shut(p.Files, t2.Original.Pos);
+            var rmK = p.Files.Keys.Count(k => k.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase));
+            r.Check("arvore-passagem", plA == true && rmK > 0 && !(t2B == false && t2A == true),
+                $"plantada: fechado {plB}->{plA}; apagada ({Path.GetFileName(t2.Source)}): fechado {t2B}->{t2A}; .rmap no plano: {rmK}; {p.Summary.FirstOrDefault(x => x.Contains("árvores")) ?? "-"}");
+        }
         // a árvore fica no bloco cuja área contém o lugar dela
         var blk = e.Blocks.First(b => b.Items[(int)EcwldFile.Kind.Tree].Any(i => BitConverter.ToInt32(i, 0) == planted.Type && MathF.Abs(BitConverter.ToSingle(i, 4) - planted.Now.Pos.X) < 1e-3f && MathF.Abs(BitConverter.ToSingle(i, 12) - planted.Now.Pos.Z) < 1e-3f));
         var area = ObjectFormats.BlockArea(e, blk);

@@ -1484,13 +1484,14 @@ internal static class Program
             }
             if (c.Name?.StartsWith("dfttree") == true) w._shotDir = outDir;
             if (c.Name?.StartsWith("dfttex") == true) { w._shotDir = outDir; File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftTerrainTest() + Environment.NewLine); }
-            else if (c.Name?.StartsWith("dftlight") == true) { w._shotDir = outDir; File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftLightTest() + Environment.NewLine); }
             else if (c.Name?.StartsWith("dftgrass") == true) { w._shotDir = outDir; File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftGrassTest() + Environment.NewLine); }
             else if (c.Name?.StartsWith("dftcat") == true) { w._shotDir = outDir; File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCatalogTest() + Environment.NewLine); }
             else if (c.Name?.StartsWith("dfttree") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftTreeTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftesc") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftEscTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftpaste") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftPasteTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftpick") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftPickTest() + Environment.NewLine);
+            else if (c.Name?.StartsWith("dftdrop") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DropperTest() + Environment.NewLine);
+            else if (c.Name?.StartsWith("dftlayout") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.LayoutCheck() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftfix") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftFixTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftcard") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCardTest(outDir) + Environment.NewLine);
             else if (c.Name?.StartsWith("dftmove") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftMoveTest() + Environment.NewLine);

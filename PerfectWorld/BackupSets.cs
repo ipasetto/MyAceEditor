@@ -54,6 +54,21 @@ public static class BackupSets
         }
     }
 
+    /// <summary>Cópias que algum conjunto ainda usa (o armazém não as apaga ao podar).</summary>
+    public static HashSet<string> ReferencedBackups()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (!Directory.Exists(Folder)) return set;
+            foreach (var f in Directory.GetFiles(Folder, "*.json"))
+                try { if (JsonSerializer.Deserialize<BackupSet>(File.ReadAllText(f)) is { } s) foreach (var e in s.Files) set.Add(Path.GetFullPath(e.Backup)); }
+                catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { AppLog.Error("backup: ler " + f, ex); }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("backup: listar conjuntos", ex); }
+        return set;
+    }
+
     /// <summary>Conjuntos gravados, do mais novo para o mais velho (arquivo ilegível ou com cópia que já saiu fica de fora).</summary>
     public static List<BackupSet> List()
     {
@@ -126,6 +141,9 @@ public static class BackupSets
                 failed.Add(Path.GetFileName(main));
             }
         }
+        // o estado de antes de restaurar vira um conjunto também: restaurar o conjunto errado tem volta (usuário 09/11)
+        var prior = undo.Where(u => u.Before is not null).Select(u => new BackupSetEntry(u.Original, u.Before!)).ToList();
+        if (prior.Count > 0) Save(new BackupSet("restore", set.Map, DateTime.Now, prior));
         var back = set.Files.Select(f => f.Original).Where(f => !failed.Contains(Path.GetFileName(f))).ToList();
         if (back.Count > 0) NotifyRestored(back);
         return failed.Count == 0 ? null : string.Format(Loc.T("bak.setFailed", "Não deu para restaurar: {0} (aberto em outro programa?). Os outros arquivos voltaram."), string.Join(", ", failed));
@@ -136,6 +154,7 @@ public static class BackupSets
     {
         "objects" => Loc.T("tools.objects", "Objetos do mundo"),
         "terrain" => Loc.T("tools.terrain", "Terreno"),
+        "restore" => Loc.T("tools.restore", "Antes de restaurar"),
         _ => tool,
     };
 }
