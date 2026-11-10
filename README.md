@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/img/logo.png" alt="MyAceEditor logo" width="150"></p>
+
 # MyAceEditor
 
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
