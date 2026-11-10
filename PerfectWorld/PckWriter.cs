@@ -11,8 +11,8 @@ namespace MyAceEditor.PerfectWorld;
 /// </summary>
 public static class PckWriter
 {
-    const int Key1 = -1466731422;
-    const int Key2Default = unchecked((int)0xF1A43653);   // só para pacote vazio; senão vem da própria tabela
+    // chaves: as do perfil com que o pacote abre (PckKeyStore.Detect; o de fábrica na quase totalidade); a conferência
+    // ao lado de cada entrada vem da própria tabela, e o perfil só vale para pacote vazio
     // v2: rodapé 280 B, entrada 276 B (posição u32 em 260); v3: rodapé 288 B, entrada 288 B (posição i64 em 264),
     // posição da tabela i64 e tamanho do pacote i64 no cabeçalho (PckArchive lê os dois)
 
@@ -34,6 +34,8 @@ public static class PckWriter
         var parts = PckArchive.PartPaths(pckPath);
         var target = parts.Count > 0 ? parts[^1] : pckPath;                       // arquivo que muda de verdade
         long start = parts.Count > 0 ? new FileInfo(pckPath).Length + parts.Take(parts.Count - 1).Sum(x => new FileInfo(x).Length) : 0;   // onde ele começa no pacote lógico
+        var keys = PckKeyStore.Detect(pckPath) ?? throw new InvalidDataException(string.Format(UI.Loc.T("pck.invalid2", "Não é um pacote Angelica válido ou usa chaves desconhecidas (cadastre em Preferências → PCK Key): {0}"), pckPath));
+        int Key1 = keys.Key1, Key2Default = keys.CheckXor;
         var tmp = target + ".tmp";
         CopyWithProgress(target, tmp, progress);
         long newLength;

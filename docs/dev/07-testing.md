@@ -14,6 +14,7 @@ Test modes that save write only into temporary copies, never into your game fold
 | `--tasks <tasks.data>` | Same for quests |
 | `--gshop`, `--aipolicy`, `--npcgen` (+ file) | Same for the shop, AI policies, spawn points |
 | `--pck <file.pck>` | Package reading; `--pck-split-test` for split packages |
+| `--pck-keys-test <element> <out>` | Package key profiles: every client package opens with the factory keys; `configs.pck` (whole and split) converted to another profile and back is byte-identical; writing keeps the profile |
 | `--ecwld-check`, `--bht-check`, `--bmd-check` | Scene, collision and building model files of the client/server |
 | `--check <element> <server home>` | Client × server pair (versions and data) |
 | `--client-check <element>` | Instance names, zone music, sound files of a client |
@@ -51,7 +52,7 @@ It also saves `window-*.png` pictures of each tool panel and runs the Esc checks
 | `--copy-block-test <element> <config> <out file>` | Not a picture: copies a building to open ground in the world and reports how many metres under it the save plan closes in the `.rmap` |
 | `--click-test <out folder>` | Not a picture: opens the 3D World from the editor (with creatures) and clicks a creature with no tool, in Paths and in NPCs and monsters; `click-test.txt` says what got selected |
 | `--readme-shots <out folder>` | All README pictures: every tab and every 3D World tool with something selected (the 3D window is on screen while it runs) |
-| `--gm-shot`, `--prefs-shot`, `--wq-shot` | GM panel, preferences, quest panel |
+| `--gm-shot`, `--prefs-shot`, `--wq-shot` | GM panel, preferences, quest panel (`--prefs-shot <png> pck` opens the PCK Key page, tests edit/undo and checks for cut text) |
 
 ## Headless rules (for anyone writing a new test mode)
 

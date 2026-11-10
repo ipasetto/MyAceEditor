@@ -12,8 +12,9 @@ public sealed record PckEntry(string Path, long Offset, int Size, int CSize);
 /// </summary>
 public sealed class PckArchive : IDisposable
 {
-    const int Key1 = -1466731422;
-    const int FSig1 = 0x4DCA23EF;
+    /// <summary>Perfil de chaves com que este pacote abriu (o de fábrica na quase totalidade; ver PckKeys).</summary>
+    public PckKeys Keys { get; }
+    int Key1 => Keys.Key1;
 
     static readonly Encoding Gbk;
     static PckArchive()
@@ -72,7 +73,8 @@ public sealed class PckArchive : IDisposable
     /// <summary>O pacote existe (com ou sem número no nome)?</summary>
     public static bool Exists(string pckPath) => Locate(pckPath) is not null;
 
-    public PckArchive(string pckPath, CancellationToken cancellationToken = default)
+    /// <param name="keys">chaves a usar; null = descobre sozinho (de fábrica primeiro, depois os perfis do usuário)</param>
+    public PckArchive(string pckPath, CancellationToken cancellationToken = default, PckKeys? keys = null)
     {
         _token = cancellationToken; _token.ThrowIfCancellationRequested();
         pckPath = Locate(pckPath) ?? pckPath;
@@ -84,15 +86,18 @@ public sealed class PckArchive : IDisposable
             foreach (var part in PartPaths(pckPath))
                 _parts.Add(new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
 
-            var head = ReadAt(0, 4);
-            if (BitConverter.ToInt32(head) != FSig1)
-                throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.invalid", "Não é um pacote Angelica válido: {0}"), pckPath));
-
+            if (Length < 12 + 280) throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.invalid", "Não é um pacote Angelica válido: {0}"), pckPath));
+            var head = ReadAt(0, 12);
             var tail = ReadAt(Length - 8, 8);
             int count = BitConverter.ToInt32(tail, 0);
             Version = BitConverter.ToInt16(tail, 4) == 3 ? 3 : 2;
 
             int footer = Version == 3 ? 288 : 280;
+            // chaves: as pedidas (só a marca do começo precisa bater) ou o perfil que abre (PckKeyStore.Detect)
+            var probe = new PckKeyStore.Probe(head, ReadAt(Length - footer, footer), Version, Length);
+            Keys = keys is not null
+                ? (BitConverter.ToInt32(head, 0) == keys.Fsig1 ? keys : throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.wrongKeys", "As chaves \"{1}\" não abrem este pacote: {0}"), pckPath, keys.Name)))
+                : PckKeyStore.Detect(probe) ?? throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.invalid2", "Não é um pacote Angelica válido ou usa chaves desconhecidas (cadastre em Preferências → PCK Key): {0}"), pckPath));
             int entrySize = Version == 3 ? 288 : 276;
             long tableOffset = Version == 3
                 ? BitConverter.ToInt64(ReadAt(Length - 280, 8)) ^ Key1

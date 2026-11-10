@@ -39,6 +39,7 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] testado no jogo 10/11: ponte (litmodel_680) salva de novo, a criatura atravessa por cima sem afundar
        [x] Caminhos sem travadas ao desenhar a patrulha (raio do mouse uma vez por quadro) (09/11)
        [x] 10/11: menu de ferramentas com ladrilhos baixos (nome; descricao na dica), recolhe se cobrir o painel de baixo; criatura/NPC com Mover V / Girar R no painel (conferido pelo usuario 10/11)
+       [x] PCK Key (10/11): perfis de chaves dos .pck nas Preferencias, deteccao automatica, converter pacote para outro perfil (falta testar com um cliente de chave trocada real)
        [x] RELEASE v1.0.1 (10/11, a pedido do usuario): menu de ferramentas baixo, Mover V / Girar R nas criaturas
        [x] RELEASE v1.0.0 publicada no GitHub a pedido do usuario (09/11): .zip com o .exe comprimido, lang, PerfectWorld\cfg, Server, plugins
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)

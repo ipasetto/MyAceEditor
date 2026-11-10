@@ -349,10 +349,37 @@ internal static class Program
                 new("MyAce (editor)", "", () => "Perguntar se quer enviar ao servidor", () => "Ligado: pergunta ao abrir e ao salvar.", () => (false, null), _ => null),
                 new("Servidor local", "", () => "Velocidade de movimento sem a trava de 3 / 5 m/s", () => "Ligado: os bônus fixos de movimento somam sem limite (até 15 m/s). Desligado: regra original. Reinicia os mapas.", () => (false, null), _ => null),
                 new("Servidor local", "", () => "Exemplo indisponível", () => "Uma opção que depende de algo que não está pronto.", () => (null, "Servidor local ainda não instalado."), _ => null),
-            }, new Dictionary<string, string> { ["MyAce (editor)"] = MyAceEditor.UI.UiKit.Settings, ["Servidor local"] = MyAceEditor.UI.UiKit.Server }) { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
+            }, new Dictionary<string, string> { ["MyAce (editor)"] = MyAceEditor.UI.UiKit.Settings, ["Servidor local"] = MyAceEditor.UI.UiKit.Server },
+               [(MyAceEditor.UI.Loc.T("prefs.secPck", "PCK Key"), "", new MyAceEditor.UI.PckKeysPage())], "MyAce (editor)") { StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-20000, -20000) };
+            MyAceEditor.UI.PreferencesWindow.Quiet = true;
             w.Show();
             var until = DateTime.Now.AddSeconds(3);
             while (DateTime.Now < until) { Application.DoEvents(); Thread.Sleep(20); }
+            // "pck": página PCK Key escolhida, teste de edição/desfazer e conferência de texto cortado (prefs-shot.txt ao lado da foto)
+            if (args.Length >= 3 && args[2] == "pck" && w.Controls.OfType<TabControl>().FirstOrDefault() is { } ptc)
+            {
+                var pagePck = ptc.TabPages.Cast<TabPage>().First(tp => tp.Controls.OfType<MyAceEditor.UI.PckKeysPage>().Any());
+                ptc.SelectedTab = pagePck;
+                var pk = pagePck.Controls.OfType<MyAceEditor.UI.PckKeysPage>().First();
+                var log = new StringBuilder();
+                log.AppendLine("pck: " + pk.SelfTest());
+                // texto cortado: rótulos e botões da página (a largura tem de caber no texto, considerando o ícone)
+                var cut = new List<string>();
+                void Walk(Control c)
+                {
+                    foreach (Control k in c.Controls) Walk(k);
+                    if (c is not (Label or Button) || !c.Visible || string.IsNullOrEmpty(c.Text) || c.Width <= 0) return;
+                    if (c is Label { AutoSize: true }) return;
+                    int extra = c is Button bb ? (bb.Image?.Width ?? 0) + bb.Padding.Horizontal + 14 : c.Padding.Horizontal;
+                    var flags = c is Label { Height: > 26 } ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine;
+                    var need = TextRenderer.MeasureText(c.Text.Trim(), c.Font, new System.Drawing.Size(c.Width - extra, 0), flags);
+                    if (need.Width > c.Width - extra + 1 || need.Height > c.Height) cut.Add($"{c.GetType().Name} \"{c.Text.Trim()}\" {need.Width}x{need.Height} > {c.Width - extra}x{c.Height}");
+                }
+                Application.DoEvents(); Walk(pk);
+                log.AppendLine($"pck layout {MyAceEditor.PerfectWorld.AppLang.Current}: {cut.Count} com texto cortado" + (cut.Count > 0 ? Environment.NewLine + "  " + string.Join(Environment.NewLine + "  ", cut) : ""));
+                File.WriteAllText(Path.ChangeExtension(args[1], ".txt"), log.ToString());
+                var u2 = DateTime.Now.AddSeconds(1); while (DateTime.Now < u2) { Application.DoEvents(); Thread.Sleep(20); }
+            }
             using var bmp = new System.Drawing.Bitmap(w.Width, w.Height);
             w.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, w.Width, w.Height));
             bmp.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
@@ -396,6 +423,7 @@ internal static class Program
             File.WriteAllText(args[2], $"quests {total}, assistente completo {strict}, abrem agora {opened}, sem mudar nada igual {noChange}, só o ouro muda {onlyGold}, volta igual {back}\n{first}\n");
             return;
         }
+        if (args.Length >= 3 && args[0] == "--pck-keys-test") { MyAceEditor.PerfectWorld.PckKeysSelfTest.Run(args[1], args[2]); Environment.Exit(0); }   // <element> <saída>: perfis de chaves do .pck (cópias)
         if (args.Length >= 4 && args[0] == "--bridge-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.RunBridge(args[1], args[2], args[3]); Environment.Exit(0); }   // <element> <config> <saída>: pontes copiadas, metro a metro
         if (args.Length >= 4 && args[0] == "--copy-block-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.RunCopyBlocks(args[1], args[2], args[3]); Environment.Exit(0); }   // <element> <config> <saída>: construção copiada fecha o .rmap embaixo?
         if (args.Length >= 4 && args[0] == "--objects-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.Run(args[1], args[2], args[3]); Environment.Exit(Environment.ExitCode); }   // <element> <config> <saída>: objetos do mundo sem janela

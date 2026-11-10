@@ -235,7 +235,10 @@ reads, broken XML is refused, and a window that loses a control the game looks f
 - **Admin panel** — accounts, characters, who is online, broadcast, double EXP/drop, every map and instance.
 - **GM panel** — a separate window beside the game for game masters.
 - **Plugins** — event programs that run on the server, made from templates.
-- **`.pck` extractor and writer** — native, no external tools.
+- **`.pck` extractor and writer** — native, no external tools. **PCK keys** (*Preferences → PCK Key*): profiles of
+  package keys (KEY1/KEY2, ASIG1/2, FSIG1/2) for servers that changed them; MyAce finds out which profile opens each
+  package, and can convert a package to another profile (the game only opens it if `elementclient.exe` uses the same
+  keys).
 
 ---
 

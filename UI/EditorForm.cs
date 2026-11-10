@@ -303,7 +303,9 @@ public sealed class EditorForm : Form
         };
         // editor primeiro (o que muda só o MyAce), depois o que mexe no servidor
         list = list.OrderBy(p => p.Section == editor ? 0 : 1).ToList();
-        using var w = new PreferencesWindow(list, new Dictionary<string, string> { [editor] = UiKit.Settings, [server] = UiKit.Server });
+        // PCK Key (chaves dos pacotes) entre MyAce e Servidor (usuário 10/11)
+        using var w = new PreferencesWindow(list, new Dictionary<string, string> { [editor] = UiKit.Settings, [server] = UiKit.Server },
+            [(Loc.T("prefs.secPck", "PCK Key"), "", new PckKeysPage())], editor);
         w.ShowDialog(this);
     }
 

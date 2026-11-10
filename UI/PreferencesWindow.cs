@@ -17,11 +17,21 @@ internal sealed class PreferencesWindow : Form
     internal sealed record Pref(string Section, string Glyph, Func<string> Title, Func<string> Detail,
         Func<(bool? On, string? Why)> Get, Func<bool, string?> Set, Func<bool, string?>? Confirm = null);
 
+    /// <summary>Página própria que pode ter trabalho não salvo (ex.: PCK Key): perguntada ao fechar a janela.</summary>
+    internal interface ILeavePage { bool ConfirmLeave(); }
+
+    /// <summary>Só testes: nenhuma janela de pergunta/aviso de sucesso.</summary>
+    internal static bool Quiet;
+
+    readonly List<Control> _custom = new();
+
     /// <param name="sectionGlyphs">ícone de cada seção na barra lateral (seção = página: editor, servidor...)</param>
-    public PreferencesWindow(IEnumerable<Pref> prefs, IReadOnlyDictionary<string, string>? sectionGlyphs = null)
+    /// <param name="pages">páginas próprias (nome, ícone, conteúdo), entram logo depois da seção <paramref name="pagesAfter"/></param>
+    public PreferencesWindow(IEnumerable<Pref> prefs, IReadOnlyDictionary<string, string>? sectionGlyphs = null,
+        IReadOnlyList<(string Name, string Glyph, Control Content)>? pages = null, string? pagesAfter = null)
     {
         Text = Loc.T("prefs.title", "Preferências");
-        Width = 820; Height = 560; StartPosition = FormStartPosition.CenterParent; MinimizeBox = false; ShowInTaskbar = false;
+        Width = 880; Height = 740; StartPosition = FormStartPosition.CenterParent; MinimizeBox = false; ShowInTaskbar = false;
         Font = new Font("Segoe UI", 9.5f); BackColor = Color.FromArgb(244, 246, 249);
         var head = new Label { Dock = DockStyle.Top, Height = 58, Padding = new Padding(20, 0, 0, 0), TextAlign = ContentAlignment.MiddleLeft, BackColor = Color.White,
             Font = new Font("Segoe UI Semibold", 14f), ForeColor = UiKit.Fg, Image = UiKit.Icon(UiKit.Settings, UiKit.Accent, 26), ImageAlign = ContentAlignment.MiddleLeft };
@@ -41,7 +51,19 @@ internal sealed class PreferencesWindow : Form
             page.Controls.Add(list); tabs.TabPages.Add(page); lists.Add(list);
             var name = g.Key;
             nav.Add(sectionGlyphs?.GetValueOrDefault(name) ?? UiKit.Settings, () => name, () => name, page);
+            if (name == pagesAfter) AddCustom();
         }
+        if (pages is not null && _custom.Count == 0) AddCustom();   // seção de referência não existe: no fim
+        void AddCustom()
+        {
+            foreach (var (pname, glyph, content) in pages ?? [])
+            {
+                var page = new TabPage { BackColor = Color.FromArgb(244, 246, 249) };
+                content.Dock = DockStyle.Fill; page.Controls.Add(content); tabs.TabPages.Add(page); _custom.Add(content);
+                var nm = pname; nav.Add(glyph, () => nm, () => nm, page);
+            }
+        }
+        FormClosing += (_, e) => { foreach (var c in _custom) if (c is ILeavePage lp && !lp.ConfirmLeave()) { e.Cancel = true; return; } };
         Controls.Add(tabs); Controls.Add(nav); Controls.Add(sub); Controls.Add(head);
         void Fit() { foreach (var l in lists) foreach (Control c in l.Controls) if (c is PrefRow r) r.Width = Math.Max(300, l.ClientSize.Width - l.Padding.Horizontal - 4); }
         foreach (var l in lists) l.Resize += (_, _) => Fit();
