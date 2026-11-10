@@ -129,6 +129,8 @@ internal sealed partial class WorldView
     internal string SaveUndoTest()
     {
         string load = DraftLoadTest();
+        if (WorldDirty) { DiscardObjects(); ResetTerrainEdit(); }   // começa sem nada por salvar (cenário anterior pode ter deixado)
+        _wUndo.Clear(); _wRedo.Clear();
         var temp = Path.Combine(Path.GetTempPath(), "myace-undosave-" + Environment.ProcessId);
         Directory.CreateDirectory(temp);
         string? oldFolder = BackupSets.FolderOverride;

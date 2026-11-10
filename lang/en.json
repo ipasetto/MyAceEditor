@@ -6059,5 +6059,11 @@
   "undoSave.noCopy": "Could not keep the current state before going back; nothing changed.",
   "undoSave.redone": "Save redone: the files are back to what it had written (Ctrl+Z undoes again).",
   "undoSave.undone": "Last Save undone: the files are back to how they were before it (Ctrl+Y redoes).",
-  "undoSave.fail": "Could not undo the Save (file open in the game?). See the log."
+  "undoSave.fail": "Could not undo the Save (file open in the game?). See the log.",
+  "npcmode.move": "Move: drag the X, Y and Z arrows (Ctrl+Z undoes).",
+  "npcmode.turn": "Rotate: drag the ring (5° steps; Shift = 15°, Ctrl = free).",
+  "npcmode.moveBtn": "Move",
+  "npcmode.turnBtn": "Rotate",
+  "npcmode.moveTip": "Move the creature on the map with the X, Y and Z arrows (key V).",
+  "npcmode.turnTip": "Rotate the creature with the ring (key R)."
 }

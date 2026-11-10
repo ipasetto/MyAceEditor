@@ -1571,6 +1571,7 @@ internal static class Program
             w.SetCamera(new OpenTK.Mathematics.Vector3(1050, 232, 1066), 0, -12);
             w.ShotWait();
             log.AppendLine(w.ClickTest());
+            try { using var shot = w.ComposeShot(); shot.Save(Path.Combine(outDir, "click-test.png"), System.Drawing.Imaging.ImageFormat.Png); } catch (Exception ex) { log.AppendLine("foto: " + ex.Message); }
             w.Close(); f.Close();
         }
         catch (Exception ex) { log.AppendLine("ERRO: " + ex); Environment.ExitCode = 2; }

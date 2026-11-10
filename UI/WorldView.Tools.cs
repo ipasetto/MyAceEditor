@@ -25,6 +25,9 @@ internal sealed partial class WorldView
     readonly Label _sceneState = new() { AutoSize = true, MaximumSize = new Size(240, 0), ForeColor = Color.Silver, Margin = new Padding(3, 4, 3, 4) };
     readonly ToolTip _toolTip = new();
     bool _toolsFolded = false;   // abre expandido (usuário 07/11 noite; antes recolhido)
+    // menu recolhido sozinho porque não cabia acima do painel de baixo (criatura, quests); volta quando couber de novo.
+    // Abrir na mão (clique no cabeçalho) vale até caber de novo.
+    bool _toolsAutoFolded, _toolsForceOpen;
 
     internal readonly List<(MarkKind Kind, string Key, string Pt, string Tip, Color Color)> _filterDefs = new()
     {
@@ -40,20 +43,25 @@ internal sealed partial class WorldView
 
     Button ToolButton(string glyph, string title, string sub, Action a)
     {
-        // ladrilho RETANGULAR, um por linha (regra do usuário 01/11): ícone grande à esquerda, nome e para que serve
-        var b = new NoFocusButton { Width = 250, Height = 72, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
-            Margin = new Padding(0, 0, 0, 8), Text = "" };
+        // ladrilho RETANGULAR, um por linha, com METADE da altura (usuário 10/11: com o tempo entram mais ferramentas e
+        // ficaria apertado): ícone e nome; "para que serve" vai para a dica do mouse. Nome longo (traduções) usa 2 linhas.
+        var b = new NoFocusButton { Width = 250, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 45, 54), ForeColor = Color.White, Cursor = Cursors.Hand,
+            Margin = new Padding(0, 0, 0, 4), Text = "", AccessibleName = title };
         b.FlatAppearance.BorderColor = Color.FromArgb(62, 70, 84);
         b.FlatAppearance.MouseOverBackColor = Color.FromArgb(52, 60, 74);
-        var icon = UiKit.Icon(glyph, Color.White, 32);
+        var icon = UiKit.Icon(glyph, Color.White, 18);
+        var f1 = new Font("Segoe UI Semibold", 10f);
+        b.Disposed += (_, _) => f1.Dispose();
+        const int textX = 40;
+        int tw = b.Width - textX - 8;
+        if (TextRenderer.MeasureText(title, f1).Width > tw)
+            b.Height = Math.Max(36, TextRenderer.MeasureText(title, f1, new Size(tw, 0), TextFormatFlags.WordBreak).Height + 12);
         b.Paint += (_, e) =>
         {
-            e.Graphics.DrawImage(icon, 14, (b.Height - icon.Height) / 2);
-            using var f1 = new Font("Segoe UI Semibold", 10.5f); using var f2 = new Font("Segoe UI", 8.5f);
-            TextRenderer.DrawText(e.Graphics, title, f1, new Rectangle(60, 12, b.Width - 66, 22), Color.White, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
-            TextRenderer.DrawText(e.Graphics, sub, f2, new Rectangle(60, 34, b.Width - 66, 32), Color.Silver, TextFormatFlags.Left | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            e.Graphics.DrawImage(icon, 12, (b.Height - icon.Height) / 2);
+            TextRenderer.DrawText(e.Graphics, title, f1, new Rectangle(textX, 0, tw, b.Height), Color.White, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
         };
-        _toolTip.SetToolTip(b, sub);
+        _toolTip.SetToolTip(b, title + Environment.NewLine + sub);
         b.Click += (_, _) => { a(); _gl.Focus(); };
         return b;
     }
@@ -120,7 +128,7 @@ internal sealed partial class WorldView
         _toolBack.Image = UiKit.Icon("", Color.White, 16);
         _toolTip.SetToolTip(_toolBack, Loc.T("tools.back", "Voltar ao menu de ferramentas"));
         _toolBack.Click += (_, _) => { if (WorldEditOpen && !AbandonWorld()) return; if (_tool == Tool.Zones && !ZoneLeave()) return; if (_tool == Tool.Domains && !CloseDomains()) return; if (_tool == Tool.Create && (_creating || _editing > 0)) { if (AskAbandon()) UpdateCreatePanel(); return; } if (_tool == Tool.Create ? AskAbandon() : _tool != Tool.Teleports || _tpd is null || AskLeaveTeleport()) CloseTool(); _gl.Focus(); };
-        _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; LayoutTools(); _gl.Focus(); };
+        _toolFold.Click += (_, _) => { _toolsFolded = !_toolsFolded; _toolsForceOpen = !_toolsFolded && _toolsAutoFolded; _toolsAutoFolded = false; LayoutTools(); _gl.Focus(); };
         _toolHead.Controls.Add(_toolTitle); _toolHead.Controls.Add(_toolBack); _toolHead.Controls.Add(_toolFold);
         _toolTitle.Padding = new Padding(10, 0, 0, 0);
         _toolTitle.ImageAlign = ContentAlignment.MiddleLeft; _toolTitle.TextAlign = ContentAlignment.MiddleLeft;
@@ -187,6 +195,7 @@ internal sealed partial class WorldView
         Controls.Add(_tools);
         _tools.BringToFront();
         _gl.Resize += (_, _) => LayoutTools();
+        foreach (Control pnl in new Control[] { _creature, _quests }) { pnl.VisibleChanged += (_, _) => LayoutTools(); pnl.SizeChanged += (_, _) => LayoutTools(); }   // painel de baixo abriu/fechou
         CloseTool();
     }
 
@@ -194,7 +203,18 @@ internal sealed partial class WorldView
     void LayoutTools()
     {
         var page = _tool switch { Tool.Terrain => _terrainPage, Tool.Scene => (Control)_scenePage, Tool.Paths => _pathsPage, Tool.Quests => _questsPage, Tool.Create => _createPage, Tool.Teleports => _tpPage, Tool.Zones => _zonePage, _ => _toolMenu };
-        int body = _tool switch { Tool.Domains => 0, Tool.Scene or Tool.Terrain => Math.Max(200, _gl.Height - 32 - _toolHead.Height) /* até embaixo (antes 640 e rolava) */, Tool.Zones => _gl.Height - 60, Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Teleports => Math.Min(_tpPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Count * 80 + 14 };   // ladrilhos, um por linha
+        int body = _tool switch { Tool.Domains => 0, Tool.Scene or Tool.Terrain => Math.Max(200, _gl.Height - 32 - _toolHead.Height) /* até embaixo (antes 640 e rolava) */, Tool.Zones => _gl.Height - 60, Tool.Paths => Math.Min(FitHeight(_pathsPage), _gl.Height - 60), Tool.Create => Math.Min(_createPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Teleports => Math.Min(_tpPage.PreferredSize.Height + 10, _gl.Height - 60), Tool.Quests => Math.Min(FitHeight(_questsPage), _gl.Height - 60), _ => _toolMenu.Controls.Cast<Control>().Sum(c => c.Height + c.Margin.Vertical) + 14 };   // ladrilhos, um por linha
+        if (_tool == Tool.None)
+        {
+            // o menu nunca cobre o painel de baixo (usuário 10/11): sem espaço acima dele, recolhe ao cabeçalho
+            // a cena fica com a altura toda e os painéis de baixo (criatura, quests) por cima dela: o limite é o topo do
+            // painel visível
+            int bottom = _gl.Bottom;
+            foreach (Control pnl in new Control[] { _creature, _quests }) if (pnl.Visible && pnl.Height > 0) bottom = Math.Min(bottom, pnl.Top);
+            bool fits = _gl.Top + 16 + _toolHead.Height + body + 2 + 8 <= bottom;
+            if (!fits && !_toolsFolded && !_toolsForceOpen) { _toolsFolded = true; _toolsAutoFolded = true; }
+            else if (fits) { if (_toolsAutoFolded) _toolsFolded = false; _toolsAutoFolded = false; _toolsForceOpen = false; }
+        }
         _tools.Height = _toolHead.Height + (_toolsFolded ? 0 : body) + 2;
         foreach (var p in new Control[] { _toolMenu, _scenePage, _pathsPage, _questsPage, _createPage, _tpPage, _zonePage, _terrainPage }) p.Visible = !_toolsFolded && p == page;
         _zFoot.Visible = _tool == Tool.Zones && !_toolsFolded && _zDrawing == ZoneDraw.None;
@@ -215,7 +235,7 @@ internal sealed partial class WorldView
     /// <summary>Abre a ferramenta: liga a visão do que ela mexe e o painel dela toma o lugar do menu (seta para voltar).</summary>
     void OpenTool(Tool t)
     {
-        _tool = t; _toolsFolded = false;
+        _tool = t; _toolsFolded = false; _toolsAutoFolded = false; _toolsForceOpen = false;
         _toolBack.Visible = true;
         // só o que a ferramenta faz: sai o painel de baixo (quests/criatura) e a legenda
         HideBottomPanels();

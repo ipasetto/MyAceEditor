@@ -142,7 +142,9 @@ chosen from the item list, and the quest rules from the server code are checked 
 
 ![NPCs and monsters](docs/img/en/world-npcs.jpg)
 
-Create and edit NPCs, sellers, forges and monsters, place them in the world and set their drops.
+Create and edit NPCs, sellers, forges and monsters, place them in the world and set their drops. Click any creature or
+NPC: its panel opens at the bottom with **Move (V)** and **Rotate (R)** — arrows or a ring on the creature, live, one
+Ctrl+Z step per drag.
 
 ### Teleports
 

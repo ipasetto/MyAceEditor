@@ -63,8 +63,22 @@ internal sealed class WorldCreaturePanel : Panel
         _edit = Btn(() => { if (_id > 0) EditCreature?.Invoke(_id); }, "");
         _announce = Btn(() => { if (_id > 0) Announce?.Invoke(_id); }, "\uE789");
         _close = Btn(HidePanel, "");
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 6, 6, 0) };
-        buttons.Controls.AddRange(new Control[] { _announce, _edit, _close });
+        // Mover (V) / Girar (R) da criatura no mapa, como nas construções (usuário 10/11); a tecla embaixo do nome
+        Button Mode(int m, string glyph)
+        {
+            // cresce na largura com o texto (traduções longas: "Повернуть"), ícone ao lado, nome e tecla em 2 linhas
+            var b = new Button { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(74, 36), MaximumSize = new Size(160, 36), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Bg2,
+                Margin = new Padding(4, 0, 0, 0), Font = new Font("Segoe UI", 8f), Image = UiKit.Icon(glyph, Color.White, 14), TextImageRelation = TextImageRelation.ImageBeforeText,
+                TextAlign = ContentAlignment.MiddleCenter, Padding = new Padding(6, 0, 8, 0), Cursor = Cursors.Hand };
+            b.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 90);
+            b.Click += (_, _) => { SetMoveMode(m); MoveModeChanged?.Invoke(m); };
+            return b;
+        }
+        _moveBtn = Mode(0, "\uE7C2"); _turnBtn = Mode(1, "\uE7AD");
+        var sep = new Panel { Width = 14, Height = 1, Margin = Padding.Empty };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 4, 6, 0) };
+        buttons.Controls.AddRange(new Control[] { _moveBtn, _turnBtn, sep, _announce, _edit, _close });
+        SetMoveMode(0);
         var head = new Panel { Dock = DockStyle.Top, Height = Header, BackColor = Bg2 };
         var icon = new PictureBox { Dock = DockStyle.Left, Width = 40, Image = UiKit.Icon("", Color.FromArgb(240, 120, 110), 22), SizeMode = PictureBoxSizeMode.CenterImage };
         head.Controls.Add(_title); head.Controls.Add(icon); head.Controls.Add(buttons);
@@ -112,6 +126,10 @@ internal sealed class WorldCreaturePanel : Panel
             string[] n = { Loc.T("wc.group", "Criatura do ponto"), Loc.T("ci.amount", "Quantidade"), Loc.T("ci.respawn", "Renascer (s)"), Loc.T("ci.min", "Mínimo (s)"),
                 Loc.T("wc.walk", "Como anda"), Loc.T("wc.trigger", "Quando nasce") };
             for (int i = 0; i < n.Length; i++) _names[i].Text = n[i];
+            _moveBtn.Text = Loc.T("npcmode.moveBtn", "Mover") + Environment.NewLine + "V";
+            _turnBtn.Text = Loc.T("npcmode.turnBtn", "Girar") + Environment.NewLine + "R";
+            _tip.SetToolTip(_moveBtn, Loc.T("npcmode.moveTip", "Mover a criatura no mapa com as setas X, Y e Z (tecla V)."));
+            _tip.SetToolTip(_turnBtn, Loc.T("npcmode.turnTip", "Girar a criatura com o anel (tecla R)."));
             _edit.Text = Loc.T("wc.edit", "Abrir no editor");
             _announce.Text = Loc.T("wc.announce", "Anúncios");
             _tip.SetToolTip(_announce, Loc.T("wc.announceTip", "O que o jogo anuncia quando ele morre ou entra em combate (canal e texto)."));
@@ -261,6 +279,17 @@ internal sealed class WorldCreaturePanel : Panel
         if (a == r.Group.Amount && s == r.Group.Respawn && m == r.Group.RefreshLower && d == r.Group.DiedTimes) return;
         Apply(r, a, s, m, d);
         LoadGroup();
+    }
+
+    readonly Button _moveBtn, _turnBtn;
+    /// <summary>Botão Mover/Girar clicado (0 = mover, 1 = girar).</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Action<int>? MoveModeChanged { get; set; }
+
+    /// <summary>Acende o botão do modo atual (chamado também pelas teclas V/R da cena).</summary>
+    public void SetMoveMode(int m)
+    {
+        _moveBtn.BackColor = m == 0 ? UiKit.Accent : Bg2; _moveBtn.FlatAppearance.BorderColor = m == 0 ? UiKit.Accent : Color.FromArgb(70, 78, 90);
+        _turnBtn.BackColor = m == 1 ? UiKit.Accent : Bg2; _turnBtn.FlatAppearance.BorderColor = m == 1 ? UiKit.Accent : Color.FromArgb(70, 78, 90);
     }
 
     public void HidePanel() { _token++; _id = 0; if (Visible) { Height = 0; Visible = false; } }

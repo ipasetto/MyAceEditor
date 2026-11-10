@@ -385,6 +385,7 @@ internal sealed partial class WorldView : Form
         BackupSets.Restored += OnBackupRestored;
         InitInfoCard();
         InitSaveUndo();
+        _creature.MoveModeChanged = m => { SetNpcMode(m); _gl.Focus(); };   // Mover/Girar do painel da criatura
         InitToolMenu();    // menu flutuante de ferramentas por último: usa a grama e os outros desenhos já criados
         // backup do Mundo 3D: um conjunto por vez que a janela abre (BackupSets.Session)
         if (!Headless) BackupSets.Session = DateTime.Now;
@@ -498,6 +499,12 @@ internal sealed partial class WorldView : Form
         if (_tool == Tool.Scene && SelDraft is { Deleted: false } && e.KeyCode is Keys.V or Keys.R or Keys.F && !e.Alt && !e.Shift)
         {
             SetObjMode(e.KeyCode == Keys.V ? ObjMode.Move : e.KeyCode == Keys.R ? ObjMode.Turn : ObjMode.Size);
+            e.Handled = e.SuppressKeyPress = true; return;
+        }
+        // as mesmas teclas na criatura/NPC escolhido (usuário 10/11): V mover, R girar
+        if (_tool is not (Tool.Scene or Tool.Terrain or Tool.Paths) && SelectedMark() is not null && e.KeyCode is Keys.V or Keys.R && !e.Alt && !e.Shift)
+        {
+            SetNpcMode(e.KeyCode == Keys.V ? 0 : 1);
             e.Handled = e.SuppressKeyPress = true; return;
         }
         switch (e.KeyCode)
@@ -1581,6 +1588,18 @@ internal sealed partial class WorldView : Form
     }
 
     float? _gizmoTurn0; float _gizmoYaw0;   // giro do NPC: ângulo do mouse e giro no clique
+    int _npcMode;   // criatura/NPC escolhido: 0 = Mover (V, setas), 1 = Girar (R, anel)
+
+    /// <summary>Troca o modo das setas da criatura/NPC (botões do painel de baixo e teclas V/R).</summary>
+    void SetNpcMode(int mode)
+    {
+        _npcMode = mode == 1 ? 1 : 0;
+        _gizmoHover = 0;
+        _creature.SetMoveMode(_npcMode);
+        _status.Text = _npcMode == 0 ? Loc.T("npcmode.move", "Mover: arraste as setas X, Y e Z (Ctrl+Z desfaz).")
+            : Loc.T("npcmode.turn", "Girar: arraste o anel (de 5 em 5°; Shift = 15°, Ctrl = livre).");
+        _gl.Invalidate();
+    }
 
     float? NpcMouseAngle(Point p, Vector3 c)
     {
@@ -1602,8 +1621,13 @@ internal sealed partial class WorldView : Form
         if (_tool == Tool.Paths) return SelPath is null && AreaHandle(m) is { } h && Project(h) is { } hp && MathF.Abs(hp.X - p.X) < 9 && MathF.Abs(hp.Y - p.Y) < 9 ? 5 : 0;
         var c = PosOf(m); float L = GizmoSize(c);
         if (Project(c) is not { } a) return 0;
-        for (int k = 0; k < 3; k++)
-            if (Project(c + GizmoDirs[k] * L * 1.18f) is { } b && SegDist(p, a, b, 0.2f) < 9) return k + 1;
+        // só o modo escolhido (usuário 10/11, como nas construções): Mover (V) = setas; Girar (R) = anel
+        if (_npcMode == 0)
+        {
+            for (int k = 0; k < 3; k++)
+                if (Project(c + GizmoDirs[k] * L * 1.18f) is { } b && SegDist(p, a, b, 0.2f) < 9) return k + 1;
+            return 0;
+        }
         PointF? prev = null;
         for (int i = 0; i <= 48; i++)
         {
@@ -1681,7 +1705,7 @@ internal sealed partial class WorldView : Form
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Texture2D); GL.Disable(EnableCap.Lighting);
         GL.LineWidth(3);
         Color[] cols = { Color.Red, Color.LimeGreen, Color.DodgerBlue };
-        for (int k = 0; k < 3; k++)
+        for (int k = 0; k < 3 && _npcMode == 0; k++)
         {
             var d = GizmoDirs[k]; var tip = c + d * L;
             Col(hot == k + 1 ? Color.White : cols[k]);
@@ -1692,7 +1716,8 @@ internal sealed partial class WorldView : Form
             for (int i = 0; i <= 8; i++) { float t = i / 8f * MathF.Tau; V(tip + (u * MathF.Cos(t) + w * MathF.Sin(t)) * L * 0.06f); }
             GL.End();
         }
-        Col(hot == 4 ? Color.White : Color.Gold);
+        if (_npcMode == 0) { GL.LineWidth(1); GL.Enable(EnableCap.DepthTest); return; }
+        Col(hot == 4 ? Color.Gold : Color.White);   // anel branco, como o das construções
         GL.Begin(PrimitiveType.LineLoop);
         for (int i = 0; i < 48; i++) { float t = i / 48f * MathF.Tau; V(c + new Vector3(MathF.Sin(t), 0, MathF.Cos(t)) * L * 0.8f); }
         GL.End();
@@ -1711,6 +1736,12 @@ internal sealed partial class WorldView : Form
     {
         if (_tool == Tool.Paths || SelectedMark() is not { } m) return;
         var c = PosOf(m); float L = GizmoSize(c) * 1.35f;
+        if (_npcMode == 1)
+        {   // girando: o ângulo no meio do anel, como nas construções
+            float yaw = m.Tag == _gizmoTag && _gizmoYaw is { } gy ? gy : m.Yaw;
+            DrawLabel($"{yaw:0}°", c + Vector3.UnitY * 0.3f, Color.White);
+            return;
+        }
         DrawLabel(Loc.T("gizmo.x", "X · leste"), c + Vector3.UnitX * L, Color.Red);
         DrawLabel(Loc.T("gizmo.y", "Y · altura"), c + Vector3.UnitY * L, Color.LimeGreen);
         DrawLabel(Loc.T("gizmo.z", "Z · norte"), c + Vector3.UnitZ * L, Color.DodgerBlue);

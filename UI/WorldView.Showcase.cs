@@ -127,7 +127,56 @@ internal sealed partial class WorldView
             r.Add($"{tool}: alvo \"{target.Name}\" em {pt.X},{pt.Y}; PickScreen={(pick is null ? "nada" : pick.Name)}; apertou: movendo={(moving is null ? "nada" : "sim")} girando-câmera={drag} setaObj={oax} seta={gax}; escolhido depois={(sel is null ? "nada" : sel.Name)} (igual={ReferenceEquals(sel?.Tag, target.Tag) || Equals(sel?.Tag, target.Tag)}); barra=\"{_status.Text}\"" + (tool == Tool.Paths ? $"; painel do caminho=\"{_pathName.Text}\" criatura do caminho={PathSpawn is not null}" : ""));
         }
         if (_tool != Tool.None) LeaveTool();
+        r.Add(NpcModeTest());
         return string.Join(" | ", r);
+    }
+
+    /// <summary>
+    /// Mover/Girar da criatura (usuário 10/11): com a criatura escolhida e o painel de baixo aberto, V mostra só as setas e
+    /// R só o anel; arrastar o anel gira (Ctrl+Z volta); o menu de ferramentas não cobre o painel; ladrilhos baixos.
+    /// </summary>
+    string NpcModeTest()
+    {
+        if (SelectedMark() is not { } m) return "modo: nada escolhido";
+        if (!_creature.Visible) ShowCreatureInfo?.Invoke(m.Tag, _creature);   // painel de baixo aberto, como ao clicar na criatura
+        ShotWait(0.5);
+        try
+        {
+            using var pb = new Bitmap(_creature.Width, Math.Max(1, _creature.Height));
+            _creature.DrawToBitmap(pb, new Rectangle(0, 0, pb.Width, pb.Height));
+            pb.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "creature-panel.png"));
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or System.Runtime.InteropServices.ExternalException) { MyAceEditor.PerfectWorld.AppLog.Error("teste: foto do painel da criatura", ex); }
+        var c = PosOf(m); float L = GizmoSize(c);
+        Point P(OpenTK.Mathematics.Vector3 q) => Project(q) is { } f ? new Point((int)f.X, (int)f.Y) : Point.Empty;
+        var arrow = P(c + GizmoDirs[0] * L * 1.12f);   // perto da ponta, longe do anel (raio 0,8)
+        var ring = P(c + new OpenTK.Mathematics.Vector3(MathF.Sin(1.2f), 0, MathF.Cos(1.2f)) * L * 0.8f);
+        SetNpcMode(0); int moveArrow = GizmoHit(arrow), moveRing = GizmoHit(ring);
+        SetNpcMode(1); int turnArrow = GizmoHit(arrow), turnRing = GizmoHit(ring);
+        // girar arrastando o anel
+        void Raise(string ev, MouseEventArgs e) => typeof(Control).GetMethod(ev, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(_gl, [e]);
+        float yaw0 = m.Yaw;
+        var to = P(c + new OpenTK.Mathematics.Vector3(MathF.Sin(2.2f), 0, MathF.Cos(2.2f)) * L * 0.8f);
+        Raise("OnMouseDown", new MouseEventArgs(MouseButtons.Left, 1, ring.X, ring.Y, 0));
+        Raise("OnMouseMove", new MouseEventArgs(MouseButtons.Left, 0, (ring.X + to.X) / 2, (ring.Y + to.Y) / 2, 0));
+        Raise("OnMouseMove", new MouseEventArgs(MouseButtons.Left, 0, to.X, to.Y, 0));
+        Raise("OnMouseUp", new MouseEventArgs(MouseButtons.Left, 1, to.X, to.Y, 0));
+        RefreshMarkers(); ShotWait(0.3);
+        float yaw1 = SelectedMark()?.Yaw ?? yaw0;
+        bool undo = UndoAny(); RefreshMarkers(); ShotWait(0.3);
+        float yaw2 = SelectedMark()?.Yaw ?? yaw1;
+        // menu x painel de baixo (coordenadas da janela)
+        bool panel = _creature.Visible;
+        bool noCover = !panel || _tools.Bottom <= _creature.Top || _toolsFolded;
+        int tile = _toolMenu.Controls.Cast<Control>().Max(t => t.Height);
+        // janela baixa com o painel aberto: o menu recolhe sozinho; volta ao tamanho normal: abre de novo
+        var ws0 = WindowState; WindowState = FormWindowState.Normal; int h0 = Height; Height = 640; Application.DoEvents(); LayoutTools();
+        bool foldedSmall = _toolsFolded, coverSmall = _tools.Bottom > _creature.Top && !_toolsFolded; string small = $"janela {Height} cena {_gl.Height} painel {_creature.Visible}/{_creature.Top}";
+        Height = h0; WindowState = ws0; Application.DoEvents(); LayoutTools();
+        bool reopened = !_toolsFolded;
+        SetNpcMode(0);
+        return $"modo: Mover -> seta={moveArrow} anel={moveRing}; Girar -> seta={turnArrow} anel={turnRing}; girou {yaw0:0}->{yaw1:0}, Ctrl+Z={undo} voltou {yaw2:0}; painel aberto={panel} menu não cobre={noCover} (menu {_tools.Top}-{_tools.Bottom}, painel em {_creature.Top}, recolhido={_toolsFolded}); ladrilho maior {tile} px; janela baixa ({small}): recolheu={foldedSmall} cobriu={coverSmall}, voltou aberto={reopened}"
+            + $"; ok={moveArrow is >= 1 and <= 3 && moveRing == 0 && turnArrow == 0 && turnRing == 4 && MathF.Abs(yaw1 - yaw0) > 1 && undo && MathF.Abs(yaw2 - yaw0) < 0.5f && noCover && tile <= 52 && foldedSmall && !coverSmall && reopened}";
     }
 
     /// <summary>

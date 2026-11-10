@@ -6061,5 +6061,11 @@
   "undoSave.noCopy": "返回前无法保留当前状态；没有任何更改。",
   "undoSave.redone": "已重做保存：文件恢复为保存写入的内容（Ctrl+Z 可再次撤销）。",
   "undoSave.undone": "已撤销上一次保存：文件已恢复为保存前的样子（Ctrl+Y 重做）。",
-  "undoSave.fail": "无法撤销保存（文件在游戏中打开？）。请查看日志。"
+  "undoSave.fail": "无法撤销保存（文件在游戏中打开？）。请查看日志。",
+  "npcmode.move": "移动：拖动 X、Y、Z 箭头（Ctrl+Z 撤销）。",
+  "npcmode.turn": "旋转：拖动圆环（每次 5°；Shift = 15°，Ctrl = 自由）。",
+  "npcmode.moveBtn": "移动",
+  "npcmode.turnBtn": "旋转",
+  "npcmode.moveTip": "用 X、Y、Z 箭头在地图上移动生物（V 键）。",
+  "npcmode.turnTip": "用圆环旋转生物（R 键）。"
 }
