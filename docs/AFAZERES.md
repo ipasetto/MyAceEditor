@@ -34,7 +34,9 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] pendencias 09/11: sombra nao some na troca dia/noite; conta-gotas pega sombra ou luz (amostra do tom); clique nas criaturas/NPCs de volta (lista do NPCGen sem janela); Ver colisao so do escolhido (pecas solidas reais); aviso do salvar agrupado (max. 12 linhas)
        [x] PASSAGEM PELA MALHA (09/11): construcoes = triangulos da malha (parede na altura do corpo, piso deitado: anda-se em cima da ponte); arvores = tronco e raizes ate a metade da altura + 0,5 m (galhos nao barram) (falta testar no jogo)
        [x] pendencias 09/11 (2a rodada): passagem refeita tambem nas construcoes COPIADAS e sem colisao (era a causa dos monstros atravessando pedra e ponte); paineis de baixo sem tremer; tipo de arvore certo depois de salvar; Ctrl+Z/Ctrl+Y do ultimo Salvar; arrastar ao vivo; sem botao Dar nome; Ver colisao a vista
-       [ ] testar no jogo: salvar de novo a ponte e a pedra ja postas (foram gravadas sem a passagem) e ver os monstros perseguindo; arvore grande com raizes; construcao sem colisao; Ctrl+Z do Salvar
+       [x] testado no jogo 09/11: construcoes e arvores com raizes contornadas, arrastar ao vivo, Ctrl+Z do Salvar
+       [x] pontes (09/11): o tabuleiro vale para os monstros de chao, o fundo fecha nas bordas (servidor so tem 1 piso por metro; aquaticos/voadores passam por baixo); Ver colisao desenha pecas com ate 512 lados
+       [ ] testar no jogo: salvar de novo a ponte (litmodel_680) e ver a criatura atravessar por cima sem afundar
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
            [x] pontes novas como caminho de monstro (.rmap + .dhmap) e voo dos monstros (.octr) ao mexer construcoes (09/11; falta testar no jogo)
        [-] luzes da cena: removidas (o cliente 1.5.5 nao usa; usuario 09/11)

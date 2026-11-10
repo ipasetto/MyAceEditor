@@ -188,6 +188,7 @@ public static class MoveMapFile
     /// vizinhos onde já dá para andar (altura = chão + delta), anda metro a metro; em cada metro desce um raio a partir de
     /// 1 m (degrau) + 0,3 m acima da altura atual até o chão e o 1º topo achado é o piso (de construção ou o chão). Parede na
     /// altura de um personagem (piso + 0,5 até + 1,8 m) bloqueia. Metro mudado que ninguém alcança fica bloqueado e no chão.
+    /// Dois pisos no mesmo metro (ponte sobre chão seco): fica o mais alto; o chão que encosta num piso mais de 1 m acima fecha.
     /// Grava .rmap (pode andar) e .dhmap (piso − chão). Metros cuja colisão não mudou ficam como estavam.
     /// </summary>
     public static (byte[] Rmap, byte[]? Dhmap, int Changed) UpdateWithFloors(byte[] rmap, byte[]? dhmap, float x0, float zSouth,
@@ -243,7 +244,7 @@ public static class MoveMapFile
             for (int k = 0; k < 4; k++)
             {
                 int nu = u + du[k], nv = v + dv[k]; if (nu < 0 || nv < 0 || nu >= iw || nv >= ih) continue;
-                int nid = nv * iw + nu; if (!changedCol.Contains(nid) || reached.ContainsKey(nid)) continue;
+                int nid = nv * iw + nu; if (!changedCol.Contains(nid)) continue;
                 var c = P(nu, nv, 0); if (h(c.X, c.Z) is not float g) continue;
                 float top = MathF.Max(y, g) + MaxStep + 0.3f;
                 var a = c with { Y = top }; var b = c with { Y = g - 0.05f };
@@ -258,9 +259,31 @@ public static class MoveMapFile
                     foreach (var (ex, ez) in new[] { (px, 0f), (-px, 0f), (0f, px), (0f, -px) }) if (h(c.X + ex, c.Z + ez) is float n) s = MathF.Max(s, MathF.Abs(n - g));
                     if (s > MaxStep) continue;
                 }
+                // um piso só por metro no gs (PW-KB, um andar so): se o metro já foi alcançado num piso mais baixo (o chão
+                // embaixo da ponte), o mais alto (o tabuleiro) ganha e espalha de novo (usuário 09/11: a criatura subia a ponte
+                // e "afundava" — andava no chão por baixo do tabuleiro)
+                if (reached.TryGetValue(nid, out float had) && floor <= had + 0.01f) continue;
                 reached[nid] = floor; height[nid] = floor; queue.Enqueue(nid);
             }
         }
+        // fundo ao lado de um piso alto (embaixo e em volta da ponte): o gs não confere degrau entre metros vizinhos e
+        // jogaria o monstro do fundo para cima do tabuleiro; fecha o metro do chão que encosta num vizinho mais de 1 m acima
+        // (o fundo vira "parede" ali; nas pontas da ponte a rampa sobe aos poucos e nada fecha)
+        var lowEdge = new List<int>();
+        int[] du8 = { 1, -1, 0, 0, 1, 1, -1, -1 }, dv8 = { 0, 0, 1, -1, 1, -1, 1, -1 };
+        foreach (var (id, f) in reached)
+        {
+            int u = id % iw, v = id / iw;
+            var c = P(u, v, 0); if (h(c.X, c.Z) is not float g || f > g + 0.02f) continue;   // só metro no chão
+            for (int k = 0; k < 8; k++)   // também em diagonal: a busca do gs anda em linha reta e corta a quina (ponte na diagonal)
+            {
+                int nu = u + du8[k], nv = v + dv8[k]; if (nu < 0 || nv < 0 || nu >= iw || nv >= ih) continue;
+                int nid = nv * iw + nu;
+                float? fn = reached.TryGetValue(nid, out float rf) ? rf : !changedCol.Contains(nid) && height.TryGetValue(nid, out float sf) ? sf : null;
+                if (fn is float ff && ff - f > MaxStep + 0.01f) { lowEdge.Add(id); break; }
+            }
+        }
+        foreach (int id in lowEdge) reached.Remove(id);
         int changed = 0;
         foreach (int id in changedCol)
         {

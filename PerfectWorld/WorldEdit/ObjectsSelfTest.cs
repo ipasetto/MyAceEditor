@@ -46,7 +46,8 @@ public static class ObjectsSelfTest
                 var bytes = DraftSaver.ReadBmd(world, one);
                 var m = BmdModel.Read(bytes)!;
                 var wv = BmdModel.WorldVertices(m); int at0 = 0;
-                lines.Add($"{one}: {m.Meshes.Count} malhas, escala {m.Scale}, pos {m.Pos[0]:0.0},{m.Pos[1]:0.0},{m.Pos[2]:0.0} só-colisão={m.CollideOnly}, brushes {BmdModel.CdBrushes(bytes)?.Count}");
+                var cds = BmdModel.CdBrushes(bytes) ?? [];
+                lines.Add($"{one}: {m.Meshes.Count} malhas, escala {m.Scale}, pos {m.Pos[0]:0.0},{m.Pos[1]:0.0},{m.Pos[2]:0.0} só-colisão={m.CollideOnly}, brushes {cds.Count} (lados: máx {(cds.Count == 0 ? 0 : cds.Max(a => BitConverter.ToInt32(bytes, a + 52)))}, >64: {cds.Count(a => BitConverter.ToInt32(bytes, a + 52) > 64)}), arestas desenhadas {BmdModel.BrushEdges(bytes).Count}");
                 foreach (var mesh in m.Meshes)
                 {
                     int nv = mesh.Vertices.Length / 24;
@@ -82,8 +83,9 @@ public static class ObjectsSelfTest
                         for (float x = mn.X - 2; x <= mx.X + 2; x += 2)
                         {
                             int u = (int)MathF.Floor(x - px0), v = (int)MathF.Floor(z - pzS);
-                            float g = t.HeightAt(x, z) ?? 0;
-                            float? fl = mesh.FloorBelow(x, z, g + 60, g + 1.5f);
+                            float cx = px0 + u + 0.5f, cz = pzS + v + 0.5f;   // centro do metro (onde o gs põe o monstro)
+                            float g = t.HeightAt(cx, cz) ?? 0;
+                            float? fl = mesh.FloorBelow(cx, cz, g + 60, g + 1.5f);
                             bool walk = MoveMapFile.Reach(rm, w, u, v); float de = dh.Get(u, v);
                             if (fl is not null) { deck++; if (walk && MathF.Abs(de - (fl.Value - g)) < 1.2f) deckOk++; }
                             char ch = !walk ? (fl is null ? '#' : 'o') : de > 0.3f ? (char)('0' + Math.Min(9, (int)(de / 2))) : fl is not null ? '!' : '.';
@@ -118,7 +120,7 @@ public static class ObjectsSelfTest
     public static void RunCopyBlocks(string element, string? config, string output)
     {
         var lines = new List<string>();
-        try { CopiedBlocks(new Report(lines), element, config); } catch (Exception ex) { lines.Add("ERRO " + ex); }
+        try { CopiedBlocks(new Report(lines), element, config); RealBridge(new Report(lines), element, config); } catch (Exception ex) { lines.Add("ERRO " + ex); }
         File.WriteAllLines(output, lines);
     }
 
@@ -136,6 +138,8 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("malha-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { CopiedBlocks(r, element, config); }
         catch (Exception ex) { r.Check("copia-bloqueia-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { RealBridge(r, element, config); }
+        catch (Exception ex) { r.Check("ponte-real-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { DeltaHeights(r, element, config); }
         catch (Exception ex) { r.Check("dhmap-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { NewTexture(r, element); }
@@ -491,12 +495,23 @@ public static class ObjectsSelfTest
         Quad(new(80, 101.5f, 10), new(85, 100, 10), new(85, 100, 14), new(80, 101.5f, 14));
         Quad(new(60, 101.5f, 10), new(80, 101.5f, 10), new(80, 102.5f, 10), new(60, 102.5f, 10));
         Quad(new(60, 101.5f, 14), new(80, 101.5f, 14), new(80, 102.5f, 14), new(60, 102.5f, 14));
-        var rects = new List<(float, float, float, float)> { (15, 35, 35, 45), (50, 5, 90, 20) };
+        // ponte ALTA (3 m) sobre chão seco: rampa x 50→60, tabuleiro x 60→80 em z 60→64, rampa de descida x 80→90 (sem grade)
+        Quad(new(50, 100, 60), new(60, 103, 60), new(60, 103, 64), new(50, 100, 64));
+        Quad(new(60, 103, 60), new(80, 103, 60), new(80, 103, 64), new(60, 103, 64));
+        Quad(new(80, 103, 60), new(90, 100, 60), new(90, 100, 64), new(80, 103, 64));
+        var rects = new List<(float, float, float, float)> { (15, 35, 35, 45), (50, 5, 90, 20), (45, 54, 95, 70) };
         var (r1, d1, _) = MoveMapFile.UpdateWithFloors(rmap, dhB, 0, 0, rects, flat, none, none, new MeshObstacles(), m);
         var di = d1 is null ? null : new MoveMapFile.DeltaImage(d1);
         bool wall = !MoveMapFile.Reach(r1, 128, 25, 40) && !MoveMapFile.Reach(r1, 128, 25, 39) && MoveMapFile.Reach(r1, 128, 25, 43) && MoveMapFile.Reach(r1, 128, 25, 36);
         bool deck = MoveMapFile.Reach(r1, 128, 70, 12) && di is not null && MathF.Abs(di.Get(70, 12) - 1.5f) < 0.1f;
         bool rail = !MoveMapFile.Reach(r1, 128, 70, 14) || !MoveMapFile.Reach(r1, 128, 70, 13);   // a grade fecha a borda
+        // ponte alta: em cima vale o tabuleiro (delta 3) de ponta a ponta; o chão encostado nela fecha; mais longe, livre;
+        // nas pontas a rampa começa no chão e nada fecha
+        bool highDeck = Enumerable.Range(61, 18).All(x => MoveMapFile.Reach(r1, 128, x, 62) && di is not null && MathF.Abs(di.Get(x, 62) - 3f) < 0.1f);
+        bool sideShut = !MoveMapFile.Reach(r1, 128, 70, 59) && !MoveMapFile.Reach(r1, 128, 70, 64) && MoveMapFile.Reach(r1, 128, 70, 56) && MoveMapFile.Reach(r1, 128, 70, 67);
+        bool endsOpen = MoveMapFile.Reach(r1, 128, 49, 62) && MoveMapFile.Reach(r1, 128, 91, 62) && MoveMapFile.Reach(r1, 128, 51, 62);
+        r.Check("malha-ponte-alta", highDeck && sideShut && endsOpen,
+            $"tabuleiro 3 m andável com delta 3 de ponta a ponta={highDeck} (meio: {MoveMapFile.Reach(r1, 128, 70, 62)} delta {di?.Get(70, 62):0.00}); chão encostado fechado={sideShut}; pontas abertas={endsOpen}");
         var (r2, d2, _) = MoveMapFile.UpdateWithFloors(r1, d1, 0, 0, rects, flat, none, none, m, new MeshObstacles());
         var di2 = d2 is null ? null : new MoveMapFile.DeltaImage(d2);
         bool back = MoveMapFile.Reach(r2, 128, 25, 40) && MoveMapFile.Reach(r2, 128, 70, 12) && (di2?.Get(70, 12) ?? 0) == 0;
@@ -560,6 +575,46 @@ public static class ObjectsSelfTest
             res.Add($"{(solid ? "sólida" : "sem colisão")} {Path.GetFileName(src.Key)} caixa {mx.X - mn.X:0}x{mx.Y - mn.Y:0}x{mx.Z - mn.Z:0} {why}: fechados embaixo {closedB}->{closedA} de {cells}; rmap no plano={plan.Files.ContainsKey(rp)}; resumo \"{string.Join(" / ", plan.Summary)}\"");
         }
         r.Check("copia-bloqueia", allOk, string.Join(" | ", res));
+    }
+
+    /// <summary>
+    /// Ponte de verdade (a litmodel_680 do world, a que o usuário usou em 09/11) copiada para chão aberto: em nenhum metro com
+    /// tabuleiro acima o monstro anda no chão por baixo (afundava), e a maior parte do tabuleiro anda na altura dele.
+    /// </summary>
+    static void RealBridge(Report r, string element, string? config)
+    {
+        const string key = @"litmodels\world\37\litmodel_680.bmd";
+        if (config is null || !File.Exists(Path.Combine(config, "world", "movemap", "38.rmap"))) return;
+        var world = Sources(element, "world", config);
+        var t = TerrainFile.Open(Path.Combine(element, "maps", "world"))!;
+        var src = DraftOf(world, 37).Pieces.Values.SelectMany(p => p.Objects).FirstOrDefault(o => o.Source.Equals(key, StringComparison.OrdinalIgnoreCase));
+        if (src is null) return;
+        float pm = t.CellsPerPiece * t.Cell; int piece = 38, pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols;
+        float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm;
+        var rp = Path.Combine(config, "world", "movemap", "38.rmap"); var dp = Path.ChangeExtension(rp, ".dhmap");
+        var at = new Vector3(1050, t.HeightAt(1050, 1086) ?? 0, 1086);
+        var cp = new DraftObject { Key = "new:rb", Kind = ObjKind.Building, Piece = piece, Source = src.Key, CopyOf = src.Key, Solid = src.Solid, LocalBox = src.LocalBox, Original = src.Original with { Pos = at } };
+        var dd = DraftOf(world, 38);
+        string? why = dd.Apply(new AddOp(cp.Key, cp));
+        var plan = DraftSaver.Plan(dd, world);
+        var rm = plan.Files.GetValueOrDefault(rp) ?? File.ReadAllBytes(rp); var dh = new MoveMapFile.DeltaImage(plan.Files.GetValueOrDefault(dp) ?? File.ReadAllBytes(dp));
+        var (w, _, iw, ih, _) = MoveMapFile.Header(rm);
+        var mesh = new MeshObstacles(); mesh.AddBuilding(DraftSaver.ReadBmd(world, src.Key), cp.Now);
+        var (mn, mx) = DraftChecks.WorldBox(cp);
+        int deck = 0, ok = 0, under = 0, underHigh = 0;
+        for (int v = (int)MathF.Floor(mn.Z - pzS); v <= (int)MathF.Floor(mx.Z - pzS); v++)
+            for (int u = (int)MathF.Floor(mn.X - px0); u <= (int)MathF.Floor(mx.X - px0); u++)
+            {
+                if (u < 0 || v < 0 || u >= iw || v >= ih) continue;
+                float cx = px0 + u + 0.5f, cz = pzS + v + 0.5f, g = t.HeightAt(cx, cz) ?? 0;
+                if (mesh.FloorBelow(cx, cz, g + 60, g + 1.5f) is not float fl) continue;
+                deck++;
+                bool walk = MoveMapFile.Reach(rm, w, u, v); float de = dh.Get(u, v);
+                if (walk && MathF.Abs(de - (fl - g)) < 1.2f) ok++;
+                else if (walk && de < 0.3f) { if (fl - g < 2.5f) under++; else underHigh++; }   // baixo = o corpo entraria no tabuleiro
+            }
+        r.Check("ponte-real", why is null && deck > 100 && under == 0 && ok * 2 > deck,
+            $"{Path.GetFileName(key)}: tabuleiro em {deck} metros; anda na altura dele em {ok}; anda no chão com o tabuleiro baixo (afunda) em {under}; passa por baixo de tabuleiro alto (mais de 2,5 m, sem encostar) em {underHigh}");
     }
 
     /// <summary>.dhmap: subir o chão embaixo de um piso (ponte/muralha) diminui o delta na mesma medida; resto igual.</summary>

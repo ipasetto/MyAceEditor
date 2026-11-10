@@ -186,8 +186,9 @@ public sealed class BmdModel
 
     /// <summary>
     /// Arestas dos brushes de colisão (para desenhar "Ver colisão"): cada brush é a interseção dos semiespaços n·x &lt;= dist
-    /// dos lados; os cantos são os pontos onde 3 lados se cruzam dentro de todos, e uma aresta liga dois cantos que dividem 2
-    /// lados. Coordenadas do mundo do arquivo. Brush estranho (muitos lados ou sem cantos) fica de fora.
+    /// dos lados; cada lado vira uma face recortando um quadrado grande no plano dele pelos outros lados (custo n² por
+    /// brush, até 512 lados: as pedras grandes têm peças com mais de 64 lados que antes ficavam de fora; usuário 09/11).
+    /// Coordenadas do mundo do arquivo.
     /// </summary>
     public static List<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> BrushEdges(byte[] d)
     {
@@ -196,34 +197,51 @@ public sealed class BmdModel
         foreach (int at in all)
         {
             int n = BitConverter.ToInt32(d, at + 52);
-            if (n > 64) continue;
+            var mn = new System.Numerics.Vector3(BitConverter.ToSingle(d, at + 24), BitConverter.ToSingle(d, at + 28), BitConverter.ToSingle(d, at + 32));
+            var mx = new System.Numerics.Vector3(BitConverter.ToSingle(d, at + 36), BitConverter.ToSingle(d, at + 40), BitConverter.ToSingle(d, at + 44));
+            float big = MathF.Max(1, (mx - mn).Length() * 2);
+            var center = (mn + mx) / 2;
             var pl = new (System.Numerics.Vector3 N, float D)[n];
             for (int k = 0; k < n; k++)
             {
                 int p = at + 56 + 17 * k;
                 pl[k] = (new(BitConverter.ToSingle(d, p), BitConverter.ToSingle(d, p + 4), BitConverter.ToSingle(d, p + 8)), BitConverter.ToSingle(d, p + 12));
             }
-            var corners = new List<(System.Numerics.Vector3 P, List<int> Planes)>();
-            for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) for (int k = j + 1; k < n; k++)
+            for (int i = 0; i < n; i++)
+            {
+                var nn = pl[i].N; float len = nn.Length(); if (len < 1e-6f) continue;
+                nn /= len; float dd = pl[i].D / len;
+                // quadrado no plano, centrado na projeção do centro da caixa
+                var o = center - nn * (System.Numerics.Vector3.Dot(nn, center) - dd);
+                var t1 = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(nn, MathF.Abs(nn.Y) < 0.9f ? System.Numerics.Vector3.UnitY : System.Numerics.Vector3.UnitX));
+                var t2 = System.Numerics.Vector3.Cross(nn, t1);
+                var poly = new List<System.Numerics.Vector3> { o + (t1 + t2) * big, o + (t2 - t1) * big, o - (t1 + t2) * big, o + (t1 - t2) * big };
+                for (int j = 0; j < n && poly.Count > 0; j++)
+                {
+                    if (j == i) continue;
+                    var (pn, pd) = pl[j];
+                    var next = new List<System.Numerics.Vector3>(poly.Count + 1);
+                    for (int e = 0; e < poly.Count; e++)
                     {
-                        var (a, b, c) = (pl[i].N, pl[j].N, pl[k].N);
-                        var bc = System.Numerics.Vector3.Cross(b, c);
-                        float det = System.Numerics.Vector3.Dot(a, bc);
-                        if (MathF.Abs(det) < 1e-6f) continue;
-                        var x = (pl[i].D * bc + pl[j].D * System.Numerics.Vector3.Cross(c, a) + pl[k].D * System.Numerics.Vector3.Cross(a, b)) / det;
-                        bool inside = true;
-                        for (int m = 0; m < n && inside; m++) if (System.Numerics.Vector3.Dot(pl[m].N, x) - pl[m].D > 0.01f) inside = false;
-                        if (!inside || float.IsNaN(x.X)) continue;
-                        if (corners.FirstOrDefault(q => System.Numerics.Vector3.DistanceSquared(q.P, x) < 1e-4f) is { Planes: not null } same)
-                        { foreach (int q in new[] { i, j, k }) if (!same.Planes.Contains(q)) same.Planes.Add(q); }
-                        else corners.Add((x, new List<int> { i, j, k }));
+                        var a = poly[e]; var b = poly[(e + 1) % poly.Count];
+                        float da = System.Numerics.Vector3.Dot(pn, a) - pd, db = System.Numerics.Vector3.Dot(pn, b) - pd;
+                        if (da <= 1e-4f) next.Add(a);
+                        if ((da <= 1e-4f) != (db <= 1e-4f)) next.Add(a + (b - a) * (da / (da - db)));
                     }
-            for (int i = 0; i < corners.Count; i++)
-                for (int j = i + 1; j < corners.Count; j++)
-                    if (corners[i].Planes.Count(corners[j].Planes.Contains) >= 2) r.Add((corners[i].P, corners[j].P));
+                    poly = next;
+                }
+                for (int e = 0; e < poly.Count; e++)
+                {
+                    var a = poly[e]; var b = poly[(e + 1) % poly.Count];
+                    if (System.Numerics.Vector3.DistanceSquared(a, b) > 1e-6f) r.Add((a, b));
+                }
+            }
         }
         return r;
     }
+
+    /// <summary>Quantos brushes de colisão o .bmd tem (teste do desenho: todos aparecem).</summary>
+    public static int BrushCount(byte[] d) => CdBrushes(d)?.Count ?? 0;
 
     static List<int>? TryBrushes(byte[] d, int o, int n)
     {

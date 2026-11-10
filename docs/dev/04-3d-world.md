@@ -71,7 +71,9 @@ When buildings move, appear or disappear, `DraftChecks.BuildingEffects` rebuilds
   flood fill from walkable neighbours, 1 m step, a vertical ray finds the floor, a body of 0.45 m checks walls).
   Besides the brushes, the **mesh** of the edited buildings counts (`MeshObstacles`): a triangle in the body band
   (floor + 0.5 to + 1.8 m) is a wall, a lying triangle is a floor — so a bridge without brushes is still walked on and
-  its rails still block;
+  its rails still block. The server keeps ONE floor per metre: when a metre can be reached on two floors (the ground
+  under a bridge and the deck), the higher one wins, and a ground metre touching a floor more than 1 m above is closed
+  (the server does not check steps between metres and would pop the monster up);
 - `airmap\N.octr` — flight space (`OctreeFile.Refresh`: a 4 m cube touching a brush becomes a border cube).
 
 Trees have no collision brushes in 1.5.5, but the original `.rmap` has a closed circle around each trunk; copied or
