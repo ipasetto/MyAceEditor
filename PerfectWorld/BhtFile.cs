@@ -20,6 +20,14 @@ public sealed class BhtFile
 
     public BhtFile(byte[] data) : this(data, clone: true) { }
 
+    /// <summary>map.bht sem nenhum brush (mapa sem colisão no servidor): a passagem usa só a malha.</summary>
+    public static BhtFile Empty()
+    {
+        var b = new List<byte>(); b.AddRange(BitConverter.GetBytes(Magic)); b.AddRange(BitConverter.GetBytes(1)); b.AddRange(BitConverter.GetBytes(0));
+        b.AddRange(new byte[17]); b.Add(1);   // um nó folha
+        return new BhtFile([.. b], clone: false);
+    }
+
     /// <summary>clone: false usa o vetor direto (só leitura; map.bht do world tem ~195 MB, evita mais uma cópia).</summary>
     public BhtFile(byte[] data, bool clone)
     {

@@ -249,7 +249,7 @@ internal sealed partial class WorldView : Form
             }
             // setas do objeto escolhido (ferramenta Objetos do mundo) e, depois, setas / anel do ponto selecionado
             if (e.Button == MouseButtons.Left && ObjGizmoHit(e.Location) is > 0 and var oax && SelDraft is { } og)
-            { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; if (oax == 4) StartTurn(e.Location); else if (oax >= 5) StartScale(e.Location); return; }
+            { _objAxis = oax; _objStart = CenterOf(og); _objDown = e.Location; _objPos = null; if (oax == 4) StartTurn(e.Location); else if (oax >= 5) StartScale(e.Location); else StartMoveDrag(); return; }
             if (e.Button == MouseButtons.Left && _tool != Tool.Scene && GizmoHit(e.Location) is > 0 and var ax && SelectedMark() is { } gm)
             {
                 _gizmoAxis = ax; _gizmoTag = gm.Tag; _gizmoStart = PosOf(gm); _gizmoDown = e.Location; _gizmoPos = null; _gizmoYaw = null; _gizmoSize = null;
@@ -384,6 +384,7 @@ internal sealed partial class WorldView : Form
         InitSceneEdit();
         BackupSets.Restored += OnBackupRestored;
         InitInfoCard();
+        InitSaveUndo();
         InitToolMenu();    // menu flutuante de ferramentas por último: usa a grama e os outros desenhos já criados
         // backup do Mundo 3D: um conjunto por vez que a janela abre (BackupSets.Session)
         if (!Headless) BackupSets.Session = DateTime.Now;
@@ -2102,6 +2103,7 @@ internal sealed partial class WorldView : Form
         if (GrassUndo(redo: false)) return true;   // pincel ligado ou a última ação foi uma pincelada
         if (ObjectUndo(redo: false)) return true;  // objetos do mundo (rascunho) só se foi a última ação
         if (SceneUndo(redo: false)) return true;   // cenário só se foi a última ação
+        if (SaveUndoStep(redo: false)) return true;   // nada mais na Edição de Mundo: desfaz o último Salvar inteiro (pergunta)
         if (PathUndo(redo: false)) return true;    // caminhos idem
         if (TeleportUndo(redo: false)) return true;   // pontos de teleporte idem
         if (_qUndo.Count > 0 && _qUndo[^1] == (UndoDepth?.Invoke() ?? 0) && _host?.Undo() == true)
@@ -2125,6 +2127,7 @@ internal sealed partial class WorldView : Form
         if (GrassUndo(redo: true)) return true;
         if (ObjectUndo(redo: true)) return true;
         if (SceneUndo(redo: true)) return true;
+        if (SaveUndoStep(redo: true)) return true;
         if (PathUndo(redo: true)) return true;
         if (TeleportUndo(redo: true)) return true;
         if (_qRedo.Count > 0 && _qRedo[^1] == (RedoDepth?.Invoke() ?? 0) && _host?.Redo() == true)

@@ -368,7 +368,7 @@ public static class DraftSaver
             var mine0 = cd0.Select(a => BhtFile.KeyAt(b0, a)).ToList();
             if (mine0.Count > 0)
             {
-                if (bht is null && src.BhtPath is { } bp) { bht = new BhtFile(File.ReadAllBytes(bp)); keys = bht.Keys(); }
+                if (bht is null && src.BhtPath is { } bp) { bhtOrig = File.ReadAllBytes(bp); bht = new BhtFile(bhtOrig); keys = bht.Keys(); }   // guarda o de antes: a passagem compara velho × novo
                 var srcKeys = keys;
                 if (otherMap)
                 {
@@ -426,14 +426,23 @@ public static class DraftSaver
         {
             var bb = drop.Count > 0 ? bht.Without(drop) : bht.Write();
             if (newBrushes.Count > 0) bb = new BhtFile(bb).With(newBrushes);
-            var nbht = new BhtFile(bb);   // relê: formato inteiro ainda certo
+            _ = new BhtFile(bb);   // relê: formato inteiro ainda certo
             plan.Files[src.BhtPath!] = bb;
-            // passagem dos NPCs e sombra do chão no lugar antigo e no novo das construções mexidas (colisão velha × nova)
-            if (bhtOrig is not null)
-                try { DraftChecks.BuildingEffects(plan, src, changed.Concat(added).Where(o => o.Kind == ObjKind.Building).ToList(), new BhtFile(bhtOrig, clone: false), nbht); }
-                catch (Exception ex) when (ex is not OutOfMemoryException)
-                { AppLog.Error("objetos: passagem/sombra das construções", ex); plan.Summary.Add(Loc.T("obj.effectsFail", "A passagem dos NPCs e a sombra do chão não foram refeitas (veja o log); as construções gravam assim mesmo.")); }
         }
+        // passagem dos monstros (.rmap/.dhmap) e voo (.octr) no lugar antigo e no novo de TODA construção posta, mexida ou
+        // apagada, com ou sem colisão própria (usuário 09/11: as cópias e as sem brush não refaziam a passagem e os monstros
+        // atravessavam a pedra e a ponte; antes só rodava com o map.bht mudado e o de antes guardado)
+        var bldFx = changed.Concat(added).Where(o => o.Kind == ObjKind.Building).ToList();
+        if (bldFx.Count > 0 && src.ServerConfigDir is not null)
+            try
+            {
+                var oldB = bhtOrig is not null ? new BhtFile(bhtOrig, clone: false)
+                    : src.BhtPath is { } bp0 && File.Exists(bp0) ? new BhtFile(File.ReadAllBytes(bp0)) : BhtFile.Empty();
+                var newB = src.BhtPath is { } bp1 && plan.Files.TryGetValue(bp1, out var nbb) ? new BhtFile(nbb) : oldB;
+                DraftChecks.BuildingEffects(plan, src, bldFx, oldB, newB);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            { AppLog.Error("objetos: passagem das construções", ex); plan.Summary.Add(Loc.T("obj.effectsFail2", "A passagem dos monstros em volta das construções não foi refeita (veja o log); as construções gravam assim mesmo.")); }
         // árvores na passagem dos monstros: a copiada/movida fecha o círculo dela, a apagada reabre (estudo 09/11)
         if ((treeEdits.Count > 0 || treeNew.Count > 0) && src.ServerConfigDir is not null)
             try { DraftChecks.TreeEffects(plan, src, treeEdits, treeNew, ecwldBase ?? File.ReadAllBytes(src.EcwldPath), bht); }

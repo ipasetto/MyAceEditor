@@ -35,6 +35,7 @@ The name runs a scenario before the picture:
 | `dftworld` | World editing: stroke on Terrain, switch to Objects, move a building, undo order, abandon |
 | `dftlight` | Shadow and light brush: darker day and night, undo/redo, eraser, keys, only touched blocks in the save plan, eyedropper picks a shadow, painting kept after a day/night switch |
 | `dftdrop` | Eyedroppers of grass and texture |
+| `dftundosave` | Ctrl+Z after a Save brings back the files written by that Save, Ctrl+Y writes them again, "No" changes nothing (temporary file only) |
 | `dftinfo` | Info card appears with a selection and disappears without; Show collision of the selected building |
 | `dftlayout` | Cut-text check of every control (run with `MYACE_LANG`) |
 | `dfttex`, `dftgrass`, `dftcard`, `dftpaste`, `dftmove`, `dftcat`, `dfttree` | Terrain, grass, object card, paste, move, catalogue, trees |
@@ -46,6 +47,7 @@ It also saves `window-*.png` pictures of each tool panel and runs the Esc checks
 | Command | Picture |
 |---|---|
 | `--snapshot <out.png> [tab] [block id]` | The main window, off screen, with the last folder |
+| `--copy-block-test <element> <config> <out file>` | Not a picture: copies a building to open ground in the world and reports how many metres under it the save plan closes in the `.rmap` |
 | `--click-test <out folder>` | Not a picture: opens the 3D World from the editor (with creatures) and clicks a creature with no tool, in Paths and in NPCs and monsters; `click-test.txt` says what got selected |
 | `--readme-shots <out folder>` | All README pictures: every tab and every 3D World tool with something selected (the 3D window is on screen while it runs) |
 | `--gm-shot`, `--prefs-shot`, `--wq-shot` | GM panel, preferences, quest panel |

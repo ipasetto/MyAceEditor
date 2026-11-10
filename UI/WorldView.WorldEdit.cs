@@ -76,6 +76,7 @@ internal sealed partial class WorldView
     {
         bool obj = SceneDirty, ter = TerrainDirty;
         _objSaveThen = null;
+        BeginSaveStep();   // o que este Salvar gravar vira um passo do Ctrl+Z do Salvar (WorldView.SaveUndo.cs)
         if (!obj && !ter) { _status.Text = Loc.T("obj.nothing", "Nada para salvar."); return false; }
         if (!obj) return SaveTerrain(interactive: interactive);
         bool chained = false, chainOk = true;

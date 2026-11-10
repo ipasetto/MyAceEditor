@@ -88,7 +88,23 @@ internal sealed class WorldTrees : IDisposable
     public bool Reload()
     {
         if (_ecwld is null) return false;
-        try { _scene = new WorldScene(_ecwld); Index(); return true; }
+        try
+        {
+            var before = _scene?.TreeTypes.ToList();
+            _scene = new WorldScene(_ecwld); Index();
+            // tipo cujo número passou a ser outra árvore (a prévia da JAV acrescenta tipos numa ordem e o Salvar grava só os
+            // plantados, em outra): o desenho guardado daquele número sai e é refeito (usuário 09/11: "plantei um modelo e
+            // ficou outro")
+            var now = _scene.TreeTypes;
+            foreach (int type in _kinds.Keys.ToList())
+            {
+                bool same = before is not null && type < before.Count && type < now.Count
+                    && before[type].Spt.Equals(now[type].Spt, StringComparison.OrdinalIgnoreCase)
+                    && before[type].CompositeMap.Equals(now[type].CompositeMap, StringComparison.OrdinalIgnoreCase);
+                if (!same) ForgetKind(type);
+            }
+            return true;
+        }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("árvores: reler o .ecwld", ex); return false; }
     }
 
@@ -451,6 +467,18 @@ internal sealed class WorldTrees : IDisposable
     {
         ClearKinds();
         _pck?.Dispose();
+    }
+
+    /// <summary>Tira o desenho guardado de um tipo (buffers e texturas no OpenGL); o próximo desenho gera de novo.</summary>
+    void ForgetKind(int type)
+    {
+        if (!_kinds.TryGetValue(type, out var k)) return;
+        _kinds.Remove(type);
+        foreach (var p in new[] { k?.Wood, k?.Fronds, k?.Leaves })
+            if (p is not null) { GL.DeleteBuffer(p.Vbo); GL.DeleteBuffer(p.Ibo); }
+        if (k?.Wood is { Tex: not 0 } w) GL.DeleteTexture(w.Tex);
+        var comp = k?.Leaves?.Tex ?? k?.Fronds?.Tex ?? 0;
+        if (comp != 0) GL.DeleteTexture(comp);
     }
 
     void ClearKinds()

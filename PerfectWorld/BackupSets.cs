@@ -42,8 +42,15 @@ public static class BackupSets
     static readonly HashSet<string> SessionTools = new(StringComparer.Ordinal) { "objects", "terrain", "scene" };
 
     /// <summary>Grava o conjunto; null = não deu (o Salvar já foi feito, só não haverá o item único no menu).</summary>
+    /// <summary>
+    /// Um Salvar gravou seu conjunto (o de verdade, antes de juntar na sessão): o Mundo 3D guarda para o Ctrl+Z do Salvar.
+    /// Pode vir de outra thread.
+    /// </summary>
+    public static event Action<BackupSet>? Saved;
+
     public static string? Save(BackupSet set)
     {
+        try { Saved?.Invoke(set); } catch (Exception ex) { AppLog.Error("backup: aviso do conjunto gravado", ex); }
         if (Session is { } started && SessionTools.Contains(set.Tool)) return SaveInSession(set, started);
         try
         {
@@ -84,6 +91,31 @@ public static class BackupSets
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or JsonException)
         {
             AppLog.Error("backup: gravar o conjunto da sessão do Mundo 3D", ex);
+            return null;
+        }
+    }
+
+    /// <summary>Cópias do estado ATUAL dos arquivos do conjunto (e do cabeçalho do pacote): o passo contrário. null = não deu.</summary>
+    public static BackupSet? Snapshot(BackupSet like)
+    {
+        try
+        {
+            var files = new List<BackupSetEntry>();
+            foreach (var f in like.Files)
+                if (BackupStore.Save(f.Original) is { } copy) files.Add(new BackupSetEntry(f.Original, copy));
+                else return null;   // arquivo sumiu: não dá para garantir a volta
+            string? head = null;
+            if (like.PckMain is { } main && File.Exists(main))
+            {
+                using var fs = new FileStream(main, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var h = new byte[4]; fs.Position = 4; fs.ReadExactly(h);
+                head = Convert.ToHexString(h);
+            }
+            return like with { When = DateTime.Now, Files = files, PckHeader = head ?? like.PckHeader };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Error("desfazer o Salvar: cópia do estado atual", ex);
             return null;
         }
     }

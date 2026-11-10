@@ -22,8 +22,6 @@ internal sealed class WorldQuestPanel : Panel
     readonly Label _givesTitle = Caption(), _takesTitle = Caption();
     readonly ListView _gives = List(), _takes = List();
     readonly ToolTip _tip = new();
-    readonly System.Windows.Forms.Timer _anim = new() { Interval = 12 };
-    int _target;
     bool _minimized;
     NpcQuestInfo? _info;
 
@@ -86,13 +84,7 @@ internal sealed class WorldQuestPanel : Panel
             lv.SelectedIndexChanged += (_, _) => { if (lv.SelectedItems.Count > 0) (lv == _gives ? _takes : _gives).SelectedItems.Clear(); UpdateActions(); };
             lv.Resize += (_, _) => { if (lv.Columns.Count == 3) lv.Columns[1].Width = Math.Max(120, lv.ClientSize.Width - lv.Columns[0].Width - lv.Columns[2].Width - 4); };
         }
-        _anim.Tick += (_, _) =>
-        {
-            int step = Math.Max(8, Math.Abs(_target - Height) / 3);
-            Height = _target > Height ? Math.Min(_target, Height + step) : Math.Max(_target, Height - step);
-            if (Height == _target) { _anim.Stop(); if (_target == 0) Visible = false; }
-        };
-        Disposed += (_, _) => { _anim.Dispose(); _tip.Dispose(); };
+        Disposed += (_, _) => { _tip.Dispose(); };
         ApplyText();
     }
 
@@ -197,5 +189,11 @@ internal sealed class WorldQuestPanel : Panel
 
     public void HidePanel() { _info = null; Animate(0); }
 
-    void Animate(int target) { _target = target; _anim.Start(); }
+    /// <summary>Muda a altura de uma vez (subir aos poucos tremia: cada passo redimensionava a cena 3D; usuário 09/11).</summary>
+    void Animate(int target)
+    {
+        if (target == 0) { if (Visible) { Height = 0; Visible = false; } return; }
+        if (Height != target) Height = target;
+        if (!Visible) Visible = true;
+    }
 }

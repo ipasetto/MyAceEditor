@@ -26,7 +26,7 @@ internal sealed partial class WorldView
     readonly Panel _objPanel = new() { Width = 225, Height = 250, BackColor = Color.FromArgb(28, 32, 38), Visible = false, Padding = new Padding(4) };
     readonly Label _objTitle = new() { AutoSize = false, Height = 96, Dock = DockStyle.Top, ForeColor = Color.White, Font = new Font("Segoe UI", 8.5f) };
     readonly NumericUpDown[] _objXYZ = Enumerable.Range(0, 3).Select(_ => new NumericUpDown { Minimum = -100000, Maximum = 100000, DecimalPlaces = 1, Width = 64, Increment = 0.5m }).ToArray();
-    Button? _objCloneBtn, _objDeleteBtn, _objSeatBtn, _objNameBtn;
+    Button? _objCloneBtn, _objDeleteBtn, _objSeatBtn;
     bool _objBinding;
 
     WorldScene? ObjScene => _objScene ?? _trees.Scene;
@@ -145,8 +145,8 @@ internal sealed partial class WorldView
         _objDeleteBtn = B("world.objDelete", "Apagar", "", DeleteSceneObject);
         _objSeatBtn = B("obj.seat", "Assentar no chão", "", SeatSelected);
         _toolTip.SetToolTip(_objSeatBtn, Loc.T("obj.seatTip", "Desce (ou sobe) o objeto até a base inteira encostar no chão: nenhuma ponta fica flutuando."));
-        _objNameBtn = B("names.button", "Dar nome", "\uE8AC", RenameSelected);
-        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, _objSeatBtn, _objNameBtn });
+        // renomear fica só na JAV (F2), como o usuário pediu em 09/11; o cartão não tem botão de nome
+        bar.Controls.AddRange(new Control[] { _objCloneBtn, _objDeleteBtn, _objSeatBtn });
         var note = new Label { Dock = DockStyle.Top, Height = 60, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f),
             Text = Loc.T("world.objNote4", "Efeitos, sons e bichos: só no cliente. Construções: Salvar grava o cliente (litmodels.pck) e a colisão do servidor (map.bht).") };
         _objPanel.Controls.Add(note); _objPanel.Controls.Add(bar); InitObjectCard(); _objPanel.Controls.Add(grid); _objPanel.Controls.Add(ObjModeRow()); _objPanel.Controls.Add(_objTitle);
@@ -204,7 +204,6 @@ internal sealed partial class WorldView
         if (SelDraft is { } sz) _objScale.Value = (decimal)Math.Clamp(MathF.Round(sz.Now.Scale, 2), 0.1f, 10f);
         if (_objCloneBtn is not null) _objCloneBtn.Visible = false;
         if (_objCloneBtn is not null) _objCloneBtn.Enabled = !critter && !drafted && _sceneSel is not BuildingSel;
-        if (_objNameBtn is not null) _objNameBtn.Visible = SelDraft is { Kind: ObjKind.Building, Deleted: false };
         if (_objSeatBtn is not null) _objSeatBtn.Visible = SelDraft is { Kind: ObjKind.Building or ObjKind.Model, Deleted: false, ReadOnlyWhy: null };
         if (_objDeleteBtn is not null) _objDeleteBtn.Enabled = drafted ? SelDraft is { ReadOnlyWhy: null, Deleted: false } : !critter && _sceneSel is not BuildingSel;
         _objBinding = false;

@@ -117,10 +117,27 @@ internal sealed partial class WorldView
             _sceneSel = new BuildingSel(solid.Key, new OpenTK.Mathematics.Vector3(solid.Now.Pos.X, solid.Now.Pos.Y, -solid.Now.Pos.Z));
             _showCollision.Checked = true; ShowObjPanel();
             int segs = SelDraft is { } sd ? SelCollision(sd).Count : -1;
-            r.Add($"ver colisão: {Path.GetFileName(solid.Key)} {segs} arestas, barra \"{_status.Text}\"");
+            r.Add($"ver colisão: {Path.GetFileName(solid.Key)} {segs} arestas, barra \"{_status.Text}\"; caixa à vista={_showCollision.Visible && _showCollision.Parent?.ClientRectangle.Contains(_showCollision.Bounds) == true}");
+            try
+            {
+                using var bmp = new Bitmap(_tools.Width, _tools.Height);
+                _tools.DrawToBitmap(bmp, new Rectangle(0, 0, _tools.Width, _tools.Height));
+                bmp.Save(Path.Combine(_shotDir ?? Path.GetTempPath(), "window-object-card.png"));
+            }
+            catch (Exception ex) when (ex is IOException or ArgumentException or System.Runtime.InteropServices.ExternalException) { AppLog.Error("dftinfo: foto do painel", ex); }
             _showCollision.Checked = false;
         }
         _sceneSel = null; ShowObjPanel(); r.Add($"tirou a escolha: visível={_info.Visible}");
+        // JAV de árvores: a mesma contagem depois de prévias de outros mapas e de reler o mapa (como depois de salvar); um
+        // tipo cujo número mudou não fica com o desenho antigo
+        if (TreeRows() is { } rows0)
+        {
+            foreach (var row in rows0.Skip(_trees.Scene!.TreeTypes.Count).Take(6)) { int ty = _trees.TypeFor(row.Spt, row.Comp); _trees.Prepare(ty); }
+            int mid = TreeRows()!.Count;
+            _trees.Reload();
+            int after = TreeRows()!.Count;
+            r.Add($"JAV árvores: {rows0.Count} -> {mid} (prévias) -> {after} (relido) iguais={rows0.Count == mid && mid == after}");
+        }
         SwitchWorldPill(Tool.Terrain);
         if (_t.TextureNames.Count > 0) { _texSel = 0; TexLabels(); r.Add($"textura: visível={_info.Visible} \"{_info.Text}\""); }
         return load + " | dftinfo: " + string.Join("; ", r);

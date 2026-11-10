@@ -396,6 +396,7 @@ internal static class Program
             File.WriteAllText(args[2], $"quests {total}, assistente completo {strict}, abrem agora {opened}, sem mudar nada igual {noChange}, só o ouro muda {onlyGold}, volta igual {back}\n{first}\n");
             return;
         }
+        if (args.Length >= 4 && args[0] == "--copy-block-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.RunCopyBlocks(args[1], args[2], args[3]); Environment.Exit(0); }   // <element> <config> <saída>: construção copiada fecha o .rmap embaixo?
         if (args.Length >= 4 && args[0] == "--objects-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.Run(args[1], args[2], args[3]); Environment.Exit(Environment.ExitCode); }   // <element> <config> <saída>: objetos do mundo sem janela
         if (args.Length >= 4 && args[0] == "--zone-test") { ZoneSelfTest.Run(args[1], args[2], args[3]); return; }   // <maps> <config> <saída>: editor de zonas sem janela
         if (args.Length >= 3 && args[0] == "--quest-preview-shot")   // <png> <pasta element>: janela de quests do jogo com dados de exemplo
@@ -1496,6 +1497,7 @@ internal static class Program
             else if (c.Name?.StartsWith("dftlayout") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.LayoutCheck() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftfix") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftFixTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftcard") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.DraftCardTest(outDir) + Environment.NewLine);
+            else if (c.Name?.StartsWith("dftundosave") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.SaveUndoTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftinfo") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.InfoCardTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftlight") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.LightBrushTest() + Environment.NewLine);
             else if (c.Name?.StartsWith("dftworld") == true) File.AppendAllText(Path.Combine(outDir, "world-shot.txt"), w.WorldEditTest() + Environment.NewLine);

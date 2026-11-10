@@ -21,6 +21,14 @@ public static class ObjectsSelfTest
 
     static readonly string[] StudyMaps = ["world", "a05", "a26"];
 
+    /// <summary>Só o teste da construção copiada (rápido, para investigar a passagem).</summary>
+    public static void RunCopyBlocks(string element, string? config, string output)
+    {
+        var lines = new List<string>();
+        try { CopiedBlocks(new Report(lines), element, config); } catch (Exception ex) { lines.Add("ERRO " + ex); }
+        File.WriteAllLines(output, lines);
+    }
+
     public static void Run(string element, string? config, string output)
     {
         var lines = new List<string>();
@@ -33,6 +41,8 @@ public static class ObjectsSelfTest
         catch (Exception ex) { r.Check("pisos-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { MeshPassage(r, element); }
         catch (Exception ex) { r.Check("malha-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
+        try { CopiedBlocks(r, element, config); }
+        catch (Exception ex) { r.Check("copia-bloqueia-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { DeltaHeights(r, element, config); }
         catch (Exception ex) { r.Check("dhmap-sem-excecao", false, ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault()); }
         try { NewTexture(r, element); }
@@ -415,6 +425,48 @@ public static class ObjectsSelfTest
         bool reopened = t2.AsSpan().SequenceEqual(rmap);
         r.Check("malha-arvore", withFoot > 0 && closedFoot == big.Foot.Count && reach > 1 && reopened,
             $"tipos com pegada {withFoot} de {feet.Count}; maior: {Path.GetFileName(big.Spt)} até {reach:0.0} m do tronco ({big.Foot.Count} pontos); fechou {closedFoot}/{big.Foot.Count} ({n1} metros); apagada reabriu tudo={reopened} ({n2}); alcance por tipo: {string.Join(", ", feet.Where(f => f.Foot.Count > 0).Select(f => (N: Path.GetFileNameWithoutExtension(f.Spt), R: f.Foot.Max(p => MathF.Sqrt(p.Dx * p.Dx + p.Dz * p.Dz)), A: f.Foot.Count * MeshFootprint.Grid * MeshFootprint.Grid)).OrderByDescending(x => x.R).Take(6).Select(x => $"{x.N} {x.R:0.0}m/{x.A:0}m²"))}");
+    }
+
+    /// <summary>
+    /// Construção COPIADA para chão aberto (usuário 09/11: os monstros atravessavam construções postas): monta o salvar e
+    /// mede, no .rmap do plano, quantos metros embaixo da caixa dela (menos 1 m de borda) ficaram fechados.
+    /// </summary>
+    static void CopiedBlocks(Report r, string element, string? config)
+    {
+        if (config is null || !File.Exists(Path.Combine(config, "world", "movemap", "38.rmap"))) return;
+        var world = Sources(element, "world", config);
+        var t = TerrainFile.Open(Path.Combine(element, "maps", "world"))!;
+        var d = DraftOf(world, 38);
+        var res = new List<string>(); bool allOk = true;
+        int piece = 38; float pm = t.CellsPerPiece * t.Cell;
+        int pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols;
+        float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm;
+        var rp = Path.Combine(config, "world", "movemap", "38.rmap");
+        var orig = File.ReadAllBytes(rp);
+        var cands = d.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Building && o.ReadOnlyWhy is null && o.LocalBox is { } lb && lb.Max.X - lb.Min.X >= 6 && lb.Max.Z - lb.Min.Z >= 6 && lb.Max.Y - lb.Min.Y >= 2.5f).ToList();
+        foreach (bool solid in new[] { true, false })
+        {
+            var src = cands.FirstOrDefault(o => o.Solid == solid);
+            if (src is null) { res.Add((solid ? "sólida" : "sem colisão") + ": nenhuma"); continue; }
+            var at = new Vector3(1050, t.HeightAt(1050, 1086) ?? 0, 1086);
+            var cp = new DraftObject { Key = "new:cb" + solid, Kind = ObjKind.Building, Piece = piece, Source = src.Key, CopyOf = src.Key, Solid = src.Solid, LocalBox = src.LocalBox, Original = src.Original with { Pos = at } };
+            var dd = DraftOf(world, 38);
+            string? why = dd.Apply(new AddOp(cp.Key, cp));
+            var plan = DraftSaver.Plan(dd, world);
+            var data = plan.Files.GetValueOrDefault(rp) ?? orig;
+            var (mn, mx) = DraftChecks.WorldBox(cp);
+            int cells = 0, closedB = 0, closedA = 0;
+            var (w, _, _, _, _) = MoveMapFile.Header(orig);
+            for (float x = mn.X + 1; x < mx.X - 1; x += 1)
+                for (float z = mn.Z + 1; z < mx.Z - 1; z += 1)
+                {
+                    int u = (int)MathF.Floor(x - px0), v = (int)MathF.Floor(z - pzS);
+                    cells++; if (!MoveMapFile.Reach(orig, w, u, v)) closedB++; if (!MoveMapFile.Reach(data, w, u, v)) closedA++;
+                }
+            allOk &= why is null && plan.Files.ContainsKey(rp) && closedA > closedB;
+            res.Add($"{(solid ? "sólida" : "sem colisão")} {Path.GetFileName(src.Key)} caixa {mx.X - mn.X:0}x{mx.Y - mn.Y:0}x{mx.Z - mn.Z:0} {why}: fechados embaixo {closedB}->{closedA} de {cells}; rmap no plano={plan.Files.ContainsKey(rp)}; resumo \"{string.Join(" / ", plan.Summary)}\"");
+        }
+        r.Check("copia-bloqueia", allOk, string.Join(" | ", res));
     }
 
     /// <summary>.dhmap: subir o chão embaixo de um piso (ponte/muralha) diminui o delta na mesma medida; resto igual.</summary>

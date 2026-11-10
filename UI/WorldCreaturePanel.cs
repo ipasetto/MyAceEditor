@@ -16,7 +16,6 @@ internal sealed class WorldCreaturePanel : Panel
     readonly Label _title = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11f), AutoEllipsis = true };
     readonly Button _edit, _announce, _close;
     readonly ToolTip _tip = new();
-    readonly System.Windows.Forms.Timer _anim = new() { Interval = 12 };
     readonly ComboBox _group = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210, BackColor = Color.FromArgb(40, 46, 56), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
     readonly NumericUpDown _amount = Num(1, 1000), _respawn = Num(0, 864000), _min = Num(0, 864000), _died = Num(0, 100000);
     readonly Label _respawnText = Value(), _minText = Value(), _diedText = Value(), _walk = Value(), _trigger = Value(), _groupLabel, _questTitle = new() { Dock = DockStyle.Top, Height = 26, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9.5f), TextAlign = ContentAlignment.MiddleLeft };
@@ -32,7 +31,7 @@ internal sealed class WorldCreaturePanel : Panel
     readonly Panel _dropsBox = new() { Dock = DockStyle.Fill, BackColor = Card };
     readonly TableLayoutPanel _sheet;
     Panel _questBox = null!;
-    int _target, _token, _id;
+    int _token, _id;
     bool _filling;
     IReadOnlyList<SpawnRow> _rows = Array.Empty<SpawnRow>();
 
@@ -106,13 +105,7 @@ internal sealed class WorldCreaturePanel : Panel
         Controls.Add(questBox); Controls.Add(sheetBox); Controls.Add(head);
         _group.SelectedIndexChanged += (_, _) => LoadGroup();
         foreach (var n in new[] { _amount, _respawn, _min, _died }) n.ValueChanged += (_, _) => Commit();
-        _anim.Tick += (_, _) =>
-        {
-            int step = Math.Max(8, Math.Abs(_target - Height) / 3);
-            Height = _target > Height ? Math.Min(_target, Height + step) : Math.Max(_target, Height - step);
-            if (Height == _target) { _anim.Stop(); if (_target == 0) Visible = false; }
-        };
-        Disposed += (_, _) => { _anim.Dispose(); _tip.Dispose(); _dropIcons.Dispose(); };
+        Disposed += (_, _) => { _tip.Dispose(); _dropIcons.Dispose(); };
         void Texts()
         {
             _minText.Text = Loc.T("wc.minNote2", "0 = sem sorteio; maior = sorteia o tempo");
@@ -153,8 +146,7 @@ internal sealed class WorldCreaturePanel : Panel
         _pageDrops.Text = Loc.T("wc.pageGives", "O que dá");
         _questBox.Visible = false;
         ShowPage(true);
-        Visible = true; BringToFront();
-        _target = Full; _anim.Start();
+        Open();
     }
 
     public void ShowCreature(int id, string name, IReadOnlyList<SpawnRow> rows, Func<IReadOnlyList<QuestUse>>? quests)
@@ -181,8 +173,7 @@ internal sealed class WorldCreaturePanel : Panel
                 BeginInvoke(() => { if (token == _token) SetQuests(string.Format(Loc.T("wc.questTitle", "Quests que usam ({0}) · duplo clique abre"), t.Result.Count), t.Result, false); });
             }, TaskScheduler.Default);
         }
-        Visible = true; BringToFront();
-        _target = Full; _anim.Start();
+        Open();
     }
 
     /// <summary>Preenche os drops; false = esta criatura não tem (a pílula some e fica a ficha do ponto).</summary>
@@ -272,7 +263,19 @@ internal sealed class WorldCreaturePanel : Panel
         LoadGroup();
     }
 
-    public void HidePanel() { _token++; _id = 0; _target = 0; _anim.Start(); }
+    public void HidePanel() { _token++; _id = 0; if (Visible) { Height = 0; Visible = false; } }
+
+    /// <summary>
+    /// Abre já na altura certa (usuário 09/11: subindo aos poucos ele tremia — cada passo de 12 ms mudava a altura do painel
+    /// preso embaixo e redimensionava a cena 3D inteira).
+    /// </summary>
+    void Open()
+    {
+
+        if (Height != Full) Height = Full;
+        if (!Visible) Visible = true;
+        BringToFront();
+    }
 
     /// <summary>--creature-shot: painel com dados de exemplo, para conferir o layout sem abrir o 3D.</summary>
     internal static Form ShotForm()

@@ -101,7 +101,27 @@ internal sealed partial class WorldView
         bool up = after is { } a && a.File == near.File && MathF.Abs(a.Center.Y - before.Y - 15) < 0.01f;
         bool undo = ObjectUndo(false) && _buildings.Nearest(_cam) is { } b && MathF.Abs(b.Center.Y - before.Y) < 0.01f;
         bool redo = ObjectUndo(true);
-        return load + $" | dftmove: {System.IO.Path.GetFileName(near.File)} recusa={why ?? "nenhuma"} subiu15={up} ctrlz={undo} ctrly={redo} sujo={_draft.Dirty}";
+        // arrasto AO VIVO pela seta X: o objeto anda a cada movimento do mouse e o arrasto inteiro é um passo só de Ctrl+Z
+        string live = "-";
+        _sceneSel = new BuildingSel(o.Key, before); ShowObjPanel();
+        var c0 = CenterOf(o);
+        if (Project(V3(c0)) is { } p0 && Project(V3(c0) + GizmoDirs[0] * GizmoSize(V3(c0))) is { } p1)
+        {
+            int baseUndo = _draft.UndoCount, wBase = _wUndo.Count;
+            _objAxis = 1; _objStart = c0; _objDown = new Point((int)p0.X, (int)p0.Y); _objPos = null; StartMoveDrag();
+            bool stick = _stickGround.Checked; _stickGround.Checked = false;
+            ObjGizmoDrag(new Point((int)(p0.X + (p1.X - p0.X) * 0.5f), (int)(p0.Y + (p1.Y - p0.Y) * 0.5f)));
+            float x1 = o.Now.Pos.X;
+            ObjGizmoDrag(new Point((int)p1.X, (int)p1.Y));
+            float x2 = o.Now.Pos.X;
+            bool during = x1 > o.Original.Pos.X + 0.05f && x2 > x1 + 0.05f;   // andou antes de soltar
+            ObjGizmoUp();
+            bool oneStep = _draft.UndoCount == baseUndo + 1 && _wUndo.Count == wBase + 1;
+            bool back = UndoAny() && MathF.Abs(o.Now.Pos.X - c0.X - (o.Now.Pos.X - CenterOf(o).X)) < 0.01f && MathF.Abs(CenterOf(o).X - c0.X) < 0.01f;
+            _stickGround.Checked = stick;
+            live = $"anda-ao-arrastar={during} ({o.Original.Pos.X:0.0}->{x1:0.0}->{x2:0.0}) um-passo={oneStep} Ctrl+Z-volta={back}";
+        }
+        return load + $" | dftmove: {System.IO.Path.GetFileName(near.File)} recusa={why ?? "nenhuma"} subiu15={up} ctrlz={undo} ctrly={redo} sujo={_draft.Dirty}; {live}";
     }
 
     /// <summary>Marca de ordem de um passo do rascunho: profundidade das outras pilhas de desfazer naquele momento.</summary>
@@ -190,7 +210,10 @@ internal sealed partial class WorldView
                 _status.Text = string.Format(Loc.T("obj.scaled", "Tamanho {0:0.##}× (ainda não gravado)"), _objScale.Value);
             ShowObjPanel(); _gl.Invalidate();
         };
-        var opts = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 28, BackColor = _objPanel.BackColor };
+        // uma opção por linha (usuário 09/11: com o texto maior o "Ver colisão" quebrava para uma 2ª linha que a faixa de 28 px
+        // não mostrava e o botão "sumia")
+        var opts = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 56, BackColor = _objPanel.BackColor, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        _stickGround.Margin = _showCollision.Margin = new Padding(3, 3, 3, 3);
         opts.Controls.Add(_stickGround); opts.Controls.Add(_showCollision);
         _objPanel.Controls.Add(opts); _objPanel.Controls.Add(row);
     }
@@ -1042,7 +1065,7 @@ internal sealed partial class WorldView
         }
         float step = (ModifierKeys & Keys.Control) != 0 ? 0.01f : (ModifierKeys & Keys.Shift) != 0 ? 0.25f : 0.05f;
         float sNew = Math.Clamp(MathF.Round(_scale0 * f / step) * step, 0.1f, 10f);
-        if (_draft.UndoCount > _turnUndoBase) _draft.Undo();   // fica um passo só
+        DragStepBack();   // fica um passo só
         if (MathF.Abs(sNew - _scale0) > 1e-4f) DraftApply(new MoveOp(o.Key, o.Now with { Scale = sNew }));
         _turnMoved = true;
         ShowObjPanel();
@@ -1136,10 +1159,24 @@ internal sealed partial class WorldView
         float step = (ModifierKeys & Keys.Control) != 0 ? 1 : (ModifierKeys & Keys.Shift) != 0 ? 15 : 5;
         yaw = MathF.Round(yaw / step) * step;
         yaw = ((yaw + 180) % 360 + 360) % 360 - 180;
-        if (_draft.UndoCount > _turnUndoBase) _draft.Undo();   // tira o passo do arrasto anterior: fica um só
+        DragStepBack();   // tira o passo do arrasto anterior: fica um só
         TurnSelected(yaw);
         _turnMoved = true;
         _status.Text = string.Format(Loc.T("obj.turning", "Girando: {0:0}° (de 5 em 5°; Shift = 15°, Ctrl = livre)"), yaw);
+    }
+
+    /// <summary>Começo do arrasto de uma seta de mover: guarda onde o Ctrl+Z estava para o arrasto virar um passo só.</summary>
+    void StartMoveDrag() { _turnUndoBase = _draft?.UndoCount ?? 0; _turnMoved = false; }
+
+    /// <summary>
+    /// Arrasto ao vivo (mover, girar, tamanho): tira o passo do movimento anterior do mesmo arrasto, no rascunho e na ordem
+    /// da Edição de Mundo, para o arrasto inteiro virar um passo só de Ctrl+Z.
+    /// </summary>
+    void DragStepBack()
+    {
+        if (_draft is null || _draft.UndoCount <= _turnUndoBase) return;
+        _draft.Undo();
+        if (_wUndo.Count > 0 && _wUndo[^1] == 'O') _wUndo.RemoveAt(_wUndo.Count - 1);
     }
 
     void ObjGizmoDrag(Point p)
@@ -1154,6 +1191,10 @@ internal sealed partial class WorldView
         float t = MathF.Round(((p.X - _objDown.X) * sx + (p.Y - _objDown.Y) * sy) / len2 * L * 10) / 10;
         var g = c + dir * t;
         _objPos = new System.Numerics.Vector3(g.X, g.Y, g.Z);
+        // o objeto acompanha o mouse (usuário 09/11: só aparecia no lugar novo ao soltar); o arrasto é um passo só
+        DragStepBack();
+        if (t != 0) MoveSelectedCenter(g.X, g.Y, g.Z, stick: _objAxis != 2 && _stickGround.Checked);
+        _turnMoved = true;
         _status.Text = string.Format(Loc.T("gizmo.moving", "Movendo: X {0:0.0}   altura {1:0.0}   Z {2:0.0}"), g.X, g.Y, g.Z);
         _gl.Invalidate();
     }
@@ -1164,7 +1205,9 @@ internal sealed partial class WorldView
         if (_objAxis == 0) return false;
         if (_objAxis >= 5 && _turnMoved && SelDraft is { } so) _status.Text = string.Format(Loc.T("obj.sized", "Tamanho {0:0.00}× (ainda não gravado; Ctrl+Z desfaz)"), so.Now.Scale);
         if (_objAxis == 4 && _turnMoved && SelDraft is { } to) _status.Text = string.Format(Loc.T("obj.turnedRing", "Girado para {0:0}° (ainda não gravado; Ctrl+Z desfaz)"), YawOf(to.Now));
-        if (_objPos is { } op) MoveSelectedCenter(op.X, op.Y, op.Z, stick: _objAxis != 2 && _stickGround.Checked);
+        // mover já foi aplicado ao vivo durante o arrasto (ObjGizmoDrag); aqui só a mensagem final
+        if (_objAxis is >= 1 and <= 3 && _objPos is not null && SelDraft is { } mo)
+            _status.Text = string.Format(Loc.T("obj.moved", "Objeto movido para X {0:0.0} Z {1:0.0} altura {2:0.0} (ainda não gravado)"), mo.Now.Pos.X, mo.Now.Pos.Z, mo.Now.Pos.Y);
         _objAxis = 0; _objPos = null; _gl.Invalidate();
         return true;
     }
@@ -1350,16 +1393,7 @@ internal sealed partial class WorldView
     /// </summary>
     void ChooseTreeToPlant()
     {
-        var types = _trees.Scene?.TreeTypes;
-        if (types is null) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
-        try { if (_element is not null) _treeKinds ??= TreeTypeIndex.Build(_element); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("objetos: tipos de árvore dos mapas", ex); }
-        // linhas: deste mapa primeiro; depois os outros (um por par .spt + folhas), no 1º mapa que usa
-        var rowsK = new List<(string Spt, string Comp, string Block)>();
-        foreach (var t in types.ToList()) rowsK.Add((t.Spt, t.CompositeMap, MapLabel(_t.Name)));
-        foreach (var k in (_treeKinds ?? []).OrderBy(k => MapRank(k.Maps.OrderBy(MapRank).First())).ThenBy(k => k.Maps.OrderBy(MapRank).First(), StringComparer.OrdinalIgnoreCase))
-            if (!rowsK.Any(r => r.Spt.Equals(k.Spt, StringComparison.OrdinalIgnoreCase) && r.Comp.Equals(k.Comp, StringComparison.OrdinalIgnoreCase)))
-                rowsK.Add((k.Spt, k.Comp, MapLabel(k.Maps.OrderBy(MapRank).First())));
+        if (TreeRows() is not { } rowsK) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
         if (rowsK.Count == 0) { _status.Text = Loc.T("obj.noTreeTypes", "Este mapa não tem tipos de árvore para plantar."); return; }
         var rows = rowsK.Select((r, i) => (Id: i, Name: GlossaryRow(r.Spt), Block: r.Block)).ToList();   // nome no idioma do MyAce + original
         int TypeOfRow(int row) => row >= 0 && row < rowsK.Count ? _trees.TypeFor(rowsK[row].Spt, rowsK[row].Comp) : -1;
@@ -1382,6 +1416,24 @@ internal sealed partial class WorldView
         _placeRecent = ("tree", SigOf(w.Picked));
         _status.Text = string.Format(Loc.T("obj.plantingOne", "Plantando {0}: clique no chão onde a árvore vai ficar. Esc ou botão direito cancela."), rows[w.Picked].Name);
         _gl.Focus();
+    }
+
+    /// <summary>
+    /// Linhas da JAV de árvores: os tipos deste mapa primeiro; depois os de todos os outros mapas (um por par .spt + folhas),
+    /// no 1º mapa que usa. Cada par aparece uma vez só. null = mapa sem lista de tipos.
+    /// </summary>
+    List<(string Spt, string Comp, string Block)>? TreeRows()
+    {
+        var types = _trees.Scene?.TreeTypes;
+        if (types is null) return null;
+        try { if (_element is not null) _treeKinds ??= TreeTypeIndex.Build(_element); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Error("objetos: tipos de árvore dos mapas", ex); }
+        var rowsK = new List<(string Spt, string Comp, string Block)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in types.ToList()) if (seen.Add(t.Spt + "|" + t.CompositeMap)) rowsK.Add((t.Spt, t.CompositeMap, MapLabel(_t.Name)));
+        foreach (var k in (_treeKinds ?? []).OrderBy(k => MapRank(k.Maps.OrderBy(MapRank).First())).ThenBy(k => k.Maps.OrderBy(MapRank).First(), StringComparer.OrdinalIgnoreCase))
+            if (seen.Add(k.Spt + "|" + k.Comp)) rowsK.Add((k.Spt, k.Comp, MapLabel(k.Maps.OrderBy(MapRank).First())));
+        return rowsK;
     }
 
     /// <summary>Prévia da árvore do tipo para a janela de escolher (enquadrada pela caixa da árvore).</summary>
@@ -1545,14 +1597,6 @@ internal sealed partial class WorldView
         try { _mapNames ??= _element is null ? new() : MapTags.LocalMapNames(_element); }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { AppLog.Error("objetos: nomes dos mapas", ex); _mapNames = new(); }
         return _mapNames.TryGetValue(map, out var n) && n.Length > 0 ? n : map;
-    }
-
-    /// <summary>Dar nome à construção escolhida (botão "Dar nome" do cartão): a mesma janela do Renomear da JAV.</summary>
-    void RenameSelected()
-    {
-        if (SelDraft is not { Kind: ObjKind.Building } o || _buildings.SigOf(o.CopyOf ?? o.Key) is not { } sig) return;
-        NameDialog(sig, Path.GetFileNameWithoutExtension(o.Source));
-        ShowObjPanel(); _gl.Invalidate();
     }
 
     /// <summary>
