@@ -35,6 +35,7 @@ The name runs a scenario before the picture:
 | `dftworld` | World editing: stroke on Terrain, switch to Objects, move a building, undo order, abandon |
 | `dftlight` | Shadow and light brush: darker day and night, undo/redo, eraser, keys, only touched blocks in the save plan, eyedropper picks a shadow, painting kept after a day/night switch |
 | `dftdrop` | Eyedroppers of grass and texture |
+| `dftpathhover` | Paths: 300 mouse moves while drawing a patrol cost no ground ray; the next frame computes one, at the right place |
 | `dftundosave` | Ctrl+Z after a Save brings back the files written by that Save, Ctrl+Y writes them again, "No" changes nothing (temporary file only) |
 | `dftinfo` | Info card appears with a selection and disappears without; Show collision of the selected building |
 | `dftlayout` | Cut-text check of every control (run with `MYACE_LANG`) |

@@ -129,4 +129,26 @@ internal sealed partial class WorldView
         if (_tool != Tool.None) LeaveTool();
         return string.Join(" | ", r);
     }
+
+    /// <summary>
+    /// Teste ("dftpathhover"): desenhando uma patrulha, 300 movimentos do mouse não recalculam a ponta; o quadro seguinte
+    /// recalcula uma vez, e a ponta cai no ponto do chão embaixo do último movimento.
+    /// </summary>
+    internal string PathHoverTest()
+    {
+        OpenTool(Tool.Paths); ShotWait(0.3);
+        _drawPts = new();
+        void Raise(MouseEventArgs e) => typeof(Control).GetMethod("OnMouseMove", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(_gl, [e]);
+        int before = PathRays;
+        var last = new Point(_gl.Width / 2, _gl.Height * 2 / 3);
+        for (int i = 0; i < 300; i++) Raise(new MouseEventArgs(MouseButtons.None, 0, last.X - 150 + i, last.Y, 0));
+        last = new Point(last.X + 149, last.Y);
+        int during = PathRays - before;
+        if (_mouseDirty) { _mouseDirty = false; HoverUpdate(_mousePend); }   // um quadro
+        int frame = PathRays - before;
+        var want = Ray(last);
+        bool same = want is { } w && _drawHover is { } d && (w - d).Length < 0.05f;
+        _drawPts = null; LeaveTool();
+        return $"dftpathhover: raios durante 300 movimentos={during} (esperado 0); depois de um quadro={frame} (esperado 1); ponta no ponto certo={same}; ok={during == 0 && frame == 1 && same}";
+    }
 }

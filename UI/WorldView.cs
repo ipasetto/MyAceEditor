@@ -610,7 +610,7 @@ internal sealed partial class WorldView : Form
         // mouse: no máximo uma vez por quadro; andando com um pincel/conta-gotas/inserção ligado, o ponto embaixo do mouse
         // acompanha a câmera
         if (_mouseDirty) { _mouseDirty = false; HoverUpdate(_mousePend); }
-        else if (moving && (TexOn || BrushOn || DropperOn || Placing) && _gl.ClientRectangle.Contains(_gl.PointToClient(Cursor.Position))) HoverUpdate(_gl.PointToClient(Cursor.Position));
+        else if (moving && (TexOn || BrushOn || DropperOn || Placing || PathDrawing) && _gl.ClientRectangle.Contains(_gl.PointToClient(Cursor.Position))) HoverUpdate(_gl.PointToClient(Cursor.Position));
         if (moving)
         {
             float s = Speed * dt * (_keys.Contains(Keys.ShiftKey) ? 4 : 1);
@@ -635,6 +635,7 @@ internal sealed partial class WorldView : Form
         if (GizmoHit(p) is var gh && gh != _gizmoHover) { _gizmoHover = gh; _gl.Invalidate(); }
         if (ObjGizmoHit(p) is var oh && oh != _objHover) { _objHover = oh; _gl.Invalidate(); }
         _hover = Ray(p);
+        PathHover(p);                    // Caminhos: ponta do desenho e ponto aceso (usa o _hover; sem raio a mais)
         if (Placing) _gl.Invalidate();   // prévia de inserir segue o mouse
         BrushMouseMove();               // círculo do pincel segue o mouse; arrastando, pinta
         TerrainMouseMove();             // pincel de textura do chão

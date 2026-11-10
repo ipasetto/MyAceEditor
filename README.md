@@ -11,8 +11,8 @@ Walk the real game world in 3D, move buildings, plant trees, paint the ground, d
 monsters and write quests — then save, and the client *and* the server files are rewritten together, checked and
 backed up.
 
-**[⬇ Releases](https://github.com/ipasetto/MyAceEditor/releases)** (the first stable version, v1.0, is coming;
-the current builds are test builds) · [3D World](#-the-3d-world-editor) · [Game data](#-game-data) ·
+**[⬇ Download v1.0](https://github.com/ipasetto/MyAceEditor/releases/latest)** (one `.exe`, nothing to install) ·
+[Step by step](#from-an-empty-field-to-a-merchant-camp) · [3D World](#-the-3d-world-editor) · [Game data](#-game-data) ·
 [Interface](#-interface) · [Translation](#-translation) · [Server & GM](#-server--gm) · [Safety](#-safety) ·
 [Install](#install) · [Developer docs](docs/dev/README.md)
 
@@ -58,6 +58,25 @@ Things every tool does the same way:
 - **The same keys for the same jobs:** **B** brush, **E** eraser, **I** eyedropper, in every tool that has them.
 - **One backup per session:** everything you save while the 3D World is open goes into one item of *Restore backup*,
   which puts the map back exactly as it was when you opened it.
+
+### From an empty field to a merchant camp
+
+A real session, outside the west gate of the Dragon City, start to finish — every picture is the editor itself.
+
+| | |
+|---|---|
+| ![1](docs/img/en/story-01.jpg) | **1. Pick the spot.** Fly to the place and open the tools menu: World editing, paths, quests, NPCs, territories, zones, teleports. |
+| ![2](docs/img/en/story-02.jpg) | **2. Clear the ground.** In *World editing → Terrain*, the grass **Eraser (E)** takes the grass off where the camp will stand. |
+| ![3](docs/img/en/story-03.jpg) | **3. Bring a tent.** *Objects → Buildings* inserts any building of the client; turn it with the ring (**R**)… |
+| ![4](docs/img/en/story-04.jpg) | **4. …and size it** with **F** (the box shows the new size live). Copy it with **Ctrl+C / Ctrl+V** for a second tent. |
+| ![5](docs/img/en/story-05.jpg) | **5. Choose plants** from the grass and flowers of every map, with a preview and favourites. |
+| ![6](docs/img/en/story-06.jpg) | **6. Dress the camp:** logs, a cart, a fire, bushes — each one placed, moved with the arrows and stuck to the ground. |
+| ![7](docs/img/en/story-07.jpg) | **7. Create the merchant.** *NPCs and monsters → Seller (with shop)*: pick the base NPC, give it a name, click the ground. |
+| ![8](docs/img/en/story-08.jpg) | **8. Fill the shop** in the same window the game uses: click an empty slot to add an item… |
+| ![9](docs/img/en/story-09.jpg) | **9. …chosen from the game's own items**, with icons, tooltips and links. |
+| ![10](docs/img/en/story-10.jpg) | **10. Set the price** and add more items; **Ctrl+Z** works here too. |
+| ![11](docs/img/en/story-11.jpg) | **11. Confirm** — the merchant stands in the camp. |
+| ![12](docs/img/en/story-12.jpg) | **12. Save and send to the server.** The client and the server are written together; monsters walk around the new tents. |
 
 ### World editing — Objects
 

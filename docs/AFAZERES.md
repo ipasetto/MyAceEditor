@@ -37,6 +37,8 @@ Consolidado em 07/11: tudo abaixo de "Pronto" foi conferido pelo usuario no app 
        [x] testado no jogo 09/11: construcoes e arvores com raizes contornadas, arrastar ao vivo, Ctrl+Z do Salvar
        [x] pontes (09/11): o tabuleiro vale para os monstros de chao, o fundo fecha nas bordas (servidor so tem 1 piso por metro; aquaticos/voadores passam por baixo); Ver colisao desenha pecas com ate 512 lados
        [ ] testar no jogo: salvar de novo a ponte (litmodel_680) e ver a criatura atravessar por cima sem afundar
+       [x] Caminhos sem travadas ao desenhar a patrulha (raio do mouse uma vez por quadro) (09/11)
+       [x] RELEASE v1.0.0 publicada no GitHub a pedido do usuario (09/11): .zip com o .exe comprimido, lang, PerfectWorld\cfg, Server, plugins
        [x] servidor: hmap, rmap (terreno e construcoes), dhmap (piso sob chao mexido), map.bht das construcoes, watermap (08/11)
            [x] pontes novas como caminho de monstro (.rmap + .dhmap) e voo dos monstros (.octr) ao mexer construcoes (09/11; falta testar no jogo)
        [-] luzes da cena: removidas (o cliente 1.5.5 nao usa; usuario 09/11)

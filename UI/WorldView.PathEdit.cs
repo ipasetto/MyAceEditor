@@ -517,11 +517,26 @@ internal sealed partial class WorldView
             ResamplePath(sp); _gl.Invalidate();
             return true;
         }
-        if (_drawPts is not null && !_dragging) { _drawHover = AirPatrol ? null : Ray(p); _gl.Invalidate(); }
-        int h = _drawPts is null ? PathPointAt(p) : -1;
-        if (h != _hoverPt) { _hoverPt = h; _gl.Invalidate(); }
+        // o ponto no chão do desenho e o ponto do caminho embaixo do mouse vão para o PathHover, uma vez por quadro (usuário
+        // 09/11: travadas ao desenhar a patrulha — o raio até o chão rodava a cada um das centenas de movimentos do mouse)
         return false;
     }
+
+    /// <summary>Chamado pelo HoverUpdate (no máximo uma vez por quadro): ponta do desenho e ponto aceso do caminho.</summary>
+    void PathHover(Point p)
+    {
+        if (_tool != Tool.Paths) return;
+        PathRays++;
+        if (_drawPts is not null) { var nh = AirPatrol ? null : _hover; if (nh != _drawHover) { _drawHover = nh; _gl.Invalidate(); } }
+        int h = _drawPts is null ? PathPointAt(p) : -1;
+        if (h != _hoverPt) { _hoverPt = h; _gl.Invalidate(); }
+    }
+
+    /// <summary>Desenhando uma patrulha (andando com WASD, a ponta acompanha a câmera).</summary>
+    bool PathDrawing => _tool == Tool.Paths && _drawPts is not null && !AirPatrol;
+
+    /// <summary>Só teste: quantas vezes a ponta do desenho foi recalculada.</summary>
+    internal int PathRays;
 
     bool PathMouseUp(MouseEventArgs e)
     {
