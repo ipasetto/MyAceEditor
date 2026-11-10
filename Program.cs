@@ -396,6 +396,7 @@ internal static class Program
             File.WriteAllText(args[2], $"quests {total}, assistente completo {strict}, abrem agora {opened}, sem mudar nada igual {noChange}, só o ouro muda {onlyGold}, volta igual {back}\n{first}\n");
             return;
         }
+        if (args.Length >= 4 && args[0] == "--bridge-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.RunBridge(args[1], args[2], args[3]); Environment.Exit(0); }   // <element> <config> <saída>: pontes copiadas, metro a metro
         if (args.Length >= 4 && args[0] == "--copy-block-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.RunCopyBlocks(args[1], args[2], args[3]); Environment.Exit(0); }   // <element> <config> <saída>: construção copiada fecha o .rmap embaixo?
         if (args.Length >= 4 && args[0] == "--objects-test") { MyAceEditor.PerfectWorld.WorldEdit.ObjectsSelfTest.Run(args[1], args[2], args[3]); Environment.Exit(Environment.ExitCode); }   // <element> <config> <saída>: objetos do mundo sem janela
         if (args.Length >= 4 && args[0] == "--zone-test") { ZoneSelfTest.Run(args[1], args[2], args[3]); return; }   // <maps> <config> <saída>: editor de zonas sem janela

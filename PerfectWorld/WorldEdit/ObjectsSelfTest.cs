@@ -21,6 +21,99 @@ public static class ObjectsSelfTest
 
     static readonly string[] StudyMaps = ["world", "a05", "a26"];
 
+    /// <summary>
+    /// Diagnóstico das PONTES (usuário 09/11: a criatura subia e depois afundava): copia construções compridas do world
+    /// (pedaço 38) para chão aberto e lista, metro a metro pela linha do meio, chão, se anda (.rmap) e o delta do .dhmap.
+    /// </summary>
+    public static void RunBridge(string element, string? config, string output)
+    {
+        var lines = new List<string>();
+        try
+        {
+            var world = Sources(element, "world", config);
+            var t = TerrainFile.Open(Path.Combine(element, "maps", "world"))!;
+            var d0 = DraftOf(world, 38);
+            float pm = t.CellsPerPiece * t.Cell; int piece = 38, pr = (piece - 1) / t.Cols, pc = (piece - 1) % t.Cols;
+            float px0 = -t.Width / 2 + pc * pm, pzS = t.Height / 2 - (pr + 1) * pm;
+            var rp = Path.Combine(config!, "world", "movemap", "38.rmap"); var dp = Path.ChangeExtension(rp, ".dhmap");
+            var orig = File.ReadAllBytes(rp); var dorig = File.ReadAllBytes(dp);
+            var cands = d0.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Kind == ObjKind.Building && o.ReadOnlyWhy is null && o.LocalBox is { } lb
+                && MathF.Max(lb.Max.X - lb.Min.X, lb.Max.Z - lb.Min.Z) >= 18 && MathF.Min(lb.Max.X - lb.Min.X, lb.Max.Z - lb.Min.Z) <= 14 && lb.Max.Y - lb.Min.Y is >= 2 and <= 25)
+                .GroupBy(o => o.Source).Select(g => g.First()).Take(int.TryParse(Environment.GetEnvironmentVariable("MYACE_BRIDGES"), out int nb) ? nb : 6).ToList();
+            if (Environment.GetEnvironmentVariable("MYACE_BRIDGE") is { Length: > 0 } one)
+            {
+                // uma construção pedida: partes da malha (vértices, caixa de cada malha) e os brushes
+                var bytes = DraftSaver.ReadBmd(world, one);
+                var m = BmdModel.Read(bytes)!;
+                var wv = BmdModel.WorldVertices(m); int at0 = 0;
+                lines.Add($"{one}: {m.Meshes.Count} malhas, escala {m.Scale}, pos {m.Pos[0]:0.0},{m.Pos[1]:0.0},{m.Pos[2]:0.0} só-colisão={m.CollideOnly}, brushes {BmdModel.CdBrushes(bytes)?.Count}");
+                foreach (var mesh in m.Meshes)
+                {
+                    int nv = mesh.Vertices.Length / 24;
+                    var pts = wv.Skip(at0).Take(nv).ToList(); at0 += nv;
+                    if (pts.Count == 0) continue;
+                    lines.Add($"   {mesh.Texture} v={nv} tri={mesh.Indices.Length / 3} x {pts.Min(q => q[0]):0.0}..{pts.Max(q => q[0]):0.0} y {pts.Min(q => q[1]):0.0}..{pts.Max(q => q[1]):0.0} z {pts.Min(q => q[2]):0.0}..{pts.Max(q => q[2]):0.0}");
+                }
+                cands = d0.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Source.Equals(one, StringComparison.OrdinalIgnoreCase)).Take(1).ToList();
+                if (cands.Count == 0) { var dw = DraftOf(world, 37); cands = dw.Pieces.Values.SelectMany(p => p.Objects).Where(o => o.Source.Equals(one, StringComparison.OrdinalIgnoreCase)).Take(1).ToList(); }
+                if (cands.FirstOrDefault() is { LocalBox: { } lb1 } c1) lines.Add($"   caixa local {lb1.Min} .. {lb1.Max}");
+            }
+            lines.Add($"candidatas: {cands.Count}");
+            foreach (var src in cands)
+            {
+                var at = new Vector3(1050, t.HeightAt(1050, 1086) ?? 0, 1086);
+                var cp = new DraftObject { Key = "new:br", Kind = ObjKind.Building, Piece = piece, Source = src.Key, CopyOf = src.Key, Solid = src.Solid, LocalBox = src.LocalBox, Original = src.Original with { Pos = at } };
+                var dd = DraftOf(world, 38);
+                if (dd.Apply(new AddOp(cp.Key, cp)) is { } why) { lines.Add(src.Key + ": " + why); continue; }
+                var plan = DraftSaver.Plan(dd, world);
+                var rm = plan.Files.GetValueOrDefault(rp) ?? orig; var dh = new MoveMapFile.DeltaImage(plan.Files.GetValueOrDefault(dp) ?? dorig);
+                var (w, _, _, _, _) = MoveMapFile.Header(rm);
+                var (mn, mx) = DraftChecks.WorldBox(cp);
+                bool alongX = mx.X - mn.X >= mx.Z - mn.Z;
+                var mesh = new MeshObstacles(); mesh.AddBuilding(DraftSaver.ReadBmd(world, src.Key), cp.Now);
+                if (Environment.GetEnvironmentVariable("MYACE_BRIDGE") is { Length: > 0 })
+                {
+                    // mapa de toda a caixa (2 m por letra): # fechado; . anda no chão; dígito = anda com delta (m, /2); ! = anda SEM
+                    // delta mas há piso da malha acima de 1,5 m (o monstro andaria por baixo do piso = afunda); o = fechado com piso
+                    int bad = 0, deck = 0, deckOk = 0;
+                    for (float z = mx.Z + 2; z >= mn.Z - 2; z -= 2)
+                    {
+                        var sb = new System.Text.StringBuilder();
+                        for (float x = mn.X - 2; x <= mx.X + 2; x += 2)
+                        {
+                            int u = (int)MathF.Floor(x - px0), v = (int)MathF.Floor(z - pzS);
+                            float g = t.HeightAt(x, z) ?? 0;
+                            float? fl = mesh.FloorBelow(x, z, g + 60, g + 1.5f);
+                            bool walk = MoveMapFile.Reach(rm, w, u, v); float de = dh.Get(u, v);
+                            if (fl is not null) { deck++; if (walk && MathF.Abs(de - (fl.Value - g)) < 1.2f) deckOk++; }
+                            char ch = !walk ? (fl is null ? '#' : 'o') : de > 0.3f ? (char)('0' + Math.Min(9, (int)(de / 2))) : fl is not null ? '!' : '.';
+                            if (ch == '!') bad++;
+                            sb.Append(ch);
+                        }
+                        lines.Add("   " + sb);
+                    }
+                    lines.Add($"   piso da malha em {deck} pontos; anda na altura certa em {deckOk}; anda por baixo (afunda) em {bad}");
+                    lines.Add("   resumo: " + string.Join(" / ", plan.Summary));
+                    continue;
+                }
+                var row = new List<string>();
+                float c = alongX ? (mn.Z + mx.Z) / 2 : (mn.X + mx.X) / 2;
+                for (float k = (alongX ? mn.X : mn.Z) - 3; k <= (alongX ? mx.X : mx.Z) + 3; k += 1)
+                {
+                    float x = alongX ? k : c, z = alongX ? c : k;
+                    int u = (int)MathF.Floor(x - px0), v = (int)MathF.Floor(z - pzS);
+                    float g = t.HeightAt(x, z) ?? 0;
+                    float? top = mesh.FloorBelow(x, z, g + 60, g - 0.05f);
+                    row.Add($"{(MoveMapFile.Reach(rm, w, u, v) ? "anda" : "X")}:{dh.Get(u, v):0.0}/{(top is float tt ? tt - g : 0):0.0}");
+                }
+                lines.Add($"{Path.GetFileName(src.Key)} caixa {mx.X - mn.X:0}x{mx.Y - mn.Y:0}x{mx.Z - mn.Z:0} sólida={src.Solid}: (anda/X : delta gravado / piso da malha mais alto acima do chão) " + string.Join(" ", row));
+                lines.Add("   resumo: " + string.Join(" / ", plan.Summary));
+            }
+        }
+        catch (Exception ex) { lines.Add("ERRO " + ex); }
+        File.WriteAllLines(output, lines);
+    }
+
     /// <summary>Só o teste da construção copiada (rápido, para investigar a passagem).</summary>
     public static void RunCopyBlocks(string element, string? config, string output)
     {
