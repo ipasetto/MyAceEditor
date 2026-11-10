@@ -12,6 +12,10 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
 {
     static readonly Color PageBg = Color.FromArgb(244, 246, 249);
     readonly List<PckKeys> _list = new();          // perfis do usuário (sem o de fábrica)
+    readonly Dictionary<string, string> _defaults; // padrão de cada cliente (ClientKey -> nome do perfil)
+    readonly string? _element, _clientKey;          // cliente aberto no MyAce (pasta element)
+    readonly CheckBox _isDefault = new() { AutoSize = true, ForeColor = UiKit.Fg, Margin = new Padding(0, 8, 0, 2) };
+    readonly Button _convertAll;
     string _saved;                                   // como está no arquivo (para saber se mudou)
     readonly List<(string Json, int Sel)> _undo = new(), _redo = new();
     string? _lastField; DateTime _lastEdit;
@@ -34,11 +38,15 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         ("pckkey.f2", "FSIG2 · marca do começo 2", "pckkey.f2Tip", "Segunda marca no começo do arquivo .pck (só nos pacotes v2)."),
     };
 
-    public PckKeysPage()
+    /// <param name="elementDir">pasta element do cliente aberto (padrão por cliente); null = sem cliente aberto</param>
+    public PckKeysPage(string? elementDir = null)
     {
         Dock = DockStyle.Fill; BackColor = PageBg; Padding = new Padding(16, 8, 16, 16);
         Disposed += (_, _) => _tip.Dispose();
         foreach (var k in PckKeyStore.User) _list.Add(k);
+        _defaults = new Dictionary<string, string>(PckKeyStore.ClientDefaults, StringComparer.OrdinalIgnoreCase);
+        _element = string.IsNullOrEmpty(elementDir) || !Directory.Exists(elementDir) ? null : elementDir;
+        _clientKey = _element is null ? null : PckKeyStore.ClientKey(_element);
         _saved = Json();
 
         Button Btn(string glyph, string text, Action a, bool main = false)
@@ -57,6 +65,7 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         _pasteKeys = Btn("", Loc.T("pckkey.pasteKeys", "Colar chaves"), PasteKeys);
         _test = Btn("", Loc.T("pckkey.test", "Testar num pacote…"), TestPack);
         _convert = Btn("", Loc.T("pckkey.convert", "Converter pacote para este perfil…"), ConvertPack);
+        _convertAll = Btn("\uE8B7", Loc.T("pckkey.convertAll", "Converter todos os pacotes deste cliente…"), ConvertAllPacks);
         _undoBtn = Btn("", Loc.T("world.undo", "Desfazer (Ctrl+Z)"), () => Undo(false));
         _redoBtn = Btn("", Loc.T("world.redo", "Refazer (Ctrl+Y)"), () => Undo(true));
         _save = Btn("", Loc.T("pckkey.save", "Salvar perfis"), () => SaveProfiles(), main: true);
@@ -64,6 +73,11 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         _tip.SetToolTip(_pasteKeys, Loc.T("pckkey.pasteKeysTip", "Cola as 6 chaves copiadas (de outra ferramenta ou de outro perfil) neste perfil."));
         _tip.SetToolTip(_test, Loc.T("pckkey.testTip", "Escolha um .pck: o MyAce diz qual perfil o abre."));
         _tip.SetToolTip(_convert, Loc.T("pckkey.convertTip", "Regrava um .pck com as chaves deste perfil (o original vira backup). O jogo só abre se o elementclient.exe usar as mesmas chaves."));
+        _tip.SetToolTip(_convertAll, Loc.T("pckkey.convertAllTip", "Passa todos os .pck da pasta element do cliente aberto para as chaves deste perfil (cada um com backup; pula os que já estão)."));
+        _isDefault.Text = "★ " + Loc.T("pckkey.useDefault", "Usar como padrão deste cliente");
+        _tip.SetToolTip(_isDefault, _element is null ? Loc.T("pckkey.noClient", "Abra a pasta do jogo no MyAce para escolher o padrão dela.")
+            : Loc.T("pckkey.useDefaultTip", "O MyAce lê e grava os pacotes deste cliente com estas chaves e avisa quando um pacote estiver com outras.") + Environment.NewLine + _element);
+        _isDefault.CheckedChanged += (_, _) => DefaultChanged();
 
         // ---- topo ----
         var title = new Label { Dock = DockStyle.Top, Height = 34, Text = Loc.T("pckkey.title", "Chaves dos pacotes (.pck)"), Font = new Font("Segoe UI Semibold", 10.5f), ForeColor = UiKit.Accent, TextAlign = ContentAlignment.BottomLeft };
@@ -91,9 +105,10 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         grid.Controls.Add(nameCap, 0, 0); grid.SetColumnSpan(nameCap, 2);
         _name.Dock = DockStyle.Fill; _name.Margin = new Padding(0, 0, 8, 2);
         grid.Controls.Add(_name, 0, 1); grid.SetColumnSpan(_name, 2);
+        grid.Controls.Add(_isDefault, 0, 2); grid.SetColumnSpan(_isDefault, 2);
         for (int i = 0; i < 6; i++)
         {
-            int col = i % 2, row = 2 + i / 2 * 2;
+            int col = i % 2, row = 3 + i / 2 * 2;
             var cap = Cap(Loc.T(KeyDefs[i].Key, KeyDefs[i].Pt));
             _tip.SetToolTip(cap, Loc.T(KeyDefs[i].TipKey, KeyDefs[i].Tip));
             var tb = _keys[i] = new TextBox { BorderStyle = BorderStyle.FixedSingle, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 10, 2), Font = new Font("Consolas", 10f) };
@@ -105,7 +120,7 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         var cardBtns = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true, Padding = new Padding(0, 12, 0, 0), BackColor = Color.White };
         foreach (var b in new[] { _copyKeys, _pasteKeys }) { b.Width = 150; cardBtns.Controls.Add(b); }
         cardBtns.SetFlowBreak(_pasteKeys, true);
-        foreach (var b in new[] { _test, _convert }) { b.Width = 306; cardBtns.Controls.Add(b); cardBtns.SetFlowBreak(b, true); }
+        foreach (var b in new[] { _test, _convert, _convertAll }) { b.Width = 306; cardBtns.Controls.Add(b); cardBtns.SetFlowBreak(b, true); }
         card.Controls.Add(cardBtns); card.Controls.Add(grid); card.Controls.Add(_banner);
         _banner.Dock = DockStyle.Top;
 
@@ -120,7 +135,7 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         Controls.Add(body); Controls.Add(_status); Controls.Add(bottom); Controls.Add(intro); Controls.Add(title);
 
         // botão nunca menor que o texto (traduções longas, ex.: russo): ícone + folgas + texto
-        foreach (var b in new[] { _copyKeys, _pasteKeys, _undoBtn, _redoBtn, _save, _test, _convert })
+        foreach (var b in new[] { _copyKeys, _pasteKeys, _undoBtn, _redoBtn, _save, _test, _convert, _convertAll })
             b.Width = Math.Max(b.Width, TextRenderer.MeasureText(b.Text.Trim(), b.Font).Width + (b.Image?.Width ?? 0) + b.Padding.Horizontal + 26);
 
         FillList(0);
@@ -136,7 +151,11 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         else if (e.KeyCode == Keys.S) { SaveProfiles(); e.SuppressKeyPress = true; }
     }
 
-    string Json() => System.Text.Json.JsonSerializer.Serialize(_list);
+    string Json() => System.Text.Json.JsonSerializer.Serialize(new PckKeyStore.StoreFile(_list, _defaults));
+
+    /// <summary>Nome do perfil como fica guardado no padrão do cliente (o de fábrica pelo nome dele).</summary>
+    string StoreName(int sel) => sel <= 0 ? PckKeys.Default.Name : _list[sel - 1].Name;
+    bool IsClientDefault(int sel) => _clientKey is not null && _defaults.TryGetValue(_clientKey, out var n) && n == StoreName(sel);
     public bool Dirty => Json() != _saved;
     PckKeys? Current => _profiles.SelectedIndex <= 0 ? null : _list[_profiles.SelectedIndex - 1];   // 0 = de fábrica
 
@@ -158,7 +177,7 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         bool sel = (e.State & DrawItemState.Selected) != 0;
         using (var bg = new SolidBrush(sel ? Color.FromArgb(232, 240, 254) : Color.White)) e.Graphics.FillRectangle(bg, e.Bounds);
         if (sel) using (var bar = new SolidBrush(UiKit.Accent)) e.Graphics.FillRectangle(bar, e.Bounds.X, e.Bounds.Y, 3, e.Bounds.Height);
-        string name = e.Index == 0 ? Loc.T("pckkey.defaultName", "Perfect World (padrão)") : k.Name;
+        string name = (IsClientDefault(e.Index) ? "★ " : "") + (e.Index == 0 ? Loc.T("pckkey.defaultName", "Perfect World (padrão)") : k.Name);
         using var f1 = new Font("Segoe UI Semibold", 9.5f); using var f2 = new Font("Segoe UI", 8.5f);
         TextRenderer.DrawText(e.Graphics, name, f1, new Rectangle(e.Bounds.X + 10, e.Bounds.Y + 4, e.Bounds.Width - 14, 18), UiKit.Fg, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         TextRenderer.DrawText(e.Graphics, "KEY1 " + k.Key1, f2, new Rectangle(e.Bounds.X + 10, e.Bounds.Y + 22, e.Bounds.Width - 14, 16), UiKit.Muted, TextFormatFlags.EndEllipsis);
@@ -174,9 +193,13 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         for (int i = 0; i < 6; i++) { _keys[i].Text = v[i].ToString(System.Globalization.CultureInfo.InvariantCulture); _keys[i].ReadOnly = fixedOne; _keys[i].BackColor = fixedOne ? Color.FromArgb(246, 247, 249) : Color.White; }
         _name.ReadOnly = fixedOne; _name.BackColor = _keys[0].BackColor;
         _binding = false;
-        _banner.Text = fixedOne ? "★  " + Loc.T("pckkey.defaultBanner", "Chaves de fábrica do Perfect World: valem para quase todos os clientes e não se editam.")
+        bool isDef = IsClientDefault(_profiles.SelectedIndex);
+        _binding = true; _isDefault.Checked = isDef; _isDefault.Enabled = _clientKey is not null; _binding = false;
+        _banner.Text = isDef ? "★  " + Loc.T("pckkey.clientBanner", "Padrão deste cliente: o MyAce lê e grava os pacotes dele com estas chaves.")
+            : fixedOne ? "ⓘ  " + Loc.T("pckkey.defaultBanner", "Chaves de fábrica do Perfect World: valem para quase todos os clientes e não se editam.")
             : "✎  " + Loc.T("pckkey.userBanner", "Perfil seu: as chaves precisam ser as mesmas do elementclient.exe do seu cliente.");
-        _banner.BackColor = fixedOne ? Color.FromArgb(253, 243, 214) : Color.FromArgb(232, 240, 254);
+        _banner.BackColor = isDef ? Color.FromArgb(253, 230, 170) : fixedOne ? Color.FromArgb(253, 243, 214) : Color.FromArgb(232, 240, 254);
+        _convertAll.Enabled = _element is not null;
         _banner.ForeColor = UiKit.Fg;
         _delete.Enabled = _pasteKeys.Enabled = !fixedOne;
         _convert.Enabled = true;
@@ -209,6 +232,8 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         if (next == cur) return;
         Remember(field);
         _list[i] = next;
+        // padrão de cliente guardado pelo nome: renomear leva junto
+        if (next.Name != cur.Name) foreach (var kv in _defaults.Where(kv => kv.Value == cur.Name).ToList()) _defaults[kv.Key] = next.Name;
         _profiles.Invalidate();
         _status.ForeColor = UiKit.Muted; _status.Text = Loc.T("pckkey.unsaved", "Alterado: clique em Salvar perfis para valer.");
         UpdateButtons();
@@ -256,6 +281,7 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
                 Loc.T("pckkey.title", "Chaves dos pacotes (.pck)"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         Remember("");
         int at = _profiles.SelectedIndex;
+        foreach (var kv in _defaults.Where(kv => kv.Value == k.Name).ToList()) _defaults.Remove(kv.Key);   // padrão apagado: volta à detecção
         _list.RemoveAt(at - 1);
         FillList(at - 1);
         _status.Text = Loc.T("pckkey.unsaved", "Alterado: clique em Salvar perfis para valer.");
@@ -290,7 +316,9 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         if (from.Count == 0) return;
         to.Add((Json(), _profiles.SelectedIndex));
         var (json, sel) = from[^1]; from.RemoveAt(from.Count - 1);
-        _list.Clear(); _list.AddRange(System.Text.Json.JsonSerializer.Deserialize<List<PckKeys>>(json) ?? []);
+        var snap = System.Text.Json.JsonSerializer.Deserialize<PckKeyStore.StoreFile>(json);
+        _list.Clear(); _list.AddRange(snap?.Profiles ?? []);
+        _defaults.Clear(); foreach (var kv in snap?.ClientDefaults ?? new()) _defaults[kv.Key] = kv.Value;
         _lastField = null;
         FillList(sel);
         _status.ForeColor = UiKit.Muted; _status.Text = redo ? Loc.T("pckkey.redone", "Refeito.") : Loc.T("pckkey.undone", "Desfeito (Ctrl+Y refaz).");
@@ -307,7 +335,7 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
             if (!quiet) MessageBox.Show(FindForm(), why, Loc.T("pckkey.title", "Chaves dos pacotes (.pck)"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
-        if (PckKeyStore.Save(_list) is { } err)
+        if (PckKeyStore.Save(_list, _defaults) is { } err)
         {
             _status.ForeColor = UiKit.Warn; _status.Text = err;
             if (!quiet) MessageBox.Show(FindForm(), err, Loc.T("pckkey.title", "Chaves dos pacotes (.pck)"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -390,6 +418,49 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         finally { Enabled = true; Cursor.Current = old; }
     }
 
+    void DefaultChanged()
+    {
+        if (_binding || _clientKey is null) return;
+        Remember("");
+        if (_isDefault.Checked) _defaults[_clientKey] = StoreName(_profiles.SelectedIndex);
+        else _defaults.Remove(_clientKey);
+        _profiles.Invalidate();
+        ShowProfile();
+        _status.ForeColor = UiKit.Muted; _status.Text = Loc.T("pckkey.unsaved", "Alterado: clique em Salvar perfis para valer.");
+        UpdateButtons();
+    }
+
+    void ConvertAllPacks()
+    {
+        if (_element is null) return;
+        if (Dirty && !AskSaveFirst()) return;
+        var to = _profiles.SelectedIndex <= 0 ? PckKeys.Default : _list[_profiles.SelectedIndex - 1];
+        string toName = _profiles.SelectedIndex <= 0 ? Loc.T("pckkey.defaultName", "Perfect World (padrão)") : to.Name;
+        int count = Directory.EnumerateFiles(_element, "*.pck").Count();
+        var ask = string.Format(Loc.T("pckkey.convertAllAsk", "Converter os {0} pacotes da pasta {1} para as chaves \"{2}\"?"), count, _element, toName) + Environment.NewLine + Environment.NewLine
+            + "⚠ " + Loc.T("pckkey.exeWarn", "O jogo só abre o pacote convertido se o elementclient.exe do cliente usar as mesmas chaves. Com o .exe original, o cliente não abre mais esse pacote. O MyAce não mexe no .exe.") + Environment.NewLine + Environment.NewLine
+            + Loc.T("pckkey.convertAllNote", "Os que já usam essas chaves ficam como estão. Cada pacote convertido tem backup; para voltar, converta todos de novo para o perfil anterior. Feche o jogo antes.");
+        if (MessageBox.Show(FindForm(), ask, Loc.T("pckkey.convertAll", "Converter todos os pacotes deste cliente…").TrimEnd('…'), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        var old = Cursor.Current; Cursor.Current = Cursors.WaitCursor; Enabled = false;
+        try
+        {
+            var res = PckKeyConvert.ConvertAll(_element, to, (name, f) => { if (name.Length > 0) { _status.ForeColor = UiKit.Accent; _status.Text = string.Format(Loc.T("pckkey.convertingOne", "Convertendo {0}… {1:0}%"), name, f * 100); _status.Refresh(); } });
+            int done = res.Count(x => x.State == "done"), same = res.Count(x => x.State == "same");
+            var fails = res.Where(x => x.State == "fail").ToList();
+            string sum = string.Format(Loc.T("pckkey.convertAllDone", "{0} convertido(s), {1} já estava(m) com essas chaves, {2} não deu."), done, same, fails.Count)
+                + (fails.Count > 0 ? Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, fails.Take(10).Select(x => "• " + x.File + ": " + x.Why)) : "");
+            _status.ForeColor = fails.Count == 0 ? UiKit.Ok : UiKit.Warn; _status.Text = sum.Split('\n')[0];
+            if (fails.Count == 0) SavedDialog.Show(FindForm()!, sum + Environment.NewLine + Loc.T("pckkey.convertAllExe", "Para o jogo abrir, o elementclient.exe precisa usar as mesmas chaves."));
+            else MessageBox.Show(FindForm(), sum, Loc.T("pckkey.title", "Chaves dos pacotes (.pck)"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Error("chaves do pck: converter todos", ex);
+            MessageBox.Show(FindForm(), Loc.T("pckkey.readFail", "Não consegui ler esse arquivo (aberto em outro programa ou não é um pacote)."), Loc.T("pckkey.title", "Chaves dos pacotes (.pck)"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally { Enabled = true; Cursor.Current = old; }
+    }
+
     /// <summary>Fechar a janela com perfis não salvos: Salvar / Descartar / Cancelar. false = não fecha.</summary>
     public bool ConfirmLeave()
     {
@@ -410,8 +481,17 @@ internal sealed class PckKeysPage : Panel, PreferencesWindow.ILeavePage
         _keys[1].Text = PckKeys.Default.Key2.ToString();
         Undo(false); bool undoKey = _list.Count == n0 + 1 && _list[^1].Key1 == PckKeys.Default.Key1;
         Undo(true); bool redoKey = _list[^1].Key1 == 0x12345678;
+        // padrão do cliente: marcar põe a estrela; renomear leva junto; Ctrl+Z tira
+        string defInfo = "sem cliente";
+        if (_clientKey is not null)
+        {
+            _isDefault.Checked = true; bool marked = IsClientDefault(_profiles.SelectedIndex);
+            _name.Text = "Renomeado"; bool followed = _defaults[_clientKey] == "Renomeado";
+            Undo(false); Undo(false); bool unmarked = !IsClientDefault(_profiles.SelectedIndex);
+            defInfo = $"marcou={marked} renomear levou={followed} Ctrl+Z tirou={unmarked}";
+        }
         Undo(false); Undo(false); bool undoNew = _list.Count == n0;
-        r.Add($"editar={edited} número inválido marcado={flagged} Ctrl+Z={undoKey} Ctrl+Y={redoKey} desfez o novo={undoNew}");
+        r.Add($"editar={edited} número inválido marcado={flagged} Ctrl+Z={undoKey} Ctrl+Y={redoKey} padrão: {defInfo}; desfez o novo={undoNew}");
         return string.Join("; ", r);
     }
 }

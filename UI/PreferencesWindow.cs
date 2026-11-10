@@ -31,7 +31,7 @@ internal sealed class PreferencesWindow : Form
         IReadOnlyList<(string Name, string Glyph, Control Content)>? pages = null, string? pagesAfter = null)
     {
         Text = Loc.T("prefs.title", "Preferências");
-        Width = 880; Height = 740; StartPosition = FormStartPosition.CenterParent; MinimizeBox = false; ShowInTaskbar = false;
+        Width = 880; Height = 820; StartPosition = FormStartPosition.CenterParent; MinimizeBox = false; ShowInTaskbar = false;
         Font = new Font("Segoe UI", 9.5f); BackColor = Color.FromArgb(244, 246, 249);
         var head = new Label { Dock = DockStyle.Top, Height = 58, Padding = new Padding(20, 0, 0, 0), TextAlign = ContentAlignment.MiddleLeft, BackColor = Color.White,
             Font = new Font("Segoe UI Semibold", 14f), ForeColor = UiKit.Fg, Image = UiKit.Icon(UiKit.Settings, UiKit.Accent, 26), ImageAlign = ContentAlignment.MiddleLeft };

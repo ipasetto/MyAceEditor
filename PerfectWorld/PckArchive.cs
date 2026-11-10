@@ -97,7 +97,7 @@ public sealed class PckArchive : IDisposable
             var probe = new PckKeyStore.Probe(head, ReadAt(Length - footer, footer), Version, Length);
             Keys = keys is not null
                 ? (BitConverter.ToInt32(head, 0) == keys.Fsig1 ? keys : throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.wrongKeys", "As chaves \"{1}\" não abrem este pacote: {0}"), pckPath, keys.Name)))
-                : PckKeyStore.Detect(probe) ?? throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.invalid2", "Não é um pacote Angelica válido ou usa chaves desconhecidas (cadastre em Preferências → PCK Key): {0}"), pckPath));
+                : PckKeyStore.Detect(probe, PckKeyStore.CandidatesFor(pckPath)) ?? throw new InvalidDataException(string.Format(FieldKinds.Translate("pck.invalid2", "Não é um pacote Angelica válido ou usa chaves desconhecidas (cadastre em Preferências → PCK Key): {0}"), pckPath));
             int entrySize = Version == 3 ? 288 : 276;
             long tableOffset = Version == 3
                 ? BitConverter.ToInt64(ReadAt(Length - 280, 8)) ^ Key1

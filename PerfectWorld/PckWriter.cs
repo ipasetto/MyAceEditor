@@ -31,6 +31,19 @@ public static class PckWriter
     public static string Write(string pckPath, IReadOnlyDictionary<string, byte[]> files, Action<double>? progress)
     {
         pckPath = PckArchive.Locate(pckPath) ?? pckPath;
+        // padrão do cliente (PCK Key, usuário 10/11): o elementclient.exe conhece uma chave só; pacote com outra chave
+        // neste cliente o jogo não abre. Pergunta antes; "usar as do cliente" = grava e converte em seguida (com backup).
+        PckKeys? convertTo = null;
+        if (PckKeyStore.ClientDefault(Path.GetDirectoryName(Path.GetFullPath(pckPath))) is { } cli && PckKeyStore.Detect(pckPath) is { } has && !has.SameKeys(cli)
+            && PckKeyStore.AskMismatch?.Invoke(pckPath, has, cli) == true)
+            convertTo = cli;
+        var bakMain = WriteCore(pckPath, files, progress);
+        if (convertTo is not null) PckKeyConvert.Convert(pckPath, convertTo);
+        return bakMain;
+    }
+
+    static string WriteCore(string pckPath, IReadOnlyDictionary<string, byte[]> files, Action<double>? progress)
+    {
         var parts = PckArchive.PartPaths(pckPath);
         var target = parts.Count > 0 ? parts[^1] : pckPath;                       // arquivo que muda de verdade
         long start = parts.Count > 0 ? new FileInfo(pckPath).Length + parts.Take(parts.Count - 1).Sum(x => new FileInfo(x).Length) : 0;   // onde ele começa no pacote lógico

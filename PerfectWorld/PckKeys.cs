@@ -64,39 +64,74 @@ public static class PckKeyStore
     internal static string? FileOverride;   // só teste
     static string FilePath => FileOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MyAceEditor", "pck-keys.json");
     static List<PckKeys>? _user;
+    static Dictionary<string, string>? _defaults;   // cliente (hash da pasta element) -> nome do perfil padrão dele
     static readonly object Gate = new();
 
+    /// <summary>O que fica no pck-keys.json: os perfis do usuário e o padrão de cada cliente.</summary>
+    public sealed record StoreFile(List<PckKeys> Profiles, Dictionary<string, string> ClientDefaults);
+
     /// <summary>Perfis do usuário (sem o de fábrica).</summary>
-    public static IReadOnlyList<PckKeys> User { get { lock (Gate) return _user ??= Load(); } }
+    public static IReadOnlyList<PckKeys> User { get { lock (Gate) { EnsureLoaded(); return _user!; } } }
 
     /// <summary>De fábrica primeiro, depois os do usuário.</summary>
-    public static IReadOnlyList<PckKeys> All { get { lock (Gate) return [PckKeys.Default, .. (_user ??= Load())]; } }
+    public static IReadOnlyList<PckKeys> All { get { lock (Gate) { EnsureLoaded(); return [PckKeys.Default, .. _user!]; } } }
 
-    static List<PckKeys> Load()
+    /// <summary>Padrão de cada cliente (chave = ClientKey da pasta element; valor = nome do perfil).</summary>
+    public static IReadOnlyDictionary<string, string> ClientDefaults { get { lock (Gate) { EnsureLoaded(); return new Dictionary<string, string>(_defaults!); } } }
+
+    static void EnsureLoaded()
     {
+        if (_user is not null && _defaults is not null) return;
+        (_user, _defaults) = ([], new(StringComparer.OrdinalIgnoreCase));
         try
         {
-            if (!File.Exists(FilePath)) return [];
-            return JsonSerializer.Deserialize<List<PckKeys>>(File.ReadAllText(FilePath)) ?? [];
+            if (!File.Exists(FilePath)) return;
+            var text = File.ReadAllText(FilePath);
+            if (text.TrimStart().StartsWith('['))   // formato da 1a versão: só a lista de perfis
+                _user = JsonSerializer.Deserialize<List<PckKeys>>(text) ?? [];
+            else if (JsonSerializer.Deserialize<StoreFile>(text) is { } f)
+            { _user = f.Profiles ?? []; _defaults = new(f.ClientDefaults ?? new(), StringComparer.OrdinalIgnoreCase); }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             AppLog.Error("chaves do pck: ler os perfis", ex);   // nunca as chaves em si no log
-            return [];
+        }
+    }
+
+    /// <summary>Nome curto e estável de um cliente (pasta element), para guardar o padrão dele sem gravar o caminho.</summary>
+    public static string ClientKey(string elementDir)
+    {
+        var full = Path.GetFullPath(elementDir).TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant();
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(full)))[..12];
+    }
+
+    /// <summary>Perfil padrão do cliente da pasta element; null = nenhum (vale a detecção de sempre).</summary>
+    public static PckKeys? ClientDefault(string? elementDir)
+    {
+        if (string.IsNullOrEmpty(elementDir)) return null;
+        lock (Gate)
+        {
+            EnsureLoaded();
+            if (!_defaults!.TryGetValue(ClientKey(elementDir), out var name)) return null;
+            return name == PckKeys.Default.Name ? PckKeys.Default : _user!.FirstOrDefault(k => k.Name == name);
         }
     }
 
     /// <summary>Grava os perfis do usuário (troca atômica). null = gravou; senão o motivo em palavras simples.</summary>
-    public static string? Save(IEnumerable<PckKeys> user)
+    public static string? Save(IEnumerable<PckKeys> user) { lock (Gate) EnsureLoaded(); return Save(user, ClientDefaults); }
+
+    /// <summary>Grava perfis e o padrão de cada cliente juntos. Padrão que aponta para perfil que não existe sai.</summary>
+    public static string? Save(IEnumerable<PckKeys> user, IReadOnlyDictionary<string, string> clientDefaults)
     {
         var list = user.ToList();
+        var defs = clientDefaults.Where(kv => kv.Value == PckKeys.Default.Name || list.Any(k => k.Name == kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             var tmp = FilePath + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(tmp, JsonSerializer.Serialize(new StoreFile(list, defs), new JsonSerializerOptions { WriteIndented = true }));
             File.Move(tmp, FilePath, overwrite: true);
-            lock (Gate) _user = list;
+            lock (Gate) { _user = list; _defaults = defs; }
             return null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -107,7 +142,20 @@ public static class PckKeyStore
     }
 
     /// <summary>Esquece o que foi lido (teste ou arquivo trocado por fora).</summary>
-    internal static void Reload() { lock (Gate) _user = null; }
+    internal static void Reload() { lock (Gate) { _user = null; _defaults = null; } }
+
+    /// <summary>
+    /// Gravar um pacote cuja chave é diferente do padrão do cliente: a tela pergunta (pacote, chave dele, padrão do cliente)
+    /// e devolve true = gravar com as chaves do cliente. Pode vir de outra thread. null (testes) = mantém as do pacote.
+    /// </summary>
+    public static Func<string, PckKeys, PckKeys, bool>? AskMismatch { get; set; }
+
+    /// <summary>Candidatos na ordem: o padrão do cliente do pacote (pasta do .pck) primeiro, depois todos.</summary>
+    internal static IReadOnlyList<PckKeys> CandidatesFor(string pckPath)
+    {
+        var all = All;
+        return ClientDefault(Path.GetDirectoryName(Path.GetFullPath(pckPath))) is { } d ? [d, .. all.Where(k => !k.SameKeys(d))] : all;
+    }
 
     // ---------- detecção ----------
 
@@ -139,7 +187,7 @@ public static class PckKeyStore
     }
 
     /// <summary>Lê começo e rodapé do pacote (com as partes .pkx) e escolhe o perfil.</summary>
-    public static PckKeys? Detect(string pckPath, IReadOnlyList<PckKeys>? candidates = null) => Detect(ReadProbe(pckPath), candidates);
+    public static PckKeys? Detect(string pckPath, IReadOnlyList<PckKeys>? candidates = null) => Detect(ReadProbe(pckPath), candidates ?? CandidatesFor(pckPath));
 
     internal static Probe ReadProbe(string pckPath)
     {
@@ -243,6 +291,38 @@ public static class PckKeyConvert
             return BackupStore.Adopt(bak, target);
         }
         catch { try { File.Delete(tmp); } catch { } throw; }
+    }
+
+    /// <summary>Resultado de um pacote no Converter todos: convertido, já estava, ou o motivo de não ter dado.</summary>
+    public sealed record AllResult(string File, string State, string? Why);
+
+    /// <summary>
+    /// Converte todos os .pck da pasta element para <paramref name="to"/> (usuário 10/11: "assinar" o cliente inteiro).
+    /// Pula os que já usam essas chaves; um que falha não para os outros (cada um tem o seu backup).
+    /// </summary>
+    public static List<AllResult> ConvertAll(string elementDir, PckKeys to, Action<string, double>? progress = null)
+    {
+        var r = new List<AllResult>();
+        var files = Directory.EnumerateFiles(elementDir, "*.pck").OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+        for (int i = 0; i < files.Count; i++)
+        {
+            var f = files[i]; string name = Path.GetFileName(f);
+            progress?.Invoke(name, (double)i / Math.Max(1, files.Count));
+            try
+            {
+                var probe = PckKeyStore.ReadProbe(f);
+                if (StrictMatch(probe) is { } from && from.SameKeys(to)) { r.Add(new(name, "same", null)); continue; }
+                Convert(f, to, p => progress?.Invoke(name, (i + p) / Math.Max(1, files.Count)));
+                r.Add(new(name, "done", null));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or NotSupportedException)
+            {
+                AppLog.Error("chaves do pck: converter todos, " + name, ex);
+                r.Add(new(name, "fail", ex.Message));
+            }
+        }
+        progress?.Invoke("", 1);
+        return r;
     }
 
     /// <summary>Perfil cadastrado que bate em todas as marcas (null = nenhum).</summary>

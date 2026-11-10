@@ -237,8 +237,9 @@ reads, broken XML is refused, and a window that loses a control the game looks f
 - **Plugins** — event programs that run on the server, made from templates.
 - **`.pck` extractor and writer** — native, no external tools. **PCK keys** (*Preferences → PCK Key*): profiles of
   package keys (KEY1/KEY2, ASIG1/2, FSIG1/2) for servers that changed them; MyAce finds out which profile opens each
-  package, and can convert a package to another profile (the game only opens it if `elementclient.exe` uses the same
-  keys).
+  package. Mark a profile as **this client's default** and every read and write of that client follows it (MyAce
+  asks before saving a package that uses other keys); convert one package or **all packages of the client** to a
+  profile (the game only opens them if `elementclient.exe` uses the same keys).
 
 ---
 

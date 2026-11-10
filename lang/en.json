@@ -6137,5 +6137,17 @@
   "pckkey.leaveAsk": "The key profiles have unsaved changes. Save before closing?",
   "pckkey.recheck": "Re-reading with the new keys does not match; nothing changed.",
   "pckkey.tableBad": "A table entry does not match the keys; nothing changed.",
-  "pckkey.tableOut": "The package table is not where the keys say; nothing changed."
+  "pckkey.tableOut": "The package table is not where the keys say; nothing changed.",
+  "pckkey.convertAll": "Convert all packages of this client…",
+  "pckkey.convertAllTip": "Converts every .pck in the element folder of the open client to this profile's keys (each with a backup; skips the ones already done).",
+  "pckkey.useDefault": "Use as this client's default",
+  "pckkey.noClient": "Open the game folder in MyAce to choose its default.",
+  "pckkey.useDefaultTip": "MyAce reads and writes this client's packages with these keys and warns when a package uses other ones.",
+  "pckkey.clientBanner": "This client's default: MyAce reads and writes its packages with these keys.",
+  "pckkey.convertAllAsk": "Convert the {0} packages of the folder {1} to the keys \"{2}\"?",
+  "pckkey.convertAllNote": "The ones already using these keys stay as they are. Each converted package has a backup; to go back, convert all again to the previous profile. Close the game first.",
+  "pckkey.convertingOne": "Converting {0}… {1:0}%",
+  "pckkey.convertAllDone": "{0} converted, {1} already had these keys, {2} failed.",
+  "pckkey.convertAllExe": "For the game to open them, elementclient.exe must use the same keys.",
+  "pckkey.mismatchAsk": "{0} uses the keys \"{1}\", but this client uses \"{2}\". This client's game only opens packages with its own keys.\n\nYes = save with the client's keys (recommended; the original becomes a backup)\nNo = keep the package's keys"
 }

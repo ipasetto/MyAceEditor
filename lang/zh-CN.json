@@ -6139,5 +6139,17 @@
   "pckkey.leaveAsk": "密钥配置有未保存的更改。关闭前保存吗？",
   "pckkey.recheck": "使用新密钥重新读取不一致；未做任何更改。",
   "pckkey.tableBad": "表中某个条目与密钥不符；未做任何更改。",
-  "pckkey.tableOut": "包的表不在密钥所指的位置；未做任何更改。"
+  "pckkey.tableOut": "包的表不在密钥所指的位置；未做任何更改。",
+  "pckkey.convertAll": "转换此客户端的所有包…",
+  "pckkey.convertAllTip": "将已打开客户端 element 文件夹中的所有 .pck 转换为此配置的密钥（每个都有备份；已转换的跳过）。",
+  "pckkey.useDefault": "设为此客户端的默认",
+  "pckkey.noClient": "在 MyAce 中打开游戏文件夹以选择其默认密钥。",
+  "pckkey.useDefaultTip": "MyAce 用这些密钥读写此客户端的包，并在某个包使用其他密钥时提醒。",
+  "pckkey.clientBanner": "此客户端的默认：MyAce 用这些密钥读写它的包。",
+  "pckkey.convertAllAsk": "将文件夹 {1} 中的 {0} 个包转换为密钥“{2}”？",
+  "pckkey.convertAllNote": "已使用这些密钥的包保持不变。每个转换的包都有备份；要恢复，请再次全部转换回之前的配置。请先关闭游戏。",
+  "pckkey.convertingOne": "正在转换 {0}… {1:0}%",
+  "pckkey.convertAllDone": "已转换 {0} 个，{1} 个已是这些密钥，{2} 个失败。",
+  "pckkey.convertAllExe": "要让游戏打开它们，elementclient.exe 必须使用相同密钥。",
+  "pckkey.mismatchAsk": "{0} 使用密钥“{1}”，但此客户端使用“{2}”。此客户端的游戏只能打开使用其自身密钥的包。\n\n是 = 用客户端的密钥保存（推荐；原文件成为备份）\n否 = 保留包的密钥"
 }

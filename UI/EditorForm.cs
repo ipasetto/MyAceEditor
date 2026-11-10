@@ -126,6 +126,18 @@ public sealed class EditorForm : Form
     public EditorForm(string? startFile = null)
     {
         _startFile = startFile;
+        // PCK Key: gravar um pacote com chave diferente do padrão do cliente pergunta (pode vir de outra thread)
+        PckKeyStore.AskMismatch = (pck, has, cli) =>
+        {
+            bool Ask()
+            {
+                string N(PckKeys k) => k.IsDefault ? Loc.T("pckkey.defaultName", "Perfect World (padrão)") : k.Name;
+                var msg = string.Format(Loc.T("pckkey.mismatchAsk", "{0} está com as chaves \"{1}\", mas este cliente usa \"{2}\". O jogo deste cliente só abre pacotes com as chaves dele.\n\nSim = gravar com as chaves do cliente (recomendado; o original vira backup)\nNão = manter as chaves do pacote"), Path.GetFileName(pck), N(has), N(cli));
+                return MessageBox.Show(this, msg, Loc.T("pckkey.title", "Chaves dos pacotes (.pck)"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            }
+            try { return IsDisposed ? false : InvokeRequired ? (bool)Invoke(Ask) : Ask(); }
+            catch (InvalidOperationException) { return false; }   // janela fechando: mantém as do pacote
+        };
         Bind(() => _search.PlaceholderText = Loc.T("search.placeholder", "  Pesquisar item por nome ou ID…"));
         Bind(() => { if (_store.Current is null) _status.Text = Loc.T("status.start", "Abra a pasta do Perfect World para começar."); });
         Text = "MyAceEditor";
@@ -305,7 +317,7 @@ public sealed class EditorForm : Form
         list = list.OrderBy(p => p.Section == editor ? 0 : 1).ToList();
         // PCK Key (chaves dos pacotes) entre MyAce e Servidor (usuário 10/11)
         using var w = new PreferencesWindow(list, new Dictionary<string, string> { [editor] = UiKit.Settings, [server] = UiKit.Server },
-            [(Loc.T("prefs.secPck", "PCK Key"), "", new PckKeysPage())], editor);
+            [(Loc.T("prefs.secPck", "PCK Key"), "", new PckKeysPage(_dataPath is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(_dataPath))))], editor);
         w.ShowDialog(this);
     }
 

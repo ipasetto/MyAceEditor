@@ -81,6 +81,38 @@ public static class PckKeysSelfTest
                 Check("gravar-com-chaves", err is null && ok && keysName == test.Name, $"{err ?? "gravado"}; relido com \"{keysName}\"; arquivo novo e os antigos={ok}");
             }
 
+            // PADRÃO DO CLIENTE: cliente de teste com um pacote nas chaves dele e outro ainda nas de fábrica
+            {
+                var cli = Path.Combine(temp, "cliente"); Directory.CreateDirectory(cli);
+                string a = Path.Combine(cli, "a.pck"), b = Path.Combine(cli, "b.pck");
+                File.WriteAllBytes(a, origBytes); File.WriteAllBytes(b, origBytes);
+                PckKeyConvert.Convert(a, test);
+                var saveErr = PckKeyStore.Save([test], new Dictionary<string, string> { [PckKeyStore.ClientKey(cli)] = test.Name });
+                bool def = PckKeyStore.ClientDefault(cli)?.Name == test.Name;
+                bool readA; using (var x = new PckArchive(a)) readA = x.Keys.Name == test.Name;
+                // gravar no pacote "errado" (de fábrica): pergunta; "usar as do cliente" grava e converte
+                int asked = 0; PckKeyStore.AskMismatch = (_, has, want) => { asked++; return has.IsDefault && want.Name == test.Name; };
+                var content = System.Text.Encoding.UTF8.GetBytes("padrao do cliente " + DateTime.Now.Ticks);
+                string? werr = null;
+                try { PckWriter.Write(b, new Dictionary<string, byte[]> { [@"configs\myace_cliente.txt"] = content }); } catch (Exception ex) { werr = ex.Message; }
+                bool bNow; using (var x = new PckArchive(b)) bNow = x.Keys.Name == test.Name && x.Find(@"configs\myace_cliente.txt") is { } e && x.Read(e).AsSpan().SequenceEqual(content);
+                // gravar de novo no que já está certo: não pergunta
+                int before2 = asked; PckWriter.Write(b, new Dictionary<string, byte[]> { [@"configs\myace_cliente.txt"] = content });
+                bool noAsk = asked == before2;
+                PckKeyStore.AskMismatch = null;
+                Check("padrao-do-cliente", saveErr is null && def && readA && werr is null && asked == 1 && bNow && noAsk,
+                    $"padrão marcado={def}; a.pck lê com o padrão={readA}; gravar no de fábrica perguntou {asked}x e ficou com as chaves do cliente e o arquivo novo={bNow} {werr}; já certo não pergunta={noAsk}");
+                // converter todos: os dois voltam ao de fábrica; de novo: os dois já estão
+                var r1 = PckKeyConvert.ConvertAll(cli, PckKeys.Default);
+                var r2 = PckKeyConvert.ConvertAll(cli, PckKeys.Default);
+                bool same; using (var x = new PckArchive(a, keys: PckKeys.Default)) same = Contents(x).All(kv => orig.TryGetValue(kv.Key, out var h) && h == kv.Value);
+                Check("converter-todos", r1.Count(x => x.State == "done") == 2 && r2.All(x => x.State == "same") && same,
+                    $"1a vez: {string.Join(", ", r1.Select(x => x.File + "=" + x.State))}; 2a vez: {string.Join(", ", r2.Select(x => x.File + "=" + x.State))}; conteúdo igual={same}");
+                // formato antigo do arquivo (só a lista) ainda é lido
+                File.WriteAllText(PckKeyStore.FileOverride!, System.Text.Json.JsonSerializer.Serialize(new List<PckKeys> { test })); PckKeyStore.Reload();
+                Check("arquivo-antigo", PckKeyStore.User.Count == 1 && PckKeyStore.ClientDefaults.Count == 0, $"{PckKeyStore.User.Count} perfil, {PckKeyStore.ClientDefaults.Count} padrões");
+            }
+
             // pacote que não bate em nenhum perfil: recusa com a explicação
             {
                 var pck = Path.Combine(temp, "estranho.pck"); var b = (byte[])origBytes.Clone();
